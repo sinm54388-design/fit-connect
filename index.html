@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIT-CONNECT | 구글 시트 실시간 연동 PT 시스템</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d' }
+          },
+          fontFamily: { sans: ['Inter', 'Noto Sans KR', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1f2937; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    .custom-checkbox:checked { background-color: #22c55e; border-color: #22c55e; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 sm:px-8">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <i class="fa-solid fa-dumbbell text-slate-950 text-xl"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg tracking-tight text-white">FIT-CONNECT</h1>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-500 font-semibold border border-brand-500/20">구글 실시간 연동</span>
+          </div>
+          <p class="text-xs text-slate-400">25인+ 완벽 동기화 PT 밀착 케어 시스템</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+        <div class="flex items-center bg-slate-800/80 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
+          <i class="fa-regular fa-calendar text-brand-500 mr-2"></i>
+          <input type="date" id="currentDateInput" class="bg-transparent text-slate-200 outline-none cursor-pointer">
+        </div>
+        <div class="bg-slate-800 p-1 rounded-xl border border-slate-700/80 flex items-center shadow-inner">
+          <button id="btnMemberMode" onclick="switchMode('member')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 bg-brand-500 text-slate-950 font-bold">
+            <i class="fa-solid fa-user"></i> 회원 모드
+          </button>
+          <button id="btnTrainerMode" onclick="trySwitchToTrainer()" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+            <i class="fa-solid fa-user-ninja"></i> 트레이너 모드 🔒
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+    
+    <!-- MEMBER VIEW -->
+    <div id="memberView" class="space-y-6">
+      
+      <!-- Welcome & Summary Bar -->
+      <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span id="memberNameBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-brand-500/20 text-brand-500 font-semibold border border-brand-500/30">회원님</span>
+              <span id="todayDateDisplay" class="text-xs text-slate-400"></span>
+            </div>
+            <h2 id="customHeaderMessage" class="text-xl sm:text-2xl font-bold text-white">오늘의 운동과 식단을 완수해볼까요? 💪</h2>
+            <p class="text-xs sm:text-sm text-slate-400 mt-1">트레이너 코치님이 준비한 루틴을 확인하고 느낀점을 자유롭게 기록하세요.</p>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-3 sm:gap-4 min-w-[240px]">
+            <div class="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl">
+              <div class="text-[11px] text-slate-400 mb-1 flex items-center justify-between">
+                <span>운동 달성률</span>
+                <i class="fa-solid fa-dumbbell text-brand-500"></i>
+              </div>
+              <div class="flex items-baseline gap-1">
+                <span id="memberWorkoutProgressText" class="text-lg font-bold text-white">0%</span>
+                <span id="memberWorkoutProgressSub" class="text-xs text-slate-400">(0/0 완료)</span>
+              </div>
+              <div class="w-full bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
+                <div id="memberWorkoutProgressBar" class="bg-brand-500 h-full w-0 transition-all duration-500"></div>
+              </div>
+            </div>
+            
+            <div class="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl">
+              <div class="text-[11px] text-slate-400 mb-1 flex items-center justify-between">
+                <span>오늘의 칼로리</span>
+                <i class="fa-solid fa-utensils text-amber-500"></i>
+              </div>
+              <div class="flex items-baseline gap-1">
+                <span id="memberCalorieText" class="text-lg font-bold text-white">0</span>
+                <span class="text-xs text-slate-400">/ <span id="memberTargetCalorieText">2,100</span> kcal</span>
+              </div>
+              <div class="w-full bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
+                <div id="memberCalorieBar" class="bg-amber-500 h-full w-0 transition-all duration-500"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trainer Feedback Display -->
+      <div id="trainerFeedbackCard" class="bg-slate-900 border-2 border-brand-500/30 rounded-2xl p-5 shadow-xl hidden">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center shrink-0 text-xl border border-brand-500/40">
+            <i class="fa-solid fa-user-ninja"></i>
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
+              <h3 class="font-bold text-brand-500 text-base">트레이너의 피드백</h3>
+              <span id="feedbackTimeDisplay" class="text-xs text-slate-500"></span>
+            </div>
+            <div class="mt-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 mb-2">
+              <div class="text-xs font-semibold text-emerald-400 mb-1"><i class="fa-solid fa-dumbbell"></i> 운동 코멘트</div>
+              <p id="feedbackWorkoutText" class="text-sm text-slate-200">아직 피드백이 등록되지 않았습니다.</p>
+            </div>
+            <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80">
+              <div class="text-xs font-semibold text-amber-400 mb-1"><i class="fa-solid fa-apple-whole"></i> 식단 피드백</div>
+              <p id="feedbackDietText" class="text-sm text-slate-200">아직 피드백이 등록되지 않았습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Routine & Reflection -->
+        <div class="lg:col-span-7 space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-500 flex items-center justify-center">
+                  <i class="fa-solid fa-list-check"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-base">오늘의 운동 루틴</h3>
+                  <p class="text-xs text-slate-400">트레이너가 할당한 오늘의 맞춤 운동 목록입니다.</p>
+                </div>
+              </div>
+              <span id="routineCountBadge" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full border border-slate-700">0개 운동</span>
+            </div>
+            <div id="memberRoutineList" class="space-y-3"></div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center gap-2.5 pb-4 border-b border-slate-800 mb-4">
+              <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-white text-base">운동 소감 & 피드백 요청</h3>
+                <p class="text-xs text-slate-400">오늘 운동 중 느낀 점과 피드백 받고 싶은 내용을 적어주세요.</p>
+              </div>
+            </div>
+
+            <form id="workoutReflectionForm" onsubmit="saveWorkoutReflection(event)" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-emerald-400 mb-1.5">오늘 잘 진행되었거나 자극이 잘 온 운동/자세</label>
+                <textarea id="refGoodText" rows="3" placeholder="예: 벤치프레스할 때 가슴 자극이 잘 왔습니다!" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-brand-500"></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-rose-400 mb-1.5">어려웠던 점, 관절 불편함, 질문사항</label>
+                <textarea id="refBadText" rows="3" placeholder="예: 스쿼트 시 오른쪽 무릎이 살짝 불편했습니다." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-rose-500"></textarea>
+              </div>
+              <div class="flex justify-end">
+                <button type="submit" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-semibold rounded-xl text-xs sm:text-sm transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2">
+                  <i class="fa-solid fa-paper-plane"></i> 운동 소감 저장하기
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Right: Diet Log -->
+        <div class="lg:col-span-5 space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <i class="fa-solid fa-utensils"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-base">오늘의 식단 일지</h3>
+                  <p class="text-xs text-slate-400">끼니별 식사 내용과 영양성분을 기록하세요.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800/80 mb-5 space-y-3">
+              <div class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <span>영양 성분 요약 (탄/단/지)</span>
+                <span id="totalCaloriesBadge" class="text-amber-400 font-bold">총 0 kcal</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                <div class="bg-slate-900 p-2 rounded-lg border border-slate-800"><span class="text-slate-400 block text-[10px]">탄수화물</span><span id="macroCarbText" class="font-bold text-sky-400">0g</span></div>
+                <div class="bg-slate-900 p-2 rounded-lg border border-slate-800"><span class="text-slate-400 block text-[10px]">단백질</span><span id="macroProteinText" class="font-bold text-emerald-400">0g</span></div>
+                <div class="bg-slate-900 p-2 rounded-lg border border-slate-800"><span class="text-slate-400 block text-[10px]">지방</span><span id="macroFatText" class="font-bold text-amber-400">0g</span></div>
+              </div>
+              <div class="pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs">
+                <span class="text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-glass-water text-sky-400"></i> 수분 섭취량</span>
+                <div class="flex items-center gap-2">
+                  <button onclick="adjustWater(-250)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">-</button>
+                  <span id="waterDisplay" class="font-semibold text-sky-400 min-w-[50px] text-center">0 ml</span>
+                  <button onclick="adjustWater(250)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Meals Container -->
+            <div class="space-y-4">
+              <!-- Breakfast -->
+              <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-sun"></i> 아침</span><span id="badge-breakfast" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <input type="text" id="meal-breakfast-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
+                <div class="grid grid-cols-4 gap-2">
+                  <input type="number" id="meal-breakfast-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-breakfast-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-breakfast-prot" placeholder="단(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-breakfast-fat" placeholder="지(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                </div>
+              </div>
+              <!-- Lunch -->
+              <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-cloud-sun"></i> 점심</span><span id="badge-lunch" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <input type="text" id="meal-lunch-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
+                <div class="grid grid-cols-4 gap-2">
+                  <input type="number" id="meal-lunch-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-lunch-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-lunch-prot" placeholder="단(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-lunch-fat" placeholder="지(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                </div>
+              </div>
+              <!-- Dinner -->
+              <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-moon"></i> 저녁</span><span id="badge-dinner" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <input type="text" id="meal-dinner-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
+                <div class="grid grid-cols-4 gap-2">
+                  <input type="number" id="meal-dinner-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-dinner-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-dinner-prot" placeholder="단(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-dinner-fat" placeholder="지(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                </div>
+              </div>
+              <!-- Snack -->
+              <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-cookie-bite"></i> 간식/보충제</span><span id="badge-snack" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <input type="text" id="meal-snack-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
+                <div class="grid grid-cols-4 gap-2">
+                  <input type="number" id="meal-snack-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-snack-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-snack-prot" placeholder="단(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-snack-fat" placeholder="지(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                </div>
+              </div>
+            </div>
+
+            <button onclick="saveDietLog()" class="w-full mt-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i> 오늘 식단 전체 저장하기 (구글 실시간 연동)
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TRAINER VIEW -->
+    <div id="trainerView" class="space-y-6 hidden">
+      <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-semibold border border-indigo-500/30">TRAINER DASHBOARD</span>
+            <span class="text-xs text-slate-400">25인+ 회원 실시간 연동 관리</span>
+          </div>
+          <h2 class="text-xl sm:text-2xl font-bold text-white">운동 루틴 처방 & 실시간 피드백</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl min-w-[200px]">
+            <label class="block text-[10px] font-semibold text-slate-400 mb-1">관리할 회원 선택</label>
+            <select id="trainerMemberSelect" onchange="onSelectMemberChange()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"></select>
+          </div>
+          <button onclick="switchMode('member')" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all border border-slate-700">회원 화면으로</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Trainer Left -->
+        <div class="lg:col-span-5 space-y-6">
+          <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-3">
+            <h3 class="font-bold text-white text-sm"><span class="selectedMemberNameText text-brand-400">회원</span>님 상단 메시지 (오늘의 한마디)</h3>
+            <div class="flex gap-2">
+              <input type="text" id="inputCustomHeaderMsg" placeholder="예: 오늘 컨디션 조절 잘 하세요!" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white">
+              <button onclick="saveCustomHeaderMsg()" class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shrink-0">저장</button>
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <h3 class="font-bold text-white text-base mb-4">운동 루틴 짜주기</h3>
+            <form id="addRoutineForm" onsubmit="addExerciseToRoutine(event)" class="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div><label class="block text-xs text-slate-300 mb-1">운동 이름</label><input type="text" id="exName" placeholder="예: 바벨 벤치프레스" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              <div class="grid grid-cols-3 gap-2">
+                <div><label class="block text-[11px] text-slate-400 mb-1">무게(kg)</label><input type="number" id="exWeight" placeholder="40" step="0.5" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">세트수</label><input type="number" id="exSets" placeholder="4" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">목표 횟수</label><input type="number" id="exReps" placeholder="12" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              </div>
+              <div><label class="block text-[11px] text-slate-400 mb-1">트레이너 팁</label><input type="text" id="exNote" placeholder="예: 견갑 고정" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs">운동 추가하기</button>
+            </form>
+
+            <div class="mt-5 space-y-2">
+              <h4 class="text-xs font-bold text-slate-300 flex justify-between"><span>현재 처방된 운동 목록</span><button onclick="clearAllRoutines()" class="text-[10px] text-rose-400 hover:underline">전체 삭제</button></h4>
+              <div id="trainerPrescribedList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trainer Right: Review & Feedback -->
+        <div class="lg:col-span-7 space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-5">
+            <h3 class="font-bold text-white text-base"><span class="selectedMemberNameText text-brand-400">회원</span>님의 오늘 기록 검토</h3>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="bg-slate-950 p-3.5 rounded-xl border border-emerald-500/20">
+                <span class="text-[11px] font-bold text-emerald-400 block mb-1.5"><i class="fa-solid fa-thumbs-up"></i> 잘된 점</span>
+                <p id="reviewRefGood" class="text-xs text-slate-300 italic">기록이 없습니다.</p>
+              </div>
+              <div class="bg-slate-950 p-3.5 rounded-xl border border-rose-500/20">
+                <span class="text-[11px] font-bold text-rose-400 block mb-1.5"><i class="fa-solid fa-triangle-exclamation"></i> 어려웠던 점</span>
+                <p id="reviewRefBad" class="text-xs text-slate-300 italic">기록이 없습니다.</p>
+              </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-800 space-y-4">
+              <h4 class="text-sm font-bold text-brand-400"><i class="fa-solid fa-paper-plane"></i> 피드백 작성 및 전송하기</h4>
+              <div><label class="block text-xs font-semibold text-slate-300 mb-1">운동 코멘트</label><textarea id="inputFeedbackWorkout" rows="2" placeholder="운동 피드백 입력" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-brand-500"></textarea></div>
+              <div><label class="block text-xs font-semibold text-slate-300 mb-1">식단 코멘트</label><textarea id="inputFeedbackDiet" rows="2" placeholder="식단 피드백 입력" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-brand-500"></textarea></div>
+              <div class="flex justify-end"><button onclick="sendTrainerFeedback()" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg">피드백 구글 시트에 전송</button></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 bg-slate-800 border border-brand-500/50 text-white px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 text-xs font-medium">
+    저장되었습니다!
+  </div>
+
+  <script>
+    // 👇👇 아래 따옴표("") 사이에 아까 복사해 둔 구글 웹 앱 URL을 붙여넣으세요! (예: "https://script.google.com/macros/s/...")
+    const SCRIPT_URL = https://script.google.com/macros/s/AKfycbw0Rx2TUIdKOQa5msogqix-ywH1zEL3f1Oj3s8-oZDgXD67geQUgiuH5rNXxd-KXDcB/exec
+    
+    const TRAINER_PASSWORD = "8568";
+
+    function getMemberNameFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('name') ? decodeURIComponent(params.get('name')).trim() : '김헬스';
+    }
+
+    let activeMemberName = getMemberNameFromUrl();
+    let currentMode = 'member';
+    let selectedDate = new Date().toISOString().split('T')[0];
+    let appData = null;
+
+    function getRegisteredMembers() {
+      const stored = localStorage.getItem('fit_member_list');
+      let list = stored ? JSON.parse(stored) : ['김헬스', '김윤지', '박민수', '이서연', '정지훈'];
+      if (!list.includes(activeMemberName)) {
+        list.push(activeMemberName);
+        localStorage.setItem('fit_member_list', JSON.stringify(list));
+      }
+      return list;
+    }
+
+    window.onload = async function() {
+      getRegisteredMembers();
+      document.getElementById('currentDateInput').value = selectedDate;
+      document.getElementById('currentDateInput').addEventListener('change', async (e) => {
+        selectedDate = e.target.value;
+        document.getElementById('todayDateDisplay').innerText = selectedDate;
+        await loadDataFromCloud();
+      });
+      document.getElementById('todayDateDisplay').innerText = selectedDate;
+      updateTrainerMemberDropdown();
+      await loadDataFromCloud();
+    };
+
+    function getDefaultData() {
+      return {
+        headerMessage: '오늘의 운동과 식단을 완수해볼까요? 💪',
+        routines: [
+          { id: 1, name: '바벨 스쿼트', weight: 60, sets: 4, reps: 10, note: '코어 긴장 유지', completedSets: [false, false, false, false] }
+        ],
+        reflection: { good: '', bad: '' },
+        diet: {
+          breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          lunch: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          dinner: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          snack: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          water: 0
+        },
+        feedback: { workout: '', diet: '', time: '' }
+      };
+    }
+
+    async function loadDataFromCloud() {
+      if (SCRIPT_URL.includes("여기에")) {
+        alert("⚠️ 경고: 구글 Apps Script 웹 앱 URL이 설정되지 않았습니다! 코드 상단의 SCRIPT_URL에 주소를 넣어주세요.");
+        appData = getDefaultData();
+        renderUI();
+        return;
+      }
+
+      showToast('구글 시트에서 데이터 불러오는 중...');
+      try {
+        const res = await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}`);
+        const json = await res.json();
+        if (json && Object.keys(json).length > 0) {
+          appData = json;
+        } else {
+          appData = getDefaultData();
+        }
+      } catch (e) {
+        console.error(e);
+        appData = getDefaultData();
+      }
+      renderUI();
+      showToast('데이터 동기화 완료!');
+    }
+
+    async function saveDataToCloud() {
+      if (SCRIPT_URL.includes("여기에")) {
+        alert("⚠️ 구글 웹 앱 URL이 설정되지 않았습니다.");
+        return;
+      }
+
+      showToast('구글 시트에 실시간 저장 중...');
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ member: activeMemberName, date: selectedDate, data: appData })
+        });
+        showToast('구글 시트 실시간 반영 완료!');
+      } catch (e) {
+        console.error(e);
+        showToast('저장 실패 (네트워크 확인)');
+      }
+      renderUI();
+    }
+
+    function renderUI() {
+      if (!appData) appData = getDefaultData();
+      document.getElementById('memberNameBadge').innerText = `${activeMemberName} 회원님`;
+      document.querySelectorAll('.selectedMemberNameText').forEach(el => el.innerText = activeMemberName);
+      document.getElementById('customHeaderMessage').innerText = appData.headerMessage || '오늘의 운동과 식단을 완수해볼까요? 💪';
+
+      if (currentMode === 'member') {
+        renderMemberRoutines(appData.routines || []);
+        renderMemberReflection(appData.reflection || {});
+        renderMemberDiet(appData.diet || {}, 2000);
+        renderMemberFeedback(appData.feedback || {});
+      } else {
+        document.getElementById('inputCustomHeaderMsg').value = appData.headerMessage || '';
+        renderTrainerRoutines(appData.routines || []);
+        renderTrainerReview(appData);
+      }
+    }
+
+    function renderMemberRoutines(routines) {
+      const container = document.getElementById('memberRoutineList');
+      document.getElementById('routineCountBadge').innerText = `${routines.length}개 운동`;
+      if (!routines || routines.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-slate-500 text-sm"><i class="fa-solid fa-dumbbell text-3xl mb-2 block text-slate-600"></i>배정된 루틴이 없습니다.</div>`;
+        updateWorkoutProgress(0, 0);
+        return;
+      }
+
+      let totalSets = 0, completedSets = 0;
+      container.innerHTML = routines.map((ex, exIdx) => {
+        totalSets += Number(ex.sets);
+        const setChecksHtml = Array.from({ length: ex.sets }).map((_, setIdx) => {
+          const isDone = ex.completedSets && ex.completedSets[setIdx];
+          if (isDone) completedSets++;
+          return `
+            <label class="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 cursor-pointer hover:border-slate-700">
+              <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleSetDone(${exIdx}, ${setIdx})" class="custom-checkbox w-4 h-4 rounded text-brand-500 cursor-pointer">
+              <span class="text-xs ${isDone ? 'text-brand-400 line-through font-semibold' : 'text-slate-300'}">${setIdx + 1}세트</span>
+            </label>
+          `;
+        }).join('');
+
+        return `
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+            <h4 class="font-bold text-white text-sm mb-1">${ex.name} <span class="text-[11px] font-normal text-slate-400">(${ex.weight ? ex.weight + 'kg' : '맨몸'} × ${ex.reps}회)</span></h4>
+            ${ex.note ? `<p class="text-xs text-brand-400 mb-2"><i class="fa-solid fa-lightbulb"></i> ${ex.note}</p>` : ''}
+            <div class="flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-900">${setChecksHtml}</div>
+          </div>
+        `;
+      }).join('');
+      updateWorkoutProgress(completedSets, totalSets);
+    }
+
+    function toggleSetDone(exIdx, setIdx) {
+      if (!appData.routines[exIdx].completedSets) appData.routines[exIdx].completedSets = [];
+      appData.routines[exIdx].completedSets[setIdx] = !appData.routines[exIdx].completedSets[setIdx];
+      saveDataToCloud();
+    }
+
+    function updateWorkoutProgress(done, total) {
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      document.getElementById('memberWorkoutProgressText').innerText = `${pct}%`;
+      document.getElementById('memberWorkoutProgressSub').innerText = `(${done}/${total})`;
+      document.getElementById('memberWorkoutProgressBar').style.width = `${pct}%`;
+    }
+
+    function renderMemberReflection(ref) {
+      document.getElementById('refGoodText').value = ref.good || '';
+      document.getElementById('refBadText').value = ref.bad || '';
+    }
+
+    function saveWorkoutReflection(e) {
+      e.preventDefault();
+      if (!appData) appData = getDefaultData();
+      appData.reflection = { good: document.getElementById('refGoodText').value, bad: document.getElementById('refBadText').value };
+      saveDataToCloud();
+    }
+
+    function renderMemberDiet(diet, targetCal) {
+      document.getElementById('memberTargetCalorieText').innerText = targetCal.toLocaleString();
+      const meals = ['breakfast', 'lunch', 'dinner', 'snack'];
+      let totalCal = 0, totalCarb = 0, totalProt = 0, totalFat = 0;
+
+      meals.forEach(m => {
+        const item = diet[m] || {};
+        document.getElementById(`meal-${m}-desc`).value = item.desc || '';
+        document.getElementById(`meal-${m}-cal`).value = item.cal || '';
+        document.getElementById(`meal-${m}-carb`).value = item.carb || '';
+        document.getElementById(`meal-${m}-prot`).value = item.prot || '';
+        document.getElementById(`meal-${m}-fat`).value = item.fat || '';
+
+        const badge = document.getElementById(`badge-${m}`);
+        if (item.desc || item.cal) {
+          badge.className = "text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-semibold";
+          badge.innerText = "작성완료";
+        } else {
+          badge.className = "text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded";
+          badge.innerText = "미작성";
+        }
+        totalCal += Number(item.cal) || 0;
+        totalCarb += Number(item.carb) || 0;
+        totalProt += Number(item.prot) || 0;
+        totalFat += Number(item.fat) || 0;
+      });
+
+      document.getElementById('totalCaloriesBadge').innerText = `총 ${totalCal.toLocaleString()} kcal`;
+      document.getElementById('macroCarbText').innerText = `${totalCarb}g`;
+      document.getElementById('macroProteinText').innerText = `${totalProt}g`;
+      document.getElementById('macroFatText').innerText = `${totalFat}g`;
+      document.getElementById('memberCalorieText').innerText = totalCal.toLocaleString();
+      document.getElementById('memberCalorieBar').style.width = `${Math.min(Math.round((totalCal / targetCal) * 100), 100)}%`;
+      document.getElementById('waterDisplay').innerText = `${diet.water || 0} ml`;
+    }
+
+    function saveDietLog() {
+      if (!appData) appData = getDefaultData();
+      const meals = ['breakfast', 'lunch', 'dinner', 'snack'];
+      meals.forEach(m => {
+        appData.diet[m] = {
+          desc: document.getElementById(`meal-${m}-desc`).value,
+          cal: document.getElementById(`meal-${m}-cal`).value,
+          carb: document.getElementById(`meal-${m}-carb`).value,
+          prot: document.getElementById(`meal-${m}-prot`).value,
+          fat: document.getElementById(`meal-${m}-fat`).value
+        };
+      });
+      saveDataToCloud();
+    }
+
+    function adjustWater(amt) {
+      if (!appData) appData = getDefaultData();
+      appData.diet.water = Math.max(0, (appData.diet.water || 0) + amt);
+      saveDataToCloud();
+    }
+
+    function renderMemberFeedback(fb) {
+      const card = document.getElementById('trainerFeedbackCard');
+      if (fb && (fb.workout || fb.diet)) {
+        card.classList.remove('hidden');
+        document.getElementById('feedbackTimeDisplay').innerText = fb.time ? `전송시간: ${fb.time}` : '';
+        document.getElementById('feedbackWorkoutText').innerText = fb.workout || '작성된 코멘트가 없습니다.';
+        document.getElementById('feedbackDietText').innerText = fb.diet || '작성된 코멘트가 없습니다.';
+      } else {
+        card.classList.add('hidden');
+      }
+    }
+
+    async function switchMode(mode) {
+      currentMode = mode;
+      document.getElementById('memberView').classList.toggle('hidden', mode !== 'member');
+      document.getElementById('trainerView').classList.toggle('hidden', mode !== 'trainer');
+      document.getElementById('btnMemberMode').className = mode === 'member' ? "px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-500 text-slate-950 font-bold" : "px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white";
+      document.getElementById('btnTrainerMode').className = mode === 'trainer' ? "px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white font-bold" : "px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white";
+      await loadDataFromCloud();
+    }
+
+    function trySwitchToTrainer() {
+      if (prompt("비밀번호 입력 (8568):") === TRAINER_PASSWORD) switchMode('trainer');
+      else alert("비밀번호가 틀렸습니다.");
+    }
+
+    function updateTrainerMemberDropdown() {
+      const members = getRegisteredMembers();
+      document.getElementById('trainerMemberSelect').innerHTML = members.map(m => `<option value="${m}" ${m === activeMemberName ? 'selected' : ''}>${m} 회원님</option>`).join('');
+    }
+
+    async function onSelectMemberChange() {
+      activeMemberName = document.getElementById('trainerMemberSelect').value;
+      await loadDataFromCloud();
+    }
+
+    async function saveCustomHeaderMsg() {
+      if (!appData) appData = getDefaultData();
+      appData.headerMessage = document.getElementById('inputCustomHeaderMsg').value;
+      await saveDataToCloud();
+    }
+
+    async function addExerciseToRoutine(e) {
+      e.preventDefault();
+      if (!appData) appData = getDefaultData();
+      const name = document.getElementById('exName').value;
+      const weight = document.getElementById('exWeight').value;
+      const sets = document.getElementById('exSets').value;
+      const reps = document.getElementById('exReps').value;
+      const note = document.getElementById('exNote').value;
+
+      if (!appData.routines) appData.routines = [];
+      appData.routines.push({ id: Date.now(), name, weight, sets, reps, note, completedSets: Array(Number(sets)).fill(false) });
+      await saveDataToCloud();
+      document.getElementById('exName').value = '';
+      document.getElementById('exWeight').value = '';
+      document.getElementById('exSets').value = '';
+      document.getElementById('exReps').value = '';
+      document.getElementById('exNote').value = '';
+    }
+
+    async function removeExercise(idx) {
+      if (!appData) return;
+      appData.routines.splice(idx, 1);
+      await saveDataToCloud();
+    }
+
+    async function clearAllRoutines() {
+      if (confirm("전체 삭제하시겠습니까?")) {
+        if (!appData) appData = getDefaultData();
+        appData.routines = [];
+        await saveDataToCloud();
+      }
+    }
+
+    function renderTrainerRoutines(routines) {
+      const container = document.getElementById('trainerPrescribedList');
+      if (!routines || routines.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500 py-2 text-center">처방된 루틴이 없습니다.</p>`;
+        return;
+      }
+      container.innerHTML = routines.map((ex, idx) => `
+        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+          <div>
+            <div class="font-bold text-white">${ex.name}</div>
+            <div class="text-[10px] text-slate-400">${ex.weight ? ex.weight + 'kg | ' : ''}${ex.sets}세트 × ${ex.reps}회</div>
+          </div>
+          <button onclick="removeExercise(${idx})" class="text-rose-400 hover:text-rose-300 p-1"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      `).join('');
+    }
+
+    function renderTrainerReview(data) {
+      document.getElementById('reviewRefGood').innerText = data.reflection?.good || '작성된 내용이 없습니다.';
+      document.getElementById('reviewRefBad').innerText = data.reflection?.bad || '작성된 내용이 없습니다.';
+      document.getElementById('inputFeedbackWorkout').value = data.feedback?.workout || '';
+      document.getElementById('inputFeedbackDiet').value = data.feedback?.diet || '';
+    }
+
+    async function sendTrainerFeedback() {
+      if (!appData) appData = getDefaultData();
+      const now = new Date();
+      appData.feedback = {
+        workout: document.getElementById('inputFeedbackWorkout').value,
+        diet: document.getElementById('inputFeedbackDiet').value,
+        time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      };
+      await saveDataToCloud();
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastNotification');
+      toast.innerText = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 2500);
+    }
+  </script>
+</body>
+</html>

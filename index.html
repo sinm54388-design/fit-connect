@@ -426,26 +426,31 @@
     }
 
     async function saveDataToCloud() {
-      showToast('구글 시트에 저장 중...');
-      try {
-        await fetch(SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ member: activeMemberName, date: selectedDate, data: appData })
-        });
-        showToast('저장 완료!');
-        
-        // 시트 저장 반영을 위해 1초 대기 후 최신 데이터 재조회
-        setTimeout(async () => {
-          await loadDataFromCloud();
-        }, 1000);
+  showToast('구글 시트에 저장 중...');
 
-      } catch (e) {
-        showToast('저장 실패');
-      }
-    }
+  try {
 
+    const response = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        member: activeMemberName,
+        date: selectedDate,
+        data: appData
+      })
+    });
+
+    const result = await response.text();
+    console.log(result);
+
+    showToast('저장 완료!');
+
+  } catch (e) {
+
+    console.error(e);
+    showToast('저장 실패');
+
+  }
+}
     function renderUI() {
       if (!appData) appData = getDefaultData();
       document.getElementById('memberNameBadge').innerText = `${activeMemberName} 회원님`;

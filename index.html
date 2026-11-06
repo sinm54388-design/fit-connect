@@ -355,14 +355,14 @@
   </div>
 
   <script>
-    // 👇 본인의 구글 웹 앱 URL을 따옴표 안에 넣어주세요!
-    const SCRIPT_URL = "여기에_웹앱_URL을_붙여넣으세요";
+    // ✅ 구글 Apps Script 웹 앱 URL이 정상적으로 적용되었습니다!
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwOYS2RvKL540WVTgXekRC8Vsm90ygpdI8cun7VbqyDWI1EWu_NNLBEiYOITr9bPJCC/exec";
     const TRAINER_PASSWORD = "8568";
 
     function getMemberNameFromUrl() {
       const params = new URLSearchParams(window.location.search);
       const name = params.get('name');
-      return name ? decodeURIComponent(name).trim() : '김헬스';
+      return name ? decodeURIComponent(name).trim() : '김윤지';
     }
 
     let activeMemberName = getMemberNameFromUrl();
@@ -372,7 +372,7 @@
 
     function getRegisteredMembers() {
       const stored = localStorage.getItem('fit_member_list');
-      let list = stored ? JSON.parse(stored) : ['김헬스', '김윤지', '박민수', '이서연', '정지훈'];
+      let list = stored ? JSON.parse(stored) : ['김윤지', '김헬스', '박민수', '이서연', '정지훈'];
       if (!list.includes(activeMemberName)) {
         list.push(activeMemberName);
         localStorage.setItem('fit_member_list', JSON.stringify(list));
@@ -412,12 +412,6 @@
     }
 
     async function loadDataFromCloud() {
-      if (SCRIPT_URL.includes("여기에")) {
-        appData = getDefaultData();
-        renderUI();
-        return;
-      }
-
       showToast('데이터 불러오는 중...');
       try {
         const res = await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}`);
@@ -434,7 +428,6 @@
     }
 
     async function saveDataToCloud() {
-      if (SCRIPT_URL.includes("여기에")) return;
       showToast('저장 중...');
       try {
         await fetch(SCRIPT_URL, {
@@ -443,7 +436,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ member: activeMemberName, date: selectedDate, data: appData })
         });
-        showToast('저장 완료!');
+        showToast('구글 시트 저장 완료!');
       } catch (e) {
         showToast('저장 실패');
       }
@@ -459,7 +452,7 @@
       if (currentMode === 'member') {
         renderMemberRoutines(appData.routines || []);
         renderMemberReflection(appData.reflection || {});
-        renderMemberDiet(appData.diet || {}, 2000);
+        renderMemberDiet(appData.diet || {}, 2100);
         renderMemberFeedback(appData.feedback || {});
       } else {
         document.getElementById('inputCustomHeaderMsg').value = appData.headerMessage || '';

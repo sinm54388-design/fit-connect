@@ -355,7 +355,7 @@
   </div>
 
   <script>
-    // ✅ 구글 Apps Script 웹 앱 URL이 정상적으로 적용되었습니다!
+    // ✅ 사용자의 구글 웹 앱 URL이 적용되었습니다.
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwOYS2RvKL540WVTgXekRC8Vsm90ygpdI8cun7VbqyDWI1EWu_NNLBEiYOITr9bPJCC/exec";
     const TRAINER_PASSWORD = "8568";
 
@@ -414,7 +414,7 @@
     async function loadDataFromCloud() {
       showToast('데이터 불러오는 중...');
       try {
-        const res = await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}`);
+        const res = await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}&_t=${Date.now()}`);
         const json = await res.json();
         if (json && Object.keys(json).length > 0) {
           appData = json;
@@ -422,13 +422,13 @@
           appData = getDefaultData();
         }
       } catch (e) {
-        appData = getDefaultData();
+        if (!appData) appData = getDefaultData();
       }
       renderUI();
     }
 
     async function saveDataToCloud() {
-      showToast('저장 중...');
+      showToast('구글 시트에 저장 중...');
       try {
         await fetch(SCRIPT_URL, {
           method: 'POST',
@@ -436,11 +436,16 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ member: activeMemberName, date: selectedDate, data: appData })
         });
-        showToast('구글 시트 저장 완료!');
+        showToast('저장 완료!');
+        
+        // 시트 저장 반영을 위해 1초 대기 후 최신 데이터 재조회
+        setTimeout(async () => {
+          await loadDataFromCloud();
+        }, 1000);
+
       } catch (e) {
         showToast('저장 실패');
       }
-      renderUI();
     }
 
     function renderUI() {
@@ -527,11 +532,11 @@
 
       meals.forEach(m => {
         const item = diet[m] || {};
-        document.getElementById(`meal-${m}-desc`).value = item.desc || '';
-        document.getElementById(`meal-${m}-cal`).value = item.cal || '';
-        document.getElementById(`meal-${m}-carb`).value = item.carb || '';
-        document.getElementById(`meal-${m}-prot`).value = item.prot || '';
-        document.getElementById(`meal-${m}-fat`).value = item.fat || '';
+        if (document.activeElement.id !== `meal-${m}-desc`) document.getElementById(`meal-${m}-desc`).value = item.desc || '';
+        if (document.activeElement.id !== `meal-${m}-cal`) document.getElementById(`meal-${m}-cal`).value = item.cal || '';
+        if (document.activeElement.id !== `meal-${m}-carb`) document.getElementById(`meal-${m}-carb`).value = item.carb || '';
+        if (document.activeElement.id !== `meal-${m}-prot`) document.getElementById(`meal-${m}-prot`).value = item.prot || '';
+        if (document.activeElement.id !== `meal-${m}-fat`) document.getElementById(`meal-${m}-fat`).value = item.fat || '';
 
         const badge = document.getElementById(`badge-${m}`);
         if (item.desc || item.cal) {

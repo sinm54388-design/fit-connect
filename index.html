@@ -327,6 +327,27 @@
       </div>
     </div>
 
+
+      <!-- FIT-CONNECT 추가: 운동 습관 / 이전 기록 / 운동 영상 -->
+      <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+          <div class="flex justify-between items-center"><h3 class="font-bold text-white"><i class="fa-regular fa-calendar-check text-brand-500"></i> 운동 습관 캘린더</h3><span id="habitSummary" class="text-xs text-brand-400"></span></div>
+          <div class="flex items-center justify-between"><button onclick="moveHabitMonth(-1)" class="px-3 py-1 bg-slate-800 rounded-lg" aria-label="이전 달">‹</button><strong id="habitMonthLabel" class="text-sm"></strong><button onclick="moveHabitMonth(1)" class="px-3 py-1 bg-slate-800 rounded-lg" aria-label="다음 달">›</button></div>
+          <div id="habitCalendar" class="grid grid-cols-7 gap-1 text-center text-xs"></div>
+          <p class="text-xs text-slate-500">완료한 세트가 있는 날에 체크가 표시돼요. 날짜를 누르면 해당 기록으로 이동해요.</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+          <h3 class="font-bold text-white"><i class="fa-solid fa-clock-rotate-left text-sky-400"></i> 나의 이전 운동 기록</h3>
+          <p class="text-xs text-slate-400">운동 이름을 입력하면 가장 최근에 완료한 중량과 횟수를 보여줘요.</p>
+          <div id="previousWorkoutRecords" class="space-y-2 text-xs text-slate-300"></div>
+        </div>
+      </section>
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+        <h3 class="font-bold text-white"><i class="fa-solid fa-circle-play text-indigo-400"></i> 나만의 운동 설명 영상</h3>
+        <p class="text-xs text-slate-400">트레이너가 등록한 운동 영상과 주의사항이에요.</p>
+        <div id="memberExerciseVideos" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+      </section>
+
     <!-- TRAINER VIEW -->
     <div id="trainerView" class="space-y-6 hidden">
       <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -961,6 +982,7 @@
       activeMemberName = document.getElementById('trainerMemberSelect').value;
       resetRoutineForms();
       await loadDataFromCloud();
+      await loadExtras();
     }
 
     /* ---------- 트레이너 화면 ---------- */
@@ -1128,6 +1150,89 @@ try {
         };section.appendChild(button);root.appendChild(section);
       });
     }
+
+    /* ---------- 운동 기록 히스토리 / 습관 캘린더 / 회원별 영상 ---------- */
+    async function loadExtras() {
+      const request = ++extrasRequest;
+      const member = activeMemberName;
+      try {
+        const auth = {member, date:selectedDate, token:memberToken,
+          ...(currentMode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
+        const [history, videos] = await Promise.all([
+          apiPost({...auth,action:'workoutHistory',month:habitMonth}),
+          apiPost({...auth,action:'listExerciseVideos'})
+        ]);
+        if (request !== extrasRequest || member !== activeMemberName) return;
+        if(history.status !== 'success') throw new Error(history.message || '기록 조회 실패');
+        if(videos.status !== 'success') throw new Error(videos.message || '영상 조회 실패');
+        historyData = history;
+        exerciseVideos = videos.videos || [];
+        renderHabitCalendar(); renderPreviousRecords(); renderExerciseVideos();
+      } catch(e) { console.error('추가 기능 조회 오류',e); }
+    }
+    function moveHabitMonth(offset) {
+      const [y,m] = habitMonth.split('-').map(Number);
+      const d = new Date(y,m-1+offset,1);
+      habitMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      renderHabitCalendar(); loadExtras();
+    }
+    function renderHabitCalendar() {
+      const root = document.getElementById('habitCalendar'); if(!root)return;
+      const [year,month] = habitMonth.split('-').map(Number);
+      const days = new Set(historyData.month===habitMonth ? historyData.days||[] : []);
+      document.getElementById('habitMonthLabel').textContent = `${year}년 ${month}월`;
+      document.getElementById('habitSummary').textContent = `${days.size}일 운동`;
+      let html=['일','월','화','수','목','금','토'].map(d=>`<div class="text-slate-500 py-1">${d}</div>`).join('');
+      for(let i=0;i<new Date(year,month-1,1).getDay();i++)html+='<div></div>';
+      for(let day=1;day<=new Date(year,month,0).getDate();day++){
+        const date=`${habitMonth}-${String(day).padStart(2,'0')}`;
+        const done=days.has(date);
+        html+=`<button type="button" onclick="jumpToWorkoutDate('${date}')" class="rounded-lg py-2 ${done?'bg-emerald-700/60 text-white font-bold':'bg-slate-800/60 text-slate-400'}" title="${date}">${day}${done?' ✓':''}</button>`;
+      }
+      root.innerHTML=html;
+    }
+    async function jumpToWorkoutDate(date){
+      selectedDate=date;document.getElementById('currentDateInput').value=date;
+      document.getElementById('todayDateDisplay').textContent=date;
+      resetRoutineForms();await loadDataFromCloud();
+    }
+    function renderPreviousRecords(){
+      const root=document.getElementById('previousWorkoutRecords');if(!root)return;
+      const current=(appData?.routines||[]).map(x=>x.name).filter(Boolean);
+      const previous=historyData.previous||{};
+      const names=[...new Set(current)];
+      root.innerHTML=names.length?names.map(name=>{
+        const p=previous[name.trim().toLowerCase()];
+        return `<div class="bg-slate-950 border border-slate-800 rounded-lg p-3"><strong>${esc(name)}</strong><p class="text-sky-400 mt-1">${p?`${esc(p.weight||'맨몸')} ${p.weight?'kg':''} × ${esc(p.reps)}회 · ${esc(p.date)}`:'이전 완료 기록 없음'}</p></div>`;
+      }).join(''):'<p class="text-slate-500">오늘의 운동 루틴을 추가하면 이전 기록이 표시돼요.</p>';
+    }
+    function safeVideoUrl(raw){
+      try {const u=new URL(raw);return u.protocol==='https:'&&(['www.youtube.com','youtube.com','m.youtube.com','youtu.be'].includes(u.hostname))?u.href:null;}
+      catch{return null;}
+    }
+    function renderExerciseVideos(){
+      const memberRoot=document.getElementById('memberExerciseVideos');
+      const trainerRoot=document.getElementById('trainerExerciseVideos');
+      const videos=exerciseVideos||[];
+      if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><p class="text-xs text-slate-400 whitespace-pre-wrap">${esc(v.tip||'')}</p><a class="inline-block text-xs text-sky-400 underline" target="_blank" rel="noopener noreferrer" href="${esc(safeVideoUrl(v.url)||'#')}">운동 영상 보기 ↗</a></article>`).join(''):'<p class="text-xs text-slate-500">아직 등록된 운동 영상이 없어요.</p>';
+      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex justify-between items-center gap-2"><div class="text-xs"><strong>${esc(v.name)}</strong><p class="text-slate-400">${esc(v.tip||'')}</p></div><button class="text-rose-400 text-xs" onclick="deleteExerciseVideo('${esc(v.id)}')">삭제</button></div>`).join(''):'<p class="text-xs text-slate-500">등록된 영상 없음</p>';
+    }
+    async function saveExerciseVideo(e){
+      e.preventDefault();const name=document.getElementById('videoExerciseName').value.trim();
+      const url=safeVideoUrl(document.getElementById('videoUrl').value.trim());
+      const tip=document.getElementById('videoTip').value.trim();
+      if(!url){alert('유튜브 https 링크만 등록할 수 있어요.');return;}
+      try{const r=await apiPost({...apiCredentials(),action:'addExerciseVideo',name,url,tip});
+        if(r.status!=='success')throw Error(r.message||'등록 실패');e.target.reset();showToast('영상 등록 완료');await loadExtras();}
+      catch(err){alert(err.message);}
+    }
+    async function deleteExerciseVideo(id){
+      if(!confirm('이 영상을 삭제할까요?'))return;
+      try{const r=await apiPost({...apiCredentials(),action:'deleteExerciseVideo',id});
+        if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadExtras();}
+      catch(err){alert(err.message);}
+    }
+
     function showToast(msg) {
       const toast = document.getElementById('toastNotification');
       toast.innerText = msg;

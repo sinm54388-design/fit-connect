@@ -1095,7 +1095,10 @@
         const img=document.createElement('img');img.src=src;img.alt='식단 사진';img.loading='lazy';img.className='w-full h-full object-cover cursor-pointer';
         img.onclick=()=>{const w=window.open('','_blank');if(w){const im=w.document.createElement('img');im.src=src;im.style.maxWidth='100%';w.document.body.appendChild(im);}};
         holder.replaceChildren(img);
-      }).catch(()=>{holder.textContent='사진 오류';});
+     }).catch(err=>{
+  console.error('사진 불러오기 오류:', err);
+  holder.textContent='사진 오류: '+(err.message||'원인 확인 필요');
+});
     }
     function renderTrainerMealPhotos() {
       const root=document.getElementById('trainerMealPhotos');root.innerHTML='';

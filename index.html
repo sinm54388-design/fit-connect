@@ -500,6 +500,11 @@
     let trainerPassword = null; // 비밀번호는 서버에서 확인 (코드에 저장되어 있지 않음)
     let editingRoutineId = null;
     const lastMemoCount = {};
+    // 캘린더/이전 운동 기록/영상 상태 (저장 이후 갱신에도 사용)
+    let extrasRequest = 0;
+    let habitMonth = getLocalDateStr().slice(0, 7);
+    let historyData = { month: habitMonth, days: [], previous: {} };
+    let exerciseVideos = [];
 
     function getRegisteredMembers() {
       const list = [...registryMembers];
@@ -577,6 +582,7 @@
         if (!appData) appData = getDefaultData();
       }
       renderUI(silent);
+      if (!silent) await loadExtras();
     }
 
     async function saveDataToCloud() {
@@ -595,7 +601,7 @@
         mutate(appData);
         await saveDataToCloud();
         renderUI();
-        await loadExtras();
+        try { await loadExtras(); } catch (extraError) { console.warn('캘린더 갱신 오류', extraError); }
         showToast('저장 완료!');
         return true;
       } catch (e) {

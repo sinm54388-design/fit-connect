@@ -537,7 +537,7 @@
     let exerciseVideos = [];
     let formVideos = [];
     const VIDEO_LIMIT = 6 * 1024 * 1024;
-    const VIDEO_CHUNK = 240 * 1024;
+    const VIDEO_CHUNK = 768 * 1024;
     const videoObjectUrls = new Map();
 
     function getRegisteredMembers() {
@@ -1305,15 +1305,10 @@ try {
       button.dataset.loading='1';button.textContent='영상 불러오는 중...';
       try{
         const creds=apiCredentials();
-        const meta=await apiPost({...creds,action:'videoInfo',fileId:id});
-        if(meta.status!=='success')throw Error(meta.message||'영상 조회 실패');
-        const chunks=[];
-        for(let i=0;i<meta.total;i++){
-          const r=await apiPost({...creds,action:'videoReadChunk',fileId:id,index:i});
-          if(r.status!=='success')throw Error(r.message||'영상 읽기 실패');
-          chunks.push(base64ToBytes(r.base64));
-        }
-        const url=URL.createObjectURL(new Blob(chunks,{type:meta.mime}));videoObjectUrls.set(id,url);
+        const result=await apiPost({...creds,action:'videoDownload',fileId:id});
+        if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
+        const bytes=base64ToBytes(result.base64);
+        const url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));videoObjectUrls.set(id,url);
         const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
       }catch(e){alert(e.message);button.textContent='▶ 다시 재생 시도';button.dataset.loading='0';}
     }

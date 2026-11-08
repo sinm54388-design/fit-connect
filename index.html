@@ -384,7 +384,22 @@
          <div id="memberRegistryList" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
        </section>
 
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+             <!-- 트레이너 전용: 회원별 운동 설명 영상 등록 -->
+       <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="운동 설명 영상 관리">
+         <div>
+           <h3 class="font-bold text-white text-base"><i class="fa-solid fa-circle-play text-indigo-400"></i> 나만의 운동 설명 영상 등록</h3>
+           <p class="text-xs text-slate-400 mt-1"><span class="selectedMemberNameText text-brand-400">회원</span>님에게만 보이는 운동 영상과 자세 팁을 등록해요.</p>
+         </div>
+         <form onsubmit="saveExerciseVideo(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950 border border-slate-800 rounded-xl p-4">
+           <div><label for="videoExerciseName" class="block text-xs text-slate-400 mb-1">운동 이름</label><input id="videoExerciseName" required maxlength="80" placeholder="예: 벤치프레스" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
+           <div><label for="videoUrl" class="block text-xs text-slate-400 mb-1">유튜브 영상 링크</label><input id="videoUrl" required type="url" placeholder="https://youtu.be/..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
+           <div class="sm:col-span-2"><label for="videoTip" class="block text-xs text-slate-400 mb-1">트레이너 설명 / 주의사항</label><textarea id="videoTip" rows="2" maxlength="500" placeholder="예: 견갑을 고정하고 가슴을 열어주세요." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></textarea></div>
+           <button type="submit" class="sm:col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg px-4 py-2.5 text-sm">선택한 회원에게 영상 등록하기</button>
+         </form>
+         <div class="space-y-2"><h4 class="text-xs font-semibold text-slate-300">등록된 영상 목록</h4><div id="trainerExerciseVideos" class="space-y-2"></div></div>
+       </section>
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div class="lg:col-span-5 space-y-6">
           <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-3">
             <h3 class="font-bold text-white text-sm"><span class="selectedMemberNameText text-brand-400">회원</span>님 상단 메시지 (오늘의 한마디)</h3>

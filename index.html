@@ -346,6 +346,20 @@
         </div>
       </div>
 
+       <!-- 회원 관리: 트레이너 전용 -->
+       <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="회원 관리">
+         <div class="flex flex-wrap items-center justify-between gap-2">
+           <div><h3 class="font-bold text-white text-base"><i class="fa-solid fa-users text-indigo-400"></i> 회원 관리 <span id="memberRegistryCount" class="text-xs text-slate-400 font-normal"></span></h3><p class="text-xs text-slate-400 mt-1">새 회원을 등록하고 개인 전용 링크를 카카오톡으로 보내세요.</p></div>
+           <button type="button" onclick="loadMemberRegistry()" class="text-xs px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">목록 새로고침</button>
+         </div>
+         <form onsubmit="addNewMember(event)" class="flex flex-col sm:flex-row gap-2">
+           <input id="newMemberName" maxlength="40" autocomplete="off" placeholder="신규 회원 이름 입력" aria-label="신규 회원 이름" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white" required>
+           <button id="addMemberButton" type="submit" class="bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-lg px-5 py-2.5 text-sm">+ 회원 추가</button>
+         </form>
+         <p id="memberRegistryStatus" role="status" class="text-xs text-slate-400">트레이너 로그인 후 목록을 불러옵니다.</p>
+         <div id="memberRegistryList" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+       </section>
+
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div class="lg:col-span-5 space-y-6">
           <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-3">
@@ -427,7 +441,7 @@
 
   <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec";
-    const MEMBERS = ['김윤지', '김헬스', '박민수', '이서연', '정지훈']; // 회원이 늘면 여기에 이름 추가
+    const MEMBERS = ['김윤지', '김헬스', '박민수', '이서연', '정지훈']; // 연결 실패 시에만 사용하는 초기 목록
     const REFRESH_MS = 15000; // 15초마다 자동 새로고침
     const MEAL_KEYS = ['breakfast', 'lunch', 'dinner', 'snack'];
     const FORM_IDS = {
@@ -453,6 +467,7 @@
       return name ? name.trim() : '김윤지';
     }
 
+    let registryMembers = [...MEMBERS];
     const memberToken = new URLSearchParams(location.search).get('token') || '';
     let activeMemberName = getMemberNameFromUrl();
     let currentMode = 'member';
@@ -463,7 +478,7 @@
     const lastMemoCount = {};
 
     function getRegisteredMembers() {
-      const list = [...MEMBERS];
+      const list = [...registryMembers];
       if (!list.includes(activeMemberName)) list.push(activeMemberName);
       return list;
     }
@@ -847,7 +862,7 @@
 
     // 비밀번호는 서버(Apps Script)에서 확인
     async function trySwitchToTrainer() {
-      if (trainerPassword) { switchMode('trainer'); return; }
+      if (trainerPassword) { await switchMode('trainer'); await loadMemberRegistry(); return; }
       const input = prompt("트레이너 비밀번호를 입력하세요");
       if (input === null) return;
       try {
@@ -855,7 +870,8 @@
         const result = await apiPost({ action: 'verify', password: input });
         if (result.status === 'success') {
           trainerPassword = input;
-          switchMode('trainer');
+          await switchMode('trainer');
+          await loadMemberRegistry();
         } else {
           alert("비밀번호가 틀렸습니다.\n(Apps Script 코드에서 비밀번호를 바꿨는지도 확인해주세요)");
         }
@@ -863,6 +879,77 @@
         console.error(e);
         alert("비밀번호 확인 중 오류가 났어요. 인터넷 연결을 확인해주세요.");
       }
+    }
+
+    // 회원 목록은 Apps Script의 MemberAccess 시트에서 불러옵니다.
+    async function loadMemberRegistry() {
+      if (!trainerPassword) return;
+      const status = document.getElementById('memberRegistryStatus');
+      status.textContent = '회원 목록을 불러오는 중...';
+      try {
+        const result = await apiPost({action:'listMembers',password:trainerPassword});
+        if (result.status !== 'success' || !Array.isArray(result.members)) throw new Error(result.message || '목록 조회 실패');
+        registryMembers = result.members;
+        updateTrainerMemberDropdown();
+        document.getElementById('memberRegistryCount').textContent = `(${registryMembers.length}명)`;
+        const list = document.getElementById('memberRegistryList');
+        list.replaceChildren();
+        registryMembers.forEach(name => {
+          const row = document.createElement('div');
+          row.className = 'flex flex-wrap items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-3';
+          const label = document.createElement('span');
+          label.className = 'text-sm text-slate-200 font-semibold flex-1';
+          label.textContent = name + ' 회원님';
+          const copy = document.createElement('button');
+          copy.type='button'; copy.className='text-xs rounded-lg px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white'; copy.textContent='전용 링크 복사';
+          copy.onclick=()=>copyMemberLink(name);
+          const rotate = document.createElement('button');
+          rotate.type='button'; rotate.className='text-xs rounded-lg px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200'; rotate.textContent='링크 재발급';
+          rotate.onclick=()=>rotateMemberLink(name);
+          row.append(label,copy,rotate); list.append(row);
+        });
+        status.textContent = `등록된 회원 ${registryMembers.length}명 · 회원별 기록은 기존대로 유지됩니다.`;
+      } catch (e) { status.textContent = '회원 목록을 불러오지 못했습니다: ' + e.message; }
+    }
+    function buildMemberLink(name, token) {
+      const url = new URL(window.location.origin + window.location.pathname);
+      url.searchParams.set('name', name); url.searchParams.set('token', token);
+      return url.toString();
+    }
+    async function copyTextSafe(value) {
+      try { await navigator.clipboard.writeText(value); }
+      catch (e) { window.prompt('아래 링크를 전체 선택해서 복사하세요.', value); }
+    }
+    async function copyMemberLink(name) {
+      try {
+        const r = await apiPost({action:'getMemberLink',name,password:trainerPassword});
+        if (r.status !== 'success' || !r.token) throw new Error(r.message || '링크 조회 실패');
+        await copyTextSafe(buildMemberLink(name,r.token)); showToast(name + ' 회원 전용 링크 복사 완료');
+      } catch(e) { alert('링크 복사 실패: ' + e.message); }
+    }
+    async function rotateMemberLink(name) {
+      if (!confirm(name + ' 회원의 링크를 재발급할까요? 이전 링크는 즉시 사용할 수 없게 됩니다.')) return;
+      try {
+        const r=await apiPost({action:'rotateMemberToken',name,password:trainerPassword});
+        if(r.status!=='success'||!r.token)throw new Error(r.message||'재발급 실패');
+        await copyTextSafe(buildMemberLink(name,r.token));
+        alert('새 링크를 복사했습니다. 기존 링크는 더 이상 사용할 수 없으니 회원님께 새 링크를 보내주세요.');
+      } catch(e) { alert('링크 재발급 실패: '+e.message); }
+    }
+    async function addNewMember(event) {
+      event.preventDefault();
+      const field=document.getElementById('newMemberName'), button=document.getElementById('addMemberButton');
+      const name=field.value.trim(); if(!name)return;
+      button.disabled=true;
+      try {
+        const r=await apiPost({action:'addMember',name,password:trainerPassword});
+        if(r.status!=='success'||!r.token)throw new Error(r.message||'회원 등록 실패');
+        field.value='';
+        await loadMemberRegistry();
+        await copyTextSafe(buildMemberLink(name,r.token));
+        alert(name+' 회원 등록 완료! 전용 링크를 복사했습니다. 회원님께 개인적으로 보내주세요.');
+      } catch(e) { alert('회원 추가 실패: '+e.message); }
+      finally { button.disabled=false; }
     }
 
     function updateTrainerMemberDropdown() {

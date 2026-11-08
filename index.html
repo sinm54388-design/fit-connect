@@ -345,9 +345,19 @@
       </section>
       <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
         <h3 class="font-bold text-white"><i class="fa-solid fa-circle-play text-indigo-400"></i> 나만의 운동 설명 영상</h3>
-        <p class="text-xs text-slate-400">트레이너가 등록한 운동 영상과 주의사항이에요.</p>
-        <div id="memberExerciseVideos" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
-      </section>
+        <p class="text-xs text-slate-400">트레이너가 등록한 운동 영상과 주의사항이에요.</p>         <div id="memberExerciseVideos" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+       </section>
+       <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+         <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 짧은 영상(6MB 이하)을 이용해주세요.</p>
+         <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
+           <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
+           <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
+           <textarea id="memberVideoQuestion" maxlength="500" rows="2" placeholder="어떤 부분이 어려웠나요? (선택)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm"></textarea>
+           <button type="submit" class="bg-sky-600 rounded-lg px-4 py-2 text-sm font-semibold">운동 영상 보내기</button>
+         </form>
+         <div id="memberFormVideos" class="space-y-3"></div>
+       </section>
 
     </div>
 
@@ -384,15 +394,20 @@
          <div id="memberRegistryList" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
        </section>
 
-             <!-- 트레이너 전용: 회원별 운동 설명 영상 등록 -->
-       <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="운동 설명 영상 관리">
+             <!-- 트레이너 전용: 회원별 운동 설명 영상 등록 -->        <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="운동 영상 피드백 관리">
+          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 회원 운동 영상 · 자세 피드백</h3>
+          <p class="text-xs text-slate-400">회원님이 올린 영상을 확인하고 영상 바로 아래에 피드백을 남겨주세요.</p>
+          <div id="trainerFormVideos" class="space-y-3"></div>
+        </section>
+        <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="운동 설명 영상 관리">
          <div>
            <h3 class="font-bold text-white text-base"><i class="fa-solid fa-circle-play text-indigo-400"></i> 나만의 운동 설명 영상 등록</h3>
            <p class="text-xs text-slate-400 mt-1"><span class="selectedMemberNameText text-brand-400">회원</span>님에게만 보이는 운동 영상과 자세 팁을 등록해요.</p>
          </div>
          <form onsubmit="saveExerciseVideo(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950 border border-slate-800 rounded-xl p-4">
            <div><label for="videoExerciseName" class="block text-xs text-slate-400 mb-1">운동 이름</label><input id="videoExerciseName" required maxlength="80" placeholder="예: 벤치프레스" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
-           <div><label for="videoUrl" class="block text-xs text-slate-400 mb-1">유튜브 영상 링크</label><input id="videoUrl" required type="url" placeholder="https://youtu.be/..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
+            <div><label for="videoUrl" class="block text-xs text-slate-400 mb-1">유튜브 영상 링크 (직접 업로드 시 비워두세요)</label><input id="videoUrl" type="url" placeholder="https://youtu.be/..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
+            <div class="sm:col-span-2"><label for="trainerVideoFile" class="block text-xs text-slate-400 mb-1">또는 직접 촬영한 영상 (최대 6MB)</label><input id="trainerVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs text-slate-300"></div>
            <div class="sm:col-span-2"><label for="videoTip" class="block text-xs text-slate-400 mb-1">트레이너 설명 / 주의사항</label><textarea id="videoTip" rows="2" maxlength="500" placeholder="예: 견갑을 고정하고 가슴을 열어주세요." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></textarea></div>
            <button type="submit" class="sm:col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg px-4 py-2.5 text-sm">선택한 회원에게 영상 등록하기</button>
          </form>
@@ -520,6 +535,10 @@
     let habitMonth = getLocalDateStr().slice(0, 7);
     let historyData = { month: habitMonth, days: [], previous: {} };
     let exerciseVideos = [];
+    let formVideos = [];
+    const VIDEO_LIMIT = 6 * 1024 * 1024;
+    const VIDEO_CHUNK = 240 * 1024;
+    const videoObjectUrls = new Map();
 
     function getRegisteredMembers() {
       const list = [...registryMembers];
@@ -794,6 +813,7 @@
               </div>
             </div>
             ${ex.note ? `<p class="text-xs text-brand-400 mb-2"><i class="fa-solid fa-lightbulb"></i> ${esc(ex.note)}</p>` : ''}
+            ${(()=>{const v=exerciseVideos.find(v=>String(v.name||'').replace(/\s/g,'').toLowerCase()===String(ex.name||'').replace(/\s/g,'').toLowerCase());return v?`<div class="mt-2">${videoLink(v)}</div>`:'';})()}
             <div class="flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-900">${setChecksHtml}</div>
           </div>
         `;
@@ -1183,16 +1203,20 @@ try {
       try {
         const auth = {member, date:selectedDate, token:memberToken,
           ...(currentMode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
-        const [history, videos] = await Promise.all([
+        const [history, videos, formList] = await Promise.all([
           apiPost({...auth,action:'workoutHistory',month:habitMonth}),
-          apiPost({...auth,action:'listExerciseVideos'})
+          apiPost({...auth,action:'listExerciseVideos'}),
+          apiPost({...auth,action:'listFormVideos'})
         ]);
         if (request !== extrasRequest || member !== activeMemberName) return;
         if(history.status !== 'success') throw new Error(history.message || '기록 조회 실패');
         if(videos.status !== 'success') throw new Error(videos.message || '영상 조회 실패');
+        if(formList.status !== 'success') throw new Error(formList.message || '회원 영상 조회 실패');
         historyData = history;
         exerciseVideos = videos.videos || [];
-        renderHabitCalendar(); renderPreviousRecords(); renderExerciseVideos();
+        formVideos = formList.videos || [];
+        renderHabitCalendar(); renderPreviousRecords(); renderExerciseVideos(); renderFormVideos();
+        if(currentMode === 'member' && appData) renderMemberRoutines(appData.routines || []);
       } catch(e) { console.error('추가 기능 조회 오류',e); }
     }
     function moveHabitMonth(offset) {
@@ -1235,27 +1259,100 @@ try {
       try {const u=new URL(raw);return u.protocol==='https:'&&(['www.youtube.com','youtube.com','m.youtube.com','youtu.be'].includes(u.hostname))?u.href:null;}
       catch{return null;}
     }
+    function videoLink(v){
+      const u=safeVideoUrl(v.url);
+      if(u) return `<a class="text-xs text-sky-400 underline" target="_blank" rel="noopener noreferrer" href="${esc(u)}">▶ 유튜브 영상 보기</a>`;
+      if(v.fileId) return `<button type="button" class="text-xs text-sky-400 underline" onclick="playPrivateVideo('${esc(v.fileId)}',this)">▶ 촬영 영상 재생</button>`;
+      return '';
+    }
     function renderExerciseVideos(){
       const memberRoot=document.getElementById('memberExerciseVideos');
       const trainerRoot=document.getElementById('trainerExerciseVideos');
       const videos=exerciseVideos||[];
-      if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><p class="text-xs text-slate-400 whitespace-pre-wrap">${esc(v.tip||'')}</p><a class="inline-block text-xs text-sky-400 underline" target="_blank" rel="noopener noreferrer" href="${esc(safeVideoUrl(v.url)||'#')}">운동 영상 보기 ↗</a></article>`).join(''):'<p class="text-xs text-slate-500">아직 등록된 운동 영상이 없어요.</p>';
-      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex justify-between items-center gap-2"><div class="text-xs"><strong>${esc(v.name)}</strong><p class="text-slate-400">${esc(v.tip||'')}</p></div><button class="text-rose-400 text-xs" onclick="deleteExerciseVideo('${esc(v.id)}')">삭제</button></div>`).join(''):'<p class="text-xs text-slate-500">등록된 영상 없음</p>';
+      if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-300 whitespace-pre-wrap">${esc(v.tip||'')}</p></article>`).join(''):'<p class="text-xs text-slate-500">아직 등록된 운동 영상이 없어요.</p>';
+      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<div class="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2"><strong class="text-xs">${esc(v.name)}</strong><div>${videoLink(v)}</div><textarea id="tip-${esc(v.id)}" maxlength="500" rows="2" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래 설명">${esc(v.tip||'')}</textarea><div class="flex gap-3"><button class="text-sky-400 text-xs" onclick="updateExerciseVideoTip('${esc(v.id)}')">설명 저장</button><button class="text-rose-400 text-xs" onclick="deleteExerciseVideo('${esc(v.id)}')">삭제</button></div></div>`).join(''):'<p class="text-xs text-slate-500">등록된 영상 없음</p>';
+    }
+    function renderFormVideos(){
+      const memberRoot=document.getElementById('memberFormVideos'), trainerRoot=document.getElementById('trainerFormVideos');
+      const videos=formVideos||[];
+      if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">질문: ${esc(v.question||'없음')}</p><div class="bg-slate-900 rounded-lg p-2 text-xs whitespace-pre-wrap"><strong class="text-emerald-400">트레이너 피드백</strong><p class="mt-1">${esc(v.feedback||'아직 피드백을 기다리고 있어요.')}</p></div></article>`).join(''):'<p class="text-xs text-slate-500">업로드한 운동 영상이 없어요.</p>';
+      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">회원 질문: ${esc(v.question||'없음')}</p><textarea id="feedback-${esc(v.id)}" maxlength="2000" rows="3" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래에 보여줄 자세 피드백">${esc(v.feedback||'')}</textarea><div class="flex gap-3"><button onclick="saveFormVideoFeedback('${esc(v.id)}')" class="text-xs text-sky-400">피드백 저장</button><button onclick="deleteFormVideo('${esc(v.id)}')" class="text-xs text-rose-400">영상 삭제</button></div></article>`).join(''):'<p class="text-xs text-slate-500">회원님이 올린 운동 영상이 없어요.</p>';
+    }
+    function bytesToBase64(bytes){let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(s);}
+    function base64ToBytes(b64){const s=atob(b64),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+    async function uploadPrivateVideo(file,kind,name,question,tip){
+      if(!file || !['video/mp4','video/webm','video/quicktime'].includes(file.type))throw Error('MP4, WebM, MOV 영상만 등록할 수 있어요.');
+      if(file.size>VIDEO_LIMIT || !file.size)throw Error('영상은 6MB 이하로 압축해서 올려주세요.');
+      const creds=apiCredentials();
+      const init=await apiPost({...creds,action:'beginVideoUpload',kind,name,question,tip,mime:file.type,size:file.size});
+      if(init.status!=='success')throw Error(init.message||'업로드 준비 실패');
+      const id=init.uploadId,parts=Math.ceil(file.size/VIDEO_CHUNK);
+      for(let i=0;i<parts;i++){
+        const chunk=new Uint8Array(await file.slice(i*VIDEO_CHUNK,Math.min(file.size,(i+1)*VIDEO_CHUNK)).arrayBuffer());
+        const r=await apiPost({...creds,action:'videoChunk',uploadId:id,index:i,total:parts,base64:bytesToBase64(chunk)});
+        if(r.status!=='success')throw Error(r.message||'영상 업로드 중 오류');
+        showToast(`영상 업로드 ${Math.round((i+1)/parts*100)}%`);
+      }
+      const done=await apiPost({...creds,action:'finishVideoUpload',uploadId:id});
+      if(done.status!=='success')throw Error(done.message||'영상 저장 실패');
+    }
+    async function playPrivateVideo(id,button){
+      if(button.dataset.loading==='1')return;
+      const box=button.parentElement;
+      if(videoObjectUrls.has(id)){
+        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=videoObjectUrls.get(id);box.appendChild(video);button.remove();return;
+      }
+      button.dataset.loading='1';button.textContent='영상 불러오는 중...';
+      try{
+        const creds=apiCredentials();
+        const meta=await apiPost({...creds,action:'videoInfo',fileId:id});
+        if(meta.status!=='success')throw Error(meta.message||'영상 조회 실패');
+        const chunks=[];
+        for(let i=0;i<meta.total;i++){
+          const r=await apiPost({...creds,action:'videoReadChunk',fileId:id,index:i});
+          if(r.status!=='success')throw Error(r.message||'영상 읽기 실패');
+          chunks.push(base64ToBytes(r.base64));
+        }
+        const url=URL.createObjectURL(new Blob(chunks,{type:meta.mime}));videoObjectUrls.set(id,url);
+        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
+      }catch(e){alert(e.message);button.textContent='▶ 다시 재생 시도';button.dataset.loading='0';}
+    }
+    async function submitFormVideo(e){
+      e.preventDefault();const name=document.getElementById('memberVideoName').value.trim();
+      const file=document.getElementById('memberVideoFile').files[0];
+      const question=document.getElementById('memberVideoQuestion').value.trim();
+      const member=activeMemberName;
+      try{await uploadPrivateVideo(file,'member',name,question,'');e.target.reset();showToast('영상 업로드 완료');if(member===activeMemberName)await loadExtras();}
+      catch(err){alert(err.message);}
     }
     async function saveExerciseVideo(e){
       e.preventDefault();const name=document.getElementById('videoExerciseName').value.trim();
-      const url=safeVideoUrl(document.getElementById('videoUrl').value.trim());
+      const raw=document.getElementById('videoUrl').value.trim();
+      const file=document.getElementById('trainerVideoFile').files[0];
       const tip=document.getElementById('videoTip').value.trim();
-      if(!url){alert('유튜브 https 링크만 등록할 수 있어요.');return;}
-      try{const r=await apiPost({...apiCredentials(),action:'addExerciseVideo',name,url,tip});
-        if(r.status!=='success')throw Error(r.message||'등록 실패');e.target.reset();showToast('영상 등록 완료');await loadExtras();}
-      catch(err){alert(err.message);}
+      if((!!raw)===(!!file)){alert('유튜브 링크 또는 촬영 영상 중 하나만 선택해주세요.');return;}
+      try{
+        if(file)await uploadPrivateVideo(file,'trainer',name,'',tip);
+        else{const url=safeVideoUrl(raw);if(!url)throw Error('유튜브 https 링크를 확인해주세요.');
+          const r=await apiPost({...apiCredentials(),action:'addExerciseVideo',name,url,tip});if(r.status!=='success')throw Error(r.message||'등록 실패');}
+        e.target.reset();showToast('영상 등록 완료');await loadExtras();
+      }catch(err){alert(err.message);}
+    }
+    async function updateExerciseVideoTip(id){
+      const tip=document.getElementById('tip-'+id).value;
+      try{const r=await apiPost({...apiCredentials(),action:'updateExerciseVideoTip',id,tip});if(r.status!=='success')throw Error(r.message||'저장 실패');showToast('설명 저장 완료');await loadExtras();}catch(e){alert(e.message);}
+    }
+    async function saveFormVideoFeedback(id){
+      const feedback=document.getElementById('feedback-'+id).value;
+      try{const r=await apiPost({...apiCredentials(),action:'formVideoFeedback',id,feedback});if(r.status!=='success')throw Error(r.message||'저장 실패');showToast('피드백 저장 완료');await loadExtras();}catch(e){alert(e.message);}
+    }
+    async function deleteFormVideo(id){
+      if(!confirm('회원 영상과 피드백을 삭제할까요?'))return;
+      try{const r=await apiPost({...apiCredentials(),action:'deleteFormVideo',id});if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadExtras();}catch(e){alert(e.message);}
     }
     async function deleteExerciseVideo(id){
       if(!confirm('이 영상을 삭제할까요?'))return;
-      try{const r=await apiPost({...apiCredentials(),action:'deleteExerciseVideo',id});
-        if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadExtras();}
-      catch(err){alert(err.message);}
+      try{const r=await apiPost({...apiCredentials(),action:'deleteExerciseVideo',id});if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadExtras();}catch(e){alert(e.message);}
     }
 
     function showToast(msg) {

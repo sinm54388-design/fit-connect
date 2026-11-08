@@ -1069,7 +1069,15 @@
         const base64=await compressPhoto(file);
         const result=await apiPost({...apiCredentials(),action:'uploadPhoto',meal,mime:'image/jpeg',base64});
         if(result.status!=='success')throw new Error(result.message||'업로드 실패');
-        await loadDataFromCloud();showToast('사진 업로드 완료!');
+        
+showToast('사진 업로드 완료!');
+try {
+  await loadDataFromCloud();
+} catch (refreshError) {
+  console.error('사진 업로드 후 새로고침 오류:', refreshError);
+  alert('사진은 저장됐지만 화면 새로고침에 실패했습니다: ' + refreshError.message);
+}
+
       }catch(e){console.error(e);alert('사진 업로드 실패: '+e.message);}
       finally{input.value='';}
     }

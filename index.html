@@ -145,12 +145,46 @@
                 </div>
                 <div>
                   <h3 class="font-bold text-white text-base">오늘의 운동 루틴</h3>
-                  <p class="text-xs text-slate-400">트레이너가 할당한 오늘의 맞춤 운동 목록입니다.</p>
+                  <p class="text-xs text-slate-400">코치님이 준 루틴을 확인하고, 직접 추가하거나 고칠 수도 있어요.</p>
                 </div>
               </div>
               <span id="routineCountBadge" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full border border-slate-700">0개 운동</span>
             </div>
             <div id="memberRoutineList" class="space-y-3"></div>
+
+            <!-- 회원이 직접 루틴 추가/수정 -->
+            <form id="memberRoutineForm" onsubmit="submitRoutine(event)" class="mt-4 space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <h4 class="text-xs font-bold text-slate-300"><i class="fa-solid fa-pen"></i> 운동 직접 추가 / 수정</h4>
+              <input type="text" id="mrName" placeholder="운동 이름 (예: 레그프레스)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white">
+              <div class="grid grid-cols-3 gap-2">
+                <div><label class="block text-[11px] text-slate-400 mb-1">무게(kg)</label><input type="number" id="mrWeight" placeholder="40" step="0.5" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">세트수</label><input type="number" id="mrSets" placeholder="4" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">목표 횟수</label><input type="number" id="mrReps" placeholder="12" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              </div>
+              <input type="text" id="mrNote" placeholder="메모 (예: 무릎 아파서 가볍게)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white">
+              <div class="flex gap-2">
+                <button type="submit" id="mrSubmitBtn" class="flex-1 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-semibold rounded-lg text-xs cursor-pointer">운동 추가하기</button>
+                <button type="button" id="mrCancelBtn" onclick="resetRoutineForms()" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs cursor-pointer">취소</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- 코치님과 메모 -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center gap-2.5 pb-4 border-b border-slate-800 mb-4">
+              <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center">
+                <i class="fa-solid fa-comments"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-white text-base">코치님과 메모</h3>
+                <p class="text-xs text-slate-400">궁금한 점이나 하고 싶은 말을 자유롭게 남겨보세요.</p>
+              </div>
+            </div>
+            <div id="memberMemoList" class="space-y-2 max-h-64 overflow-y-auto pr-1 mb-3"></div>
+            <div class="flex gap-2">
+              <textarea id="memberMemoInput" rows="2" placeholder="메모를 입력하세요" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-sky-500"></textarea>
+              <button onclick="sendMemo()" class="px-4 bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold rounded-xl text-xs shrink-0 cursor-pointer">보내기</button>
+            </div>
           </div>
 
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
@@ -304,15 +338,18 @@
 
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
             <h3 class="font-bold text-white text-base mb-4">운동 루틴 짜주기</h3>
-            <form id="addRoutineForm" onsubmit="addExerciseToRoutine(event)" class="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
-              <div><label class="block text-xs text-slate-300 mb-1">운동 이름</label><input type="text" id="exName" placeholder="예: 바벨 벤치프레스" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+            <form id="addRoutineForm" onsubmit="submitRoutine(event)" class="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div><label class="block text-xs text-slate-300 mb-1">운동 이름</label><input type="text" id="exName" placeholder="예: 바벨 벤치프레스" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
               <div class="grid grid-cols-3 gap-2">
                 <div><label class="block text-[11px] text-slate-400 mb-1">무게(kg)</label><input type="number" id="exWeight" placeholder="40" step="0.5" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">세트수</label><input type="number" id="exSets" placeholder="4" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">목표 횟수</label><input type="number" id="exReps" placeholder="12" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">세트수</label><input type="number" id="exSets" placeholder="4" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">목표 횟수</label><input type="number" id="exReps" placeholder="12" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
               </div>
               <div><label class="block text-[11px] text-slate-400 mb-1">트레이너 팁</label><input type="text" id="exNote" placeholder="예: 견갑 고정" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
-              <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs cursor-pointer">운동 추가하기</button>
+              <div class="flex gap-2">
+                <button type="submit" id="exSubmitBtn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs cursor-pointer">운동 추가하기</button>
+                <button type="button" id="exCancelBtn" onclick="resetRoutineForms()" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs cursor-pointer">취소</button>
+              </div>
             </form>
 
             <div class="mt-5 space-y-2">
@@ -345,6 +382,16 @@
               <div class="flex justify-end"><button onclick="sendTrainerFeedback()" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg cursor-pointer">피드백 구글 시트에 전송</button></div>
             </div>
           </div>
+
+          <!-- 회원과 메모 -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <h3 class="font-bold text-white text-base mb-3"><i class="fa-solid fa-comments text-sky-400"></i> <span class="selectedMemberNameText text-brand-400">회원</span>님과 메모</h3>
+            <div id="trainerMemoList" class="space-y-2 max-h-64 overflow-y-auto pr-1 mb-3"></div>
+            <div class="flex gap-2">
+              <textarea id="trainerMemoInput" rows="2" placeholder="회원님께 메모를 남겨보세요" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-sky-500"></textarea>
+              <button onclick="sendMemo()" class="px-4 bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold rounded-xl text-xs shrink-0 cursor-pointer">보내기</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -355,48 +402,71 @@
   </div>
 
   <script>
-    // ✅ 사용자의 구글 웹 앱 URL이 적용되었습니다.
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyodteNKlNhki8krfi-DxL1jqlYkxZeUZcg0ho4ljX18reOwxR7Vkdx1JEOYuIF9CJX/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec";
+    const MEMBERS = ['김윤지', '김헬스', '박민수', '이서연', '정지훈']; // 회원이 늘면 여기에 이름 추가
+    const REFRESH_MS = 15000; // 15초마다 자동 새로고침
+    const MEAL_KEYS = ['breakfast', 'lunch', 'dinner', 'snack'];
+    const FORM_IDS = {
+      member: { name: 'mrName', weight: 'mrWeight', sets: 'mrSets', reps: 'mrReps', note: 'mrNote', btn: 'mrSubmitBtn', cancel: 'mrCancelBtn', addText: '운동 추가하기' },
+      trainer: { name: 'exName', weight: 'exWeight', sets: 'exSets', reps: 'exReps', note: 'exNote', btn: 'exSubmitBtn', cancel: 'exCancelBtn', addText: '운동 추가하기' }
+    };
+
+    function getLocalDateStr(d = new Date()) {
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${m}-${day}`;
+    }
+    function nowTimeStr() {
+      const n = new Date();
+      return `${n.getMonth() + 1}/${n.getDate()} ${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`;
+    }
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
     function getMemberNameFromUrl() {
       const params = new URLSearchParams(window.location.search);
       const name = params.get('name');
-      return name ? decodeURIComponent(name).trim() : '김윤지';
+      return name ? name.trim() : '김윤지';
     }
 
     let activeMemberName = getMemberNameFromUrl();
     let currentMode = 'member';
-    let selectedDate = new Date().toISOString().split('T')[0];
+    let selectedDate = getLocalDateStr();
     let appData = null;
+    let trainerPassword = null; // 비밀번호는 서버에서 확인 (코드에 저장되어 있지 않음)
+    let editingRoutineId = null;
+    const lastMemoCount = {};
 
     function getRegisteredMembers() {
-      const stored = localStorage.getItem('fit_member_list');
-      let list = stored ? JSON.parse(stored) : ['김윤지', '김헬스', '박민수', '이서연', '정지훈'];
-      if (!list.includes(activeMemberName)) {
-        list.push(activeMemberName);
-        localStorage.setItem('fit_member_list', JSON.stringify(list));
-      }
+      const list = [...MEMBERS];
+      if (!list.includes(activeMemberName)) list.push(activeMemberName);
       return list;
     }
 
-    window.onload = async function() {
-      getRegisteredMembers();
+    window.onload = async function () {
       document.getElementById('currentDateInput').value = selectedDate;
       document.getElementById('currentDateInput').addEventListener('change', async (e) => {
         selectedDate = e.target.value;
         document.getElementById('todayDateDisplay').innerText = selectedDate;
+        resetRoutineForms();
         await loadDataFromCloud();
       });
       document.getElementById('todayDateDisplay').innerText = selectedDate;
       updateTrainerMemberDropdown();
       await loadDataFromCloud();
+
+      // 자동 새로고침 (입력 중에는 건너뜀)
+      setInterval(() => {
+        const el = document.activeElement;
+        const typing = el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT');
+        if (!document.hidden && !typing) loadDataFromCloud(true);
+      }, REFRESH_MS);
     };
 
     function getDefaultData() {
       return {
         headerMessage: '오늘의 운동과 식단을 완수해볼까요? 💪',
-        routines: [
-          { id: 1, name: '바벨 스쿼트', weight: 60, sets: 4, reps: 10, note: '코어 긴장 유지', completedSets: [false, false, false, false] }
-        ],
+        routines: [],
         reflection: { good: '', bad: '' },
         diet: {
           breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '' },
@@ -405,53 +475,72 @@
           snack: { desc: '', cal: '', carb: '', prot: '', fat: '' },
           water: 0
         },
-        feedback: { workout: '', diet: '', time: '' }
+        feedback: { workout: '', diet: '', time: '' },
+        memos: []
       };
     }
 
-    async function loadDataFromCloud() {
-      showToast('데이터 불러오는 중...');
+    // 빠진 항목을 기본값으로 채워서 화면이 깨지지 않게 함
+    function normalizeData(d) {
+      const base = getDefaultData();
+      if (!d || typeof d !== 'object' || Object.keys(d).length === 0) return base;
+      d.headerMessage = d.headerMessage || base.headerMessage;
+      if (!Array.isArray(d.routines)) d.routines = [];
+      if (!Array.isArray(d.memos)) d.memos = [];
+      d.reflection = Object.assign({}, base.reflection, d.reflection);
+      d.diet = Object.assign({}, base.diet, d.diet);
+      MEAL_KEYS.forEach(m => { d.diet[m] = Object.assign({}, base.diet[m], d.diet[m]); });
+      d.feedback = Object.assign({}, base.feedback, d.feedback);
+      return d;
+    }
+
+    // 구글 시트에서 최신 데이터 가져오기 (실패하면 오류를 던짐)
+    async function fetchLatest() {
+      const res = await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}&_t=${Date.now()}`);
+      const json = await res.json();
+      if (json && json.error) throw new Error(json.error);
+      return normalizeData(json);
+    }
+
+    async function loadDataFromCloud(silent = false) {
+      if (!silent) showToast('데이터 불러오는 중...');
       try {
-        const res = await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}&_t=${Date.now()}`);
-        const json = await res.json();
-        if (json && Object.keys(json).length > 0) {
-          appData = json;
-        } else {
-          appData = getDefaultData();
-        }
+        appData = await fetchLatest();
       } catch (e) {
+        console.error(e);
+        if (!silent) showToast('불러오기 실패 - 인터넷 연결을 확인해주세요');
         if (!appData) appData = getDefaultData();
       }
-      renderUI();
+      renderUI(silent);
     }
 
     async function saveDataToCloud() {
-  showToast('구글 시트에 저장 중...');
+      const body = { member: activeMemberName, date: selectedDate, data: appData };
+      // 트레이너 모드일 때만 비밀번호를 함께 보냄 (서버가 확인)
+      if (currentMode === 'trainer' && trainerPassword) body.password = trainerPassword;
+      const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(body) });
+      const result = JSON.parse(await response.text());
+      if (result.status !== 'success') throw new Error(result.message || '저장 실패');
+    }
 
-  try {
+    // 저장 직전에 최신 데이터를 다시 받아서, 바뀐 부분만 고친 뒤 저장 (서로 덮어쓰기 방지)
+    async function updateAndSave(mutate) {
+      try {
+        showToast('구글 시트에 저장 중...');
+        appData = await fetchLatest();
+        mutate(appData);
+        await saveDataToCloud();
+        renderUI();
+        showToast('저장 완료!');
+        return true;
+      } catch (e) {
+        console.error(e);
+        showToast('저장 실패 - 다시 시도해주세요');
+        return false;
+      }
+    }
 
-    const response = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({
-        member: activeMemberName,
-        date: selectedDate,
-        data: appData
-      })
-    });
-
-    const result = await response.text();
-    console.log(result);
-
-    showToast('저장 완료!');
-
-  } catch (e) {
-
-    console.error(e);
-    showToast('저장 실패');
-
-  }
-}
-    function renderUI() {
+    function renderUI(silent = false) {
       if (!appData) appData = getDefaultData();
       document.getElementById('memberNameBadge').innerText = `${activeMemberName} 회원님`;
       document.querySelectorAll('.selectedMemberNameText').forEach(el => el.innerText = activeMemberName);
@@ -459,16 +548,131 @@
 
       if (currentMode === 'member') {
         renderMemberRoutines(appData.routines || []);
-        renderMemberReflection(appData.reflection || {});
-        renderMemberDiet(appData.diet || {}, 2100);
         renderMemberFeedback(appData.feedback || {});
+        renderMemos('memberMemoList', appData.memos);
+        if (!silent) {
+          renderMemberReflection(appData.reflection || {});
+          renderMemberDiet(appData.diet || {}, 2100);
+        }
       } else {
-        document.getElementById('inputCustomHeaderMsg').value = appData.headerMessage || '';
+        if (!silent) document.getElementById('inputCustomHeaderMsg').value = appData.headerMessage || '';
         renderTrainerRoutines(appData.routines || []);
-        renderTrainerReview(appData);
+        renderTrainerReview(appData, silent);
+        renderMemos('trainerMemoList', appData.memos);
       }
     }
 
+    /* ---------- 메모 (코치 ↔ 회원) ---------- */
+    function renderMemos(listId, memos) {
+      const el = document.getElementById(listId);
+      if (!memos || memos.length === 0) {
+        el.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">아직 메모가 없습니다.</p>';
+        lastMemoCount[listId] = 0;
+        return;
+      }
+      el.innerHTML = memos.map(m => {
+        const isTrainer = m.from === 'trainer';
+        const bubble = isTrainer ? 'bg-brand-500/15 border border-brand-500/30' : 'bg-indigo-500/15 border border-indigo-500/30';
+        const nameColor = isTrainer ? 'text-brand-400' : 'text-indigo-300';
+        const who = isTrainer ? '코치님' : `${esc(activeMemberName)} 회원님`;
+        return `
+          <div class="flex ${isTrainer ? 'justify-start' : 'justify-end'}">
+            <div class="max-w-[85%] rounded-xl px-3 py-2 text-xs text-slate-100 ${bubble}">
+              <div class="text-[10px] font-semibold ${nameColor} mb-0.5">${who} · ${esc(m.time)}</div>
+              <div class="whitespace-pre-wrap">${esc(m.text)}</div>
+            </div>
+          </div>`;
+      }).join('');
+      if (lastMemoCount[listId] !== memos.length) {
+        el.scrollTop = el.scrollHeight;
+        lastMemoCount[listId] = memos.length;
+      }
+    }
+
+    async function sendMemo() {
+      const inputEl = document.getElementById(currentMode === 'trainer' ? 'trainerMemoInput' : 'memberMemoInput');
+      const text = inputEl.value.trim();
+      if (!text) return;
+      const memo = {
+        id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        from: currentMode === 'trainer' ? 'trainer' : 'member',
+        text: text,
+        time: nowTimeStr()
+      };
+      const ok = await updateAndSave(d => { d.memos.push(memo); });
+      if (ok) inputEl.value = '';
+    }
+
+    /* ---------- 루틴 추가/수정/삭제 (회원, 트레이너 공통) ---------- */
+    function resetRoutineForms() {
+      editingRoutineId = null;
+      Object.values(FORM_IDS).forEach(ids => {
+        ['name', 'weight', 'sets', 'reps', 'note'].forEach(k => { document.getElementById(ids[k]).value = ''; });
+        document.getElementById(ids.btn).innerText = ids.addText;
+        document.getElementById(ids.cancel).classList.add('hidden');
+      });
+    }
+
+    function startEditRoutine(id) {
+      const ex = (appData.routines || []).find(r => String(r.id) === String(id));
+      if (!ex) return;
+      resetRoutineForms();
+      editingRoutineId = ex.id;
+      const ids = FORM_IDS[currentMode];
+      document.getElementById(ids.name).value = ex.name || '';
+      document.getElementById(ids.weight).value = ex.weight || '';
+      document.getElementById(ids.sets).value = ex.sets || '';
+      document.getElementById(ids.reps).value = ex.reps || '';
+      document.getElementById(ids.note).value = ex.note || '';
+      document.getElementById(ids.btn).innerText = '수정 저장하기';
+      document.getElementById(ids.cancel).classList.remove('hidden');
+      document.getElementById(ids.name).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function submitRoutine(e) {
+      e.preventDefault();
+      const ids = FORM_IDS[currentMode];
+      const name = document.getElementById(ids.name).value.trim();
+      const weight = document.getElementById(ids.weight).value;
+      const sets = document.getElementById(ids.sets).value;
+      const reps = document.getElementById(ids.reps).value;
+      const note = document.getElementById(ids.note).value.trim();
+      const setNum = Number(sets);
+
+      if (!name || !(setNum >= 1 && setNum <= 20) || !(Number(reps) >= 1)) {
+        showToast('운동 이름, 세트수(1~20), 횟수를 확인해주세요');
+        return;
+      }
+      const editId = editingRoutineId;
+      const ok = await updateAndSave(d => {
+        if (editId !== null) {
+          const ex = d.routines.find(r => String(r.id) === String(editId));
+          if (ex) {
+            const old = Array.isArray(ex.completedSets) ? ex.completedSets : [];
+            ex.name = name; ex.weight = weight; ex.sets = sets; ex.reps = reps; ex.note = note;
+            ex.completedSets = Array.from({ length: setNum }, (_, i) => !!old[i]);
+            return;
+          }
+        }
+        d.routines.push({ id: Date.now(), name, weight, sets, reps, note, completedSets: Array(setNum).fill(false) });
+      });
+      if (ok) resetRoutineForms();
+    }
+
+    async function removeExercise(id) {
+      if (!confirm("이 운동을 삭제할까요?")) return;
+      await updateAndSave(d => { d.routines = d.routines.filter(r => String(r.id) !== String(id)); });
+      if (String(editingRoutineId) === String(id)) resetRoutineForms();
+    }
+
+    async function clearAllRoutines() {
+      if (confirm("전체 삭제하시겠습니까?")) {
+        await updateAndSave(d => { d.routines = []; });
+        resetRoutineForms();
+      }
+    }
+
+    /* ---------- 회원 화면 ---------- */
     function renderMemberRoutines(routines) {
       const container = document.getElementById('memberRoutineList');
       document.getElementById('routineCountBadge').innerText = `${routines.length}개 운동`;
@@ -481,12 +685,12 @@
       let totalSets = 0, completedSets = 0;
       container.innerHTML = routines.map((ex, exIdx) => {
         totalSets += Number(ex.sets);
-        const setChecksHtml = Array.from({ length: ex.sets }).map((_, setIdx) => {
+        const setChecksHtml = Array.from({ length: Number(ex.sets) }).map((_, setIdx) => {
           const isDone = ex.completedSets && ex.completedSets[setIdx];
           if (isDone) completedSets++;
           return `
             <label class="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 cursor-pointer hover:border-slate-700">
-              <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleSetDone(${exIdx}, ${setIdx})" class="custom-checkbox w-4 h-4 rounded text-brand-500 cursor-pointer">
+              <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleSetDone(${exIdx}, ${setIdx}, this.checked)" class="custom-checkbox w-4 h-4 rounded text-brand-500 cursor-pointer">
               <span class="text-xs ${isDone ? 'text-brand-400 line-through font-semibold' : 'text-slate-300'}">${setIdx + 1}세트</span>
             </label>
           `;
@@ -494,8 +698,14 @@
 
         return `
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-            <h4 class="font-bold text-white text-sm mb-1">${ex.name} <span class="text-[11px] font-normal text-slate-400">(${ex.weight ? ex.weight + 'kg' : '맨몸'} × ${ex.reps}회)</span></h4>
-            ${ex.note ? `<p class="text-xs text-brand-400 mb-2"><i class="fa-solid fa-lightbulb"></i> ${ex.note}</p>` : ''}
+            <div class="flex items-start justify-between gap-2">
+              <h4 class="font-bold text-white text-sm mb-1">${esc(ex.name)} <span class="text-[11px] font-normal text-slate-400">(${ex.weight ? esc(ex.weight) + 'kg' : '맨몸'} × ${esc(ex.reps)}회)</span></h4>
+              <div class="flex gap-1 shrink-0">
+                <button onclick="startEditRoutine(${Number(ex.id)})" class="text-slate-400 hover:text-white p-1 cursor-pointer" title="수정"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="removeExercise(${Number(ex.id)})" class="text-rose-400 hover:text-rose-300 p-1 cursor-pointer" title="삭제"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+            ${ex.note ? `<p class="text-xs text-brand-400 mb-2"><i class="fa-solid fa-lightbulb"></i> ${esc(ex.note)}</p>` : ''}
             <div class="flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-900">${setChecksHtml}</div>
           </div>
         `;
@@ -503,10 +713,14 @@
       updateWorkoutProgress(completedSets, totalSets);
     }
 
-    function toggleSetDone(exIdx, setIdx) {
-      if (!appData.routines[exIdx].completedSets) appData.routines[exIdx].completedSets = [];
-      appData.routines[exIdx].completedSets[setIdx] = !appData.routines[exIdx].completedSets[setIdx];
-      saveDataToCloud();
+    function toggleSetDone(exIdx, setIdx, checked) {
+      const exId = appData.routines[exIdx] ? appData.routines[exIdx].id : null;
+      updateAndSave(d => {
+        const ex = d.routines.find(r => r.id === exId) || d.routines[exIdx];
+        if (!ex) return;
+        if (!ex.completedSets) ex.completedSets = [];
+        ex.completedSets[setIdx] = checked;
+      });
     }
 
     function updateWorkoutProgress(done, total) {
@@ -523,23 +737,22 @@
 
     function saveWorkoutReflection(e) {
       e.preventDefault();
-      if (!appData) appData = getDefaultData();
-      appData.reflection = { good: document.getElementById('refGoodText').value, bad: document.getElementById('refBadText').value };
-      saveDataToCloud();
+      const good = document.getElementById('refGoodText').value;
+      const bad = document.getElementById('refBadText').value;
+      updateAndSave(d => { d.reflection = { good, bad }; });
     }
 
     function renderMemberDiet(diet, targetCal) {
       document.getElementById('memberTargetCalorieText').innerText = targetCal.toLocaleString();
-      const meals = ['breakfast', 'lunch', 'dinner', 'snack'];
       let totalCal = 0, totalCarb = 0, totalProt = 0, totalFat = 0;
 
-      meals.forEach(m => {
+      MEAL_KEYS.forEach(m => {
         const item = diet[m] || {};
-        if (document.activeElement.id !== `meal-${m}-desc`) document.getElementById(`meal-${m}-desc`).value = item.desc || '';
-        if (document.activeElement.id !== `meal-${m}-cal`) document.getElementById(`meal-${m}-cal`).value = item.cal || '';
-        if (document.activeElement.id !== `meal-${m}-carb`) document.getElementById(`meal-${m}-carb`).value = item.carb || '';
-        if (document.activeElement.id !== `meal-${m}-prot`) document.getElementById(`meal-${m}-prot`).value = item.prot || '';
-        if (document.activeElement.id !== `meal-${m}-fat`) document.getElementById(`meal-${m}-fat`).value = item.fat || '';
+        const fields = { desc: item.desc, cal: item.cal, carb: item.carb, prot: item.prot, fat: item.fat };
+        Object.keys(fields).forEach(f => {
+          const el = document.getElementById(`meal-${m}-${f}`);
+          if (document.activeElement !== el) el.value = fields[f] || '';
+        });
 
         const badge = document.getElementById(`badge-${m}`);
         if (item.desc || item.cal) {
@@ -565,10 +778,9 @@
     }
 
     function saveDietLog() {
-      if (!appData) appData = getDefaultData();
-      const meals = ['breakfast', 'lunch', 'dinner', 'snack'];
-      meals.forEach(m => {
-        appData.diet[m] = {
+      const values = {};
+      MEAL_KEYS.forEach(m => {
+        values[m] = {
           desc: document.getElementById(`meal-${m}-desc`).value,
           cal: document.getElementById(`meal-${m}-cal`).value,
           carb: document.getElementById(`meal-${m}-carb`).value,
@@ -576,13 +788,11 @@
           fat: document.getElementById(`meal-${m}-fat`).value
         };
       });
-      saveDataToCloud();
+      updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = values[m]; }); });
     }
 
     function adjustWater(amt) {
-      if (!appData) appData = getDefaultData();
-      appData.diet.water = Math.max(0, (appData.diet.water || 0) + amt);
-      saveDataToCloud();
+      updateAndSave(d => { d.diet.water = Math.max(0, (Number(d.diet.water) || 0) + amt); });
     }
 
     function renderMemberFeedback(fb) {
@@ -597,8 +807,10 @@
       }
     }
 
+    /* ---------- 모드 전환 ---------- */
     async function switchMode(mode) {
       currentMode = mode;
+      resetRoutineForms();
       document.getElementById('memberView').classList.toggle('hidden', mode !== 'member');
       document.getElementById('trainerView').classList.toggle('hidden', mode !== 'trainer');
       document.getElementById('btnMemberMode').className = mode === 'member' ? "px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-500 text-slate-950 font-bold" : "px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white";
@@ -606,62 +818,42 @@
       await loadDataFromCloud();
     }
 
-    function trySwitchToTrainer() {
-      const input = prompt("트레이너 비밀번호 입력 (8568):");
-      if (input === TRAINER_PASSWORD) {
-        switchMode('trainer');
-      } else if (input !== null) {
-        alert("비밀번호가 틀렸습니다.");
+    // 비밀번호는 서버(Apps Script)에서 확인
+    async function trySwitchToTrainer() {
+      if (trainerPassword) { switchMode('trainer'); return; }
+      const input = prompt("트레이너 비밀번호를 입력하세요");
+      if (input === null) return;
+      try {
+        showToast('비밀번호 확인 중...');
+        const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'verify', password: input }) });
+        const result = JSON.parse(await res.text());
+        if (result.status === 'success') {
+          trainerPassword = input;
+          switchMode('trainer');
+        } else {
+          alert("비밀번호가 틀렸습니다.\n(Apps Script 코드에서 비밀번호를 바꿨는지도 확인해주세요)");
+        }
+      } catch (e) {
+        console.error(e);
+        alert("비밀번호 확인 중 오류가 났어요. 인터넷 연결을 확인해주세요.");
       }
     }
 
     function updateTrainerMemberDropdown() {
       const members = getRegisteredMembers();
-      document.getElementById('trainerMemberSelect').innerHTML = members.map(m => `<option value="${m}" ${m === activeMemberName ? 'selected' : ''}>${m} 회원님</option>`).join('');
+      document.getElementById('trainerMemberSelect').innerHTML = members.map(m => `<option value="${esc(m)}" ${m === activeMemberName ? 'selected' : ''}>${esc(m)} 회원님</option>`).join('');
     }
 
     async function onSelectMemberChange() {
       activeMemberName = document.getElementById('trainerMemberSelect').value;
+      resetRoutineForms();
       await loadDataFromCloud();
     }
 
+    /* ---------- 트레이너 화면 ---------- */
     async function saveCustomHeaderMsg() {
-      if (!appData) appData = getDefaultData();
-      appData.headerMessage = document.getElementById('inputCustomHeaderMsg').value;
-      await saveDataToCloud();
-    }
-
-    async function addExerciseToRoutine(e) {
-      e.preventDefault();
-      if (!appData) appData = getDefaultData();
-      const name = document.getElementById('exName').value;
-      const weight = document.getElementById('exWeight').value;
-      const sets = document.getElementById('exSets').value;
-      const reps = document.getElementById('exReps').value;
-      const note = document.getElementById('exNote').value;
-
-      if (!appData.routines) appData.routines = [];
-      appData.routines.push({ id: Date.now(), name, weight, sets, reps, note, completedSets: Array(Number(sets)).fill(false) });
-      await saveDataToCloud();
-      document.getElementById('exName').value = '';
-      document.getElementById('exWeight').value = '';
-      document.getElementById('exSets').value = '';
-      document.getElementById('exReps').value = '';
-      document.getElementById('exNote').value = '';
-    }
-
-    async function removeExercise(idx) {
-      if (!appData) return;
-      appData.routines.splice(idx, 1);
-      await saveDataToCloud();
-    }
-
-    async function clearAllRoutines() {
-      if (confirm("전체 삭제하시겠습니까?")) {
-        if (!appData) appData = getDefaultData();
-        appData.routines = [];
-        await saveDataToCloud();
-      }
+      const msg = document.getElementById('inputCustomHeaderMsg').value;
+      await updateAndSave(d => { d.headerMessage = msg; });
     }
 
     function renderTrainerRoutines(routines) {
@@ -670,33 +862,66 @@
         container.innerHTML = `<p class="text-xs text-slate-500 py-2 text-center">처방된 루틴이 없습니다.</p>`;
         return;
       }
-      container.innerHTML = routines.map((ex, idx) => `
+      container.innerHTML = routines.map(ex => `
         <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
           <div>
-            <div class="font-bold text-white">${ex.name}</div>
-            <div class="text-[10px] text-slate-400">${ex.weight ? ex.weight + 'kg | ' : ''}${ex.sets}세트 × ${ex.reps}회</div>
+            <div class="font-bold text-white">${esc(ex.name)}</div>
+            <div class="text-[10px] text-slate-400">${ex.weight ? esc(ex.weight) + 'kg | ' : ''}${esc(ex.sets)}세트 × ${esc(ex.reps)}회</div>
           </div>
-          <button onclick="removeExercise(${idx})" class="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+          <div class="flex gap-1">
+            <button onclick="startEditRoutine(${Number(ex.id)})" class="text-slate-400 hover:text-white p-1 cursor-pointer"><i class="fa-solid fa-pen"></i></button>
+            <button onclick="removeExercise(${Number(ex.id)})" class="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+          </div>
         </div>
       `).join('');
     }
 
-    function renderTrainerReview(data) {
+    function renderTrainerReview(data, keepInputs = false) {
       document.getElementById('reviewRefGood').innerText = data.reflection?.good || '작성된 내용이 없습니다.';
       document.getElementById('reviewRefBad').innerText = data.reflection?.bad || '작성된 내용이 없습니다.';
-      document.getElementById('inputFeedbackWorkout').value = data.feedback?.workout || '';
-      document.getElementById('inputFeedbackDiet').value = data.feedback?.diet || '';
+
+      // 회원의 식단 일지/운동 달성 현황 (트레이너 화면에 박스를 자동으로 추가)
+      let box = document.getElementById('reviewDietBox');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'reviewDietBox';
+        box.className = 'bg-slate-950 p-3.5 rounded-xl border border-amber-500/20';
+        document.getElementById('reviewRefGood').closest('.grid').insertAdjacentElement('afterend', box);
+      }
+      const labels = { breakfast: '아침', lunch: '점심', dinner: '저녁', snack: '간식/보충제' };
+      let cal = 0, carb = 0, prot = 0, fat = 0;
+      const rows = MEAL_KEYS.map(k => {
+        const m = data.diet[k];
+        cal += Number(m.cal) || 0; carb += Number(m.carb) || 0; prot += Number(m.prot) || 0; fat += Number(m.fat) || 0;
+        const text = (m.desc || m.cal)
+          ? `${esc(m.desc || '-')}${m.cal ? ` · ${esc(m.cal)}kcal` : ''}`
+          : '<span class="text-slate-500">미작성</span>';
+        return `<div class="text-xs text-slate-300"><span class="font-semibold text-amber-400">${labels[k]}</span> ${text}</div>`;
+      }).join('');
+      let totalSets = 0, doneSets = 0;
+      (data.routines || []).forEach(r => {
+        totalSets += Number(r.sets) || 0;
+        doneSets += (r.completedSets || []).filter(Boolean).length;
+      });
+      box.innerHTML = `
+        <span class="text-[11px] font-bold text-amber-400 block mb-1.5"><i class="fa-solid fa-utensils"></i> 식단 일지 / 운동 달성</span>
+        <div class="space-y-1">${rows}</div>
+        <div class="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800">
+          운동 ${doneSets}/${totalSets}세트 · 총 ${cal} kcal · 탄 ${carb}g · 단 ${prot}g · 지 ${fat}g · 수분 ${data.diet.water || 0}ml
+        </div>`;
+
+      if (!keepInputs) {
+        document.getElementById('inputFeedbackWorkout').value = data.feedback?.workout || '';
+        document.getElementById('inputFeedbackDiet').value = data.feedback?.diet || '';
+      }
     }
 
     async function sendTrainerFeedback() {
-      if (!appData) appData = getDefaultData();
       const now = new Date();
-      appData.feedback = {
-        workout: document.getElementById('inputFeedbackWorkout').value,
-        diet: document.getElementById('inputFeedbackDiet').value,
-        time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-      };
-      await saveDataToCloud();
+      const workout = document.getElementById('inputFeedbackWorkout').value;
+      const diet = document.getElementById('inputFeedbackDiet').value;
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      await updateAndSave(d => { d.feedback = { workout, diet, time }; });
     }
 
     function showToast(msg) {

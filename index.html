@@ -349,7 +349,7 @@
        </section>
        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
-         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 짧은 영상(6MB 이하 · 최대 40초)을 이용해주세요.</p>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 용량이 크면 휴대폰에서 자동으로 압축해 업로드해요.</p>
          <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
            <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
            <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
@@ -407,7 +407,7 @@
          <form onsubmit="saveExerciseVideo(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950 border border-slate-800 rounded-xl p-4">
            <div><label for="videoExerciseName" class="block text-xs text-slate-400 mb-1">운동 이름</label><input id="videoExerciseName" required maxlength="80" placeholder="예: 벤치프레스" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
             <div><label for="videoUrl" class="block text-xs text-slate-400 mb-1">유튜브 영상 링크 (직접 업로드 시 비워두세요)</label><input id="videoUrl" type="url" placeholder="https://youtu.be/..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
-            <div class="sm:col-span-2"><label for="trainerVideoFile" class="block text-xs text-slate-400 mb-1">또는 직접 촬영한 영상 (최대 6MB)</label><input id="trainerVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs text-slate-300"></div>
+            <div class="sm:col-span-2"><label for="trainerVideoFile" class="block text-xs text-slate-400 mb-1">또는 직접 촬영한 영상 (최대 40초 · 자동 압축)</label><input id="trainerVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs text-slate-300"></div>
            <div class="sm:col-span-2"><label for="videoTip" class="block text-xs text-slate-400 mb-1">트레이너 설명 / 주의사항</label><textarea id="videoTip" rows="2" maxlength="500" placeholder="예: 견갑을 고정하고 가슴을 열어주세요." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></textarea></div>
            <button type="submit" class="sm:col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg px-4 py-2.5 text-sm">선택한 회원에게 영상 등록하기</button>
          </form>
@@ -536,7 +536,8 @@
     let historyData = { month: habitMonth, days: [], previous: {} };
     let exerciseVideos = [];
     let formVideos = [];
-    const VIDEO_LIMIT = 6 * 1024 * 1024;
+    const VIDEO_LIMIT = 20 * 1024 * 1024;
+    const VIDEO_INPUT_LIMIT = 200 * 1024 * 1024;
     const VIDEO_MAX_DURATION = 40;
     const VIDEO_CHUNK = 768 * 1024;
     const videoObjectUrls = new Map();
@@ -1281,30 +1282,115 @@ try {
     }
     function bytesToBase64(bytes){let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(s);}
     function base64ToBytes(b64){const s=atob(b64),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
-    async function getPrivateVideoDuration(file){
+    async function getPrivateVideoMetadata(file){
       const url=URL.createObjectURL(file);
       try{
         return await new Promise((resolve,reject)=>{
           const video=document.createElement('video');
           video.preload='metadata';
-          video.onloadedmetadata=()=>resolve(video.duration);
-          video.onerror=()=>reject(new Error('영상 길이를 확인할 수 없어요. MP4 영상으로 다시 선택해주세요.'));
+          video.onloadedmetadata=()=>resolve({duration:video.duration,width:video.videoWidth,height:video.videoHeight});
+          video.onerror=()=>reject(new Error('영상 정보를 읽을 수 없어요. MP4 또는 MOV 영상으로 다시 선택해주세요.'));
           video.src=url;
         });
       }finally{URL.revokeObjectURL(url);}
     }
+    function waitForMediaEvent(target,eventName,errorName='error'){
+      return new Promise((resolve,reject)=>{
+        const cleanup=()=>{target.removeEventListener(eventName,onOk);target.removeEventListener(errorName,onErr);};
+        const onOk=()=>{cleanup();resolve();};
+        const onErr=()=>{cleanup();reject(new Error('영상 압축 중 원본을 읽지 못했어요. 다른 영상으로 다시 시도해주세요.'));};
+        target.addEventListener(eventName,onOk,{once:true});
+        target.addEventListener(errorName,onErr,{once:true});
+      });
+    }
+    async function compressPrivateVideo(file){
+      if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){
+        throw new Error('현재 브라우저에서 자동 영상 압축을 지원하지 않아요. iPhone은 Safari, 갤럭시는 Chrome 최신 버전으로 다시 시도해주세요.');
+      }
+      const sourceUrl=URL.createObjectURL(file);
+      const video=document.createElement('video');
+      video.preload='auto';video.playsInline=true;video.setAttribute('playsinline','');
+      video.muted=false;video.volume=0;video.src=sourceUrl;
+      let sourceStream=null,canvasStream=null,recorder=null;
+      try{
+        await waitForMediaEvent(video,'loadedmetadata');
+        const scale=Math.min(1,1280/Math.max(video.videoWidth,video.videoHeight));
+        const width=Math.max(2,Math.round(video.videoWidth*scale/2)*2);
+        const height=Math.max(2,Math.round(video.videoHeight*scale/2)*2);
+        const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+        const ctx=canvas.getContext('2d',{alpha:false});
+        if(!ctx)throw new Error('영상 압축 화면을 준비하지 못했어요.');
+        canvasStream=canvas.captureStream(24);
+        if(typeof video.captureStream==='function')sourceStream=video.captureStream();
+        else if(typeof video.webkitCaptureStream==='function')sourceStream=video.webkitCaptureStream();
+        if(sourceStream){
+          sourceStream.getAudioTracks().forEach(track=>canvasStream.addTrack(track));
+        }
+        const mimeCandidates=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp8,opus','video/webm'];
+        const mimeType=mimeCandidates.find(type=>MediaRecorder.isTypeSupported(type))||'';
+        const options={videoBitsPerSecond:1400000,audioBitsPerSecond:96000};
+        if(mimeType)options.mimeType=mimeType;
+        const chunks=[];
+        recorder=new MediaRecorder(canvasStream,options);
+        recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+        const stopped=new Promise((resolve,reject)=>{
+          recorder.onstop=resolve;
+          recorder.onerror=()=>reject(new Error('영상 압축에 실패했어요. 원본 영상을 다시 선택해주세요.'));
+        });
+        recorder.start(500);
+        await video.play();
+        await new Promise((resolve,reject)=>{
+          let raf=0,finished=false;
+          const cleanup=()=>{cancelAnimationFrame(raf);video.removeEventListener('ended',onEnded);video.removeEventListener('error',onError);};
+          const finish=()=>{if(finished)return;finished=true;cleanup();resolve();};
+          const onEnded=()=>finish();
+          const onError=()=>{if(finished)return;finished=true;cleanup();reject(new Error('영상 압축 중 원본 재생에 실패했어요.'));};
+          const draw=()=>{
+            if(finished)return;
+            try{ctx.drawImage(video,0,0,width,height);}catch(e){}
+            if(video.ended||video.currentTime>=video.duration){finish();return;}
+            raf=requestAnimationFrame(draw);
+          };
+          video.addEventListener('ended',onEnded,{once:true});
+          video.addEventListener('error',onError,{once:true});
+          draw();
+        });
+        if(recorder.state!=='inactive')recorder.stop();
+        await stopped;
+        const outputType=recorder.mimeType||mimeType||'video/webm';
+        const blob=new Blob(chunks,{type:outputType});
+        if(!blob.size)throw new Error('압축된 영상이 비어 있어요. 다시 시도해주세요.');
+        const canonicalType=outputType.includes('mp4')?'video/mp4':'video/webm';
+        const ext=canonicalType==='video/mp4'?'mp4':'webm';
+        return new File([blob],file.name.replace(/\.[^.]+$/,'')+'_compressed.'+ext,{type:canonicalType});
+      }finally{
+        if(recorder&&recorder.state!=='inactive'){try{recorder.stop();}catch(e){}}
+        if(canvasStream)canvasStream.getTracks().forEach(t=>t.stop());
+        if(sourceStream)sourceStream.getTracks().forEach(t=>t.stop());
+        video.pause();video.removeAttribute('src');video.load();URL.revokeObjectURL(sourceUrl);
+      }
+    }
     async function uploadPrivateVideo(file,kind,name,question,tip){
       if(!file || !['video/mp4','video/webm','video/quicktime'].includes(file.type))throw Error('MP4, WebM, MOV 영상만 등록할 수 있어요.');
-      if(file.size>VIDEO_LIMIT || !file.size)throw Error('영상은 6MB 이하로 압축해서 올려주세요. 40초 영상은 화질을 낮춰 저장해주세요.');
-      const duration=await getPrivateVideoDuration(file);
-      if(!Number.isFinite(duration)||duration<=0)throw Error('영상 길이를 확인할 수 없어요. 다른 파일로 시도해주세요.');
-      if(duration>VIDEO_MAX_DURATION+0.25)throw Error('영상은 최대 40초까지 업로드할 수 있어요.');
+      if(file.size>VIDEO_INPUT_LIMIT || !file.size)throw Error('원본 영상은 200MB 이하만 선택할 수 있어요.');
+      const meta=await getPrivateVideoMetadata(file);
+      if(!Number.isFinite(meta.duration)||meta.duration<=0)throw Error('영상 길이를 확인할 수 없어요. 다른 파일로 시도해주세요.');
+      if(meta.duration>VIDEO_MAX_DURATION+0.25)throw Error('영상은 최대 40초까지 업로드할 수 있어요.');
+      let uploadFile=file;
+      if(file.size>VIDEO_LIMIT){
+        showToast('영상 자동 압축 중... 잠시만 기다려주세요');
+        uploadFile=await compressPrivateVideo(file);
+        if(uploadFile.size>VIDEO_LIMIT)throw Error('압축 후에도 20MB를 초과했어요. 촬영 화질을 720p로 낮춰 다시 시도해주세요.');
+        showToast(`영상 압축 완료 · ${(uploadFile.size/1024/1024).toFixed(1)}MB`);
+      }
+      const allowedMime=['video/mp4','video/webm','video/quicktime'];
+      if(!allowedMime.includes(uploadFile.type))throw Error('압축 결과 형식을 지원하지 않아요. Safari 또는 Chrome 최신 버전으로 다시 시도해주세요.');
       const creds=apiCredentials();
-      const init=await apiPost({...creds,action:'beginVideoUpload',kind,name,question,tip,mime:file.type,size:file.size});
+      const init=await apiPost({...creds,action:'beginVideoUpload',kind,name,question,tip,mime:uploadFile.type,size:uploadFile.size});
       if(init.status!=='success')throw Error(init.message||'업로드 준비 실패');
-      const id=init.uploadId,parts=Math.ceil(file.size/VIDEO_CHUNK);
+      const id=init.uploadId,parts=Math.ceil(uploadFile.size/VIDEO_CHUNK);
       for(let i=0;i<parts;i++){
-        const chunk=new Uint8Array(await file.slice(i*VIDEO_CHUNK,Math.min(file.size,(i+1)*VIDEO_CHUNK)).arrayBuffer());
+        const chunk=new Uint8Array(await uploadFile.slice(i*VIDEO_CHUNK,Math.min(uploadFile.size,(i+1)*VIDEO_CHUNK)).arrayBuffer());
         const r=await apiPost({...creds,action:'videoChunk',uploadId:id,index:i,total:parts,base64:bytesToBase64(chunk)});
         if(r.status!=='success')throw Error(r.message||'영상 업로드 중 오류');
         showToast(`영상 업로드 ${Math.round((i+1)/parts*100)}%`);

@@ -349,7 +349,7 @@
        </section>
        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
-         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 짧은 영상(6MB 이하)을 이용해주세요.</p>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 짧은 영상(6MB 이하 · 최대 40초)을 이용해주세요.</p>
          <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
            <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
            <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
@@ -537,6 +537,7 @@
     let exerciseVideos = [];
     let formVideos = [];
     const VIDEO_LIMIT = 6 * 1024 * 1024;
+    const VIDEO_MAX_DURATION = 40;
     const VIDEO_CHUNK = 768 * 1024;
     const videoObjectUrls = new Map();
 
@@ -1280,9 +1281,24 @@ try {
     }
     function bytesToBase64(bytes){let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(s);}
     function base64ToBytes(b64){const s=atob(b64),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+    async function getPrivateVideoDuration(file){
+      const url=URL.createObjectURL(file);
+      try{
+        return await new Promise((resolve,reject)=>{
+          const video=document.createElement('video');
+          video.preload='metadata';
+          video.onloadedmetadata=()=>resolve(video.duration);
+          video.onerror=()=>reject(new Error('영상 길이를 확인할 수 없어요. MP4 영상으로 다시 선택해주세요.'));
+          video.src=url;
+        });
+      }finally{URL.revokeObjectURL(url);}
+    }
     async function uploadPrivateVideo(file,kind,name,question,tip){
       if(!file || !['video/mp4','video/webm','video/quicktime'].includes(file.type))throw Error('MP4, WebM, MOV 영상만 등록할 수 있어요.');
-      if(file.size>VIDEO_LIMIT || !file.size)throw Error('영상은 6MB 이하로 압축해서 올려주세요.');
+      if(file.size>VIDEO_LIMIT || !file.size)throw Error('영상은 6MB 이하로 압축해서 올려주세요. 40초 영상은 화질을 낮춰 저장해주세요.');
+      const duration=await getPrivateVideoDuration(file);
+      if(!Number.isFinite(duration)||duration<=0)throw Error('영상 길이를 확인할 수 없어요. 다른 파일로 시도해주세요.');
+      if(duration>VIDEO_MAX_DURATION+0.25)throw Error('영상은 최대 40초까지 업로드할 수 있어요.');
       const creds=apiCredentials();
       const init=await apiPost({...creds,action:'beginVideoUpload',kind,name,question,tip,mime:file.type,size:file.size});
       if(init.status!=='success')throw Error(init.message||'업로드 준비 실패');

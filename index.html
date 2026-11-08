@@ -256,6 +256,11 @@
               <!-- Breakfast -->
               <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
                 <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-sun"></i> 아침</span><span id="badge-breakfast" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-300"><i class="fa-solid fa-camera text-amber-400"></i> 식단 사진</span><label class="text-[11px] cursor-pointer rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1.5">+ 사진 첨부<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMealPhoto('breakfast',this)"></label></div>
+                  <div id="photos-breakfast" class="grid grid-cols-3 gap-2"></div>
+                  <p id="photo-feedback-breakfast" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
+                </div>
                 <input type="text" id="meal-breakfast-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
                 <div class="grid grid-cols-4 gap-2">
                   <input type="number" id="meal-breakfast-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
@@ -267,6 +272,11 @@
               <!-- Lunch -->
               <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
                 <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-cloud-sun"></i> 점심</span><span id="badge-lunch" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-300"><i class="fa-solid fa-camera text-amber-400"></i> 식단 사진</span><label class="text-[11px] cursor-pointer rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1.5">+ 사진 첨부<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMealPhoto('lunch',this)"></label></div>
+                  <div id="photos-lunch" class="grid grid-cols-3 gap-2"></div>
+                  <p id="photo-feedback-lunch" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
+                </div>
                 <input type="text" id="meal-lunch-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
                 <div class="grid grid-cols-4 gap-2">
                   <input type="number" id="meal-lunch-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
@@ -278,6 +288,11 @@
               <!-- Dinner -->
               <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
                 <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-moon"></i> 저녁</span><span id="badge-dinner" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-300"><i class="fa-solid fa-camera text-amber-400"></i> 식단 사진</span><label class="text-[11px] cursor-pointer rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1.5">+ 사진 첨부<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMealPhoto('dinner',this)"></label></div>
+                  <div id="photos-dinner" class="grid grid-cols-3 gap-2"></div>
+                  <p id="photo-feedback-dinner" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
+                </div>
                 <input type="text" id="meal-dinner-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
                 <div class="grid grid-cols-4 gap-2">
                   <input type="number" id="meal-dinner-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
@@ -289,6 +304,11 @@
               <!-- Snack -->
               <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
                 <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-cookie-bite"></i> 간식/보충제</span><span id="badge-snack" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-300"><i class="fa-solid fa-camera text-amber-400"></i> 식단 사진</span><label class="text-[11px] cursor-pointer rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1.5">+ 사진 첨부<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMealPhoto('snack',this)"></label></div>
+                  <div id="photos-snack" class="grid grid-cols-3 gap-2"></div>
+                  <p id="photo-feedback-snack" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
+                </div>
                 <input type="text" id="meal-snack-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
                 <div class="grid grid-cols-4 gap-2">
                   <input type="number" id="meal-snack-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
@@ -375,6 +395,10 @@
               </div>
             </div>
 
+            <div class="bg-slate-950 rounded-xl border border-amber-500/20 p-4 space-y-3">
+              <h4 class="text-sm font-bold text-amber-400"><i class="fa-solid fa-images"></i> 회원 식단 사진 확인</h4>
+              <div id="trainerMealPhotos" class="space-y-3"></div>
+            </div>
             <div class="pt-4 border-t border-slate-800 space-y-4">
               <h4 class="text-sm font-bold text-brand-400"><i class="fa-solid fa-paper-plane"></i> 피드백 작성 및 전송하기</h4>
               <div><label class="block text-xs font-semibold text-slate-300 mb-1">운동 코멘트</label><textarea id="inputFeedbackWorkout" rows="2" placeholder="운동 피드백 입력" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-brand-500"></textarea></div>
@@ -429,6 +453,7 @@
       return name ? name.trim() : '김윤지';
     }
 
+    const memberToken = new URLSearchParams(location.search).get('token') || '';
     let activeMemberName = getMemberNameFromUrl();
     let currentMode = 'member';
     let selectedDate = getLocalDateStr();
@@ -496,9 +521,10 @@
 
     // 구글 시트에서 최신 데이터 가져오기 (실패하면 오류를 던짐)
     async function fetchLatest() {
-      const res = await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}&_t=${Date.now()}`);
-      const json = await res.json();
-      if (json && json.error) throw new Error(json.error);
+      const json = currentMode === 'trainer' && trainerPassword
+        ? await apiPost({action:'read',member:activeMemberName,date:selectedDate,password:trainerPassword})
+        : await (await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}&token=${encodeURIComponent(memberToken)}&_t=${Date.now()}`)).json();
+      if (json && (json.status === 'error' || json.status === 'denied')) throw new Error(json.message || '접근 권한 오류');
       return normalizeData(json);
     }
 
@@ -515,11 +541,10 @@
     }
 
     async function saveDataToCloud() {
-      const body = { member: activeMemberName, date: selectedDate, data: appData };
+      const body = { member: activeMemberName, date: selectedDate, data: appData, token: memberToken };
       // 트레이너 모드일 때만 비밀번호를 함께 보냄 (서버가 확인)
       if (currentMode === 'trainer' && trainerPassword) body.password = trainerPassword;
-      const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(body) });
-      const result = JSON.parse(await response.text());
+      const result = await apiPost(body);
       if (result.status !== 'success') throw new Error(result.message || '저장 실패');
     }
 
@@ -549,6 +574,7 @@
       if (currentMode === 'member') {
         renderMemberRoutines(appData.routines || []);
         renderMemberFeedback(appData.feedback || {});
+        renderMealPhotos();
         renderMemos('memberMemoList', appData.memos);
         if (!silent) {
           renderMemberReflection(appData.reflection || {});
@@ -558,6 +584,7 @@
         if (!silent) document.getElementById('inputCustomHeaderMsg').value = appData.headerMessage || '';
         renderTrainerRoutines(appData.routines || []);
         renderTrainerReview(appData, silent);
+        renderTrainerMealPhotos();
         renderMemos('trainerMemoList', appData.memos);
       }
     }
@@ -825,8 +852,7 @@
       if (input === null) return;
       try {
         showToast('비밀번호 확인 중...');
-        const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'verify', password: input }) });
-        const result = JSON.parse(await res.text());
+        const result = await apiPost({ action: 'verify', password: input });
         if (result.status === 'success') {
           trainerPassword = input;
           switchMode('trainer');
@@ -924,6 +950,86 @@
       await updateAndSave(d => { d.feedback = { workout, diet, time }; });
     }
 
+    async function apiPost(body) {
+      const response = await fetch(SCRIPT_URL, {method:'POST',body:JSON.stringify(body)});
+      if (!response.ok) throw new Error('서버 통신 오류');
+      return await response.json();
+    }
+    function apiCredentials() {
+      return {member:activeMemberName,date:selectedDate,token:memberToken,
+        ...(currentMode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
+    }
+    async function compressPhoto(file) {
+      if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 첨부할 수 있어요.');
+      const bitmap=await createImageBitmap(file);
+      const scale=Math.min(1,1200/Math.max(bitmap.width,bitmap.height));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(bitmap.width*scale); canvas.height=Math.round(bitmap.height*scale);
+      canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+      bitmap.close();
+      let quality=.82, blob;
+      do {blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));quality-=.12;}
+      while(blob&&blob.size>1400000&&quality>.25);
+      if(!blob||blob.size>1400000) throw new Error('사진을 압축할 수 없어요.');
+      return await new Promise((resolve,reject)=>{
+        const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(blob);
+      });
+    }
+    async function uploadMealPhoto(meal,input) {
+      const file=input.files?.[0];if(!file)return;
+      try {
+        showToast('사진을 압축하고 업로드하는 중...');
+        const base64=await compressPhoto(file);
+        const result=await apiPost({...apiCredentials(),action:'uploadPhoto',meal,mime:'image/jpeg',base64});
+        if(result.status!=='success')throw new Error(result.message||'업로드 실패');
+        await loadDataFromCloud();showToast('사진 업로드 완료!');
+      }catch(e){console.error(e);alert('사진 업로드 실패: '+e.message);}
+      finally{input.value='';}
+    }
+    async function photoData(fileId,meal) {
+      const r=await apiPost({...apiCredentials(),action:'photo',fileId,meal});
+      if(r.status!=='success')throw new Error(r.message||'사진 불러오기 실패');
+      return `data:${r.mime};base64,${r.base64}`;
+    }
+    function renderMealPhotos() {
+      MEAL_KEYS.forEach(meal=>{
+        const item=appData.diet?.[meal]||{};
+        const box=document.getElementById('photos-'+meal);box.innerHTML='';
+        const feedback=document.getElementById('photo-feedback-'+meal);
+        feedback.textContent=item.photoFeedback?'코치 피드백: '+item.photoFeedback:'';
+        feedback.classList.toggle('hidden',!item.photoFeedback);
+        (item.photos||[]).forEach(p=>appendPrivatePhoto(box,p,meal));
+      });
+    }
+    function appendPrivatePhoto(box,photo,meal) {
+      const holder=document.createElement('div');holder.className='aspect-square rounded-lg bg-slate-800 overflow-hidden flex items-center justify-center text-[10px] text-slate-400';
+      holder.textContent='불러오는 중';box.appendChild(holder);
+      photoData(photo.fileId,meal).then(src=>{
+        const img=document.createElement('img');img.src=src;img.alt='식단 사진';img.loading='lazy';img.className='w-full h-full object-cover cursor-pointer';
+        img.onclick=()=>{const w=window.open('','_blank');if(w){const im=w.document.createElement('img');im.src=src;im.style.maxWidth='100%';w.document.body.appendChild(im);}};
+        holder.replaceChildren(img);
+      }).catch(()=>{holder.textContent='사진 오류';});
+    }
+    function renderTrainerMealPhotos() {
+      const root=document.getElementById('trainerMealPhotos');root.innerHTML='';
+      const labels={breakfast:'아침',lunch:'점심',dinner:'저녁',snack:'간식/보충제'};
+      MEAL_KEYS.forEach(meal=>{
+        const item=appData.diet?.[meal]||{};
+        const section=document.createElement('div');section.className='border-t border-slate-800 pt-3 space-y-2';
+        const label=document.createElement('p');label.className='text-xs font-semibold text-amber-300';label.textContent=labels[meal];section.appendChild(label);
+        const gallery=document.createElement('div');gallery.className='grid grid-cols-4 gap-2';section.appendChild(gallery);
+        (item.photos||[]).forEach(p=>appendPrivatePhoto(gallery,p,meal));
+        if(!(item.photos||[]).length){const empty=document.createElement('p');empty.className='text-xs text-slate-500';empty.textContent='첨부된 사진 없음';section.appendChild(empty);}
+        const textarea=document.createElement('textarea');textarea.rows=2;textarea.placeholder='사진에 대한 피드백';textarea.className='w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white';textarea.value=item.photoFeedback||'';
+        section.appendChild(textarea);
+        const button=document.createElement('button');button.className='bg-amber-500 text-slate-950 text-xs font-bold rounded-lg px-3 py-2';button.textContent='사진 피드백 저장';
+        button.onclick=async()=>{
+          try {const r=await apiPost({...apiCredentials(),action:'photoFeedback',meal,feedback:textarea.value});
+            if(r.status!=='success')throw new Error(r.message||'저장 실패');await loadDataFromCloud();showToast('사진 피드백 저장 완료');}
+          catch(e){alert(e.message);}
+        };section.appendChild(button);root.appendChild(section);
+      });
+    }
     function showToast(msg) {
       const toast = document.getElementById('toastNotification');
       toast.innerText = msg;

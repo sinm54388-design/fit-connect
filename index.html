@@ -34,6 +34,11 @@
     .optional-fields[open] summary::after, .trainer-meal-details[open] summary::after { transform: rotate(180deg); }
     .quick-feedback-btn { border: 1px solid #334155; background:#1e293b; color:#e2e8f0; border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor:pointer; }
     .quick-feedback-btn:hover { background:#334155; border-color:#64748b; }
+    .trainer-nav-btn { min-height:60px; display:flex; align-items:center; justify-content:center; gap:9px; padding:12px 10px; color:#e2e8f0; font-size:13px; font-weight:700; line-height:1.45; text-align:center; border:1px solid #334155; border-radius:12px; background:#0f172a; cursor:pointer; }
+    .trainer-nav-btn:hover, .trainer-nav-btn:focus-visible { border-color:#6366f1; background:#1e293b; outline:none; }
+    .trainer-jump-target { scroll-margin-top:90px; }
+    .trainer-jump-target.jump-highlight { box-shadow:0 0 0 2px rgba(99,102,241,.65); }
+    @media (max-width:639px) { .trainer-nav-btn { font-size:12px; padding:10px 8px; gap:6px; } }
     @media (max-width: 639px) {
       #appHeader { padding: 9px 12px; }
       #appHeader .header-brand-desc { display: none; }
@@ -458,8 +463,16 @@
         </div>
       </div>
 
+      <!-- 트레이너 주요 기능 바로가기 -->
+      <nav aria-label="트레이너 주요 기능 바로가기" class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 rounded-2xl border border-slate-700/70 bg-slate-900 p-3 sm:p-4 shadow-lg">
+        <button type="button" onclick="jumpTrainerSection('trainerDashboardSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-line text-emerald-400"></i><span>회원 관리 대시보드</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerQuickFeedbackMount')" class="trainer-nav-btn"><i class="fa-solid fa-comments text-sky-400"></i><span>운동·식단 피드백</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerRoutineSection')" class="trainer-nav-btn"><i class="fa-solid fa-dumbbell text-indigo-400"></i><span>운동 루틴 관리</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerGrowthSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-simple text-amber-400"></i><span>회원 성장 관리</span></button>
+      </nav>
+
       <!-- 트레이너 전용: 회원이 이미 남긴 기록으로 만드는 통합 현황 -->
-      <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="통합 관리 대시보드">
+      <section id="trainerDashboardSection" class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4 trainer-jump-target" aria-label="통합 관리 대시보드">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div><h3 class="font-bold text-white text-base"><i class="fa-solid fa-chart-line text-brand-500"></i> 오늘의 회원 관리 현황</h3><p class="text-xs text-slate-400 mt-1">기존 운동·식단·영상 기록을 자동으로 모아 보여줍니다. 회원님은 추가 입력할 필요가 없어요.</p></div>
           <button type="button" onclick="loadTrainerOverview()" class="text-xs px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">현황 새로고침</button>
@@ -478,7 +491,7 @@
         </div>
       </section>
 
-      <div id="trainerQuickFeedbackMount" class="space-y-4"></div>
+      <div id="trainerQuickFeedbackMount" class="space-y-4 trainer-jump-target"></div>
 
        <!-- 회원 관리: 트레이너 전용 -->
        <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="회원 관리">
@@ -494,7 +507,7 @@
          <div id="memberRegistryList" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
        </section>
 
-      <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="성장 기록 및 PT 수업 관리">
+      <section id="trainerGrowthSection" class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4 trainer-jump-target" aria-label="성장 기록 및 PT 수업 관리">
         <h3 class="font-bold text-white"><i class="fa-solid fa-chart-line text-brand-500"></i> 선택 회원의 성장 기록 · PT 수업 관리</h3>
         <p class="text-xs text-slate-400">회원에게는 조회만 가능하며, 측정 수치와 수업 횟수는 트레이너가 입력합니다.</p>
         <div class="bg-slate-950 border border-brand-500/30 rounded-xl p-4 space-y-3">
@@ -583,7 +596,7 @@
             </div>
           </div>
 
-          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div id="trainerRoutineSection" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg trainer-jump-target">
             <h3 class="font-bold text-white text-base mb-4">운동 루틴 짜주기</h3>
             <form id="addRoutineForm" onsubmit="submitRoutine(event)" class="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
               <div><label class="block text-xs text-slate-300 mb-1">운동 이름</label><input type="text" id="exName" placeholder="예: 바벨 벤치프레스" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
@@ -812,6 +825,14 @@
         });
       }, {passive:true});
       header.addEventListener('focusin', () => header.classList.remove('header-hidden'));
+    }
+
+    function jumpTrainerSection(id) {
+      const target=document.getElementById(id);
+      if(!target)return;
+      target.scrollIntoView({behavior:'smooth',block:'start'});
+      target.classList.add('jump-highlight');
+      setTimeout(()=>target.classList.remove('jump-highlight'),1400);
     }
 
     function getDefaultData() {

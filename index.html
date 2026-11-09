@@ -369,6 +369,10 @@
        </section>
 
        <section id="memberInsightsSection" class="space-y-5" aria-label="나의 성장 및 PT 현황">
+         <div class="bg-slate-900 border border-brand-500/30 rounded-2xl p-5 shadow-lg space-y-3">
+           <h3 class="font-bold text-white"><i class="fa-solid fa-bullseye text-brand-500"></i> 나의 운동 목표</h3>
+           <div id="memberGoalSummary" class="text-sm text-slate-300">목표를 불러오는 중...</div>
+         </div>
          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
            <h3 class="font-bold text-white"><i class="fa-solid fa-chart-column text-brand-500"></i> 나의 주간 운동 리포트</h3>
            <p class="text-xs text-slate-400">완료한 운동 세트를 기준으로 자동 집계합니다.</p>
@@ -450,6 +454,19 @@
       <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="성장 기록 및 PT 수업 관리">
         <h3 class="font-bold text-white"><i class="fa-solid fa-chart-line text-brand-500"></i> 선택 회원의 성장 기록 · PT 수업 관리</h3>
         <p class="text-xs text-slate-400">회원에게는 조회만 가능하며, 측정 수치와 수업 횟수는 트레이너가 입력합니다.</p>
+        <div class="bg-slate-950 border border-brand-500/30 rounded-xl p-4 space-y-3">
+          <h4 class="font-semibold text-sm text-brand-400"><i class="fa-solid fa-bullseye"></i> 개인별 목표 설정</h4>
+          <form onsubmit="saveMemberGoal(event)" class="space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label class="text-xs text-slate-400">목표 체중 kg (선택)<input id="goalWeight" type="number" min="0.1" max="500" step="0.1" placeholder="예: 80" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              <label class="text-xs text-slate-400">주간 운동 목표 (일)<input id="goalWeeklyDays" type="number" min="0" max="7" step="1" value="0" required class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              <label class="text-xs text-slate-400">목표 날짜 (선택)<input id="goalDeadline" type="date" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+            </div>
+            <label class="block text-xs text-slate-400">회원에게 보여줄 목표 메시지<input id="goalNote" maxlength="300" placeholder="예: 11월은 주 3회 꾸준히 운동하기!" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+            <button type="submit" class="w-full bg-brand-500 hover:bg-brand-600 text-slate-950 rounded-lg py-2.5 text-sm font-bold">회원 목표 저장</button>
+          </form>
+          <div id="trainerGoalSummary" class="text-sm text-slate-300"></div>
+        </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
             <h4 class="font-semibold text-sm text-sky-300">인바디 측정 등록</h4>
@@ -1446,6 +1463,26 @@
       if(!total){root.innerHTML='<p class="text-slate-500 py-3">아직 등록된 PT 수업 정보가 없습니다.</p>';return;}
       root.innerHTML=`<div class="flex flex-wrap items-baseline gap-2"><span class="text-2xl font-bold text-brand-500">${Math.max(0,total-used)}회 남음</span><span class="text-xs text-slate-400">총 ${total}회 · 사용 ${used}회</span></div><div class="w-full bg-slate-700 rounded-full h-2 mt-2"><div class="bg-brand-500 h-2 rounded-full" style="width:${Math.min(100,used/total*100)}%"></div></div><p class="text-xs text-slate-300 mt-3">다음 수업: ${pt.nextDate?esc(pt.nextDate):'미정'}</p>${pt.note?`<p class="text-xs text-slate-400 mt-1">메모: ${esc(pt.note)}</p>`:''}`;
     }
+    function renderMemberGoal(rootId,goal,weekly,inbody) {
+      const root=document.getElementById(rootId),days=Number(goal?.weeklyDays)||0;
+      const hasWeight=goal&&goal.targetWeight!==''&&Number.isFinite(Number(goal.targetWeight))&&Number(goal.targetWeight)>0;
+      const note=String(goal?.note||'').trim();
+      if(!hasWeight&&!days&&!note&&!goal?.deadline){root.innerHTML='<p class="text-sm text-slate-500 py-3">아직 설정된 개인 목표가 없습니다.</p>';return;}
+      const currentDays=Number(weekly?.current?.days)||0,rate=days?Math.min(100,Math.round(currentDays/days*100)):0;
+      const latest=Array.isArray(inbody)&&inbody.length?inbody[inbody.length-1]:null;
+      const weight=hasWeight?`<div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <p class="text-xs text-slate-400">목표 체중</p><p class="text-2xl font-extrabold text-brand-500 mt-1">${Number(goal.targetWeight).toFixed(1)}kg</p>
+        <p class="text-xs text-slate-300 mt-2">${latest?`최근 인바디 ${Number(latest.weight).toFixed(1)}kg · 목표와 ${Math.abs(Number(latest.weight)-Number(goal.targetWeight)).toFixed(1)}kg 차이`:'최근 인바디 측정값이 없어 비교할 수 없어요.'}</p>
+      </div>`:'';
+      const activity=days?`<div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <p class="text-xs text-slate-400">주간 운동 목표</p><p class="text-2xl font-extrabold text-white mt-1">${currentDays}<span class="text-base font-medium text-slate-400"> / ${days}일</span></p>
+        <div class="bg-slate-700 h-2 rounded-full mt-3 overflow-hidden"><div class="bg-brand-500 h-2 rounded-full" style="width:${rate}%"></div></div>
+        <p class="text-xs text-slate-400 mt-2">이번 주 완료 세트가 있는 운동일 기준 · ${rate}% 달성</p>
+      </div>`:'';
+      root.innerHTML=`${note?`<p class="rounded-lg bg-brand-500/10 border border-brand-500/30 p-3 text-sm text-slate-100">${esc(note)}</p>`:''}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${weight}${activity}</div>
+        ${goal.deadline?`<p class="text-xs text-slate-400">목표 날짜: ${esc(goal.deadline)}</p>`:''}`;
+    }
     async function loadMemberInsights() {
       const request=++insightsRequest, member=activeMemberName,mode=currentMode,date=selectedDate;
       if(mode==='member'&&!hasMemberAccess())return;
@@ -1459,12 +1496,18 @@
         renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);
         renderInbodyChart(prefix==='trainer'?'trainerInbodyChart':'memberInbodyChart',result.inbody);
         renderPtSummary(prefix==='trainer'?'trainerPtSummary':'memberPtSummary',result.pt);
+        renderMemberGoal(prefix==='trainer'?'trainerGoalSummary':'memberGoalSummary',result.goal,result.weekly,result.inbody);
         if(mode==='trainer'){
           const pt=result.pt||{};
           document.getElementById('ptTotal').value=pt.total||0;
           document.getElementById('ptUsed').value=pt.used||0;
           document.getElementById('ptNextDate').value=pt.nextDate||'';
           document.getElementById('ptNote').value=pt.note||'';
+          const goal=result.goal||{};
+          document.getElementById('goalWeight').value=goal.targetWeight===''?'':(goal.targetWeight||'');
+          document.getElementById('goalWeeklyDays').value=goal.weeklyDays||0;
+          document.getElementById('goalDeadline').value=goal.deadline||'';
+          document.getElementById('goalNote').value=goal.note||'';
           document.getElementById('insightsStatus').textContent='회원별 성장 기록을 불러왔습니다.';
         }
       }catch(e){
@@ -1490,6 +1533,16 @@
         const result=await apiPost(body);if(result.status!=='success')throw Error(result.message||'저장 실패');
         showToast('PT 수업 정보 저장 완료');await loadMemberInsights();
       }catch(err){alert('PT 정보 저장 실패: '+err.message);}
+    }
+    async function saveMemberGoal(e) {
+      e.preventDefault();
+      try {
+        const body={...apiCredentials(),action:'saveMemberGoal',targetWeight:document.getElementById('goalWeight').value,
+          weeklyDays:document.getElementById('goalWeeklyDays').value,deadline:document.getElementById('goalDeadline').value,
+          note:document.getElementById('goalNote').value};
+        const result=await apiPost(body);if(result.status!=='success')throw Error(result.message||'목표 저장 실패');
+        showToast('회원 목표 저장 완료');await loadMemberInsights();
+      }catch(err){alert('목표 저장 실패: '+err.message);}
     }
     async function compressPhoto(file) {
       if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 첨부할 수 있어요.');

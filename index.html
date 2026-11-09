@@ -1295,13 +1295,19 @@
       input.value = food.name||'';
       input.className = 'meal-extra-input min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200';
       input.addEventListener('input', () => dirtyMealDrafts.add(meal));
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.className = 'shrink-0 min-h-11 px-3 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold';
+      save.textContent = '저장';
+      save.setAttribute('aria-label', '이 끼니의 모든 음식 저장');
+      save.onclick = () => saveSingleMeal(meal);
       const remove = document.createElement('button');
       remove.type = 'button';
-      remove.className = 'shrink-0 px-3 py-2 rounded-lg border border-rose-500/30 text-rose-400 text-xs';
+      remove.className = 'shrink-0 min-h-11 px-2.5 rounded-lg border border-rose-500/30 text-rose-400 text-xs';
       remove.textContent = '삭제';
       remove.setAttribute('aria-label', '추가 음식 삭제');
       remove.onclick = () => { dirtyMealDrafts.add(meal); card.remove(); updateMealDraftTotals(meal); };
-      row.append(input, remove);
+      row.append(input, save, remove);
       card.append(row,makeFoodNutrients(meal,food));container.appendChild(card);
       if (focus) { dirtyMealDrafts.add(meal); input.focus(); }
     }

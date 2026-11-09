@@ -294,7 +294,9 @@
                   <div id="photos-breakfast" class="grid grid-cols-3 gap-2"></div>
                   <p id="photo-feedback-breakfast" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
                 </div>
-                <input type="text" id="meal-breakfast-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
+                <div class="flex gap-2"><input type="text" id="meal-breakfast-desc" placeholder="음식 입력 (예: 계란 2개)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('breakfast')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
+                <div id="meal-breakfast-extra" class="space-y-2"></div>
+                <button type="button" onclick="addMealFood('breakfast')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
                   <summary class="text-xs text-slate-400 hover:text-slate-200">영양성분 입력 (선택)</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
@@ -313,7 +315,9 @@
                   <div id="photos-lunch" class="grid grid-cols-3 gap-2"></div>
                   <p id="photo-feedback-lunch" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
                 </div>
-                <input type="text" id="meal-lunch-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
+                <div class="flex gap-2"><input type="text" id="meal-lunch-desc" placeholder="음식 입력 (예: 닭가슴살)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('lunch')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
+                <div id="meal-lunch-extra" class="space-y-2"></div>
+                <button type="button" onclick="addMealFood('lunch')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
                   <summary class="text-xs text-slate-400 hover:text-slate-200">영양성분 입력 (선택)</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
@@ -332,7 +336,9 @@
                   <div id="photos-dinner" class="grid grid-cols-3 gap-2"></div>
                   <p id="photo-feedback-dinner" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
                 </div>
-                <input type="text" id="meal-dinner-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
+                <div class="flex gap-2"><input type="text" id="meal-dinner-desc" placeholder="음식 입력 (예: 현미밥)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('dinner')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
+                <div id="meal-dinner-extra" class="space-y-2"></div>
+                <button type="button" onclick="addMealFood('dinner')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
                   <summary class="text-xs text-slate-400 hover:text-slate-200">영양성분 입력 (선택)</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
@@ -351,7 +357,9 @@
                   <div id="photos-snack" class="grid grid-cols-3 gap-2"></div>
                   <p id="photo-feedback-snack" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
                 </div>
-                <input type="text" id="meal-snack-desc" placeholder="메뉴 입력" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
+                <div class="flex gap-2"><input type="text" id="meal-snack-desc" placeholder="음식 입력 (예: 단백질 쉐이크)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('snack')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
+                <div id="meal-snack-extra" class="space-y-2"></div>
+                <button type="button" onclick="addMealFood('snack')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
                   <summary class="text-xs text-slate-400 hover:text-slate-200">영양성분 입력 (선택)</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
@@ -733,10 +741,16 @@
     window.onload = async function () {
       arrangeMemberDashboard();
       setupAutoHideHeader();
+      MEAL_KEYS.forEach(m => {
+        ['desc', 'cal', 'carb', 'prot', 'fat'].forEach(f => {
+          document.getElementById(`meal-${m}-${f}`).addEventListener('input', () => dirtyMealDrafts.add(m));
+        });
+      });
       updateAccessState();
       document.getElementById('currentDateInput').value = selectedDate;
       document.getElementById('inbodyDate').value = selectedDate;
       document.getElementById('currentDateInput').addEventListener('change', async (e) => {
+        dirtyMealDrafts.clear();
         selectedDate = e.target.value;
         document.getElementById('todayDateDisplay').innerText = selectedDate;
         resetRoutineForms();
@@ -1080,17 +1094,27 @@
       updateAndSave(d => { d.reflection = { good, bad }; });
     }
 
+    const dirtyMealDrafts = new Set();
+
     function renderMemberDiet(diet, targetCal) {
       document.getElementById('memberTargetCalorieText').innerText = targetCal.toLocaleString();
       let totalCal = 0, totalCarb = 0, totalProt = 0, totalFat = 0;
 
       MEAL_KEYS.forEach(m => {
         const item = diet[m] || {};
-        const fields = { desc: item.desc, cal: item.cal, carb: item.carb, prot: item.prot, fat: item.fat };
+        const fields = { cal: item.cal, carb: item.carb, prot: item.prot, fat: item.fat };
         Object.keys(fields).forEach(f => {
           const el = document.getElementById(`meal-${m}-${f}`);
-          if (document.activeElement !== el) el.value = fields[f] || '';
+          if (!dirtyMealDrafts.has(m) && document.activeElement !== el) el.value = fields[f] || '';
         });
+        const mainFood = document.getElementById(`meal-${m}-desc`);
+        const extraFoods = document.getElementById(`meal-${m}-extra`);
+        if (!dirtyMealDrafts.has(m) && !mainFood.closest('.rounded-xl').contains(document.activeElement)) {
+          const foods = String(item.desc || '').split('\n');
+          mainFood.value = foods.shift() || '';
+          extraFoods.replaceChildren();
+          foods.filter(Boolean).forEach(food => addMealFood(m, food, false));
+        }
 
         const badge = document.getElementById(`badge-${m}`);
         if (item.desc || item.cal) {
@@ -1115,18 +1139,48 @@
       document.getElementById('waterDisplay').innerText = `${diet.water || 0} ml`;
     }
 
-    function saveDietLog() {
-      const values = {};
-      MEAL_KEYS.forEach(m => {
-        values[m] = {
-          desc: document.getElementById(`meal-${m}-desc`).value,
+    function addMealFood(meal, value = '', focus = true) {
+      const container = document.getElementById(`meal-${meal}-extra`);
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-2';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = '추가 음식 입력';
+      input.value = value;
+      input.className = 'meal-extra-input min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200';
+      input.addEventListener('input', () => dirtyMealDrafts.add(meal));
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'shrink-0 px-3 py-2 rounded-lg border border-rose-500/30 text-rose-400 text-xs';
+      remove.textContent = '삭제';
+      remove.setAttribute('aria-label', '추가 음식 삭제');
+      remove.onclick = () => { dirtyMealDrafts.add(meal); row.remove(); };
+      row.append(input, remove);
+      container.appendChild(row);
+      if (focus) { dirtyMealDrafts.add(meal); input.focus(); }
+    }
+
+    function getMealValues(m) {
+      const inputs = [document.getElementById(`meal-${m}-desc`), ...document.querySelectorAll(`#meal-${m}-extra .meal-extra-input`)];
+      return {
+          desc: inputs.map(el => el.value.trim()).filter(Boolean).join('\n'),
           cal: document.getElementById(`meal-${m}-cal`).value,
           carb: document.getElementById(`meal-${m}-carb`).value,
           prot: document.getElementById(`meal-${m}-prot`).value,
           fat: document.getElementById(`meal-${m}-fat`).value
-        };
-      });
-      updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = values[m]; }); });
+      };
+    }
+
+    async function saveSingleMeal(meal) {
+      const values = getMealValues(meal);
+      const saved = await updateAndSave(d => { d.diet[meal] = { ...(d.diet[meal] || {}), ...values }; });
+      if (saved) dirtyMealDrafts.delete(meal);
+    }
+
+    function saveDietLog() {
+      const values = {};
+      MEAL_KEYS.forEach(m => { values[m] = getMealValues(m); });
+      updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = { ...(d.diet[m] || {}), ...values[m] }; }); }).then(saved => { if (saved) dirtyMealDrafts.clear(); });
     }
 
     function adjustWater(amt) {
@@ -1378,7 +1432,7 @@
         const text = (m.desc || m.cal)
           ? `${esc(m.desc || '-')}${m.cal ? ` · ${esc(m.cal)}kcal` : ''}`
           : '<span class="text-slate-500">미작성</span>';
-        return `<div class="text-xs text-slate-300"><span class="font-semibold text-amber-400">${labels[k]}</span> ${text}</div>`;
+        return `<div class="text-xs text-slate-300 whitespace-pre-line"><span class="font-semibold text-amber-400">${labels[k]}</span> ${text}</div>`;
       }).join('');
       let totalSets = 0, doneSets = 0;
       (data.routines || []).forEach(r => {

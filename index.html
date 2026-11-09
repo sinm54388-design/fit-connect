@@ -1346,14 +1346,19 @@
       const root=document.getElementById(rootId),list=Array.isArray(records)?records:[];
       if(!list.length){root.innerHTML='<p class="text-slate-500 text-sm py-3">아직 인바디 측정 기록이 없습니다.</p>';return;}
       const latest=list[list.length-1];
+      const previous=list.length>1?list[list.length-2]:null;
       const lines=[['체중','weight','kg','#22c55e'],['골격근량','muscle','kg','#38bdf8'],['체지방률','fat','%','#fbbf24']];
-      const cards=lines.map(([label,key,unit,color])=>`<div class="bg-slate-800 rounded-lg p-3"><p class="text-[11px] text-slate-400">${label}</p><p class="font-bold" style="color:${color}">${Number(latest[key]).toFixed(1)}${unit}</p></div>`).join('');
+      const cards=lines.map(([label,key,unit,color])=>{
+        const delta=previous?Number(latest[key])-Number(previous[key]):null;
+        const change=delta===null?'첫 측정':`${delta>0?'+':''}${delta.toFixed(1)}${key==='fat'?'%p':unit}`;
+        return `<div class="bg-slate-800 rounded-lg p-3"><p class="text-[11px] text-slate-400">${label}</p><p class="font-bold" style="color:${color}">${Number(latest[key]).toFixed(1)}${unit}</p><p class="text-[11px] text-slate-300 mt-1">${change}</p></div>`;
+      }).join('');
       const graphs=lines.map(([label,key,unit,color])=>{
         const values=list.map(x=>Number(x[key])||0),lo=Math.min(...values),hi=Math.max(...values),span=Math.max(1,hi-lo);
         const points=values.map((v,i)=>`${12+(i*276/Math.max(1,values.length-1))},${82-(v-lo)/span*66}`).join(' ');
         return `<div><p class="text-xs text-slate-400 mb-1">${label} 변화</p><svg viewBox="0 0 300 94" class="w-full h-20" role="img" aria-label="${label} 변화 그래프"><line x1="12" y1="82" x2="288" y2="82" stroke="#475569"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${values.map((v,i)=>`<circle cx="${12+(i*276/Math.max(1,values.length-1))}" cy="${82-(v-lo)/span*66}" r="3" fill="${color}"/>`).join('')}</svg></div>`;
       }).join('');
-      root.innerHTML=`<p class="text-xs text-slate-400">최근 측정 ${esc(latest.date)} · 총 ${list.length}회</p><div class="grid grid-cols-3 gap-2 mt-2">${cards}</div><div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">${graphs}</div><p class="text-xs text-slate-500 mt-2">그래프는 기록한 측정일 순서대로 연결됩니다.</p>`;
+      root.innerHTML=`<p class="text-xs text-slate-400">최근 측정 ${esc(latest.date)} · 총 ${list.length}회</p><div class="grid grid-cols-3 gap-2 mt-2">${cards}</div><p class="text-[11px] text-slate-500 mt-1">수치 아래 변화량은 직전 측정 대비입니다.</p><div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">${graphs}</div><p class="text-xs text-slate-500 mt-2">그래프는 기록한 측정일 순서대로 연결됩니다.</p>`;
     }
     function renderPtSummary(rootId,pt) {
       const root=document.getElementById(rootId),total=Number(pt?.total)||0,used=Number(pt?.used)||0;

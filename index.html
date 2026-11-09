@@ -1100,12 +1100,7 @@
             const name=document.createElement('span');name.className='text-slate-100 font-semibold';name.textContent=m.name+' 회원님';
             const detail=document.createElement('span');detail.className='text-slate-400 text-[11px]';detail.textContent=getDetail(m);
             button.append(name,detail);
-            button.onclick=async()=>{
-              activeMemberName=m.name;
-              document.getElementById('trainerMemberSelect').value=m.name;
-              resetRoutineForms();await loadDataFromCloud();await loadExtras();
-              document.getElementById('trainerMemberSelect').scrollIntoView({behavior:'smooth',block:'center'});
-            };
+            button.onclick=()=>openOverviewMember(m,rootId);
             root.appendChild(button);
           });
         };
@@ -1118,6 +1113,27 @@
         if(request !== overviewRequest)return;
         status.textContent='현황을 불러오지 못했습니다: '+e.message;
       }
+    }
+    async function openOverviewMember(member, listId) {
+      const date = listId === 'overviewInactive' && member.lastDate ? member.lastDate : selectedDate;
+      activeMemberName = member.name;
+      selectedDate = date;
+      document.getElementById('currentDateInput').value = date;
+      document.getElementById('todayDateDisplay').textContent = date;
+      document.getElementById('trainerMemberSelect').value = member.name;
+      resetRoutineForms();
+      await loadDataFromCloud(); // 해당 회원의 운동·식단·영상 자료를 함께 갱신
+      if (!appData) { showToast('회원 기록을 불러오지 못했습니다.'); return; }
+      const videoOnly = listId === 'overviewNeedsAttention' && member.pendingVideos && !member.pendingWorkout && !member.pendingDiet;
+      const target = videoOnly
+        ? document.getElementById('trainerFormVideos').closest('section')
+        : document.getElementById('reviewRefGood').closest('.rounded-2xl');
+      if (target) {
+        target.scrollIntoView({behavior:'smooth',block:'start'});
+        target.classList.add('ring-2','ring-brand-500');
+        setTimeout(()=>target.classList.remove('ring-2','ring-brand-500'),2400);
+      }
+      showToast(`${member.name} 회원님의 ${date} 기록을 열었습니다.`);
     }
     function buildMemberLink(name, token) {
       const url = new URL(window.location.origin + window.location.pathname);

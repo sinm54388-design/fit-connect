@@ -783,6 +783,7 @@
       setupAutoHideHeader();
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
+        setupMealEditor(m);
         ['desc', 'cal', 'carb', 'prot', 'fat'].forEach(f => {
           document.getElementById(`meal-${m}-${f}`).addEventListener('input', () => dirtyMealDrafts.add(m));
         });
@@ -792,6 +793,7 @@
       document.getElementById('inbodyDate').value = selectedDate;
       document.getElementById('currentDateInput').addEventListener('change', async (e) => {
         dirtyMealDrafts.clear();
+        mealEditorOpen.clear();
         selectedDate = e.target.value;
         document.getElementById('todayDateDisplay').innerText = selectedDate;
         resetRoutineForms();
@@ -1148,6 +1150,7 @@
     }
 
     const dirtyMealDrafts = new Set();
+    const mealEditorOpen = new Set();
     const FOOD_NUTRIENTS = [
       {key:'cal',label:'kcal'}, {key:'carb',label:'탄수화물(g)'},
       {key:'prot',label:'단백질(g)'}, {key:'fat',label:'지방(g)'}
@@ -1180,6 +1183,24 @@
       row.parentElement.insertBefore(card,row);
       card.appendChild(row);
       card.appendChild(makeFoodNutrients(meal));
+    }
+
+    function setupMealEditor(meal) {
+      const firstCard=document.getElementById(`meal-${meal}-desc`).closest('.food-card');
+      const parent=firstCard.parentElement;
+      const editor=document.createElement('div');
+      editor.id=`meal-${meal}-editor`;
+      editor.className='space-y-2.5';
+      parent.insertBefore(editor,firstCard);
+      let next=editor.nextSibling;
+      while(next){const current=next;next=next.nextSibling;editor.appendChild(current);}
+    }
+
+    function openMealEditor(meal) {
+      mealEditorOpen.add(meal);
+      const editor=document.getElementById(`meal-${meal}-editor`);
+      editor.classList.remove('hidden');
+      editor.scrollIntoView({behavior:'smooth',block:'nearest'});
     }
 
     function getFoodRows(meal) {
@@ -1232,7 +1253,8 @@
       box.className='rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2';
       box.innerHTML=`<div class="flex items-center justify-between gap-2">
         <h5 class="text-xs font-bold text-emerald-400"><i class="fa-solid fa-circle-check"></i> 저장된 식단</h5>
-        <span class="text-[11px] text-slate-400">음식 ${foods.filter(f=>String(f.name||'').trim()).length}개</span>
+        <div class="flex items-center gap-2"><span class="text-[11px] text-slate-400">음식 ${foods.filter(f=>String(f.name||'').trim()).length}개</span>
+          <button type="button" onclick="openMealEditor('${meal}')" class="rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-bold text-emerald-300">수정하기</button></div>
         </div><div class="px-1">${rows||'<div class="text-xs text-slate-400">영양성분 기록</div>'}</div>
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-slate-700/50 pt-3">${sum}</div>`;
     }
@@ -1244,6 +1266,8 @@
       MEAL_KEYS.forEach(m => {
         const item = diet[m] || {};
         renderSavedMealCard(m,item);
+        const hasSaved=!!(String(item.desc||'').trim()||['cal','carb','prot','fat'].some(key=>Number(item[key])));
+        document.getElementById(`meal-${m}-editor`).classList.toggle('hidden',hasSaved&&!mealEditorOpen.has(m));
         const fields = { cal: item.cal, carb: item.carb, prot: item.prot, fat: item.fat };
         Object.keys(fields).forEach(f => {
           const el = document.getElementById(`meal-${m}-${f}`);
@@ -1326,13 +1350,19 @@
     async function saveSingleMeal(meal) {
       const values = getMealValues(meal);
       const saved = await updateAndSave(d => { d.diet[meal] = { ...(d.diet[meal] || {}), ...values }; });
-      if (saved) dirtyMealDrafts.delete(meal);
+      if (saved) {
+        dirtyMealDrafts.delete(meal);
+        mealEditorOpen.delete(meal);
+        renderMemberDiet(appData.diet || {},2100);
+      }
     }
 
     function saveDietLog() {
       const values = {};
       MEAL_KEYS.forEach(m => { values[m] = getMealValues(m); });
-      updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = { ...(d.diet[m] || {}), ...values[m] }; }); }).then(saved => { if (saved) dirtyMealDrafts.clear(); });
+      updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = { ...(d.diet[m] || {}), ...values[m] }; }); }).then(saved => {
+        if (saved) { dirtyMealDrafts.clear();mealEditorOpen.clear();renderMemberDiet(appData.diet || {},2100); }
+      });
     }
 
     function adjustWater(amt) {

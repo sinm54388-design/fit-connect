@@ -32,6 +32,8 @@
     .optional-fields summary::-webkit-details-marker, .trainer-meal-details summary::-webkit-details-marker { display: none; }
     .optional-fields summary::after, .trainer-meal-details summary::after { content: '⌄'; float: right; transition: transform .2s ease; }
     .optional-fields[open] summary::after, .trainer-meal-details[open] summary::after { transform: rotate(180deg); }
+    .quick-feedback-btn { border: 1px solid #334155; background:#1e293b; color:#e2e8f0; border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor:pointer; }
+    .quick-feedback-btn:hover { background:#334155; border-color:#64748b; }
     @media (max-width: 639px) {
       #appHeader { padding: 9px 12px; }
       #appHeader .header-brand-desc { display: none; }
@@ -469,11 +471,14 @@
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">영상 피드백 대기</p><p id="overviewVideos" class="text-xl font-bold text-sky-400 mt-1">-</p></div>
         </div>
         <p id="overviewStatus" role="status" class="text-xs text-slate-400">트레이너 로그인 후 현황을 불러옵니다.</p>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-amber-300">확인이 필요한 회원</h4><div id="overviewNeedsAttention" class="space-y-2 text-xs text-slate-300"></div></div>
+          <div class="bg-slate-950 border border-emerald-500/20 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-emerald-300">기록 피드백 완료 회원</h4><div id="overviewFeedbackDone" class="space-y-2 text-xs text-slate-300"></div></div>
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-slate-200">최근 기록 없는 회원 (7일 기준)</h4><div id="overviewInactive" class="space-y-2 text-xs text-slate-300"></div></div>
         </div>
       </section>
+
+      <div id="trainerQuickFeedbackMount" class="space-y-4"></div>
 
        <!-- 회원 관리: 트레이너 전용 -->
        <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="회원 관리">
@@ -603,17 +608,21 @@
 
         <!-- Trainer Right: Review & Feedback -->
         <div class="lg:col-span-7 space-y-6">
-          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-5">
-            <h3 class="font-bold text-white text-base"><span class="selectedMemberNameText text-brand-400">회원</span>님의 오늘 기록 검토</h3>
+          <div id="trainerFeedbackPanel" class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-lg space-y-5 scroll-mt-20">
+            <div class="flex flex-wrap gap-2 justify-between items-center">
+              <div><h3 class="font-bold text-white text-lg"><span class="selectedMemberNameText text-brand-400">회원</span>님의 기록 확인 · 피드백</h3><p class="text-xs text-slate-400 mt-1">상단에서 선택한 회원과 날짜의 기록입니다.</p></div>
+              <span id="trainerFeedbackStatus" class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-300">피드백 상태 확인 중</span>
+            </div>
+            <div id="trainerQuickSummary" class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm"></div>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div class="bg-slate-950 p-3.5 rounded-xl border border-emerald-500/20">
-                <span class="text-[11px] font-bold text-emerald-400 block mb-1.5"><i class="fa-solid fa-thumbs-up"></i> 잘된 점</span>
-                <p id="reviewRefGood" class="text-xs text-slate-300 italic">기록이 없습니다.</p>
+                <span class="text-xs font-bold text-emerald-400 block mb-1.5"><i class="fa-solid fa-thumbs-up"></i> 잘된 점</span>
+                <p id="reviewRefGood" class="text-sm leading-relaxed text-slate-200 whitespace-pre-wrap">기록이 없습니다.</p>
               </div>
               <div class="bg-slate-950 p-3.5 rounded-xl border border-rose-500/20">
-                <span class="text-[11px] font-bold text-rose-400 block mb-1.5"><i class="fa-solid fa-triangle-exclamation"></i> 어려웠던 점</span>
-                <p id="reviewRefBad" class="text-xs text-slate-300 italic">기록이 없습니다.</p>
+                <span class="text-xs font-bold text-rose-400 block mb-1.5"><i class="fa-solid fa-triangle-exclamation"></i> 어려웠던 점</span>
+                <p id="reviewRefBad" class="text-sm leading-relaxed text-slate-200 whitespace-pre-wrap">기록이 없습니다.</p>
               </div>
             </div>
 
@@ -623,8 +632,12 @@
             </div>
             <div class="pt-4 border-t border-slate-800 space-y-4">
               <h4 class="text-sm font-bold text-brand-400"><i class="fa-solid fa-paper-plane"></i> 피드백 작성 및 전송하기</h4>
-              <div><label class="block text-xs font-semibold text-slate-300 mb-1">운동 코멘트</label><textarea id="inputFeedbackWorkout" rows="2" placeholder="운동 피드백 입력" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-brand-500"></textarea></div>
-              <div><label class="block text-xs font-semibold text-slate-300 mb-1">식단 코멘트</label><textarea id="inputFeedbackDiet" rows="2" placeholder="식단 피드백 입력" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-brand-500"></textarea></div>
+              <div><label class="block text-sm font-semibold text-slate-200 mb-2">운동 코멘트</label>
+                <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('workout','오늘 운동 꾸준히 수행하신 점 좋습니다!')" class="quick-feedback-btn">꾸준한 수행 👏</button><button type="button" onclick="appendFeedbackTemplate('workout','무게보다 동작의 정확도와 호흡을 먼저 신경 써주세요.')" class="quick-feedback-btn">동작 정확도</button><button type="button" onclick="appendFeedbackTemplate('workout','불편한 동작은 무리하지 말고 다음 수업 때 함께 확인해요.')" class="quick-feedback-btn">불편함 확인</button></div>
+                <textarea id="inputFeedbackWorkout" rows="3" placeholder="운동 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
+              <div><label class="block text-sm font-semibold text-slate-200 mb-2">식단 코멘트</label>
+                <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('diet','식단을 빠짐없이 기록해주신 점 좋습니다!')" class="quick-feedback-btn">기록 칭찬</button><button type="button" onclick="appendFeedbackTemplate('diet','매 끼니 단백질 식품을 충분히 챙겨보세요.')" class="quick-feedback-btn">단백질</button><button type="button" onclick="appendFeedbackTemplate('diet','식사 구성과 양을 함께 점검해볼게요.')" class="quick-feedback-btn">식사 구성</button></div>
+                <textarea id="inputFeedbackDiet" rows="3" placeholder="식단 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
               <div class="flex justify-end"><button onclick="sendTrainerFeedback()" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg cursor-pointer">피드백 구글 시트에 전송</button></div>
             </div>
           </div>
@@ -744,6 +757,7 @@
 
     window.onload = async function () {
       arrangeMemberDashboard();
+      document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       setupAutoHideHeader();
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
@@ -1403,6 +1417,8 @@
         makeRows('overviewNeedsAttention',pending,m=>[
           m.pendingWorkout?'운동':'',m.pendingDiet?'식단':'',m.pendingVideos?`영상 ${m.pendingVideos}건`:''
         ].filter(Boolean).join(' · '),'확인 대기 중인 기록이 없습니다.');
+        makeRows('overviewFeedbackDone',items.filter(m=>m.feedbackDone&&!m.pendingWorkout&&!m.pendingDiet),
+          ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
         makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
         status.textContent = `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
       } catch(e) {
@@ -1514,6 +1530,36 @@
       document.getElementById('reviewRefGood').innerText = data.reflection?.good || '작성된 내용이 없습니다.';
       document.getElementById('reviewRefBad').innerText = data.reflection?.bad || '작성된 내용이 없습니다.';
 
+      const status=document.getElementById('trainerFeedbackStatus');
+      const feedback=data.feedback||{};
+      const sent=!!(String(feedback.workout||'').trim()||String(feedback.diet||'').trim());
+      status.className=sent
+        ? 'rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300'
+        : 'rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-300';
+      status.textContent=sent?`✓ 피드백 작성됨${feedback.time?' · '+feedback.time:''}`:'● 피드백 미작성';
+
+      const routines=data.routines||[];
+      const total=routines.reduce((n,r)=>n+(Number(r.sets)||0),0);
+      const done=routines.reduce((n,r)=>n+(r.completedSets||[]).filter(Boolean).length,0);
+      const meals=MEAL_KEYS.filter(k=>{
+        const m=data.diet?.[k]||{};
+        return !!(String(m.desc||'').trim()||(m.photos||[]).length);
+      }).length;
+      const photoCount=MEAL_KEYS.reduce((n,k)=>n+(data.diet?.[k]?.photos||[]).length,0);
+      const glance=[
+        ['운동 완료',`${done}/${total}세트`,'text-brand-400'],
+        ['식단 기록',`${meals}/4끼`,'text-amber-300'],
+        ['식단 사진',`${photoCount}장`,'text-sky-300'],
+        ['운동 소감',data.reflection?.good||data.reflection?.bad?'작성됨':'미작성','text-indigo-300']
+      ];
+      const glanceRoot=document.getElementById('trainerQuickSummary');glanceRoot.replaceChildren();
+      glance.forEach(([label,value,color])=>{
+        const card=document.createElement('div');card.className='rounded-xl border border-slate-700/60 bg-slate-950 p-3';
+        const title=document.createElement('p');title.className='text-xs text-slate-400 mb-1';title.textContent=label;
+        const number=document.createElement('p');number.className=`text-lg font-bold ${color}`;number.textContent=value;
+        card.append(title,number);glanceRoot.appendChild(card);
+      });
+
       // 회원의 식단 일지/운동 달성 현황 (트레이너 화면에 박스를 자동으로 추가)
       let box = document.getElementById('reviewDietBox');
       if (!box) {
@@ -1548,6 +1594,13 @@
         document.getElementById('inputFeedbackWorkout').value = data.feedback?.workout || '';
         document.getElementById('inputFeedbackDiet').value = data.feedback?.diet || '';
       }
+    }
+
+    function appendFeedbackTemplate(kind,message) {
+      const field=document.getElementById(kind==='diet'?'inputFeedbackDiet':'inputFeedbackWorkout');
+      const existing=field.value.trim();
+      if(!existing.split('\n').includes(message)) field.value=existing?existing+'\n'+message:message;
+      field.focus();field.setSelectionRange(field.value.length,field.value.length);
     }
 
     async function sendTrainerFeedback() {

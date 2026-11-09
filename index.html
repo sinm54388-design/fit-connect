@@ -302,6 +302,10 @@
 
             <!-- Meals Container -->
             <div class="space-y-4">
+              <div class="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-3 text-xs text-emerald-200 leading-relaxed">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> 음식 이름 입력 → 추천 음식 선택 → 섭취량(g) 설정하면 영양성분이 자동 입력돼요.
+                <span class="block text-[11px] text-slate-400 mt-1">기본 음식 50개의 100g당 참고값이며, 브랜드·조리법에 따라 달라질 수 있어요. 수치는 직접 수정할 수 있습니다.</span>
+              </div>
               <!-- Breakfast -->
               <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
                 <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-sun"></i> 아침</span><span id="badge-breakfast" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
@@ -1155,6 +1159,85 @@
       {key:'cal',label:'kcal'}, {key:'carb',label:'탄수화물(g)'},
       {key:'prot',label:'단백질(g)'}, {key:'fat',label:'지방(g)'}
     ];
+    // 100g당 대략적인 참고값. 제품·조리법에 따라 달라지므로 회원이 직접 수정할 수 있습니다.
+    const BASIC_FOODS = [
+      ['흰쌀밥',130,28.2,2.4,0.3],['현미밥',111,23,2.6,0.9],['잡곡밥',145,30,3.2,0.7],
+      ['고구마',90,20.7,1.6,0.1],['감자',87,20.1,1.9,0.1],['오트밀',389,66.3,16.9,6.9],
+      ['식빵',265,49,9,3.2],['통밀빵',247,41,13,4.2],['바나나',89,22.8,1.1,0.3],
+      ['사과',52,13.8,0.3,0.2],['귤',47,12,0.8,0.2],['딸기',32,7.7,0.7,0.3],
+      ['블루베리',57,14.5,0.7,0.3],['오렌지',47,11.8,0.9,0.1],['포도',69,18.1,0.7,0.2],
+      ['닭가슴살',165,0,31,3.6],['닭다리살',209,0,26,10.9],['삶은 계란',155,1.1,12.6,10.6],
+      ['계란',143,0.7,12.6,9.5],['소고기 우둔살',163,0,26,6],['소고기 안심',187,0,26,8],
+      ['돼지고기 안심',143,0,26,4],['돼지고기 목살',250,0,17,20],['연어',208,0,20,13],
+      ['참치',132,0,29,1],['고등어',205,0,19,14],['새우',99,0.2,24,0.3],
+      ['두부',76,1.9,8.1,4.8],['연두부',55,2,5,2.5],['콩나물',30,5.9,3,0.2],
+      ['브로콜리',34,6.6,2.8,0.4],['양배추',25,5.8,1.3,0.1],['오이',15,3.6,0.7,0.1],
+      ['토마토',18,3.9,0.9,0.2],['방울토마토',18,3.9,0.9,0.2],['양상추',15,2.9,1.4,0.2],
+      ['시금치',23,3.6,2.9,0.4],['버섯',22,3.3,3.1,0.3],['아보카도',160,8.5,2,14.7],
+      ['아몬드',579,21.6,21.2,49.9],['호두',654,13.7,15.2,65.2],['땅콩',567,16.1,25.8,49.2],
+      ['우유',61,4.8,3.2,3.3],['저지방 우유',42,5,3.4,1],['그릭요거트 무가당',97,3.9,9,5],
+      ['플레인 요거트',61,4.7,3.5,3.3],['체다치즈',403,1.3,25,33],['김치',15,2.4,1.1,0.5],
+      ['올리브오일',884,0,0,100],['꿀',304,82.4,0.3,0]
+    ].map(([name,cal,carb,prot,fat])=>({name,cal,carb,prot,fat}));
+    const findBasicFood=name=>BASIC_FOODS.find(f=>f.name===String(name||'').trim());
+    const roundFoodValue=n=>String(Math.round(n*10)/10);
+
+    function applyFoodReference(meal,card,food,grams=100,keepValues=false) {
+      if(!food)return;
+      const nameInput=card.querySelector('.food-entry input[type="text"]');
+      nameInput.value=food.name;
+      nameInput.dataset.foodKey=food.name;
+      const serving=card.querySelector('.food-serving');
+      serving.classList.remove('hidden');
+      const gramsInput=serving.querySelector('input');
+      gramsInput.value=grams;
+      if(!keepValues) {
+        FOOD_NUTRIENTS.forEach(({key})=>{
+          card.querySelector(`[data-nutrient="${key}"]`).value=roundFoodValue(Number(food[key])*grams/100);
+        });
+        dirtyMealDrafts.add(meal);
+        updateMealDraftTotals(meal);
+      }
+      card.querySelector('.food-suggestions').replaceChildren();
+      card.querySelector('.food-suggestions').classList.add('hidden');
+    }
+
+    function setupFoodSearch(meal,card) {
+      const input=card.querySelector('.food-entry input[type="text"]');
+      const suggestions=document.createElement('div');
+      suggestions.className='food-suggestions hidden rounded-lg border border-slate-700 bg-slate-800 p-1 mt-2';
+      const serving=document.createElement('label');
+      serving.className='food-serving hidden flex items-center gap-2 mt-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-3 py-2';
+      const caption=document.createElement('span');caption.className='text-xs font-semibold text-emerald-300 shrink-0';caption.textContent='섭취량';
+      const grams=document.createElement('input');grams.type='number';grams.min='1';grams.max='5000';grams.step='1';grams.value='100';
+      grams.className='w-20 min-w-0 rounded-lg bg-slate-900 border border-slate-700 px-2 py-1.5 text-sm text-white';
+      const unit=document.createElement('span');unit.className='text-xs text-slate-300';unit.textContent='g · 100g당 참고값';
+      serving.append(caption,grams,unit);
+      card.querySelector('.food-entry').insertAdjacentElement('afterend',suggestions);
+      suggestions.insertAdjacentElement('afterend',serving);
+      grams.addEventListener('input',()=>{
+        const f=findBasicFood(input.dataset.foodKey);
+        if(f&&Number(grams.value)>0&&Number(grams.value)<=5000)applyFoodReference(meal,card,f,Number(grams.value));
+      });
+      input.addEventListener('input',()=>{
+        if(input.value.trim()!==input.dataset.foodKey){delete input.dataset.foodKey;serving.classList.add('hidden');}
+        suggestions.replaceChildren();
+        const q=input.value.trim().toLowerCase();
+        const results=q?BASIC_FOODS.filter(f=>f.name.toLowerCase().includes(q)).slice(0,6):[];
+        suggestions.classList.toggle('hidden',results.length===0);
+        results.forEach(f=>{
+          const btn=document.createElement('button');btn.type='button';
+          btn.className='block w-full text-left rounded-md px-3 py-2.5 text-sm text-white hover:bg-slate-700';
+          btn.textContent=`${f.name} · 100g ${f.cal}kcal (참고)`;
+          btn.onclick=()=>applyFoodReference(meal,card,f);
+          suggestions.appendChild(btn);
+        });
+      });
+      input.addEventListener('change',()=>{
+        const exact=findBasicFood(input.value);
+        if(exact&&input.dataset.foodKey!==exact.name)applyFoodReference(meal,card,exact);
+      });
+    }
 
     function makeFoodNutrients(meal, values = {}) {
       const grid = document.createElement('div');
@@ -1183,6 +1266,7 @@
       row.parentElement.insertBefore(card,row);
       card.appendChild(row);
       card.appendChild(makeFoodNutrients(meal));
+      setupFoodSearch(meal,card);
     }
 
     function setupMealEditor(meal) {
@@ -1211,12 +1295,24 @@
     function readFood(row) {
       const food={name:row.querySelector('input[type="text"]').value.trim()};
       FOOD_NUTRIENTS.forEach(({key})=>food[key]=row.querySelector(`[data-nutrient="${key}"]`).value);
+      const nameInput=row.querySelector('.food-entry input[type="text"]');
+      if(findBasicFood(nameInput.dataset.foodKey) && food.name===nameInput.dataset.foodKey){
+        food.foodKey=nameInput.dataset.foodKey;
+        food.grams=row.querySelector('.food-serving input').value;
+      }
       return food;
     }
 
     function writeFood(row,food) {
       row.querySelector('input[type="text"]').value=food.name||'';
       FOOD_NUTRIENTS.forEach(({key})=>row.querySelector(`[data-nutrient="${key}"]`).value=food[key]??'');
+      const nameInput=row.querySelector('.food-entry input[type="text"]');
+      if(food.foodKey&&findBasicFood(food.foodKey)){
+        applyFoodReference('',row,findBasicFood(food.foodKey),Number(food.grams)||100,true);
+      }else{
+        delete nameInput.dataset.foodKey;
+        row.querySelector('.food-serving').classList.add('hidden');
+      }
     }
 
     function updateMealDraftTotals(meal) {
@@ -1333,6 +1429,8 @@
       remove.onclick = () => { dirtyMealDrafts.add(meal); card.remove(); updateMealDraftTotals(meal); };
       row.append(input, save, remove);
       card.append(row,makeFoodNutrients(meal,food));container.appendChild(card);
+      setupFoodSearch(meal,card);
+      if(food.foodKey&&findBasicFood(food.foodKey))applyFoodReference(meal,card,findBasicFood(food.foodKey),Number(food.grams)||100,true);
       if (focus) { dirtyMealDrafts.add(meal); input.focus(); }
     }
 

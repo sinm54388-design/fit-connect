@@ -298,7 +298,7 @@
                 <div id="meal-breakfast-extra" class="space-y-2"></div>
                 <button type="button" onclick="addMealFood('breakfast')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
-                  <summary class="text-xs text-slate-400 hover:text-slate-200">영양성분 입력 (선택)</summary>
+                  <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                   <input type="number" id="meal-breakfast-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
                   <input type="number" id="meal-breakfast-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
@@ -319,7 +319,7 @@
                 <div id="meal-lunch-extra" class="space-y-2"></div>
                 <button type="button" onclick="addMealFood('lunch')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
-                  <summary class="text-xs text-slate-400 hover:text-slate-200">영양성분 입력 (선택)</summary>
+                  <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                   <input type="number" id="meal-lunch-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
                   <input type="number" id="meal-lunch-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
@@ -340,7 +340,7 @@
                 <div id="meal-dinner-extra" class="space-y-2"></div>
                 <button type="button" onclick="addMealFood('dinner')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
-                  <summary class="text-xs text-slate-400 hover:text-slate-200">영양성분 입력 (선택)</summary>
+                  <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                   <input type="number" id="meal-dinner-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
                   <input type="number" id="meal-dinner-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
@@ -361,7 +361,7 @@
                 <div id="meal-snack-extra" class="space-y-2"></div>
                 <button type="button" onclick="addMealFood('snack')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
-                  <summary class="text-xs text-slate-400 hover:text-slate-200">영양성분 입력 (선택)</summary>
+                  <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                   <input type="number" id="meal-snack-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
                   <input type="number" id="meal-snack-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
@@ -742,6 +742,7 @@
       arrangeMemberDashboard();
       setupAutoHideHeader();
       MEAL_KEYS.forEach(m => {
+        setupMainFoodNutrition(m);
         ['desc', 'cal', 'carb', 'prot', 'fat'].forEach(f => {
           document.getElementById(`meal-${m}-${f}`).addEventListener('input', () => dirtyMealDrafts.add(m));
         });
@@ -1095,6 +1096,63 @@
     }
 
     const dirtyMealDrafts = new Set();
+    const FOOD_NUTRIENTS = [
+      {key:'cal',label:'kcal'}, {key:'carb',label:'탄수화물(g)'},
+      {key:'prot',label:'단백질(g)'}, {key:'fat',label:'지방(g)'}
+    ];
+
+    function makeFoodNutrients(meal, values = {}) {
+      const grid = document.createElement('div');
+      grid.className = 'food-nutrients grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2';
+      FOOD_NUTRIENTS.forEach(({key,label}) => {
+        const wrap=document.createElement('label');wrap.className='block min-w-0';
+        const caption=document.createElement('span');caption.className='block text-[10px] text-slate-400 mb-1';caption.textContent=label;
+        const input=document.createElement('input');input.type='number';input.min='0';input.step='any';
+        input.placeholder='0';input.dataset.nutrient=key;input.value=values[key]??'';
+        input.className='w-full min-w-0 bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200';
+        input.addEventListener('input', () => {dirtyMealDrafts.add(meal);updateMealDraftTotals(meal);});
+        wrap.append(caption,input);grid.appendChild(wrap);
+      });
+      return grid;
+    }
+
+    function setupMainFoodNutrition(meal) {
+      const name=document.getElementById(`meal-${meal}-desc`);
+      FOOD_NUTRIENTS.forEach(({key})=>{
+        const total=document.getElementById(`meal-${meal}-${key}`);
+        total.readOnly=true;total.title='음식별 입력값에서 자동 계산됩니다';
+      });
+      const row=name.parentElement;
+      row.classList.add('food-entry');
+      const card=document.createElement('div');card.className='food-card rounded-lg border border-slate-800/70 p-2.5';
+      row.parentElement.insertBefore(card,row);
+      card.appendChild(row);
+      card.appendChild(makeFoodNutrients(meal));
+    }
+
+    function getFoodRows(meal) {
+      const main = document.getElementById(`meal-${meal}-desc`).closest('.food-card');
+      return [main,...document.querySelectorAll(`#meal-${meal}-extra .food-card`)];
+    }
+
+    function readFood(row) {
+      const food={name:row.querySelector('input[type="text"]').value.trim()};
+      FOOD_NUTRIENTS.forEach(({key})=>food[key]=row.querySelector(`[data-nutrient="${key}"]`).value);
+      return food;
+    }
+
+    function writeFood(row,food) {
+      row.querySelector('input[type="text"]').value=food.name||'';
+      FOOD_NUTRIENTS.forEach(({key})=>row.querySelector(`[data-nutrient="${key}"]`).value=food[key]??'');
+    }
+
+    function updateMealDraftTotals(meal) {
+      const foods=getFoodRows(meal).map(readFood);
+      FOOD_NUTRIENTS.forEach(({key})=>{
+        const total=foods.reduce((sum,f)=>sum+(Math.max(0,Number(f[key]))||0),0);
+        document.getElementById(`meal-${meal}-${key}`).value=String(Math.round(total*100)/100);
+      });
+    }
 
     function renderMemberDiet(diet, targetCal) {
       document.getElementById('memberTargetCalorieText').innerText = targetCal.toLocaleString();
@@ -1110,10 +1168,13 @@
         const mainFood = document.getElementById(`meal-${m}-desc`);
         const extraFoods = document.getElementById(`meal-${m}-extra`);
         if (!dirtyMealDrafts.has(m) && !mainFood.closest('.rounded-xl').contains(document.activeElement)) {
-          const foods = String(item.desc || '').split('\n');
-          mainFood.value = foods.shift() || '';
+          const foods=Array.isArray(item.foods)?item.foods.map(f=>({...f})):
+            String(item.desc||'').split('\n').map((name,index)=>({name,
+              cal:index===0?item.cal:'',carb:index===0?item.carb:'',
+              prot:index===0?item.prot:'',fat:index===0?item.fat:''}));
+          writeFood(mainFood.closest('.food-card'), foods.shift()||{});
           extraFoods.replaceChildren();
-          foods.filter(Boolean).forEach(food => addMealFood(m, food, false));
+          foods.filter(f=>f.name).forEach(food => addMealFood(m, food, false));
         }
 
         const badge = document.getElementById(`badge-${m}`);
@@ -1141,12 +1202,13 @@
 
     function addMealFood(meal, value = '', focus = true) {
       const container = document.getElementById(`meal-${meal}-extra`);
-      const row = document.createElement('div');
-      row.className = 'flex items-center gap-2';
+      const card = document.createElement('div');card.className='food-card rounded-lg border border-slate-800/70 p-2.5';
+      const row = document.createElement('div');row.className = 'food-entry flex items-center gap-2';
       const input = document.createElement('input');
       input.type = 'text';
       input.placeholder = '추가 음식 입력';
-      input.value = value;
+      const food=typeof value==='string'?{name:value}:value;
+      input.value = food.name||'';
       input.className = 'meal-extra-input min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200';
       input.addEventListener('input', () => dirtyMealDrafts.add(meal));
       const remove = document.createElement('button');
@@ -1154,20 +1216,20 @@
       remove.className = 'shrink-0 px-3 py-2 rounded-lg border border-rose-500/30 text-rose-400 text-xs';
       remove.textContent = '삭제';
       remove.setAttribute('aria-label', '추가 음식 삭제');
-      remove.onclick = () => { dirtyMealDrafts.add(meal); row.remove(); };
+      remove.onclick = () => { dirtyMealDrafts.add(meal); card.remove(); updateMealDraftTotals(meal); };
       row.append(input, remove);
-      container.appendChild(row);
+      card.append(row,makeFoodNutrients(meal,food));container.appendChild(card);
       if (focus) { dirtyMealDrafts.add(meal); input.focus(); }
     }
 
     function getMealValues(m) {
-      const inputs = [document.getElementById(`meal-${m}-desc`), ...document.querySelectorAll(`#meal-${m}-extra .meal-extra-input`)];
+      const foods=getFoodRows(m).map(readFood).filter(f=>f.name||FOOD_NUTRIENTS.some(({key})=>f[key]!==''));
+      const totals={};
+      FOOD_NUTRIENTS.forEach(({key})=>totals[key]=String(Math.round(foods.reduce((sum,f)=>sum+(Math.max(0,Number(f[key]))||0),0)*100)/100));
       return {
-          desc: inputs.map(el => el.value.trim()).filter(Boolean).join('\n'),
-          cal: document.getElementById(`meal-${m}-cal`).value,
-          carb: document.getElementById(`meal-${m}-carb`).value,
-          prot: document.getElementById(`meal-${m}-prot`).value,
-          fat: document.getElementById(`meal-${m}-fat`).value
+          desc: foods.map(f=>f.name).filter(Boolean).join('\n'),
+          ...totals,
+          foods
       };
     }
 

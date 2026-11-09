@@ -375,6 +375,11 @@
            <div id="memberWeeklyReport" class="text-sm text-slate-300">리포트를 불러오는 중...</div>
          </div>
          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+           <h3 class="font-bold text-white"><i class="fa-solid fa-dumbbell text-brand-500"></i> 운동별 중량 성장 그래프</h3>
+           <p class="text-xs text-slate-400">완료한 세트가 있는 날의 기록 중량을 비교합니다.</p>
+           <div id="memberStrengthProgress" class="text-sm text-slate-300">기록을 불러오는 중...</div>
+         </div>
+         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
            <h3 class="font-bold text-white"><i class="fa-solid fa-chart-line text-sky-400"></i> 인바디 변화</h3>
            <div id="memberInbodyChart" class="text-sm text-slate-300">측정 기록을 불러오는 중...</div>
          </div>
@@ -472,6 +477,10 @@
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
           <h4 class="font-semibold text-sm text-brand-400">선택 회원 주간 운동 리포트</h4>
           <div id="trainerWeeklyReport" class="text-sm text-slate-300">리포트를 불러오는 중...</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+          <h4 class="font-semibold text-sm text-brand-400">선택 회원 운동별 중량 변화</h4>
+          <div id="trainerStrengthProgress" class="text-sm text-slate-300">기록을 불러오는 중...</div>
         </div>
         <p id="insightsStatus" role="status" class="text-xs text-slate-400"></p>
       </section>
@@ -1342,6 +1351,40 @@
           <div class="bg-slate-800 rounded-lg p-3"><div class="text-xs text-slate-400">완료 운동</div><div class="text-xl font-bold text-white">${Number(cur.exercises)||0}</div><div class="text-[11px] text-slate-500">지난주 ${Number(prev.exercises)||0}</div></div>
         </div><p class="text-xs text-slate-400 mt-3">${(weekly.improvements||[]).length?'<span class="text-brand-500 font-bold">중량 증가:</span> '+weekly.improvements.map(x=>`${esc(x.name)} ${Number(x.previous)}→${Number(x.current)}kg`).join(' · '):'지난주와 비교할 중량 증가 기록이 아직 없어요.'}</p>`;
     }
+    function renderStrengthProgress(rootId, exercises) {
+      const root=document.getElementById(rootId),list=Array.isArray(exercises)?exercises:[];
+      root.replaceChildren();
+      if(!list.length){
+        const p=document.createElement('p');p.className='text-sm text-slate-500 py-3';
+        p.textContent='완료한 세트와 중량이 함께 기록된 운동이 아직 없습니다.';root.appendChild(p);return;
+      }
+      const select=document.createElement('select');
+      select.className='w-full sm:w-auto min-w-[220px] max-w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white';
+      select.setAttribute('aria-label','중량 변화 확인할 운동 선택');
+      list.forEach((ex,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=ex.name;select.appendChild(option);});
+      const graph=document.createElement('div');graph.className='mt-4 space-y-3';
+      root.append(select,graph);
+      const renderSelected=()=>{
+        const item=list[Number(select.value)]||list[0],points=item.points||[];
+        if(!points.length)return;
+        const first=points[0],last=points[points.length-1],previous=points.length>1?points[points.length-2]:null;
+        const values=points.map(p=>Number(p.weight)),minimum=Math.min(...values),maximum=Math.max(...values),span=Math.max(1,maximum-minimum);
+        const coords=values.map((value,i)=>({x:24+i*552/Math.max(1,values.length-1),y:160-(value-minimum)/span*122}));
+        const line=coords.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        const diff=previous?last.weight-previous.weight:null;
+        graph.innerHTML=`<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div class="bg-slate-800 rounded-lg p-3"><p class="text-xs text-slate-400">최근 기록 중량</p><p class="text-xl font-extrabold text-brand-500">${Number(last.weight)}kg</p></div>
+          <div class="bg-slate-800 rounded-lg p-3"><p class="text-xs text-slate-400">첫 기록 중량</p><p class="text-xl font-extrabold text-white">${Number(first.weight)}kg</p></div>
+          <div class="bg-slate-800 rounded-lg p-3 col-span-2 sm:col-span-1"><p class="text-xs text-slate-400">직전 기록 대비</p><p class="text-xl font-extrabold text-white">${diff===null?'비교 전':`${diff>0?'+':''}${diff.toFixed(1)}kg`}</p></div>
+        </div><svg viewBox="0 0 600 190" class="w-full h-auto max-h-64 bg-slate-900/70 rounded-xl" role="img" aria-label="${esc(item.name)} 중량 변화 그래프">
+          <line x1="24" y1="160" x2="576" y2="160" stroke="#64748b" stroke-width="1"/>
+          <polyline points="${line}" fill="none" stroke="#22c55e" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+          ${coords.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="5" fill="#38bdf8" stroke="#0f172a" stroke-width="2"/>`).join('')}
+          <text x="24" y="181" fill="#94a3b8" font-size="12">${esc(first.date)}</text><text x="576" y="181" fill="#94a3b8" font-size="12" text-anchor="end">${esc(last.date)}</text>
+        </svg><p class="text-xs text-slate-400">최근 ${points.length}개 운동일 기록 · 목표 중량이 아닌 저장된 운동 중량 기준</p>`;
+      };
+      select.addEventListener('change',renderSelected);renderSelected();
+    }
     function renderInbodyChart(rootId, records) {
       const root=document.getElementById(rootId),list=Array.isArray(records)?records:[];
       if(!list.length){root.innerHTML='<p class="text-slate-500 text-sm py-3">아직 인바디 측정 기록이 없습니다.</p>';return;}
@@ -1381,6 +1424,7 @@
         if(result.status!=='success')throw Error(result.message||'성장 기록 조회 실패');
         const prefix=mode==='trainer'?'trainer':'member';
         renderWeeklyReport(prefix==='trainer'?'trainerWeeklyReport':'memberWeeklyReport',result.weekly);
+        renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);
         renderInbodyChart(prefix==='trainer'?'trainerInbodyChart':'memberInbodyChart',result.inbody);
         renderPtSummary(prefix==='trainer'?'trainerPtSummary':'memberPtSummary',result.pt);
         if(mode==='trainer'){

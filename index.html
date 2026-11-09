@@ -389,6 +389,25 @@
         </div>
       </div>
 
+      <!-- 트레이너 전용: 회원이 이미 남긴 기록으로 만드는 통합 현황 -->
+      <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="통합 관리 대시보드">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div><h3 class="font-bold text-white text-base"><i class="fa-solid fa-chart-line text-brand-500"></i> 오늘의 회원 관리 현황</h3><p class="text-xs text-slate-400 mt-1">기존 운동·식단·영상 기록을 자동으로 모아 보여줍니다. 회원님은 추가 입력할 필요가 없어요.</p></div>
+          <button type="button" onclick="loadTrainerOverview()" class="text-xs px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">현황 새로고침</button>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-live="polite">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">등록 회원</p><p id="overviewTotal" class="text-xl font-bold text-white mt-1">-</p></div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">오늘 기록한 회원</p><p id="overviewActive" class="text-xl font-bold text-brand-500 mt-1">-</p></div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">기록 피드백 대기</p><p id="overviewPending" class="text-xl font-bold text-amber-400 mt-1">-</p></div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">영상 피드백 대기</p><p id="overviewVideos" class="text-xl font-bold text-sky-400 mt-1">-</p></div>
+        </div>
+        <p id="overviewStatus" role="status" class="text-xs text-slate-400">트레이너 로그인 후 현황을 불러옵니다.</p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-amber-300">확인이 필요한 회원</h4><div id="overviewNeedsAttention" class="space-y-2 text-xs text-slate-300"></div></div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-slate-200">최근 기록 없는 회원 (7일 기준)</h4><div id="overviewInactive" class="space-y-2 text-xs text-slate-300"></div></div>
+        </div>
+      </section>
+
        <!-- 회원 관리: 트레이너 전용 -->
        <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="회원 관리">
          <div class="flex flex-wrap items-center justify-between gap-2">
@@ -606,6 +625,7 @@
         document.getElementById('todayDateDisplay').innerText = selectedDate;
         resetRoutineForms();
         await loadDataFromCloud();
+        if (currentMode === 'trainer') await loadTrainerOverview();
       });
       document.getElementById('todayDateDisplay').innerText = selectedDate;
       updateTrainerMemberDropdown();
@@ -1046,7 +1066,58 @@
           row.append(label,copy,rotate); list.append(row);
         });
         status.textContent = `등록된 회원 ${registryMembers.length}명 · 회원별 기록은 기존대로 유지됩니다.`;
+        await loadTrainerOverview();
       } catch (e) { status.textContent = '회원 목록을 불러오지 못했습니다: ' + e.message; }
+    }
+
+    let overviewRequest = 0;
+    async function loadTrainerOverview() {
+      if (currentMode !== 'trainer' || !trainerPassword) return;
+      const request = ++overviewRequest, date = selectedDate;
+      const status = document.getElementById('overviewStatus');
+      status.textContent = '회원 현황 불러오는 중...';
+      try {
+        const result = await apiPost({action:'trainerOverview',password:trainerPassword,date});
+        if (request !== overviewRequest || date !== selectedDate || currentMode !== 'trainer') return;
+        if (result.status !== 'success' || !Array.isArray(result.members)) throw Error(result.message || '현황 조회 실패');
+        const items = result.members;
+        const pending = items.filter(m => m.pendingWorkout || m.pendingDiet || Number(m.pendingVideos)>0);
+        const inactive = items.filter(m => {
+          if (!m.lastDate) return true;
+          const elapsed = (Date.parse(date+'T00:00:00')-Date.parse(m.lastDate+'T00:00:00'))/86400000;
+          return elapsed >= 7;
+        });
+        document.getElementById('overviewTotal').textContent = items.length+'명';
+        document.getElementById('overviewActive').textContent = items.filter(m => m.activeToday).length+'명';
+        document.getElementById('overviewPending').textContent = items.filter(m=>m.pendingWorkout||m.pendingDiet).length+'명';
+        document.getElementById('overviewVideos').textContent = items.reduce((n,m)=>n+(Number(m.pendingVideos)||0),0)+'건';
+        const makeRows = (rootId, list, getDetail, empty) => {
+          const root=document.getElementById(rootId);root.replaceChildren();
+          if(!list.length){const p=document.createElement('p');p.className='text-slate-500 py-2';p.textContent=empty;root.appendChild(p);return;}
+          list.forEach(m=>{
+            const button=document.createElement('button');button.type='button';
+            button.className='w-full flex justify-between items-center gap-2 rounded-lg p-2 bg-slate-900 hover:bg-slate-800 text-left';
+            const name=document.createElement('span');name.className='text-slate-100 font-semibold';name.textContent=m.name+' 회원님';
+            const detail=document.createElement('span');detail.className='text-slate-400 text-[11px]';detail.textContent=getDetail(m);
+            button.append(name,detail);
+            button.onclick=async()=>{
+              activeMemberName=m.name;
+              document.getElementById('trainerMemberSelect').value=m.name;
+              resetRoutineForms();await loadDataFromCloud();await loadExtras();
+              document.getElementById('trainerMemberSelect').scrollIntoView({behavior:'smooth',block:'center'});
+            };
+            root.appendChild(button);
+          });
+        };
+        makeRows('overviewNeedsAttention',pending,m=>[
+          m.pendingWorkout?'운동':'',m.pendingDiet?'식단':'',m.pendingVideos?`영상 ${m.pendingVideos}건`:''
+        ].filter(Boolean).join(' · '),'확인 대기 중인 기록이 없습니다.');
+        makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
+        status.textContent = `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
+      } catch(e) {
+        if(request !== overviewRequest)return;
+        status.textContent='현황을 불러오지 못했습니다: '+e.message;
+      }
     }
     function buildMemberLink(name, token) {
       const url = new URL(window.location.origin + window.location.pathname);
@@ -1172,7 +1243,8 @@
       const workout = document.getElementById('inputFeedbackWorkout').value;
       const diet = document.getElementById('inputFeedbackDiet').value;
       const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      await updateAndSave(d => { d.feedback = { workout, diet, time }; });
+      const saved=await updateAndSave(d => { d.feedback = { workout, diet, time }; });
+      if(saved) await loadTrainerOverview();
     }
 
     async function apiPost(body) {

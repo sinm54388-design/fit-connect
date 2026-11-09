@@ -45,6 +45,12 @@
       #appHeader .header-mode-button { padding: 8px 9px; font-size: 11px; }
       #appHeader .header-mode-button i { display: none; }
       #appHeader .header-sync-badge { font-size: 9px; padding: 1px 5px; }
+      #memberView input:not([type="checkbox"]):not([type="file"]), #memberView textarea { font-size:16px; min-height:44px; }
+      #memberView .food-nutrients span { font-size:12px; }
+      #memberView .food-card { background:rgba(15,23,42,.6); border-color:#334155; }
+      #memberRoutineList .member-set-check { min-width:84px; touch-action:manipulation; }
+      #memberRoutineList .member-set-check input { accent-color:#22c55e; }
+      #memberView button { touch-action:manipulation; }
     }
     @media (prefers-reduced-motion: reduce) { #appHeader { transition: none; } }
   </style>
@@ -192,8 +198,10 @@
             </div>
             <div id="memberRoutineList" class="space-y-3"></div>
 
-            <!-- 회원이 직접 루틴 추가/수정 -->
-            <form id="memberRoutineForm" onsubmit="submitRoutine(event)" class="mt-4 space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <!-- 회원이 직접 루틴 추가/수정: 필요할 때만 펼치기 -->
+            <details id="memberRoutineEditor" class="mt-4 rounded-xl border border-slate-700 bg-slate-950/70">
+              <summary class="cursor-pointer select-none px-4 py-3.5 font-semibold text-sm text-brand-400">+ 운동 직접 추가 / 수정</summary>
+            <form id="memberRoutineForm" onsubmit="submitRoutine(event)" class="space-y-3 p-4 pt-0">
               <h4 class="text-xs font-bold text-slate-300"><i class="fa-solid fa-pen"></i> 운동 직접 추가 / 수정</h4>
               <input type="text" id="mrName" placeholder="운동 이름 (예: 레그프레스)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white">
               <div class="grid grid-cols-3 gap-2">
@@ -207,6 +215,7 @@
                 <button type="button" id="mrCancelBtn" onclick="resetRoutineForms()" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs cursor-pointer">취소</button>
               </div>
             </form>
+            </details>
           </div>
 
           <!-- 코치님과 메모 -->
@@ -304,7 +313,7 @@
                 <div id="meal-breakfast-saved" class="hidden"></div>
                 <div class="flex gap-2"><input type="text" id="meal-breakfast-desc" placeholder="음식 입력 (예: 계란 2개)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('breakfast')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
                 <div id="meal-breakfast-extra" class="space-y-2"></div>
-                <button type="button" onclick="addMealFood('breakfast')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
+                <div class="flex gap-2"><button type="button" onclick="addMealFood('breakfast')" class="flex-1 min-h-11 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-semibold">+ 음식 추가</button><button type="button" onclick="saveSingleMeal('breakfast')" class="flex-1 min-h-11 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">아침 저장</button></div>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
                   <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
@@ -326,7 +335,7 @@
                 <div id="meal-lunch-saved" class="hidden"></div>
                 <div class="flex gap-2"><input type="text" id="meal-lunch-desc" placeholder="음식 입력 (예: 닭가슴살)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('lunch')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
                 <div id="meal-lunch-extra" class="space-y-2"></div>
-                <button type="button" onclick="addMealFood('lunch')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
+                <div class="flex gap-2"><button type="button" onclick="addMealFood('lunch')" class="flex-1 min-h-11 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-semibold">+ 음식 추가</button><button type="button" onclick="saveSingleMeal('lunch')" class="flex-1 min-h-11 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">점심 저장</button></div>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
                   <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
@@ -348,7 +357,7 @@
                 <div id="meal-dinner-saved" class="hidden"></div>
                 <div class="flex gap-2"><input type="text" id="meal-dinner-desc" placeholder="음식 입력 (예: 현미밥)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('dinner')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
                 <div id="meal-dinner-extra" class="space-y-2"></div>
-                <button type="button" onclick="addMealFood('dinner')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
+                <div class="flex gap-2"><button type="button" onclick="addMealFood('dinner')" class="flex-1 min-h-11 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-semibold">+ 음식 추가</button><button type="button" onclick="saveSingleMeal('dinner')" class="flex-1 min-h-11 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">저녁 저장</button></div>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
                   <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
@@ -370,7 +379,7 @@
                 <div id="meal-snack-saved" class="hidden"></div>
                 <div class="flex gap-2"><input type="text" id="meal-snack-desc" placeholder="음식 입력 (예: 단백질 쉐이크)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('snack')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
                 <div id="meal-snack-extra" class="space-y-2"></div>
-                <button type="button" onclick="addMealFood('snack')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
+                <div class="flex gap-2"><button type="button" onclick="addMealFood('snack')" class="flex-1 min-h-11 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-semibold">+ 음식 추가</button><button type="button" onclick="saveSingleMeal('snack')" class="flex-1 min-h-11 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">간식 저장</button></div>
                 <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
                   <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
@@ -1008,6 +1017,7 @@
       const ex = (appData.routines || []).find(r => String(r.id) === String(id));
       if (!ex) return;
       resetRoutineForms();
+      if (currentMode === 'member') document.getElementById('memberRoutineEditor').open = true;
       editingRoutineId = ex.id;
       const ids = FORM_IDS[currentMode];
       document.getElementById(ids.name).value = ex.name || '';
@@ -1047,7 +1057,10 @@
         }
         d.routines.push({ id: Date.now(), name, weight, sets, reps, note, completedSets: Array(setNum).fill(false) });
       });
-      if (ok) resetRoutineForms();
+      if (ok) {
+        resetRoutineForms();
+        if (currentMode === 'member') document.getElementById('memberRoutineEditor').open = false;
+      }
     }
 
     async function removeExercise(id) {
@@ -1080,9 +1093,9 @@
           const isDone = ex.completedSets && ex.completedSets[setIdx];
           if (isDone) completedSets++;
           return `
-            <label class="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 cursor-pointer hover:border-slate-700">
-              <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleSetDone(${exIdx}, ${setIdx}, this.checked)" class="custom-checkbox w-4 h-4 rounded text-brand-500 cursor-pointer">
-              <span class="text-xs ${isDone ? 'text-brand-400 line-through font-semibold' : 'text-slate-300'}">${setIdx + 1}세트</span>
+            <label class="member-set-check flex items-center justify-center gap-2 min-h-11 bg-slate-950 px-3 py-2 rounded-lg border ${isDone?'border-brand-500/50 bg-brand-500/10':'border-slate-700'} cursor-pointer hover:border-brand-500/60">
+              <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleSetDone(${exIdx}, ${setIdx}, this.checked)" class="custom-checkbox w-5 h-5 rounded text-brand-500 cursor-pointer shrink-0">
+              <span class="text-sm ${isDone ? 'text-brand-400 line-through font-semibold' : 'text-slate-200'}">${setIdx + 1}세트</span>
             </label>
           `;
         }).join('');
@@ -1090,10 +1103,10 @@
         return `
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
             <div class="flex items-start justify-between gap-2">
-              <h4 class="font-bold text-white text-sm mb-1">${esc(ex.name)} <span class="text-[11px] font-normal text-slate-400">(${ex.weight ? esc(ex.weight) + 'kg' : '맨몸'} × ${esc(ex.reps)}회)</span></h4>
+              <h4 class="font-bold text-white text-base mb-1">${esc(ex.name)} <span class="text-xs font-normal text-slate-400">(${ex.weight ? esc(ex.weight) + 'kg' : '맨몸'} × ${esc(ex.reps)}회)</span></h4>
               <div class="flex gap-1 shrink-0">
-                <button onclick="startEditRoutine(${Number(ex.id)})" class="text-slate-400 hover:text-white p-1 cursor-pointer" title="수정"><i class="fa-solid fa-pen"></i></button>
-                <button onclick="removeExercise(${Number(ex.id)})" class="text-rose-400 hover:text-rose-300 p-1 cursor-pointer" title="삭제"><i class="fa-solid fa-trash"></i></button>
+                <button onclick="startEditRoutine(${Number(ex.id)})" class="text-slate-400 hover:text-white w-10 h-10 flex items-center justify-center cursor-pointer" title="수정" aria-label="운동 수정"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="removeExercise(${Number(ex.id)})" class="text-rose-400 hover:text-rose-300 w-10 h-10 flex items-center justify-center cursor-pointer" title="삭제" aria-label="운동 삭제"><i class="fa-solid fa-trash"></i></button>
               </div>
             </div>
             ${ex.note ? `<p class="text-xs text-brand-400 mb-2"><i class="fa-solid fa-lightbulb"></i> ${esc(ex.note)}</p>` : ''}

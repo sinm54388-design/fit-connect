@@ -294,6 +294,7 @@
                   <div id="photos-breakfast" class="grid grid-cols-3 gap-2"></div>
                   <p id="photo-feedback-breakfast" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
                 </div>
+                <div id="meal-breakfast-saved" class="hidden"></div>
                 <div class="flex gap-2"><input type="text" id="meal-breakfast-desc" placeholder="음식 입력 (예: 계란 2개)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('breakfast')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
                 <div id="meal-breakfast-extra" class="space-y-2"></div>
                 <button type="button" onclick="addMealFood('breakfast')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
@@ -315,6 +316,7 @@
                   <div id="photos-lunch" class="grid grid-cols-3 gap-2"></div>
                   <p id="photo-feedback-lunch" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
                 </div>
+                <div id="meal-lunch-saved" class="hidden"></div>
                 <div class="flex gap-2"><input type="text" id="meal-lunch-desc" placeholder="음식 입력 (예: 닭가슴살)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('lunch')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
                 <div id="meal-lunch-extra" class="space-y-2"></div>
                 <button type="button" onclick="addMealFood('lunch')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
@@ -336,6 +338,7 @@
                   <div id="photos-dinner" class="grid grid-cols-3 gap-2"></div>
                   <p id="photo-feedback-dinner" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
                 </div>
+                <div id="meal-dinner-saved" class="hidden"></div>
                 <div class="flex gap-2"><input type="text" id="meal-dinner-desc" placeholder="음식 입력 (예: 현미밥)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('dinner')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
                 <div id="meal-dinner-extra" class="space-y-2"></div>
                 <button type="button" onclick="addMealFood('dinner')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
@@ -357,6 +360,7 @@
                   <div id="photos-snack" class="grid grid-cols-3 gap-2"></div>
                   <p id="photo-feedback-snack" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
                 </div>
+                <div id="meal-snack-saved" class="hidden"></div>
                 <div class="flex gap-2"><input type="text" id="meal-snack-desc" placeholder="음식 입력 (예: 단백질 쉐이크)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('snack')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
                 <div id="meal-snack-extra" class="space-y-2"></div>
                 <button type="button" onclick="addMealFood('snack')" class="w-full py-2 rounded-lg border border-amber-500/40 text-amber-300 text-xs font-semibold">+ 음식 추가</button>
@@ -1154,12 +1158,44 @@
       });
     }
 
+    function renderSavedMealCard(meal,item) {
+      const box=document.getElementById(`meal-${meal}-saved`);
+      const foods=Array.isArray(item.foods)&&item.foods.length
+        ? item.foods
+        : String(item.desc||'').split('\n').filter(Boolean).map((name,index)=>({
+            name,cal:index===0?item.cal:'',carb:index===0?item.carb:'',
+            prot:index===0?item.prot:'',fat:index===0?item.fat:''
+          }));
+      const recorded=foods.some(f=>String(f.name||'').trim()) || ['cal','carb','prot','fat'].some(k=>Number(item[k]));
+      box.classList.toggle('hidden',!recorded);
+      if(!recorded){box.replaceChildren();return;}
+      const nutrientLine=f=>FOOD_NUTRIENTS.filter(({key})=>f[key]!==''&&f[key]!=null)
+        .map(({key,label})=>`${label==='kcal'?'열량':label} ${esc(String(f[key]))}${key==='cal'?'kcal':'g'}`).join(' · ');
+      const rows=foods.filter(f=>String(f.name||'').trim()).map((food,index)=>`
+        <div class="py-2.5 ${index?'border-t border-slate-700/60':''}">
+          <div class="text-xs font-semibold text-white break-words">${esc(food.name)}</div>
+          ${nutrientLine(food)?`<div class="mt-1 text-[11px] text-slate-400 leading-relaxed">${nutrientLine(food)}</div>`:''}
+        </div>`).join('');
+      const sum=FOOD_NUTRIENTS.map(({key,label})=>`
+        <div class="rounded-lg bg-slate-900/80 px-2 py-2 text-center min-w-0">
+          <div class="text-[10px] text-slate-400">${label}</div>
+          <div class="text-xs font-bold text-emerald-300 mt-0.5">${esc(String(item[key]||0))}${key==='cal'?' kcal':'g'}</div>
+        </div>`).join('');
+      box.className='rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2';
+      box.innerHTML=`<div class="flex items-center justify-between gap-2">
+        <h5 class="text-xs font-bold text-emerald-400"><i class="fa-solid fa-circle-check"></i> 저장된 식단</h5>
+        <span class="text-[11px] text-slate-400">음식 ${foods.filter(f=>String(f.name||'').trim()).length}개</span>
+        </div><div class="px-1">${rows||'<div class="text-xs text-slate-400">영양성분 기록</div>'}</div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-slate-700/50 pt-3">${sum}</div>`;
+    }
+
     function renderMemberDiet(diet, targetCal) {
       document.getElementById('memberTargetCalorieText').innerText = targetCal.toLocaleString();
       let totalCal = 0, totalCarb = 0, totalProt = 0, totalFat = 0;
 
       MEAL_KEYS.forEach(m => {
         const item = diet[m] || {};
+        renderSavedMealCard(m,item);
         const fields = { cal: item.cal, carb: item.carb, prot: item.prot, fat: item.fat };
         Object.keys(fields).forEach(f => {
           const el = document.getElementById(`meal-${m}-${f}`);

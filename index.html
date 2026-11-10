@@ -611,6 +611,23 @@
 
           <div id="trainerRoutineSection" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg trainer-jump-target">
             <h3 class="font-bold text-white text-base mb-4">운동 루틴 짜주기</h3>
+            <div class="mb-4 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 sm:p-4 space-y-3">
+              <div>
+                <h4 class="text-sm font-bold text-indigo-300"><i class="fa-solid fa-copy"></i> 지난 운동 루틴 복사</h4>
+                <p class="text-xs text-slate-400 mt-1">현재 선택한 회원의 지난 날짜에서 운동을 가져옵니다. 완료 체크는 초기화돼요.</p>
+              </div>
+              <div class="flex flex-col sm:flex-row gap-2 sm:items-end">
+                <label class="flex-1 text-xs text-slate-300">복사할 날짜
+                  <input id="routineCopySourceDate" type="date" class="block mt-1 w-full min-h-11 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                </label>
+                <button type="button" onclick="previewRoutineCopy()" class="min-h-11 px-4 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-bold text-white">지난 루틴 확인</button>
+              </div>
+              <p id="routineCopyStatus" class="text-xs text-slate-400" role="status">지난 날짜를 선택해 운동을 확인해보세요.</p>
+              <div id="routineCopyPreview" class="hidden rounded-lg border border-slate-700 bg-slate-950 p-3 space-y-3">
+                <div id="routineCopyItems" class="space-y-1.5 text-sm text-slate-200"></div>
+                <button type="button" id="routineCopyApplyBtn" onclick="applyRoutineCopy()" class="w-full min-h-11 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-bold text-white">선택한 날짜의 루틴 복사하기</button>
+              </div>
+            </div>
             <form id="addRoutineForm" onsubmit="submitRoutine(event)" class="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
               <div><label class="block text-xs text-slate-300 mb-1">운동 이름</label><input type="text" id="exName" placeholder="예: 바벨 벤치프레스" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
               <div class="grid grid-cols-3 gap-2">
@@ -794,8 +811,12 @@
       });
       updateAccessState();
       document.getElementById('currentDateInput').value = selectedDate;
+      const copyDateInput=document.getElementById('routineCopySourceDate');
+      copyDateInput.value=new Date(Date.parse(selectedDate+'T12:00:00Z')-7*86400000).toISOString().slice(0,10);
+      copyDateInput.addEventListener('change',()=>clearRoutineCopyPreview());
       document.getElementById('inbodyDate').value = selectedDate;
       document.getElementById('currentDateInput').addEventListener('change', async (e) => {
+        clearRoutineCopyPreview();
         dirtyMealDrafts.clear();
         mealEditorOpen.clear();
         selectedDate = e.target.value;
@@ -1595,6 +1616,7 @@
       }
     }
     async function openOverviewMember(member, listId) {
+      clearRoutineCopyPreview();
       const date = listId === 'overviewInactive' && member.lastDate ? member.lastDate : selectedDate;
       activeMemberName = member.name;
       selectedDate = date;
@@ -1662,6 +1684,7 @@
     }
 
     async function onSelectMemberChange() {
+      clearRoutineCopyPreview();
       activeMemberName = document.getElementById('trainerMemberSelect').value;
       resetRoutineForms();
       await loadDataFromCloud();
@@ -1692,6 +1715,69 @@
           </div>
         </div>
       `).join('');
+    }
+
+    let routineCopySelection=null;
+    let routineCopyRequest=0;
+    function clearRoutineCopyPreview(message='지난 날짜를 선택해 운동을 확인해보세요.') {
+      ++routineCopyRequest;
+      routineCopySelection=null;
+      document.getElementById('routineCopyPreview').classList.add('hidden');
+      document.getElementById('routineCopyItems').replaceChildren();
+      document.getElementById('routineCopyStatus').textContent=message;
+    }
+
+    async function previewRoutineCopy() {
+      clearRoutineCopyPreview('지난 루틴을 불러오는 중...');
+      const request=routineCopyRequest;
+      if(currentMode!=='trainer'||!trainerPassword){clearRoutineCopyPreview('트레이너 로그인이 필요합니다.');return;}
+      const source=document.getElementById('routineCopySourceDate').value;
+      const member=activeMemberName;
+      const target=selectedDate;
+      if(!source||source>=target){clearRoutineCopyPreview('복사할 날짜는 현재 선택된 날짜보다 이전이어야 합니다.');return;}
+      try {
+        const result=await apiPost({action:'read',member,date:source,password:trainerPassword});
+        if(request!==routineCopyRequest||member!==activeMemberName||target!==selectedDate)return;
+        if(result.status==='error'||result.status==='denied')throw Error(result.message||'조회 권한이 없습니다.');
+        const routines=Array.isArray(result.routines)?result.routines:[];
+        if(!routines.length){clearRoutineCopyPreview(`${source}에 등록된 운동 루틴이 없습니다.`);return;}
+        routineCopySelection={member,target,source,routines:routines.map(r=>({
+          name:String(r.name||''),weight:String(r.weight||''),sets:Number(r.sets)||0,
+          reps:String(r.reps||''),note:String(r.note||'')
+        })).filter(r=>r.name&&r.sets>=1&&r.sets<=20)};
+        if(!routineCopySelection.routines.length){clearRoutineCopyPreview('복사할 수 있는 운동이 없습니다.');return;}
+        const list=document.getElementById('routineCopyItems');list.replaceChildren();
+        routineCopySelection.routines.forEach(r=>{
+          const item=document.createElement('p');item.className='py-1 border-b border-slate-800 last:border-0';
+          item.textContent=`${r.name} · ${r.weight?r.weight+'kg · ':''}${r.sets}세트 × ${r.reps}회`;
+          list.appendChild(item);
+        });
+        document.getElementById('routineCopyPreview').classList.remove('hidden');
+        document.getElementById('routineCopyStatus').textContent=`${source}의 루틴 ${routineCopySelection.routines.length}개를 확인했습니다.`;
+      }catch(e){clearRoutineCopyPreview('루틴 조회 실패: '+e.message);}
+    }
+
+    async function applyRoutineCopy() {
+      const copy=routineCopySelection;
+      if(!copy||currentMode!=='trainer'||copy.member!==activeMemberName||copy.target!==selectedDate||copy.source!==document.getElementById('routineCopySourceDate').value){
+        clearRoutineCopyPreview('회원 또는 날짜가 변경되었습니다. 다시 확인해주세요.');return;
+      }
+      const existing=(appData?.routines||[]).length;
+      const message=existing
+        ? `현재 날짜에 운동 ${existing}개가 있습니다. 기존 운동은 유지하고 지난 루틴 ${copy.routines.length}개를 추가할까요?`
+        : `${copy.source}의 운동 ${copy.routines.length}개를 ${copy.target}에 복사할까요? 완료 세트는 모두 초기화됩니다.`;
+      if(!confirm(message))return;
+      const baseId=Date.now()*100;
+      const saved=await updateAndSave(d=>{
+        if(!Array.isArray(d.routines))d.routines=[];
+        d.routines.push(...copy.routines.map((r,i)=>({
+          id:baseId+i,name:r.name,weight:r.weight,sets:String(r.sets),reps:r.reps,
+          note:r.note,completedSets:Array(r.sets).fill(false)
+        })));
+      });
+      if(saved){
+        clearRoutineCopyPreview(`${copy.source} 루틴 ${copy.routines.length}개를 복사했습니다. 완료 세트는 초기화됐어요.`);
+      }
     }
 
     function renderTrainerReview(data, keepInputs = false) {

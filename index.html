@@ -1027,6 +1027,42 @@
     let lastFailedSave=null;
     let saveStatusHideTimer=null;
     let postSaveExtrasTimer=null;
+    let pendingSetBatch=null;
+    function flushPendingSetBatch() {
+      const batch=pendingSetBatch;
+      if(!batch)return Promise.resolve(true);
+      pendingSetBatch=null;
+      clearTimeout(batch.timer);
+      const changes=[...batch.changes.values()];
+      const work=async()=>{
+        try {
+          const context=batch.context;
+          const result=await apiPost({action:'setProgressBatch',member:context.member,date:context.date,
+            token:context.token,...(context.mode==='trainer'&&context.password?{password:context.password}:{}),changes});
+          if(result.status!=='success')throw Error(result.message||'운동 체크 저장 실패');
+          if(isCurrentSaveContext(context))schedulePostSaveExtras();
+          return true;
+        }catch(e){
+          console.error('운동 체크 저장 실패',e);
+          // 기존 재시도 버튼을 사용하되, 최신 기록을 다시 읽고 해당 체크만 병합합니다.
+          lastFailedSave={context:batch.context,mutate:d=>{
+            changes.forEach(c=>{
+              const ex=(d.routines||[]).find(r=>String(r.id)===String(c.id));
+              if(ex){if(!Array.isArray(ex.completedSets))ex.completedSets=[];ex.completedSets[c.index]=c.checked;}
+            });
+          }};
+          if(isCurrentSaveContext(batch.context))setSaveStatus('error','운동 체크 저장 실패 · 다시 시도해주세요');
+          return false;
+        }finally{
+          queuedSaveCount=Math.max(0,queuedSaveCount-1);
+          if(queuedSaveCount===0&&lastFailedSave===null&&isCurrentSaveContext(batch.context))
+            setSaveStatus('saved','저장 완료 ✓ · 구글 시트에 반영됐어요');
+        }
+      };
+      const result=saveQueue.then(work,work);
+      saveQueue=result.then(()=>undefined,()=>undefined);
+      return result;
+    }
     function schedulePostSaveExtras() {
       if(postSaveExtrasTimer)clearTimeout(postSaveExtrasTimer);
       postSaveExtrasTimer=setTimeout(()=>{
@@ -1282,13 +1318,25 @@
     }
 
     function toggleSetDone(exIdx, setIdx, checked) {
-      const exId = appData.routines[exIdx] ? appData.routines[exIdx].id : null;
-      updateAndSave(d => {
-        const ex = d.routines.find(r => r.id === exId) || d.routines[exIdx];
-        if (!ex) return;
-        if (!ex.completedSets) ex.completedSets = [];
-        ex.completedSets[setIdx] = checked;
-      });
+      const ex=appData&&appData.routines&&appData.routines[exIdx];
+      if(!ex)return;
+      const context=getSaveContext();
+      // 즉시 화면에 반영하되, 실제 구글 시트 저장 완료 전에는 완료 표시를 하지 않습니다.
+      if(!Array.isArray(ex.completedSets))ex.completedSets=[];
+      ex.completedSets[setIdx]=checked;
+      renderMemberRoutines(appData.routines);
+      if(pendingSetBatch && (pendingSetBatch.context.member!==context.member ||
+          pendingSetBatch.context.date!==context.date || pendingSetBatch.context.mode!==context.mode))
+        flushPendingSetBatch();
+      if(!pendingSetBatch){
+        pendingSetBatch={context,changes:new Map(),timer:null};
+        queuedSaveCount++;
+      }
+      const batch=pendingSetBatch;
+      batch.changes.set(String(ex.id)+':'+setIdx,{id:ex.id,index:setIdx,checked});
+      clearTimeout(batch.timer);
+      batch.timer=setTimeout(flushPendingSetBatch,500);
+      setSaveStatus('saving','운동 체크 저장 중...');
     }
 
     function updateWorkoutProgress(done, total) {

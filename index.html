@@ -44,6 +44,10 @@
     .member-jump-target { scroll-margin-top:92px; }
     .member-nav-btn { min-height:50px; display:flex; align-items:center; justify-content:center; gap:8px; border:1px solid #334155; border-radius:12px; background:#0f172a; color:#e2e8f0; font-size:13px; font-weight:700; cursor:pointer; }
     .member-nav-btn:active, .member-nav-btn:focus-visible { background:#1e293b; border-color:#22c55e; outline:none; }
+    .meal-shortcuts-toggle summary { list-style:none; cursor:pointer; }
+    .meal-shortcuts-toggle summary::-webkit-details-marker { display:none; }
+    .meal-shortcuts-toggle summary::after { content:'⌄'; float:right; font-size:18px; line-height:1; color:#fbbf24; }
+    .meal-shortcuts-toggle[open] summary::after { transform:rotate(180deg); }
     @media (max-width:639px) { .trainer-nav-btn { font-size:12px; padding:10px 8px; gap:6px; } }
     @media (max-width: 639px) {
       #appHeader { padding: 9px 12px; }
@@ -63,6 +67,11 @@
       #memberView input::placeholder, #memberView textarea::placeholder { color:#94a3b8; opacity:1; }
       #memberView button { min-height:40px; }
       #memberView .member-nav-btn, #memberView button.bg-amber-500, #memberView button.bg-brand-500 { min-height:44px; }
+      #memberDietSection .text-xs { font-size:14px; line-height:1.6; }
+      #memberDietSection [class~="text-[10px]"], #memberDietSection [class~="text-[11px]"] { font-size:12px; line-height:1.55; }
+      #memberDietSection .food-card { padding:13px; }
+      #memberDietSection input:not([type="file"]), #memberDietSection button { letter-spacing:0; }
+      #memberDietSection .meal-shortcuts-toggle button { min-height:42px; }
       #memberView .food-nutrients span { font-size:12px; }
       #memberView .food-card { background:rgba(15,23,42,.6); border-color:#334155; }
       #memberRoutineList .member-set-check { min-width:84px; touch-action:manipulation; }
@@ -326,9 +335,9 @@
 
             <!-- Meals Container -->
             <div class="space-y-4">
-              <div class="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-3 text-xs text-emerald-200 leading-relaxed">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> 음식 이름 입력 → 추천 음식 선택 → 섭취량(g) 설정하면 영양성분이 자동 입력돼요.
-                <span class="block text-[11px] text-slate-400 mt-1">기본 음식 50개의 100g당 참고값이며, 브랜드·조리법에 따라 달라질 수 있어요. 수치는 직접 수정할 수 있습니다.</span>
+              <div class="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5 text-xs text-emerald-200 leading-relaxed">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> 음식 검색 후 양(g)을 선택하면 영양성분이 자동 입력돼요.
+                <span class="block text-[11px] text-slate-400 mt-1">영양 수치는 참고값이며 직접 수정할 수 있어요.</span>
               </div>
               <!-- Breakfast -->
               <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
@@ -1297,14 +1306,21 @@
     let foodShortcutRequest=0;
     function setupMealShortcutsPanel(meal) {
       const editor=document.getElementById(`meal-${meal}-editor`);
-      const panel=document.createElement('div');
+      const panel=document.createElement('details');
       panel.id=`meal-${meal}-shortcuts`;
-      panel.className='rounded-xl border border-slate-700/70 bg-slate-900/60 px-3 py-3 space-y-2';
-      editor.insertBefore(panel,editor.firstChild);
+      panel.className='meal-shortcuts-toggle rounded-xl border border-slate-700/70 bg-slate-900/60 px-3 py-3';
+      const summary=document.createElement('summary');
+      summary.className='text-sm font-bold text-slate-200 py-1';
+      summary.textContent='⭐ 즐겨찾기 · 최근 음식 펼치기';
+      const content=document.createElement('div');
+      content.id=`meal-${meal}-shortcuts-content`;
+      content.className='space-y-3 pt-3';
+      panel.append(summary,content);
+      editor.appendChild(panel);
       renderMealShortcuts(meal);
     }
     function renderMealShortcuts(meal) {
-      const panel=document.getElementById(`meal-${meal}-shortcuts`);
+      const panel=document.getElementById(`meal-${meal}-shortcuts-content`);
       if(!panel)return;
       panel.replaceChildren();
       const groups=[['⭐ 즐겨찾기',foodShortcutState.favorites],['🕘 최근 먹은 음식',foodShortcutState.recent]];

@@ -52,6 +52,17 @@
       #appHeader .header-mode-button i { display: none; }
       #appHeader .header-sync-badge { font-size: 9px; padding: 1px 5px; }
       #memberView input:not([type="checkbox"]):not([type="file"]), #memberView textarea { font-size:16px; min-height:44px; }
+      /* 모바일 회원 화면: 작은 설명 글씨와 조작 영역의 가독성 개선 */
+      #memberView .text-xs { font-size:13px; line-height:1.55; }
+      #memberView [class~="text-[10px]"], #memberView [class~="text-[11px]"] { font-size:12px; line-height:1.5; }
+      #memberView .text-slate-400 { color:#b8c5d6; }
+      #memberView .text-slate-500 { color:#94a3b8; }
+      #memberView h3 { line-height:1.4; }
+      #memberView .member-nav-btn { min-height:52px; font-size:14px; }
+      #memberView input:not([type="checkbox"]):not([type="file"]), #memberView textarea, #memberView select { border-color:#475569; }
+      #memberView input::placeholder, #memberView textarea::placeholder { color:#94a3b8; opacity:1; }
+      #memberView button { min-height:40px; }
+      #memberView .member-nav-btn, #memberView button.bg-amber-500, #memberView button.bg-brand-500 { min-height:44px; }
       #memberView .food-nutrients span { font-size:12px; }
       #memberView .food-card { background:rgba(15,23,42,.6); border-color:#334155; }
       #memberRoutineList .member-set-check { min-width:84px; touch-action:manipulation; }

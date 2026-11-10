@@ -1026,6 +1026,14 @@
     let queuedSaveCount=0;
     let lastFailedSave=null;
     let saveStatusHideTimer=null;
+    let postSaveExtrasTimer=null;
+    function schedulePostSaveExtras() {
+      if(postSaveExtrasTimer)clearTimeout(postSaveExtrasTimer);
+      postSaveExtrasTimer=setTimeout(()=>{
+        postSaveExtrasTimer=null;
+        loadExtras().catch(e=>console.warn('부가 기록 갱신 오류',e));
+      },650);
+    }
     function setSaveStatus(state,message) {
       if(saveStatusHideTimer){clearTimeout(saveStatusHideTimer);saveStatusHideTimer=null;}
       const bar=document.getElementById('saveStatusBar');
@@ -1072,7 +1080,9 @@
           if(isCurrentSaveContext(context)){
             appData=latest;
             renderUI();
-            try{await loadExtras();}catch(e){console.warn('캘린더 갱신 오류',e);}
+            // 구글 시트 저장 성공을 먼저 보여주고, 부가 기록/영상 갱신은 백그라운드에서 처리합니다.
+            // 이 조회들은 저장 성공 여부를 바꾸지 않으며 느린 네트워크에서도 저장 표시를 지연시키지 않습니다.
+            schedulePostSaveExtras();
           }
           if(lastFailedSave===null&&queuedSaveCount===1&&isCurrentSaveContext(context))setSaveStatus('saved','저장 완료 ✓ · 구글 시트에 반영됐어요');
           return true;

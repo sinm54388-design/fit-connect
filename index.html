@@ -41,6 +41,9 @@
     #saveStatusBar[data-state="error"] { border-color:#fb7185; background:#4c0519; }
     .trainer-jump-target { scroll-margin-top:90px; }
     .trainer-jump-target.jump-highlight { box-shadow:0 0 0 2px rgba(99,102,241,.65); }
+    .member-jump-target { scroll-margin-top:92px; }
+    .member-nav-btn { min-height:50px; display:flex; align-items:center; justify-content:center; gap:8px; border:1px solid #334155; border-radius:12px; background:#0f172a; color:#e2e8f0; font-size:13px; font-weight:700; cursor:pointer; }
+    .member-nav-btn:active, .member-nav-btn:focus-visible { background:#1e293b; border-color:#22c55e; outline:none; }
     @media (max-width:639px) { .trainer-nav-btn { font-size:12px; padding:10px 8px; gap:6px; } }
     @media (max-width: 639px) {
       #appHeader { padding: 9px 12px; }
@@ -161,8 +164,14 @@
         </div>
       </div>
 
+      <nav aria-label="회원 화면 빠른 이동" class="grid grid-cols-3 gap-2 sm:gap-3">
+        <button type="button" class="member-nav-btn" onclick="jumpMemberSection('memberExerciseSection')"><i class="fa-solid fa-dumbbell text-brand-400"></i> 운동</button>
+        <button type="button" class="member-nav-btn" onclick="jumpMemberSection('memberDietSection')"><i class="fa-solid fa-utensils text-amber-400"></i> 식단</button>
+        <button type="button" class="member-nav-btn" onclick="jumpMemberSection('trainerFeedbackCard')"><i class="fa-solid fa-comment-dots text-sky-400"></i> 피드백</button>
+      </nav>
+
       <!-- Trainer Feedback Display -->
-      <div id="trainerFeedbackCard" class="bg-slate-900 border-2 border-brand-500/30 rounded-2xl p-5 shadow-xl hidden">
+      <div id="trainerFeedbackCard" class="member-jump-target bg-slate-900 border-2 border-brand-500/30 rounded-2xl p-5 shadow-xl hidden">
         <div class="flex items-start gap-4">
           <div class="w-12 h-12 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center shrink-0 text-xl border border-brand-500/40">
             <i class="fa-solid fa-user-ninja"></i>
@@ -802,8 +811,12 @@
         return section;
       };
       const exerciseGroup = makeGroup('01 · 오늘의 운동', '루틴 확인, 이전 중량 참고, 자세 영상');
+      exerciseGroup.id = 'memberExerciseSection';
+      exerciseGroup.classList.add('member-jump-target');
       exerciseGroup.append(workout, guide, videos);
       const dietGroup = makeGroup('02 · 오늘의 식단', '사진과 간단한 식사 기록');
+      dietGroup.id = 'memberDietSection';
+      dietGroup.classList.add('member-jump-target');
       dietGroup.append(diet);
       const checkGroup = makeGroup('03 · 운동 소감과 질문', '컨디션과 불편한 점을 코치님께 알려주세요');
       checkGroup.append(reflection, memo);
@@ -894,6 +907,16 @@
       target.scrollIntoView({behavior:'smooth',block:'start'});
       target.classList.add('jump-highlight');
       setTimeout(()=>target.classList.remove('jump-highlight'),1400);
+    }
+
+    function jumpMemberSection(id) {
+      let target = document.getElementById(id);
+      if (!target) return;
+      if (id === 'trainerFeedbackCard' && target.classList.contains('hidden')) {
+        showToast('아직 등록된 트레이너 피드백이 없어요.');
+        return;
+      }
+      target.scrollIntoView({behavior:'smooth',block:'start'});
     }
 
     function getDefaultData() {

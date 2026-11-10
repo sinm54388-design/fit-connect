@@ -810,6 +810,7 @@
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
         setupMealEditor(m);
+        setupMealShortcutsPanel(m);
         ['desc', 'cal', 'carb', 'prot', 'fat'].forEach(f => {
           document.getElementById(`meal-${m}-${f}`).addEventListener('input', () => dirtyMealDrafts.add(m));
         });
@@ -833,11 +834,15 @@
         document.getElementById('todayDateDisplay').innerText = selectedDate;
         resetRoutineForms();
         await loadDataFromCloud();
+        if (currentMode === 'member') loadFoodShortcuts();
         if (currentMode === 'trainer') await loadTrainerOverview();
       });
       document.getElementById('todayDateDisplay').innerText = selectedDate;
       updateTrainerMemberDropdown();
-      if (updateAccessState()) await loadDataFromCloud();
+      if (updateAccessState()) {
+        await loadDataFromCloud();
+        if(currentMode==='member')loadFoodShortcuts();
+      }
 
       // 자동 새로고침 (입력 중에는 건너뜀)
       setInterval(() => {
@@ -1186,6 +1191,75 @@
 
     const dirtyMealDrafts = new Set();
     const mealEditorOpen = new Set();
+    let foodShortcutState={favorites:[],recent:[]};
+    let foodShortcutRequest=0;
+    function setupMealShortcutsPanel(meal) {
+      const editor=document.getElementById(`meal-${meal}-editor`);
+      const panel=document.createElement('div');
+      panel.id=`meal-${meal}-shortcuts`;
+      panel.className='rounded-xl border border-slate-700/70 bg-slate-900/60 px-3 py-3 space-y-2';
+      editor.insertBefore(panel,editor.firstChild);
+      renderMealShortcuts(meal);
+    }
+    function renderMealShortcuts(meal) {
+      const panel=document.getElementById(`meal-${meal}-shortcuts`);
+      if(!panel)return;
+      panel.replaceChildren();
+      const groups=[['⭐ 즐겨찾기',foodShortcutState.favorites],['🕘 최근 먹은 음식',foodShortcutState.recent]];
+      groups.forEach(([title,items])=>{
+        const heading=document.createElement('p');heading.className='text-xs font-bold text-slate-300';heading.textContent=title;
+        const row=document.createElement('div');row.className='flex flex-wrap gap-1.5 mt-1.5';
+        items.slice(0,8).forEach(food=>{
+          const btn=document.createElement('button');btn.type='button';
+          btn.className='rounded-full border border-slate-600/80 bg-slate-950 hover:bg-slate-800 px-3 py-2 text-xs text-slate-100';
+          btn.textContent=food.name+(food.grams?' · '+food.grams+'g':'');
+          btn.title='이 음식과 영양성분을 입력칸에 추가';
+          btn.onclick=()=>insertShortcutFood(meal,food);
+          row.appendChild(btn);
+        });
+        if(!items.length){const none=document.createElement('span');none.className='text-xs text-slate-500';none.textContent='아직 등록된 음식이 없어요';row.appendChild(none);}
+        panel.append(heading,row);
+      });
+      const hint=document.createElement('p');hint.className='text-[11px] text-slate-500';
+      hint.textContent='저장된 식단의 ☆ 버튼으로 즐겨찾기를 등록할 수 있어요.';panel.appendChild(hint);
+    }
+    async function loadFoodShortcuts() {
+      if(currentMode!=='member'||!hasMemberAccess())return;
+      const request=++foodShortcutRequest,member=activeMemberName,date=selectedDate;
+      try{
+        const result=await apiPost({...apiCredentials(),action:'foodShortcuts'});
+        if(request!==foodShortcutRequest||member!==activeMemberName||date!==selectedDate)return;
+        if(result.status!=='success')throw Error(result.message||'음식 기록을 불러오지 못했습니다.');
+        foodShortcutState={favorites:Array.isArray(result.favorites)?result.favorites:[],recent:Array.isArray(result.recent)?result.recent:[]};
+        MEAL_KEYS.forEach(renderMealShortcuts);
+        MEAL_KEYS.forEach(m=>renderSavedMealCard(m,appData?.diet?.[m]||{}));
+      }catch(e){console.warn('최근 음식/즐겨찾기 불러오기 실패:',e.message);}
+    }
+    function insertShortcutFood(meal,food) {
+      openMealEditor(meal);
+      const main=document.getElementById(`meal-${meal}-desc`).closest('.food-card');
+      const card=main.querySelector('.food-entry input[type="text"]').value.trim()?null:main;
+      if(card)writeFood(card,food);
+      else addMealFood(meal,food,false);
+      dirtyMealDrafts.add(meal);
+      updateMealDraftTotals(meal);
+      showToast(food.name+' 입력 완료 · 저장 버튼을 눌러주세요.');
+    }
+    async function toggleSavedFoodFavorite(meal,index) {
+      if(currentMode!=='member'||!hasMemberAccess())return;
+      const item=appData?.diet?.[meal]||{};
+      const foods=Array.isArray(item.foods)&&item.foods.length?item.foods:
+        String(item.desc||'').split('\n').filter(Boolean).map((name,i)=>({name,
+          cal:i===0?item.cal:'',carb:i===0?item.carb:'',prot:i===0?item.prot:'',fat:i===0?item.fat:''}));
+      const food=foods[index];if(!food||!food.name)return;
+      const exists=foodShortcutState.favorites.some(f=>f.name.trim().toLowerCase()===String(food.name).trim().toLowerCase());
+      try{
+        const result=await apiPost({...apiCredentials(),action:'saveFoodFavorite',food,enabled:!exists});
+        if(result.status!=='success')throw Error(result.message||'저장 실패');
+        showToast(exists?'즐겨찾기 해제 완료':'즐겨찾기 등록 완료');
+        await loadFoodShortcuts();
+      }catch(e){showToast('즐겨찾기 변경 실패: '+e.message);}
+    }
     const FOOD_NUTRIENTS = [
       {key:'cal',label:'kcal'}, {key:'carb',label:'탄수화물(g)'},
       {key:'prot',label:'단백질(g)'}, {key:'fat',label:'지방(g)'}
@@ -1369,7 +1443,10 @@
         .map(({key,label})=>`${label==='kcal'?'열량':label} ${esc(String(f[key]))}${key==='cal'?'kcal':'g'}`).join(' · ');
       const rows=foods.filter(f=>String(f.name||'').trim()).map((food,index)=>`
         <div class="py-2.5 ${index?'border-t border-slate-700/60':''}">
-          <div class="text-xs font-semibold text-white break-words">${esc(food.name)}</div>
+          <div class="flex items-start justify-between gap-2">
+            <div class="text-xs font-semibold text-white break-words pt-2">${esc(food.name)}</div>
+            ${currentMode==='member'?`<button type="button" onclick="toggleSavedFoodFavorite('${meal}',${index})" aria-label="${esc(food.name)} 즐겨찾기 변경" class="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-sm ${foodShortcutState.favorites.some(f=>f.name.trim().toLowerCase()===String(food.name).trim().toLowerCase())?'text-amber-300':'text-slate-500'}">${foodShortcutState.favorites.some(f=>f.name.trim().toLowerCase()===String(food.name).trim().toLowerCase())?'★':'☆'}</button>`:''}
+          </div>
           ${nutrientLine(food)?`<div class="mt-1 text-[11px] text-slate-400 leading-relaxed">${nutrientLine(food)}</div>`:''}
         </div>`).join('');
       const sum=FOOD_NUTRIENTS.map(({key,label})=>`
@@ -1483,6 +1560,7 @@
         dirtyMealDrafts.delete(meal);
         mealEditorOpen.delete(meal);
         renderMemberDiet(appData.diet || {},2100);
+        loadFoodShortcuts();
       }
     }
 
@@ -1490,7 +1568,7 @@
       const values = {};
       MEAL_KEYS.forEach(m => { values[m] = getMealValues(m); });
       updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = { ...(d.diet[m] || {}), ...values[m] }; }); }).then(saved => {
-        if (saved) { dirtyMealDrafts.clear();mealEditorOpen.clear();renderMemberDiet(appData.diet || {},2100); }
+        if (saved) { dirtyMealDrafts.clear();mealEditorOpen.clear();renderMemberDiet(appData.diet || {},2100);loadFoodShortcuts(); }
       });
     }
 
@@ -1521,6 +1599,7 @@
       document.getElementById('btnMemberMode').className = modeButtonBase + (mode === 'member' ? ' bg-brand-500 text-slate-950 font-bold' : ' text-slate-400 hover:text-white');
       document.getElementById('btnTrainerMode').className = modeButtonBase + (mode === 'trainer' ? ' bg-indigo-600 text-white font-bold' : ' text-slate-400 hover:text-white cursor-pointer');
       if (mode !== 'trainer' || activeMemberName) await loadDataFromCloud();
+      if (mode==='member')loadFoodShortcuts();
     }
 
     // 비밀번호는 서버(Apps Script)에서 확인

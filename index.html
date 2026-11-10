@@ -982,13 +982,24 @@
     let saveQueue=Promise.resolve();
     let queuedSaveCount=0;
     let lastFailedSave=null;
+    let saveStatusHideTimer=null;
     function setSaveStatus(state,message) {
+      if(saveStatusHideTimer){clearTimeout(saveStatusHideTimer);saveStatusHideTimer=null;}
       const bar=document.getElementById('saveStatusBar');
       bar.dataset.state=state;
       bar.classList.toggle('hidden',state==='idle');
       document.getElementById('saveStatusIcon').textContent=state==='saving'?'⏳':state==='saved'?'✓':state==='error'?'!':'';
       document.getElementById('saveStatusText').textContent=message||'';
       document.getElementById('saveRetryButton').classList.toggle('hidden',state!=='error'||!lastFailedSave);
+      if(state==='saved'){
+        saveStatusHideTimer=setTimeout(()=>{
+          if(bar.dataset.state==='saved'){
+            bar.classList.add('hidden');
+            bar.dataset.state='idle';
+          }
+          saveStatusHideTimer=null;
+        },3000);
+      }
     }
     function resetSaveStatus() {
       lastFailedSave=null;

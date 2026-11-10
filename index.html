@@ -36,6 +36,9 @@
     .quick-feedback-btn:hover { background:#334155; border-color:#64748b; }
     .trainer-nav-btn { min-height:60px; display:flex; align-items:center; justify-content:center; gap:9px; padding:12px 10px; color:#e2e8f0; font-size:13px; font-weight:700; line-height:1.45; text-align:center; border:1px solid #334155; border-radius:12px; background:#0f172a; cursor:pointer; }
     .trainer-nav-btn:hover, .trainer-nav-btn:focus-visible { border-color:#6366f1; background:#1e293b; outline:none; }
+    #saveStatusBar[data-state="saving"] { border-color:#38bdf8; background:#082f49; }
+    #saveStatusBar[data-state="saved"] { border-color:#22c55e; background:#052e23; }
+    #saveStatusBar[data-state="error"] { border-color:#fb7185; background:#4c0519; }
     .trainer-jump-target { scroll-margin-top:90px; }
     .trainer-jump-target.jump-highlight { box-shadow:0 0 0 2px rgba(99,102,241,.65); }
     @media (max-width:639px) { .trainer-nav-btn { font-size:12px; padding:10px 8px; gap:6px; } }
@@ -51,6 +54,7 @@
       #memberRoutineList .member-set-check { min-width:84px; touch-action:manipulation; }
       #memberRoutineList .member-set-check input { accent-color:#22c55e; }
       #memberView button { touch-action:manipulation; }
+      #toastNotification { bottom: 88px; }
     }
     @media (prefers-reduced-motion: reduce) { #appHeader { transition: none; } }
   </style>
@@ -707,6 +711,11 @@
   <div id="toastNotification" class="fixed bottom-5 right-5 z-50 bg-slate-800 border border-brand-500/50 text-white px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 text-xs font-medium">
     저장되었습니다!
   </div>
+  <div id="saveStatusBar" class="hidden fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-sm z-[60] flex items-center gap-3 rounded-xl border px-4 py-3 shadow-2xl text-sm text-white" role="status" aria-live="polite" data-state="idle">
+    <span id="saveStatusIcon" class="text-lg shrink-0" aria-hidden="true"></span>
+    <span id="saveStatusText" class="flex-1 font-semibold">저장 상태</span>
+    <button type="button" id="saveRetryButton" onclick="retryLastSave()" class="hidden shrink-0 rounded-lg bg-white/20 px-3 py-2 font-bold text-white">다시 시도</button>
+  </div>
 
   <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec";
@@ -827,6 +836,7 @@
       });
       document.getElementById('inbodyDate').value = selectedDate;
       document.getElementById('currentDateInput').addEventListener('change', async (e) => {
+        resetSaveStatus();
         clearRoutineCopyPreview();
         dirtyMealDrafts.clear();
         mealEditorOpen.clear();
@@ -918,16 +928,23 @@
     }
 
     // 구글 시트에서 최신 데이터 가져오기 (실패하면 오류를 던짐)
-    async function fetchLatest() {
-      if (currentMode === 'member' && !hasMemberAccess()) throw new Error('회원 전용 링크가 필요합니다.');
-      const json = currentMode === 'trainer' && trainerPassword
-        ? await apiPost({action:'read',member:activeMemberName,date:selectedDate,password:trainerPassword})
-        : await (await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(activeMemberName)}&date=${selectedDate}&token=${encodeURIComponent(memberToken)}&_t=${Date.now()}`)).json();
+    function getSaveContext() {
+      return {member:activeMemberName,date:selectedDate,mode:currentMode,token:memberToken,password:trainerPassword};
+    }
+    function isCurrentSaveContext(context) {
+      return context.member===activeMemberName&&context.date===selectedDate&&context.mode===currentMode;
+    }
+    async function fetchLatest(context=getSaveContext()) {
+      if (context.mode === 'member' && !(context.member && context.token)) throw new Error('회원 전용 링크가 필요합니다.');
+      const json = context.mode === 'trainer' && context.password
+        ? await apiPost({action:'read',member:context.member,date:context.date,password:context.password})
+        : await (await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(context.member)}&date=${context.date}&token=${encodeURIComponent(context.token)}&_t=${Date.now()}`)).json();
       if (json && (json.status === 'error' || json.status === 'denied')) throw new Error(json.message || '접근 권한 오류');
       return normalizeData(json);
     }
 
     async function loadDataFromCloud(silent = false) {
+      if (silent && queuedSaveCount > 0) return;
       if (!updateAccessState()) return;
       const request = ++latestLoadRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
@@ -954,30 +971,70 @@
       if (!silent) loadMemberInsights();
     }
 
-    async function saveDataToCloud() {
-      const body = { member: activeMemberName, date: selectedDate, data: appData, token: memberToken };
+    async function saveDataToCloud(data=appData, context=getSaveContext()) {
+      const body = { member: context.member, date: context.date, data, token: context.token };
       // 트레이너 모드일 때만 비밀번호를 함께 보냄 (서버가 확인)
-      if (currentMode === 'trainer' && trainerPassword) body.password = trainerPassword;
+      if (context.mode === 'trainer' && context.password) body.password = context.password;
       const result = await apiPost(body);
       if (result.status !== 'success') throw new Error(result.message || '저장 실패');
     }
 
-    // 저장 직전에 최신 데이터를 다시 받아서, 바뀐 부분만 고친 뒤 저장 (서로 덮어쓰기 방지)
-    async function updateAndSave(mutate) {
-      try {
-        showToast('구글 시트에 저장 중...');
-        appData = await fetchLatest();
-        mutate(appData);
-        await saveDataToCloud();
-        renderUI();
-        try { await loadExtras(); } catch (extraError) { console.warn('캘린더 갱신 오류', extraError); }
-        showToast('저장 완료!');
-        return true;
-      } catch (e) {
-        console.error(e);
-        showToast('저장 실패 - 다시 시도해주세요');
-        return false;
+    let saveQueue=Promise.resolve();
+    let queuedSaveCount=0;
+    let lastFailedSave=null;
+    function setSaveStatus(state,message) {
+      const bar=document.getElementById('saveStatusBar');
+      bar.dataset.state=state;
+      bar.classList.toggle('hidden',state==='idle');
+      document.getElementById('saveStatusIcon').textContent=state==='saving'?'⏳':state==='saved'?'✓':state==='error'?'!':'';
+      document.getElementById('saveStatusText').textContent=message||'';
+      document.getElementById('saveRetryButton').classList.toggle('hidden',state!=='error'||!lastFailedSave);
+    }
+    function resetSaveStatus() {
+      lastFailedSave=null;
+      setSaveStatus('idle','');
+    }
+    function retryLastSave() {
+      if(!lastFailedSave)return;
+      const {mutate,context}=lastFailedSave;
+      if(!isCurrentSaveContext(context)){
+        lastFailedSave=null;
+        setSaveStatus('error','회원 또는 날짜가 변경됐어요. 해당 기록으로 돌아가 다시 저장해주세요.');
+        return;
       }
+      lastFailedSave=null;
+      updateAndSave(mutate);
+    }
+    // 저장 요청을 순서대로 처리하고, 실제 서버 성공 응답을 받은 뒤에만 완료 표시
+    function updateAndSave(mutate) {
+      const context=getSaveContext();
+      queuedSaveCount++;
+      setSaveStatus('saving','구글 시트에 저장 중...');
+      const work=async()=>{
+        try {
+          const latest=await fetchLatest(context);
+          mutate(latest);
+          await saveDataToCloud(latest,context);
+          if(isCurrentSaveContext(context)){
+            appData=latest;
+            renderUI();
+            try{await loadExtras();}catch(e){console.warn('캘린더 갱신 오류',e);}
+          }
+          if(lastFailedSave===null&&queuedSaveCount===1&&isCurrentSaveContext(context))setSaveStatus('saved','저장 완료 ✓ · 구글 시트에 반영됐어요');
+          return true;
+        } catch(e) {
+          console.error(e);
+          lastFailedSave={mutate,context};
+          if(isCurrentSaveContext(context))setSaveStatus('error','저장 실패 · 연결을 확인하고 다시 시도해주세요');
+          return false;
+        } finally {
+          queuedSaveCount=Math.max(0,queuedSaveCount-1);
+          if(queuedSaveCount===0&&lastFailedSave===null&&isCurrentSaveContext(context))setSaveStatus('saved','저장 완료 ✓ · 구글 시트에 반영됐어요');
+        }
+      };
+      const result=saveQueue.then(work,work);
+      saveQueue=result.then(()=>undefined,()=>undefined);
+      return result;
     }
 
     function renderUI(silent = false) {
@@ -1590,6 +1647,7 @@
 
     /* ---------- 모드 전환 ---------- */
     async function switchMode(mode) {
+      resetSaveStatus();
       currentMode = mode;
       latestLoadRequest++;
       resetRoutineForms();
@@ -1705,6 +1763,7 @@
       }
     }
     async function openOverviewMember(member, listId) {
+      resetSaveStatus();
       clearRoutineCopyPreview();
       clearTrainerMemberSearch();
       const date = listId === 'overviewInactive' && member.lastDate ? member.lastDate : selectedDate;
@@ -1821,6 +1880,7 @@
     }
 
     async function onSelectMemberChange() {
+      resetSaveStatus();
       clearTrainerMemberSearch();
       clearRoutineCopyPreview();
       activeMemberName = document.getElementById('trainerMemberSelect').value;

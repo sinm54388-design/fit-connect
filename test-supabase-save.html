@@ -19,18 +19,32 @@
   <input id="memberUrl" type="password" autocomplete="off" placeholder="https://.../?name=...&token=...">
   <p><small>기존 회원 링크를 통째로 붙여넣으세요. 주소는 이 브라우저 안에서만 읽고 화면에 표시하지 않습니다.</small></p>
   <button id="test" type="button">저장 + 다시 읽기 테스트</button>
+  <button id="memberPreview" type="button" style="background:#8ecbff;color:#09233a">회원용 Supabase 미리보기 열기</button>
   <div id="result" role="status" aria-live="polite">아직 테스트하지 않았습니다.</div>
   <p><small>테스트 날짜: <strong>2020-01-01</strong> · 해당 날짜의 운동·식단 기록은 건드리지 않고 테스트 소감만 저장합니다. 이미 그 날짜에 실제 기록이 있다면 테스트하지 마세요.</small></p>
 </main>
 <script>
 const button=document.querySelector('#test'),out=document.querySelector('#result');
+function memberCredentials(){
+  const url=new URL(document.querySelector('#memberUrl').value.trim());
+  const member=(url.searchParams.get('name')||url.searchParams.get('member')||'').trim();
+  const token=(url.searchParams.get('token')||'').trim();
+  if(!member||!token)throw Error('회원 이름이나 토큰이 없는 링크입니다. 기존 회원 전용 링크 전체를 입력하세요.');
+  return {member,token};
+}
+document.querySelector('#memberPreview').onclick=()=>{
+  try{
+    const {member,token}=memberCredentials();
+    const dest=new URL('/fit-connect-supabase-preview.html',location.origin);
+    dest.searchParams.set('name',member);
+    dest.searchParams.set('token',token);
+    location.assign(dest);
+  }catch(e){out.textContent='❌ '+e.message;}
+};
 button.onclick=async()=>{
   button.disabled=true;out.textContent='확인 중...';
   try{
-    const url=new URL(document.querySelector('#memberUrl').value.trim());
-    const member=(url.searchParams.get('name')||url.searchParams.get('member')||'').trim();
-    const token=(url.searchParams.get('token')||'').trim();
-    if(!member||!token)throw Error('링크에 회원 이름 또는 토큰이 없습니다. 기존 회원 전용 링크 전체를 넣어주세요.');
+    const {member,token}=memberCredentials();
     const date='2020-01-01';
     const readUrl=new URL('/api/records',location.origin);
     readUrl.searchParams.set('member',member);readUrl.searchParams.set('date',date);readUrl.searchParams.set('token',token);

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FIT-CONNECT · Supabase 저장 점검</title>
+<style>
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;background:#090e1e;color:#f6f8ff;font-family:system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif;padding:24px}
+  main{max-width:580px;margin:30px auto;background:#141d31;padding:28px;border:1px solid #2a3851;border-radius:20px}
+  h1{font-size:24px;margin:0 0 8px}p{line-height:1.6;color:#b7c4d9}label{display:block;margin:24px 0 8px;font-weight:700}input{width:100%;border-radius:10px;border:1px solid #4b5d78;background:#080e1d;color:#fff;padding:14px;font-size:16px}
+  button{width:100%;border:0;border-radius:12px;background:#27bd7e;color:#04190f;padding:15px;font-size:16px;font-weight:800;margin-top:16px;cursor:pointer}button:disabled{opacity:.5;cursor:wait}
+  #result{white-space:pre-wrap;background:#050b19;border-radius:12px;padding:16px;color:#c4f4dc;line-height:1.6;min-height:60px;margin-top:20px;overflow-wrap:anywhere}
+  small{color:#9eaec9}strong{color:#fff}
+</style>
+</head>
+<body><main>
+  <h1>FIT-CONNECT 저장 테스트</h1>
+  <p>기존 홈페이지는 그대로 유지하면서 Supabase에 기록이 <strong>저장되고 다시 읽히는지</strong> 확인합니다.</p>
+  <label for="memberUrl">기존 회원 전용 링크</label>
+  <input id="memberUrl" type="password" autocomplete="off" placeholder="https://.../?name=...&token=...">
+  <p><small>기존 회원 링크를 통째로 붙여넣으세요. 주소는 이 브라우저 안에서만 읽고 화면에 표시하지 않습니다.</small></p>
+  <button id="test" type="button">저장 + 다시 읽기 테스트</button>
+  <div id="result" role="status" aria-live="polite">아직 테스트하지 않았습니다.</div>
+  <p><small>테스트 날짜: <strong>2020-01-01</strong> · 해당 날짜의 운동·식단 기록은 건드리지 않고 테스트 소감만 저장합니다. 이미 그 날짜에 실제 기록이 있다면 테스트하지 마세요.</small></p>
+</main>
+<script>
+const button=document.querySelector('#test'),out=document.querySelector('#result');
+button.onclick=async()=>{
+  button.disabled=true;out.textContent='확인 중...';
+  try{
+    const url=new URL(document.querySelector('#memberUrl').value.trim());
+    const member=(url.searchParams.get('name')||url.searchParams.get('member')||'').trim();
+    const token=(url.searchParams.get('token')||'').trim();
+    if(!member||!token)throw Error('링크에 회원 이름 또는 토큰이 없습니다. 기존 회원 전용 링크 전체를 넣어주세요.');
+    const date='2020-01-01';
+    const readUrl=new URL('/api/records',location.origin);
+    readUrl.searchParams.set('member',member);readUrl.searchParams.set('date',date);readUrl.searchParams.set('token',token);
+    const beforeResponse=await fetch(readUrl,{cache:'no-store'});
+    const before=await beforeResponse.json();
+    if(!beforeResponse.ok)throw Error('회원 인증 또는 기존 기록 확인 실패: '+(before.message||before.status));
+    if(before && Object.keys(before).length)throw Error('2020-01-01에 이미 기록이 있습니다. 덮어쓰지 않도록 테스트를 중단했습니다.');
+    const marker='FIT-CONNECT 저장 테스트 '+new Date().toISOString();
+    const input={action:'patchData',member,date,token,patch:{reflection:{good:marker,bad:''}}};
+    const response=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+    const saved=await response.json();
+    if(!response.ok||saved.status!=='success')throw Error('저장 응답: '+(saved.message||saved.status||response.status));
+    const got=await (await fetch(readUrl,{cache:'no-store'})).json();
+    if(got.reflection?.good!==marker)throw Error('저장은 됐지만 다시 읽은 값이 일치하지 않습니다.');
+    out.textContent='✅ 성공! Supabase 저장과 다시 읽기 모두 정상입니다.\n테스트 날짜: 2020-01-01';
+  }catch(e){out.textContent='❌ 확인 필요: '+e.message;}
+  finally{button.disabled=false;}
+};
+</script></body></html>

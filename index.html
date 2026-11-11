@@ -977,6 +977,34 @@
     function isCurrentSaveContext(context) {
       return context.member===activeMemberName&&context.date===selectedDate&&context.mode===currentMode;
     }
+    // 탭을 닫으면 사라지는 메모리 캐시. 회원 기록을 브라우저 저장소에 보관하지 않습니다.
+    const viewedRecordCache=new Map();
+    function recordCacheKey(context){return `${context.mode}|${context.member}|${context.date}`;}
+    function rememberRecord(context,data){
+      const key=recordCacheKey(context);
+      viewedRecordCache.delete(key);
+      viewedRecordCache.set(key,JSON.parse(JSON.stringify(data)));
+      if(viewedRecordCache.size>12)viewedRecordCache.delete(viewedRecordCache.keys().next().value);
+    }
+    function buildFastSavePatch(before,after,mode){
+      const allowed=mode==='trainer'
+        ? ['diet','reflection','memos','feedback','headerMessage']
+        : ['diet','reflection','memos'];
+      const changed=Object.keys(after).filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]));
+      if(!changed.length||changed.some(k=>!allowed.includes(k)))return null;
+      const patch={};
+      for(const key of changed){
+        if(key==='diet'){
+          const diet={};
+          for(const meal of [...MEAL_KEYS,'water']){
+            if(JSON.stringify(before.diet?.[meal])!==JSON.stringify(after.diet?.[meal]))diet[meal]=after.diet[meal];
+          }
+          if(!Object.keys(diet).length)return null;
+          patch.diet=diet;
+        } else patch[key]=after[key];
+      }
+      return patch;
+    }
     async function fetchLatest(context=getSaveContext()) {
       if (context.mode === 'member' && !(context.member && context.token)) throw new Error('회원 전용 링크가 필요합니다.');
       const json = context.mode === 'trainer' && context.password
@@ -991,11 +1019,24 @@
       if (!updateAccessState()) return;
       const request = ++latestLoadRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
-      if (!silent) showToast('데이터 불러오는 중...');
+      const context=getSaveContext();
+      let shownCached=false;
+      if(!silent&&queuedSaveCount===0){
+        const cached=viewedRecordCache.get(recordCacheKey(context));
+        if(cached){
+          appData=normalizeData(JSON.parse(JSON.stringify(cached)));
+          renderUI();
+          showToast('이전 기록 표시 중 · 최신 기록 확인 중...');
+          shownCached=true;
+        }
+      }
+      if (!silent&&!shownCached) showToast('데이터 불러오는 중...');
       try {
         const loaded = await fetchLatest();
         if (request !== latestLoadRequest || member !== activeMemberName || date !== selectedDate || mode !== currentMode) return;
+        if(queuedSaveCount>0)return; // 조회 중 시작된 저장의 새 값을 오래된 조회 응답으로 덮어쓰지 않음
         appData = loaded;
+        rememberRecord(context,loaded);
         document.getElementById('syncError').classList.add('hidden');
       } catch (e) {
         if (request !== latestLoadRequest || member !== activeMemberName || date !== selectedDate || mode !== currentMode) return;
@@ -1010,7 +1051,8 @@
       }
       updateAccessState();
       renderUI(silent);
-      if (!silent) await loadExtras();
+      // 운동·식단 본문을 먼저 보여주고, 캘린더·영상 목록은 뒤에서 불러옵니다.
+      if (!silent) loadExtras().catch(e=>console.warn('추가 자료 불러오기 오류',e));
       if (!silent) loadMemberInsights();
     }
 
@@ -1110,11 +1152,27 @@
       setSaveStatus('saving','구글 시트에 저장 중...');
       const work=async()=>{
         try {
-          const latest=await fetchLatest(context);
-          mutate(latest);
-          await saveDataToCloud(latest,context);
+          let latest=null;
+          // 일부 기록은 최신 서버 값에 직접 병합해 읽기+쓰기 두 번의 통신을 한 번으로 줄입니다.
+          if(isCurrentSaveContext(context)&&appData){
+            const candidate=JSON.parse(JSON.stringify(appData));
+            mutate(candidate);
+            const patch=buildFastSavePatch(appData,candidate,context.mode);
+            if(patch){
+              const response=await apiPost({action:'patchData',member:context.member,date:context.date,
+                token:context.token,...(context.mode==='trainer'&&context.password?{password:context.password}:{}),patch});
+              if(response.status!=='success'||!response.data)throw Error(response.message||'저장 실패');
+              latest=normalizeData(response.data);
+            }
+          }
+          if(!latest){
+            latest=await fetchLatest(context);
+            mutate(latest);
+            await saveDataToCloud(latest,context);
+          }
           if(isCurrentSaveContext(context)){
             appData=latest;
+            rememberRecord(context,latest);
             renderUI();
             // 구글 시트 저장 성공을 먼저 보여주고, 부가 기록/영상 갱신은 백그라운드에서 처리합니다.
             // 이 조회들은 저장 성공 여부를 바꾸지 않으며 느린 네트워크에서도 저장 표시를 지연시키지 않습니다.

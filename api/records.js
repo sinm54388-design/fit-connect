@@ -84,7 +84,18 @@ module.exports = async function handler(req, res) {
     if (JSON.stringify(params).length > 200000)
       return reply(res, 413, { status: 'error', message: '저장 데이터가 너무 큽니다.' });
     let payload;
-    if (action === 'save') payload = { data: params.data };
+    if (action === 'save') {
+      // The UI sends its fully normalized view, including read-only trainer fields.
+      // Strip those fields before the privileged database function receives it.
+      const incoming = params.data;
+      if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming))
+        return reply(res, 400, { status: 'error', message: '잘못된 저장 데이터입니다.' });
+      const allowed = trainer
+        ? ['routines','reflection','diet','memos','feedback','headerMessage']
+        : ['routines','reflection','diet','memos'];
+      payload = { data: Object.fromEntries(allowed.filter(k =>
+        Object.prototype.hasOwnProperty.call(incoming, k)).map(k => [k, incoming[k]])) };
+    }
     else if (action === 'patchData') payload = { patch: params.patch };
     else payload = { changes: params.changes };
     const saved = await supabaseWrite(base, key, '/rest/v1/rpc/fit_save_daily', {

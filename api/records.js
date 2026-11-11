@@ -1,5 +1,5 @@
-// FIT-CONNECT: stage 1 read-only Supabase route.
-// Safe to deploy alongside the current Google Sheets app. No writes are performed.
+// FIT-CONNECT: Supabase route. Deploy alongside Google Sheets until cutover.
+// Writes require the fit_save_daily RPC to be installed in Supabase first.
 const crypto = require('node:crypto');
 
 function reply(res, status, body) {
@@ -29,6 +29,17 @@ async function supabaseGet(base, key, path) {
   return response.json();
 }
 
+async function supabaseWrite(base, key, path, payload) {
+  const response = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { apikey: key, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!response.ok) throw new Error(`Supabase RPC HTTP ${response.status}`);
+  return response.json();
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST')
     return reply(res, 405, { status: 'error', message: '허용되지 않은 요청입니다.' });
@@ -44,11 +55,13 @@ module.exports = async function handler(req, res) {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       params = body && typeof body === 'object' ? body : {};
     }
-    const action = String(params.action || 'read');
+    const action = String(params.action || (params.data ? 'save' : 'read'));
     const trainer = sameSecret(params.password, process.env.TRAINER_PASSWORD);
     if (action === 'verify') return reply(res, 200, { status: trainer ? 'success' : 'denied' });
-    if (action !== 'read')
-      return reply(res, 400, { status: 'error', message: '현재 읽기 테스트만 지원합니다.' });
+    if (!['read', 'save', 'patchData', 'setProgressBatch'].includes(action))
+      return reply(res, 400, { status: 'error', message: '지원하지 않는 작업입니다.' });
+    if (req.method === 'GET' && action !== 'read')
+      return reply(res, 405, { status: 'error', message: '저장은 POST만 가능합니다.' });
 
     const member = String(params.member || '').trim();
     const date = String(params.date || '').trim();
@@ -62,9 +75,26 @@ module.exports = async function handler(req, res) {
     if (!found || (!trainer && !sameSecret(token, found.access_token_hash)))
       return reply(res, 403, { status: 'denied', message: '접근 권한이 없습니다.' });
 
-    const records = await supabaseGet(base, key,
-      `/rest/v1/fit_daily_records?select=data&member_id=eq.${encodeURIComponent(found.id)}&record_date=eq.${date}&limit=1`);
-    return reply(res, 200, records.length ? records[0].data : {});
+    if (action === 'read') {
+      const records = await supabaseGet(base, key,
+        `/rest/v1/fit_daily_records?select=data&member_id=eq.${encodeURIComponent(found.id)}&record_date=eq.${date}&limit=1`);
+      return reply(res, 200, records.length ? records[0].data : {});
+    }
+
+    if (JSON.stringify(params).length > 200000)
+      return reply(res, 413, { status: 'error', message: '저장 데이터가 너무 큽니다.' });
+    let payload;
+    if (action === 'save') payload = { data: params.data };
+    else if (action === 'patchData') payload = { patch: params.patch };
+    else payload = { changes: params.changes };
+    const saved = await supabaseWrite(base, key, '/rest/v1/rpc/fit_save_daily', {
+      p_member_id: found.id,
+      p_date: date,
+      p_action: action,
+      p_payload: payload,
+      p_trainer: trainer
+    });
+    return reply(res, 200, { status: 'success', data: saved });
   } catch (error) {
     console.error('FIT-CONNECT read route:', error.message);
     return reply(res, 503, { status: 'error', message: '데이터 조회가 실패했습니다.' });

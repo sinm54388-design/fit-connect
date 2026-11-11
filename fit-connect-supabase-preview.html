@@ -1,0 +1,2801 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIT-CONNECT | Supabase 저장 미리보기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d' }
+          },
+          fontFamily: { sans: ['Inter', 'Noto Sans KR', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1f2937; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    .custom-checkbox:checked { background-color: #22c55e; border-color: #22c55e; }
+    #appHeader { transition: transform .24s ease; will-change: transform; }
+    #appHeader.header-hidden { transform: translateY(-100%); }
+    .optional-fields summary, .trainer-meal-details summary { cursor: pointer; list-style: none; }
+    .optional-fields summary::-webkit-details-marker, .trainer-meal-details summary::-webkit-details-marker { display: none; }
+    .optional-fields summary::after, .trainer-meal-details summary::after { content: '⌄'; float: right; transition: transform .2s ease; }
+    .optional-fields[open] summary::after, .trainer-meal-details[open] summary::after { transform: rotate(180deg); }
+    .quick-feedback-btn { border: 1px solid #334155; background:#1e293b; color:#e2e8f0; border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor:pointer; }
+    .quick-feedback-btn:hover { background:#334155; border-color:#64748b; }
+    .trainer-nav-btn { min-height:60px; display:flex; align-items:center; justify-content:center; gap:9px; padding:12px 10px; color:#e2e8f0; font-size:13px; font-weight:700; line-height:1.45; text-align:center; border:1px solid #334155; border-radius:12px; background:#0f172a; cursor:pointer; }
+    .trainer-nav-btn:hover, .trainer-nav-btn:focus-visible { border-color:#6366f1; background:#1e293b; outline:none; }
+    #saveStatusBar[data-state="saving"] { border-color:#38bdf8; background:#082f49; }
+    #saveStatusBar[data-state="saved"] { border-color:#22c55e; background:#052e23; }
+    #saveStatusBar[data-state="error"] { border-color:#fb7185; background:#4c0519; }
+    .trainer-jump-target { scroll-margin-top:90px; }
+    .trainer-jump-target.jump-highlight { box-shadow:0 0 0 2px rgba(99,102,241,.65); }
+    .member-jump-target { scroll-margin-top:92px; }
+    .member-nav-btn { min-height:50px; display:flex; align-items:center; justify-content:center; gap:8px; border:1px solid #334155; border-radius:12px; background:#0f172a; color:#e2e8f0; font-size:13px; font-weight:700; cursor:pointer; }
+    .member-nav-btn:active, .member-nav-btn:focus-visible { background:#1e293b; border-color:#22c55e; outline:none; }
+    .meal-shortcuts-toggle summary { list-style:none; cursor:pointer; }
+    .meal-shortcuts-toggle summary::-webkit-details-marker { display:none; }
+    .meal-shortcuts-toggle summary::after { content:'⌄'; float:right; font-size:18px; line-height:1; color:#fbbf24; }
+    .meal-shortcuts-toggle[open] summary::after { transform:rotate(180deg); }
+    @media (max-width:639px) { .trainer-nav-btn { font-size:12px; padding:10px 8px; gap:6px; } }
+    @media (max-width: 639px) {
+      #appHeader { padding: 9px 12px; }
+      #appHeader .header-brand-desc { display: none; }
+      #appHeader .header-mode-button { padding: 8px 9px; font-size: 11px; }
+      #appHeader .header-mode-button i { display: none; }
+      #appHeader .header-sync-badge { font-size: 9px; padding: 1px 5px; }
+      #memberView input:not([type="checkbox"]):not([type="file"]), #memberView textarea { font-size:16px; min-height:44px; }
+      /* 모바일 회원 화면: 작은 설명 글씨와 조작 영역의 가독성 개선 */
+      #memberView .text-xs { font-size:13px; line-height:1.55; }
+      #memberView [class~="text-[10px]"], #memberView [class~="text-[11px]"] { font-size:12px; line-height:1.5; }
+      #memberView .text-slate-400 { color:#b8c5d6; }
+      #memberView .text-slate-500 { color:#94a3b8; }
+      #memberView h3 { line-height:1.4; }
+      #memberView .member-nav-btn { min-height:52px; font-size:14px; }
+      #memberView input:not([type="checkbox"]):not([type="file"]), #memberView textarea, #memberView select { border-color:#475569; }
+      #memberView input::placeholder, #memberView textarea::placeholder { color:#94a3b8; opacity:1; }
+      #memberView button { min-height:40px; }
+      #memberView .member-nav-btn, #memberView button.bg-amber-500, #memberView button.bg-brand-500 { min-height:44px; }
+      #memberDietSection .text-xs { font-size:14px; line-height:1.6; }
+      #memberDietSection [class~="text-[10px]"], #memberDietSection [class~="text-[11px]"] { font-size:12px; line-height:1.55; }
+      #memberDietSection .food-card { padding:13px; }
+      #memberDietSection input:not([type="file"]), #memberDietSection button { letter-spacing:0; }
+      #memberDietSection .meal-shortcuts-toggle button { min-height:42px; }
+      #memberView .food-nutrients span { font-size:12px; }
+      #memberView .food-card { background:rgba(15,23,42,.6); border-color:#334155; }
+      #memberRoutineList .member-set-check { min-width:84px; touch-action:manipulation; }
+      #memberRoutineList .member-set-check input { accent-color:#22c55e; }
+      #memberView button { touch-action:manipulation; }
+      #toastNotification { bottom: 88px; }
+    }
+    @media (prefers-reduced-motion: reduce) { #appHeader { transition: none; } }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+  <div style="background:#f5b82e;color:#142034;text-align:center;padding:12px 15px;font-weight:800;font-size:14px;line-height:1.5;z-index:100">
+    🧪 Supabase 테스트 화면 · 운동/식단 일지 저장만 신규 DB로 연결됨 · 실제 회원용 주소로 공유하지 마세요.
+  </div>
+
+  <!-- Header -->
+  <header id="appHeader" class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 sm:px-8">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <i class="fa-solid fa-dumbbell text-slate-950 text-xl"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg tracking-tight text-white">FIT-CONNECT</h1>
+            <span class="header-sync-badge text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-500 font-semibold border border-brand-500/20 whitespace-nowrap">구글 실시간 연동</span>
+          </div>
+          <p class="header-brand-desc text-xs text-slate-400">25인+ 완벽 동기화 PT 밀착 케어 시스템</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end min-w-0">
+        <div class="flex items-center bg-slate-800/80 border border-slate-700/60 rounded-lg px-2 sm:px-3 py-1.5 text-xs min-w-0">
+          <i class="fa-regular fa-calendar text-brand-500 mr-2"></i>
+          <input type="date" id="currentDateInput" class="bg-transparent text-slate-200 outline-none cursor-pointer min-w-0 max-w-[117px] sm:max-w-none text-[11px] sm:text-xs">
+        </div>
+        <div class="bg-slate-800 p-1 rounded-xl border border-slate-700/80 flex items-center shadow-inner shrink-0">
+          <button id="btnMemberMode" onclick="switchMode('member')" class="header-mode-button whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 bg-brand-500 text-slate-950 font-bold">
+            <i class="fa-solid fa-user"></i> <span class="sm:hidden">회원</span><span class="hidden sm:inline">회원 모드</span>
+          </button>
+          <button id="btnTrainerMode" onclick="trySwitchToTrainer()" class="header-mode-button whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-white cursor-pointer">
+            <i class="fa-solid fa-user-ninja"></i> <span class="sm:hidden">트레이너 🔒</span><span class="hidden sm:inline">트레이너 모드 🔒</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+    <div id="accessNotice" class="hidden bg-slate-900 border border-amber-500/40 rounded-2xl p-6 mb-6 shadow-lg" role="status">
+      <h2 class="text-lg font-bold text-white mb-2"><i class="fa-solid fa-lock text-amber-400"></i> 회원 전용 링크가 필요해요</h2>
+      <p class="text-sm text-slate-300">담당 트레이너가 보내드린 개인 전용 링크로 접속해주세요. 회원 기록은 이름만으로 열 수 없습니다.</p>
+      <p class="text-xs text-slate-400 mt-2">트레이너는 오른쪽 위의 트레이너 모드로 로그인할 수 있습니다.</p>
+    </div>
+    <div id="syncError" class="hidden bg-rose-950/50 border border-rose-500/50 rounded-xl p-4 mb-6 text-sm text-rose-100" role="alert">
+      <strong>기록을 불러오지 못했습니다.</strong> <span id="syncErrorMessage">잠시 후 다시 시도해주세요.</span>
+      <button type="button" onclick="loadDataFromCloud()" class="ml-2 underline font-semibold">다시 시도</button>
+    </div>
+    
+    <!-- 양쪽 모드 공통: 상단 운동 습관 캘린더 -->
+    <section id="habitCalendarTop" class="mb-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+          <div class="flex justify-between items-center"><h3 class="font-bold text-white"><i class="fa-regular fa-calendar-check text-brand-500"></i> 운동 습관 캘린더</h3><span id="habitSummary" class="text-xs text-brand-400"></span></div>
+          <div class="flex items-center justify-between"><button onclick="moveHabitMonth(-1)" class="px-3 py-1 bg-slate-800 rounded-lg" aria-label="이전 달">‹</button><strong id="habitMonthLabel" class="text-sm"></strong><button onclick="moveHabitMonth(1)" class="px-3 py-1 bg-slate-800 rounded-lg" aria-label="다음 달">›</button></div>
+          <div id="habitCalendar" class="grid grid-cols-7 gap-1 text-center text-xs"></div>
+          <p class="text-xs text-slate-500">완료한 세트가 있는 날에 체크가 표시돼요. 날짜를 누르면 해당 기록으로 이동해요.</p>
+        </div>
+    </section>
+
+    <!-- MEMBER VIEW -->
+    <div id="memberView" class="space-y-6">
+      <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span id="memberNameBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-brand-500/20 text-brand-500 font-semibold border border-brand-500/30">회원님</span>
+              <span id="todayDateDisplay" class="text-xs text-slate-400"></span>
+            </div>
+            <h2 id="customHeaderMessage" class="text-xl sm:text-2xl font-bold text-white">오늘의 운동과 식단을 완수해볼까요? 💪</h2>
+            <p class="text-xs sm:text-sm text-slate-400 mt-1">트레이너 코치님이 준비한 루틴을 확인하고 느낀점을 자유롭게 기록하세요.</p>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-3 sm:gap-4 min-w-[240px]">
+            <div class="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl">
+              <div class="text-[11px] text-slate-400 mb-1 flex items-center justify-between">
+                <span>운동 달성률</span>
+                <i class="fa-solid fa-dumbbell text-brand-500"></i>
+              </div>
+              <div class="flex items-baseline gap-1">
+                <span id="memberWorkoutProgressText" class="text-lg font-bold text-white">0%</span>
+                <span id="memberWorkoutProgressSub" class="text-xs text-slate-400">(0/0 완료)</span>
+              </div>
+              <div class="w-full bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
+                <div id="memberWorkoutProgressBar" class="bg-brand-500 h-full w-0 transition-all duration-500"></div>
+              </div>
+            </div>
+            
+            <div class="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl">
+              <div class="text-[11px] text-slate-400 mb-1 flex items-center justify-between">
+                <span>오늘의 칼로리</span>
+                <i class="fa-solid fa-utensils text-amber-500"></i>
+              </div>
+              <div class="flex items-baseline gap-1">
+                <span id="memberCalorieText" class="text-lg font-bold text-white">0</span>
+                <span class="text-xs text-slate-400">/ <span id="memberTargetCalorieText">2,100</span> kcal</span>
+              </div>
+              <div class="w-full bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
+                <div id="memberCalorieBar" class="bg-amber-500 h-full w-0 transition-all duration-500"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <nav aria-label="회원 화면 빠른 이동" class="grid grid-cols-3 gap-2 sm:gap-3">
+        <button type="button" class="member-nav-btn" onclick="jumpMemberSection('memberExerciseSection')"><i class="fa-solid fa-dumbbell text-brand-400"></i> 운동</button>
+        <button type="button" class="member-nav-btn" onclick="jumpMemberSection('memberDietSection')"><i class="fa-solid fa-utensils text-amber-400"></i> 식단</button>
+        <button type="button" class="member-nav-btn" onclick="jumpMemberSection('trainerFeedbackCard')"><i class="fa-solid fa-comment-dots text-sky-400"></i> 피드백</button>
+      </nav>
+
+      <!-- Trainer Feedback Display -->
+      <div id="trainerFeedbackCard" class="member-jump-target bg-slate-900 border-2 border-brand-500/30 rounded-2xl p-5 shadow-xl hidden">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center shrink-0 text-xl border border-brand-500/40">
+            <i class="fa-solid fa-user-ninja"></i>
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
+              <h3 class="font-bold text-brand-500 text-base">트레이너의 피드백</h3>
+              <span id="feedbackTimeDisplay" class="text-xs text-slate-500"></span>
+            </div>
+            <div class="mt-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 mb-2">
+              <div class="text-xs font-semibold text-emerald-400 mb-1"><i class="fa-solid fa-dumbbell"></i> 운동 코멘트</div>
+              <p id="feedbackWorkoutText" class="text-sm text-slate-200">아직 피드백이 등록되지 않았습니다.</p>
+            </div>
+            <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80">
+              <div class="text-xs font-semibold text-amber-400 mb-1"><i class="fa-solid fa-apple-whole"></i> 식단 피드백</div>
+              <p id="feedbackDietText" class="text-sm text-slate-200">아직 피드백이 등록되지 않았습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-7 space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-500 flex items-center justify-center">
+                  <i class="fa-solid fa-list-check"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-base">오늘의 운동 루틴</h3>
+                  <p class="text-xs text-slate-400">코치님이 준 루틴을 확인하고, 직접 추가하거나 고칠 수도 있어요.</p>
+                </div>
+              </div>
+              <span id="routineCountBadge" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full border border-slate-700">0개 운동</span>
+            </div>
+            <div id="memberRoutineList" class="space-y-3"></div>
+
+            <!-- 회원이 직접 루틴 추가/수정: 필요할 때만 펼치기 -->
+            <details id="memberRoutineEditor" class="mt-4 rounded-xl border border-slate-700 bg-slate-950/70">
+              <summary class="cursor-pointer select-none px-4 py-3.5 font-semibold text-sm text-brand-400">+ 운동 직접 추가 / 수정</summary>
+            <form id="memberRoutineForm" onsubmit="submitRoutine(event)" class="space-y-3 p-4 pt-0">
+              <h4 class="text-xs font-bold text-slate-300"><i class="fa-solid fa-pen"></i> 운동 직접 추가 / 수정</h4>
+              <input type="text" id="mrName" placeholder="운동 이름 (예: 레그프레스)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white">
+              <div class="grid grid-cols-3 gap-2">
+                <div><label class="block text-[11px] text-slate-400 mb-1">무게(kg)</label><input type="number" id="mrWeight" placeholder="40" step="0.5" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">세트수</label><input type="number" id="mrSets" placeholder="4" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">목표 횟수</label><input type="number" id="mrReps" placeholder="12" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              </div>
+              <input type="text" id="mrNote" placeholder="메모 (예: 무릎 아파서 가볍게)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white">
+              <div class="flex gap-2">
+                <button type="submit" id="mrSubmitBtn" class="flex-1 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-semibold rounded-lg text-xs cursor-pointer">운동 추가하기</button>
+                <button type="button" id="mrCancelBtn" onclick="resetRoutineForms()" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs cursor-pointer">취소</button>
+              </div>
+            </form>
+            </details>
+          </div>
+
+          <!-- 코치님과 메모 -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center gap-2.5 pb-4 border-b border-slate-800 mb-4">
+              <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center">
+                <i class="fa-solid fa-comments"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-white text-base">코치님과 메모</h3>
+                <p class="text-xs text-slate-400">궁금한 점이나 하고 싶은 말을 자유롭게 남겨보세요.</p>
+              </div>
+            </div>
+            <div id="memberMemoList" class="space-y-2 max-h-64 overflow-y-auto pr-1 mb-3"></div>
+            <div class="flex gap-2">
+              <textarea id="memberMemoInput" rows="2" placeholder="메모를 입력하세요" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-sky-500"></textarea>
+              <button onclick="sendMemo()" class="px-4 bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold rounded-xl text-xs shrink-0 cursor-pointer">보내기</button>
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center gap-2.5 pb-4 border-b border-slate-800 mb-4">
+              <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-white text-base">운동 소감 & 피드백 요청</h3>
+                <p class="text-xs text-slate-400">오늘 운동 중 느낀 점과 피드백 받고 싶은 내용을 적어주세요.</p>
+              </div>
+            </div>
+
+            <form id="workoutReflectionForm" onsubmit="saveWorkoutReflection(event)" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-emerald-400 mb-1.5">오늘 잘 진행되었거나 자극이 잘 온 운동/자세</label>
+                <textarea id="refGoodText" rows="3" placeholder="예: 벤치프레스할 때 가슴 자극이 잘 왔습니다!" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-brand-500"></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-rose-400 mb-1.5">어려웠던 점, 관절 불편함, 질문사항</label>
+                <textarea id="refBadText" rows="3" placeholder="예: 스쿼트 시 오른쪽 무릎이 살짝 불편했습니다." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-rose-500"></textarea>
+              </div>
+              <div class="flex justify-end">
+                <button type="submit" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-semibold rounded-xl text-xs sm:text-sm transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2 cursor-pointer">
+                  <i class="fa-solid fa-paper-plane"></i> 운동 소감 저장하기
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Right: Diet Log -->
+        <div class="lg:col-span-5 space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <i class="fa-solid fa-utensils"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-base">오늘의 식단 일지</h3>
+                  <p class="text-xs text-slate-400">끼니별 식사 내용과 영양성분을 기록하세요.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800/80 mb-5 space-y-3">
+              <div class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <span>영양 성분 요약 (탄/단/지)</span>
+                <span id="totalCaloriesBadge" class="text-amber-400 font-bold">총 0 kcal</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                <div class="bg-slate-900 p-2 rounded-lg border border-slate-800"><span class="text-slate-400 block text-[10px]">탄수화물</span><span id="macroCarbText" class="font-bold text-sky-400">0g</span></div>
+                <div class="bg-slate-900 p-2 rounded-lg border border-slate-800"><span class="text-slate-400 block text-[10px]">단백질</span><span id="macroProteinText" class="font-bold text-emerald-400">0g</span></div>
+                <div class="bg-slate-900 p-2 rounded-lg border border-slate-800"><span class="text-slate-400 block text-[10px]">지방</span><span id="macroFatText" class="font-bold text-amber-400">0g</span></div>
+              </div>
+              <div class="pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs">
+                <span class="text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-glass-water text-sky-400"></i> 수분 섭취량</span>
+                <div class="flex items-center gap-2">
+                  <button onclick="adjustWater(-250)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">-</button>
+                  <span id="waterDisplay" class="font-semibold text-sky-400 min-w-[50px] text-center">0 ml</span>
+                  <button onclick="adjustWater(250)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Meals Container -->
+            <div class="space-y-4">
+              <div class="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5 text-xs text-emerald-200 leading-relaxed">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> 음식 검색 후 양(g)을 선택하면 영양성분이 자동 입력돼요.
+                <span class="block text-[11px] text-slate-400 mt-1">영양 수치는 참고값이며 직접 수정할 수 있어요.</span>
+              </div>
+              <!-- Breakfast -->
+              <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-sun"></i> 아침</span><span id="badge-breakfast" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-300"><i class="fa-solid fa-camera text-amber-400"></i> 식단 사진</span><label class="text-[11px] cursor-pointer rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1.5">+ 사진 첨부<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMealPhoto('breakfast',this)"></label></div>
+                  <div id="photos-breakfast" class="grid grid-cols-3 gap-2"></div>
+                  <p id="photo-feedback-breakfast" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
+                </div>
+                <div id="meal-breakfast-saved" class="hidden"></div>
+                <div class="flex gap-2"><input type="text" id="meal-breakfast-desc" placeholder="음식 입력 (예: 계란 2개)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('breakfast')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
+                <div id="meal-breakfast-extra" class="space-y-2"></div>
+                <div class="flex gap-2"><button type="button" onclick="addMealFood('breakfast')" class="flex-1 min-h-11 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-semibold">+ 음식 추가</button><button type="button" onclick="saveSingleMeal('breakfast')" class="flex-1 min-h-11 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">아침 저장</button></div>
+                <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
+                  <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                  <input type="number" id="meal-breakfast-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-breakfast-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-breakfast-prot" placeholder="단(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-breakfast-fat" placeholder="지(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  </div>
+                </details>
+              </div>
+              <!-- Lunch -->
+              <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-cloud-sun"></i> 점심</span><span id="badge-lunch" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-300"><i class="fa-solid fa-camera text-amber-400"></i> 식단 사진</span><label class="text-[11px] cursor-pointer rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1.5">+ 사진 첨부<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMealPhoto('lunch',this)"></label></div>
+                  <div id="photos-lunch" class="grid grid-cols-3 gap-2"></div>
+                  <p id="photo-feedback-lunch" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
+                </div>
+                <div id="meal-lunch-saved" class="hidden"></div>
+                <div class="flex gap-2"><input type="text" id="meal-lunch-desc" placeholder="음식 입력 (예: 닭가슴살)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('lunch')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
+                <div id="meal-lunch-extra" class="space-y-2"></div>
+                <div class="flex gap-2"><button type="button" onclick="addMealFood('lunch')" class="flex-1 min-h-11 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-semibold">+ 음식 추가</button><button type="button" onclick="saveSingleMeal('lunch')" class="flex-1 min-h-11 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">점심 저장</button></div>
+                <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
+                  <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                  <input type="number" id="meal-lunch-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-lunch-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-lunch-prot" placeholder="단(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-lunch-fat" placeholder="지(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  </div>
+                </details>
+              </div>
+              <!-- Dinner -->
+              <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-moon"></i> 저녁</span><span id="badge-dinner" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-300"><i class="fa-solid fa-camera text-amber-400"></i> 식단 사진</span><label class="text-[11px] cursor-pointer rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1.5">+ 사진 첨부<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMealPhoto('dinner',this)"></label></div>
+                  <div id="photos-dinner" class="grid grid-cols-3 gap-2"></div>
+                  <p id="photo-feedback-dinner" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
+                </div>
+                <div id="meal-dinner-saved" class="hidden"></div>
+                <div class="flex gap-2"><input type="text" id="meal-dinner-desc" placeholder="음식 입력 (예: 현미밥)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('dinner')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
+                <div id="meal-dinner-extra" class="space-y-2"></div>
+                <div class="flex gap-2"><button type="button" onclick="addMealFood('dinner')" class="flex-1 min-h-11 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-semibold">+ 음식 추가</button><button type="button" onclick="saveSingleMeal('dinner')" class="flex-1 min-h-11 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">저녁 저장</button></div>
+                <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
+                  <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                  <input type="number" id="meal-dinner-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-dinner-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-dinner-prot" placeholder="단(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-dinner-fat" placeholder="지(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  </div>
+                </details>
+              </div>
+              <!-- Snack -->
+              <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between"><span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-cookie-bite"></i> 간식/보충제</span><span id="badge-snack" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">미작성</span></div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-300"><i class="fa-solid fa-camera text-amber-400"></i> 식단 사진</span><label class="text-[11px] cursor-pointer rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1.5">+ 사진 첨부<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMealPhoto('snack',this)"></label></div>
+                  <div id="photos-snack" class="grid grid-cols-3 gap-2"></div>
+                  <p id="photo-feedback-snack" class="text-[11px] text-emerald-400 whitespace-pre-wrap hidden"></p>
+                </div>
+                <div id="meal-snack-saved" class="hidden"></div>
+                <div class="flex gap-2"><input type="text" id="meal-snack-desc" placeholder="음식 입력 (예: 단백질 쉐이크)" class="min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"><button type="button" onclick="saveSingleMeal('snack')" class="shrink-0 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold">저장</button></div>
+                <div id="meal-snack-extra" class="space-y-2"></div>
+                <div class="flex gap-2"><button type="button" onclick="addMealFood('snack')" class="flex-1 min-h-11 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-semibold">+ 음식 추가</button><button type="button" onclick="saveSingleMeal('snack')" class="flex-1 min-h-11 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">간식 저장</button></div>
+                <details class="optional-fields rounded-lg border border-slate-800/70 bg-slate-900/30 p-2.5">
+                  <summary class="text-xs text-slate-400 hover:text-slate-200">이 끼니 영양성분 합계 보기</summary>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                  <input type="number" id="meal-snack-cal" placeholder="kcal" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-snack-carb" placeholder="탄(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-snack-prot" placeholder="단(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  <input type="number" id="meal-snack-fat" placeholder="지(g)" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            <button onclick="saveDietLog()" class="w-full mt-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer">
+              <i class="fa-solid fa-floppy-disk"></i> 오늘 식단 전체 저장하기 (구글 실시간 연동)
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- 회원 전용: 이전 기록 및 설명 영상 -->
+      <section class="grid grid-cols-1 gap-6">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+          <h3 class="font-bold text-white"><i class="fa-solid fa-clock-rotate-left text-sky-400"></i> 나의 이전 운동 기록</h3>
+          <p class="text-xs text-slate-400">운동 이름을 입력하면 가장 최근에 완료한 중량과 횟수를 보여줘요.</p>
+          <div id="previousWorkoutRecords" class="space-y-2 text-xs text-slate-300"></div>
+        </div>
+      </section>
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+        <h3 class="font-bold text-white"><i class="fa-solid fa-circle-play text-indigo-400"></i> 나만의 운동 설명 영상</h3>
+        <p class="text-xs text-slate-400">트레이너가 등록한 운동 영상과 주의사항이에요.</p>         <div id="memberExerciseVideos" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+       </section>
+       <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+         <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 용량이 크면 휴대폰에서 자동으로 압축해 업로드해요.</p>
+         <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
+           <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
+           <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
+           <textarea id="memberVideoQuestion" maxlength="500" rows="2" placeholder="어떤 부분이 어려웠나요? (선택)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm"></textarea>
+           <button type="submit" class="bg-sky-600 rounded-lg px-4 py-2 text-sm font-semibold">운동 영상 보내기</button>
+         </form>
+         <div id="memberFormVideos" class="space-y-3"></div>
+       </section>
+
+       <section id="memberInsightsSection" class="space-y-5" aria-label="나의 성장 및 PT 현황">
+         <div class="bg-slate-900 border border-brand-500/30 rounded-2xl p-5 shadow-lg space-y-3">
+           <h3 class="font-bold text-white"><i class="fa-solid fa-bullseye text-brand-500"></i> 나의 운동 목표</h3>
+           <div id="memberGoalSummary" class="text-sm text-slate-300">목표를 불러오는 중...</div>
+         </div>
+         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+           <h3 class="font-bold text-white"><i class="fa-solid fa-chart-column text-brand-500"></i> 나의 주간 운동 리포트</h3>
+           <p class="text-xs text-slate-400">완료한 운동 세트를 기준으로 자동 집계합니다.</p>
+           <div id="memberWeeklyReport" class="text-sm text-slate-300">리포트를 불러오는 중...</div>
+         </div>
+         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+           <h3 class="font-bold text-white"><i class="fa-solid fa-calendar-days text-brand-500"></i> 나의 월간 운동 리포트</h3>
+           <div id="memberMonthlyReport" class="text-sm text-slate-300">월간 기록을 불러오는 중...</div>
+         </div>
+         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+           <h3 class="font-bold text-white"><i class="fa-solid fa-dumbbell text-brand-500"></i> 운동별 중량 성장 그래프</h3>
+           <p class="text-xs text-slate-400">완료한 세트가 있는 날의 기록 중량을 비교합니다.</p>
+           <div id="memberStrengthProgress" class="text-sm text-slate-300">기록을 불러오는 중...</div>
+         </div>
+         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+           <h3 class="font-bold text-white"><i class="fa-solid fa-chart-line text-sky-400"></i> 인바디 변화</h3>
+           <div id="memberInbodyChart" class="text-sm text-slate-300">측정 기록을 불러오는 중...</div>
+         </div>
+         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+           <h3 class="font-bold text-white"><i class="fa-regular fa-calendar-check text-indigo-400"></i> 나의 PT 수업 현황</h3>
+           <div id="memberPtSummary" class="text-sm text-slate-300">수업 정보를 불러오는 중...</div>
+         </div>
+       </section>
+
+    </div>
+
+    <!-- TRAINER VIEW -->
+    <div id="trainerView" class="space-y-6 hidden">
+      <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-semibold border border-indigo-500/30">TRAINER DASHBOARD</span>
+            <span class="text-xs text-slate-400">25인+ 회원 실시간 연동 관리</span>
+          </div>
+          <h2 class="text-xl sm:text-2xl font-bold text-white">운동 루틴 처방 & 실시간 피드백</h2>
+        </div>
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+          <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl w-full sm:min-w-[240px]">
+            <label for="trainerMemberSearch" class="block text-xs font-semibold text-slate-300 mb-1.5"><i class="fa-solid fa-magnifying-glass text-indigo-400"></i> 회원 이름 검색</label>
+            <div class="relative">
+              <input id="trainerMemberSearch" type="search" placeholder="이름 일부 입력 (예: 윤지)" autocomplete="off" oninput="filterTrainerMemberSearch()" onkeydown="handleTrainerMemberSearchKey(event)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-indigo-500">
+              <div id="trainerMemberSearchResults" class="hidden absolute left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto rounded-xl bg-slate-800 border border-slate-600 shadow-2xl z-40 p-1" role="listbox" aria-label="검색된 회원"></div>
+            </div>
+            <label for="trainerMemberSelect" class="block text-[11px] text-slate-400 mt-2 mb-1">또는 목록에서 선택</label>
+            <select id="trainerMemberSelect" onchange="onSelectMemberChange()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"></select>
+          </div>
+          <button onclick="switchMode('member')" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer">회원 화면으로</button>
+        </div>
+      </div>
+
+      <!-- 트레이너 주요 기능 바로가기 -->
+      <nav aria-label="트레이너 주요 기능 바로가기" class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 rounded-2xl border border-slate-700/70 bg-slate-900 p-3 sm:p-4 shadow-lg">
+        <button type="button" onclick="jumpTrainerSection('trainerDashboardSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-line text-emerald-400"></i><span>회원 관리 대시보드</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerQuickFeedbackMount')" class="trainer-nav-btn"><i class="fa-solid fa-comments text-sky-400"></i><span>운동·식단 피드백</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerRoutineSection')" class="trainer-nav-btn"><i class="fa-solid fa-dumbbell text-indigo-400"></i><span>운동 루틴 관리</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerGrowthSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-simple text-amber-400"></i><span>회원 성장 관리</span></button>
+      </nav>
+
+      <!-- 트레이너 전용: 회원이 이미 남긴 기록으로 만드는 통합 현황 -->
+      <section id="trainerDashboardSection" class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4 trainer-jump-target" aria-label="통합 관리 대시보드">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div><h3 class="font-bold text-white text-base"><i class="fa-solid fa-chart-line text-brand-500"></i> 오늘의 회원 관리 현황</h3><p class="text-xs text-slate-400 mt-1">기존 운동·식단·영상 기록을 자동으로 모아 보여줍니다. 회원님은 추가 입력할 필요가 없어요.</p></div>
+          <button type="button" onclick="loadTrainerOverview()" class="text-xs px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">현황 새로고침</button>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-live="polite">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">등록 회원</p><p id="overviewTotal" class="text-xl font-bold text-white mt-1">-</p></div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">오늘 기록한 회원</p><p id="overviewActive" class="text-xl font-bold text-brand-500 mt-1">-</p></div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">기록 피드백 대기</p><p id="overviewPending" class="text-xl font-bold text-amber-400 mt-1">-</p></div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">영상 피드백 대기</p><p id="overviewVideos" class="text-xl font-bold text-sky-400 mt-1">-</p></div>
+        </div>
+        <p id="overviewStatus" role="status" class="text-xs text-slate-400">트레이너 로그인 후 현황을 불러옵니다.</p>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-amber-300">확인이 필요한 회원</h4><div id="overviewNeedsAttention" class="space-y-2 text-xs text-slate-300"></div></div>
+          <div class="bg-slate-950 border border-emerald-500/20 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-emerald-300">기록 피드백 완료 회원</h4><div id="overviewFeedbackDone" class="space-y-2 text-xs text-slate-300"></div></div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-slate-200">최근 기록 없는 회원 (7일 기준)</h4><div id="overviewInactive" class="space-y-2 text-xs text-slate-300"></div></div>
+        </div>
+      </section>
+
+      <div id="trainerQuickFeedbackMount" class="space-y-4 trainer-jump-target"></div>
+
+       <!-- 회원 관리: 트레이너 전용 -->
+       <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="회원 관리">
+         <div class="flex flex-wrap items-center justify-between gap-2">
+           <div><h3 class="font-bold text-white text-base"><i class="fa-solid fa-users text-indigo-400"></i> 회원 관리 <span id="memberRegistryCount" class="text-xs text-slate-400 font-normal"></span></h3><p class="text-xs text-slate-400 mt-1">새 회원을 등록하고 개인 전용 링크를 카카오톡으로 보내세요.</p></div>
+           <button type="button" onclick="loadMemberRegistry()" class="text-xs px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">목록 새로고침</button>
+         </div>
+         <form onsubmit="addNewMember(event)" class="flex flex-col sm:flex-row gap-2">
+           <input id="newMemberName" maxlength="40" autocomplete="off" placeholder="신규 회원 이름 입력" aria-label="신규 회원 이름" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white" required>
+           <button id="addMemberButton" type="submit" class="bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-lg px-5 py-2.5 text-sm">+ 회원 추가</button>
+         </form>
+         <p id="memberRegistryStatus" role="status" class="text-xs text-slate-400">트레이너 로그인 후 목록을 불러옵니다.</p>
+         <div id="memberRegistryList" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+       </section>
+
+      <section id="trainerGrowthSection" class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4 trainer-jump-target" aria-label="성장 기록 및 PT 수업 관리">
+        <h3 class="font-bold text-white"><i class="fa-solid fa-chart-line text-brand-500"></i> 선택 회원의 성장 기록 · PT 수업 관리</h3>
+        <p class="text-xs text-slate-400">회원에게는 조회만 가능하며, 측정 수치와 수업 횟수는 트레이너가 입력합니다.</p>
+        <div class="bg-slate-950 border border-brand-500/30 rounded-xl p-4 space-y-3">
+          <h4 class="font-semibold text-sm text-brand-400"><i class="fa-solid fa-bullseye"></i> 개인별 목표 설정</h4>
+          <form onsubmit="saveMemberGoal(event)" class="space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label class="text-xs text-slate-400">목표 체중 kg (선택)<input id="goalWeight" type="number" min="0.1" max="500" step="0.1" placeholder="예: 80" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              <label class="text-xs text-slate-400">주간 운동 목표 (일)<input id="goalWeeklyDays" type="number" min="0" max="7" step="1" value="0" required class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              <label class="text-xs text-slate-400">목표 날짜 (선택)<input id="goalDeadline" type="date" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+            </div>
+            <label class="block text-xs text-slate-400">회원에게 보여줄 목표 메시지<input id="goalNote" maxlength="300" placeholder="예: 11월은 주 3회 꾸준히 운동하기!" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+            <button type="submit" class="w-full bg-brand-500 hover:bg-brand-600 text-slate-950 rounded-lg py-2.5 text-sm font-bold">회원 목표 저장</button>
+          </form>
+          <div id="trainerGoalSummary" class="text-sm text-slate-300"></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+            <h4 class="font-semibold text-sm text-sky-300">인바디 측정 등록</h4>
+            <form onsubmit="saveInbodyRecord(event)" class="space-y-2">
+              <label class="block text-xs text-slate-400">측정 날짜<input id="inbodyDate" type="date" required class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              <div class="grid grid-cols-3 gap-2">
+                <label class="text-xs text-slate-400">체중 kg<input id="inbodyWeight" type="number" min="0.1" max="500" step="0.1" required class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+                <label class="text-xs text-slate-400">골격근량 kg<input id="inbodyMuscle" type="number" min="0" max="500" step="0.1" required class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+                <label class="text-xs text-slate-400">체지방률 %<input id="inbodyFat" type="number" min="0" max="100" step="0.1" required class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              </div>
+              <button type="submit" class="w-full bg-sky-600 hover:bg-sky-700 rounded-lg py-2 text-sm font-semibold">측정 기록 저장</button>
+            </form>
+            <div id="trainerInbodyChart" class="text-xs text-slate-300"></div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+            <h4 class="font-semibold text-sm text-indigo-300">PT 횟수와 다음 수업 관리</h4>
+            <form onsubmit="savePtManagement(event)" class="space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-slate-400">총 등록 횟수<input id="ptTotal" type="number" min="0" step="1" required class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+                <label class="text-xs text-slate-400">사용한 횟수<input id="ptUsed" type="number" min="0" step="1" required class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              </div>
+              <label class="block text-xs text-slate-400">다음 수업 날짜<input id="ptNextDate" type="date" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              <label class="block text-xs text-slate-400">수업 메모 (선택)<input id="ptNote" maxlength="500" placeholder="예: 목요일 오후 7시" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"></label>
+              <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 rounded-lg py-2 text-sm font-semibold">PT 정보 저장</button>
+            </form>
+            <div id="trainerPtSummary" class="text-xs text-slate-300"></div>
+          </div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+          <h4 class="font-semibold text-sm text-brand-400">선택 회원 주간 운동 리포트</h4>
+          <div id="trainerWeeklyReport" class="text-sm text-slate-300">리포트를 불러오는 중...</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+          <h4 class="font-semibold text-sm text-brand-400">선택 회원 월간 운동 리포트</h4>
+          <div id="trainerMonthlyReport" class="text-sm text-slate-300">월간 기록을 불러오는 중...</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+          <h4 class="font-semibold text-sm text-brand-400">선택 회원 운동별 중량 변화</h4>
+          <div id="trainerStrengthProgress" class="text-sm text-slate-300">기록을 불러오는 중...</div>
+        </div>
+        <p id="insightsStatus" role="status" class="text-xs text-slate-400"></p>
+      </section>
+
+             <!-- 트레이너 전용: 회원별 운동 설명 영상 등록 -->        <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="운동 영상 피드백 관리">
+          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 회원 운동 영상 · 자세 피드백</h3>
+          <p class="text-xs text-slate-400">회원님이 올린 영상을 확인하고 영상 바로 아래에 피드백을 남겨주세요.</p>
+          <div id="trainerFormVideos" class="space-y-3"></div>
+        </section>
+        <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="운동 설명 영상 관리">
+         <div>
+           <h3 class="font-bold text-white text-base"><i class="fa-solid fa-circle-play text-indigo-400"></i> 나만의 운동 설명 영상 등록</h3>
+           <p class="text-xs text-slate-400 mt-1"><span class="selectedMemberNameText text-brand-400">회원</span>님에게만 보이는 운동 영상과 자세 팁을 등록해요.</p>
+         </div>
+         <form onsubmit="saveExerciseVideo(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950 border border-slate-800 rounded-xl p-4">
+           <div><label for="videoExerciseName" class="block text-xs text-slate-400 mb-1">운동 이름</label><input id="videoExerciseName" required maxlength="80" placeholder="예: 벤치프레스" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
+            <div><label for="videoUrl" class="block text-xs text-slate-400 mb-1">유튜브 영상 링크 (직접 업로드 시 비워두세요)</label><input id="videoUrl" type="url" placeholder="https://youtu.be/..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></div>
+            <div class="sm:col-span-2"><label for="trainerVideoFile" class="block text-xs text-slate-400 mb-1">또는 직접 촬영한 영상 (최대 40초 · 자동 압축)</label><input id="trainerVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs text-slate-300"></div>
+           <div class="sm:col-span-2"><label for="videoTip" class="block text-xs text-slate-400 mb-1">트레이너 설명 / 주의사항</label><textarea id="videoTip" rows="2" maxlength="500" placeholder="예: 견갑을 고정하고 가슴을 열어주세요." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white"></textarea></div>
+           <button type="submit" class="sm:col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg px-4 py-2.5 text-sm">선택한 회원에게 영상 등록하기</button>
+         </form>
+         <div class="space-y-2"><h4 class="text-xs font-semibold text-slate-300">등록된 영상 목록</h4><div id="trainerExerciseVideos" class="space-y-2"></div></div>
+       </section>
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 space-y-6">
+          <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-3">
+            <h3 class="font-bold text-white text-sm"><span class="selectedMemberNameText text-brand-400">회원</span>님 상단 메시지 (오늘의 한마디)</h3>
+            <div class="flex gap-2">
+              <input type="text" id="inputCustomHeaderMsg" placeholder="예: 오늘 컨디션 조절 잘 하세요!" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white">
+              <button onclick="saveCustomHeaderMsg()" class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shrink-0 cursor-pointer">저장</button>
+            </div>
+          </div>
+
+          <div id="trainerRoutineSection" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg trainer-jump-target">
+            <h3 class="font-bold text-white text-base mb-4">운동 루틴 짜주기</h3>
+            <div class="mb-4 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 sm:p-4 space-y-3">
+              <div>
+                <h4 class="text-sm font-bold text-indigo-300"><i class="fa-solid fa-copy"></i> 지난 운동 루틴 복사</h4>
+                <p class="text-xs text-slate-400 mt-1">현재 선택한 회원의 지난 날짜에서 운동을 가져옵니다. 완료 체크는 초기화돼요.</p>
+              </div>
+              <div class="flex flex-col sm:flex-row gap-2 sm:items-end">
+                <label class="flex-1 text-xs text-slate-300">복사할 날짜
+                  <input id="routineCopySourceDate" type="date" class="block mt-1 w-full min-h-11 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                </label>
+                <button type="button" onclick="previewRoutineCopy()" class="min-h-11 px-4 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-bold text-white">지난 루틴 확인</button>
+              </div>
+              <p id="routineCopyStatus" class="text-xs text-slate-400" role="status">지난 날짜를 선택해 운동을 확인해보세요.</p>
+              <div id="routineCopyPreview" class="hidden rounded-lg border border-slate-700 bg-slate-950 p-3 space-y-3">
+                <div id="routineCopyItems" class="space-y-1.5 text-sm text-slate-200"></div>
+                <button type="button" id="routineCopyApplyBtn" onclick="applyRoutineCopy()" class="w-full min-h-11 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-bold text-white">선택한 날짜의 루틴 복사하기</button>
+              </div>
+            </div>
+            <form id="addRoutineForm" onsubmit="submitRoutine(event)" class="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div><label class="block text-xs text-slate-300 mb-1">운동 이름</label><input type="text" id="exName" placeholder="예: 바벨 벤치프레스" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              <div class="grid grid-cols-3 gap-2">
+                <div><label class="block text-[11px] text-slate-400 mb-1">무게(kg)</label><input type="number" id="exWeight" placeholder="40" step="0.5" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">세트수</label><input type="number" id="exSets" placeholder="4" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">목표 횟수</label><input type="number" id="exReps" placeholder="12" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              </div>
+              <div><label class="block text-[11px] text-slate-400 mb-1">트레이너 팁</label><input type="text" id="exNote" placeholder="예: 견갑 고정" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              <div class="flex gap-2">
+                <button type="submit" id="exSubmitBtn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs cursor-pointer">운동 추가하기</button>
+                <button type="button" id="exCancelBtn" onclick="resetRoutineForms()" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs cursor-pointer">취소</button>
+              </div>
+            </form>
+
+            <div class="mt-5 space-y-2">
+              <h4 class="text-xs font-bold text-slate-300 flex justify-between"><span>현재 처방된 운동 목록</span><button onclick="clearAllRoutines()" class="text-[10px] text-rose-400 hover:underline cursor-pointer">전체 삭제</button></h4>
+              <div id="trainerPrescribedList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trainer Right: Review & Feedback -->
+        <div class="lg:col-span-7 space-y-6">
+          <div id="trainerFeedbackPanel" class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-lg space-y-5 scroll-mt-20">
+            <div class="flex flex-wrap gap-2 justify-between items-center">
+              <div><h3 class="font-bold text-white text-lg"><span class="selectedMemberNameText text-brand-400">회원</span>님의 기록 확인 · 피드백</h3><p class="text-xs text-slate-400 mt-1">상단에서 선택한 회원과 날짜의 기록입니다.</p></div>
+              <span id="trainerFeedbackStatus" class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-300">피드백 상태 확인 중</span>
+            </div>
+            <div id="trainerQuickSummary" class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm"></div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="bg-slate-950 p-3.5 rounded-xl border border-emerald-500/20">
+                <span class="text-xs font-bold text-emerald-400 block mb-1.5"><i class="fa-solid fa-thumbs-up"></i> 잘된 점</span>
+                <p id="reviewRefGood" class="text-sm leading-relaxed text-slate-200 whitespace-pre-wrap">기록이 없습니다.</p>
+              </div>
+              <div class="bg-slate-950 p-3.5 rounded-xl border border-rose-500/20">
+                <span class="text-xs font-bold text-rose-400 block mb-1.5"><i class="fa-solid fa-triangle-exclamation"></i> 어려웠던 점</span>
+                <p id="reviewRefBad" class="text-sm leading-relaxed text-slate-200 whitespace-pre-wrap">기록이 없습니다.</p>
+              </div>
+            </div>
+
+            <div class="bg-slate-950 rounded-xl border border-amber-500/20 p-4 space-y-3">
+              <h4 class="text-sm font-bold text-amber-400"><i class="fa-solid fa-images"></i> 회원 식단 사진 확인</h4>
+              <div id="trainerMealPhotos" class="space-y-3"></div>
+            </div>
+            <div class="pt-4 border-t border-slate-800 space-y-4">
+              <h4 class="text-sm font-bold text-brand-400"><i class="fa-solid fa-paper-plane"></i> 피드백 작성 및 전송하기</h4>
+              <div><label class="block text-sm font-semibold text-slate-200 mb-2">운동 코멘트</label>
+                <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('workout','오늘 운동 꾸준히 수행하신 점 좋습니다!')" class="quick-feedback-btn">꾸준한 수행 👏</button><button type="button" onclick="appendFeedbackTemplate('workout','무게보다 동작의 정확도와 호흡을 먼저 신경 써주세요.')" class="quick-feedback-btn">동작 정확도</button><button type="button" onclick="appendFeedbackTemplate('workout','불편한 동작은 무리하지 말고 다음 수업 때 함께 확인해요.')" class="quick-feedback-btn">불편함 확인</button></div>
+                <textarea id="inputFeedbackWorkout" rows="3" placeholder="운동 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
+              <div><label class="block text-sm font-semibold text-slate-200 mb-2">식단 코멘트</label>
+                <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('diet','식단을 빠짐없이 기록해주신 점 좋습니다!')" class="quick-feedback-btn">기록 칭찬</button><button type="button" onclick="appendFeedbackTemplate('diet','매 끼니 단백질 식품을 충분히 챙겨보세요.')" class="quick-feedback-btn">단백질</button><button type="button" onclick="appendFeedbackTemplate('diet','식사 구성과 양을 함께 점검해볼게요.')" class="quick-feedback-btn">식사 구성</button></div>
+                <textarea id="inputFeedbackDiet" rows="3" placeholder="식단 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
+              <div class="flex justify-end"><button onclick="sendTrainerFeedback()" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg cursor-pointer">피드백 구글 시트에 전송</button></div>
+            </div>
+          </div>
+
+          <!-- 회원과 메모 -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+            <h3 class="font-bold text-white text-base mb-3"><i class="fa-solid fa-comments text-sky-400"></i> <span class="selectedMemberNameText text-brand-400">회원</span>님과 메모</h3>
+            <div id="trainerMemoList" class="space-y-2 max-h-64 overflow-y-auto pr-1 mb-3"></div>
+            <div class="flex gap-2">
+              <textarea id="trainerMemoInput" rows="2" placeholder="회원님께 메모를 남겨보세요" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-sky-500"></textarea>
+              <button onclick="sendMemo()" class="px-4 bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold rounded-xl text-xs shrink-0 cursor-pointer">보내기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 bg-slate-800 border border-brand-500/50 text-white px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 text-xs font-medium">
+    저장되었습니다!
+  </div>
+  <div id="saveStatusBar" class="hidden fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-sm z-[60] flex items-center gap-3 rounded-xl border px-4 py-3 shadow-2xl text-sm text-white" role="status" aria-live="polite" data-state="idle">
+    <span id="saveStatusIcon" class="text-lg shrink-0" aria-hidden="true"></span>
+    <span id="saveStatusText" class="flex-1 font-semibold">저장 상태</span>
+    <button type="button" id="saveRetryButton" onclick="retryLastSave()" class="hidden shrink-0 rounded-lg bg-white/20 px-3 py-2 font-bold text-white">다시 시도</button>
+  </div>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec";
+    // Staging preview: only daily read/write/verification uses Supabase.
+    // Other features continue to read Google Sheets; do not publish as the live member URL.
+    const SUPABASE_API = '/api/records';
+    const MEMBERS = []; // 회원 목록은 인증된 트레이너만 서버에서 불러옵니다.
+    const REFRESH_MS = 15000; // 15초마다 자동 새로고침
+    const MEAL_KEYS = ['breakfast', 'lunch', 'dinner', 'snack'];
+    const FORM_IDS = {
+      member: { name: 'mrName', weight: 'mrWeight', sets: 'mrSets', reps: 'mrReps', note: 'mrNote', btn: 'mrSubmitBtn', cancel: 'mrCancelBtn', addText: '운동 추가하기' },
+      trainer: { name: 'exName', weight: 'exWeight', sets: 'exSets', reps: 'exReps', note: 'exNote', btn: 'exSubmitBtn', cancel: 'exCancelBtn', addText: '운동 추가하기' }
+    };
+
+    function getLocalDateStr(d = new Date()) {
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${m}-${day}`;
+    }
+    function nowTimeStr() {
+      const n = new Date();
+      return `${n.getMonth() + 1}/${n.getDate()} ${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`;
+    }
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function getMemberNameFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const name = params.get('name');
+      return name ? name.trim() : '';
+    }
+
+    let registryMembers = [...MEMBERS];
+    const memberToken = new URLSearchParams(location.search).get('token') || '';
+    let activeMemberName = getMemberNameFromUrl();
+    let currentMode = 'member';
+    let latestLoadRequest = 0;
+    let selectedDate = getLocalDateStr();
+    let appData = null;
+    let trainerPassword = null; // 비밀번호는 서버에서 확인 (코드에 저장되어 있지 않음)
+    let editingRoutineId = null;
+    const lastMemoCount = {};
+    // 캘린더/이전 운동 기록/영상 상태 (저장 이후 갱신에도 사용)
+    let extrasRequest = 0;
+    let habitMonth = getLocalDateStr().slice(0, 7);
+    let historyData = { month: habitMonth, days: [], previous: {} };
+    let exerciseVideos = [];
+    let formVideos = [];
+    const VIDEO_LIMIT = 20 * 1024 * 1024;
+    const VIDEO_INPUT_LIMIT = 200 * 1024 * 1024;
+    const VIDEO_MAX_DURATION = 40;
+    const VIDEO_CHUNK = 768 * 1024;
+    const videoObjectUrls = new Map();
+
+    function getRegisteredMembers() {
+      const list = [...registryMembers];
+      if (activeMemberName && !list.includes(activeMemberName)) list.push(activeMemberName);
+      return list;
+    }
+
+    function hasMemberAccess() { return Boolean(activeMemberName && memberToken); }
+    function updateAccessState() {
+      const blocked = currentMode === 'member' && !hasMemberAccess();
+      document.getElementById('accessNotice').classList.toggle('hidden', !blocked);
+      document.getElementById('memberView').classList.toggle('hidden', currentMode !== 'member' || blocked);
+      document.getElementById('habitCalendarTop').classList.toggle('hidden', currentMode !== 'member' || blocked);
+      if (blocked) document.getElementById('syncError').classList.add('hidden');
+      return !blocked;
+    }
+
+    // 기존 카드를 옮겨 이벤트/데이터 연동은 그대로 유지하고 표시 순서만 개선합니다.
+    function arrangeMemberDashboard() {
+      const view = document.getElementById('memberView');
+      const oldGrid = view.querySelector('.lg\\:grid-cols-12');
+      const workout = document.getElementById('memberRoutineList').parentElement;
+      const diet = document.getElementById('meal-breakfast-desc').closest('.rounded-2xl');
+      const memo = document.getElementById('memberMemoList').parentElement;
+      const reflection = document.getElementById('workoutReflectionForm').parentElement;
+      const history = document.getElementById('previousWorkoutRecords').closest('section');
+      const guide = document.getElementById('memberExerciseVideos').closest('section');
+      const videos = document.getElementById('memberFormVideos').closest('section');
+      const makeGroup = (title, note) => {
+        const section = document.createElement('section');
+        section.className = 'space-y-4';
+        section.innerHTML = `<div><h3 class="text-base font-bold text-white">${title}</h3><p class="text-xs text-slate-400 mt-1">${note}</p></div>`;
+        view.appendChild(section);
+        return section;
+      };
+      const exerciseGroup = makeGroup('01 · 오늘의 운동', '루틴 확인, 이전 중량 참고, 자세 영상');
+      exerciseGroup.id = 'memberExerciseSection';
+      exerciseGroup.classList.add('member-jump-target');
+      exerciseGroup.append(workout, guide, videos);
+      const dietGroup = makeGroup('02 · 오늘의 식단', '사진과 간단한 식사 기록');
+      dietGroup.id = 'memberDietSection';
+      dietGroup.classList.add('member-jump-target');
+      dietGroup.append(diet);
+      const checkGroup = makeGroup('03 · 운동 소감과 질문', '컨디션과 불편한 점을 코치님께 알려주세요');
+      checkGroup.append(reflection, memo);
+      const historyGroup = makeGroup('04 · 나의 성장 기록', '지난 운동 기록과 꾸준히 운동한 날짜');
+      historyGroup.append(history, document.getElementById('habitCalendarTop'), document.getElementById('memberInsightsSection'));
+      oldGrid.remove();
+    }
+
+    window.onload = async function () {
+      arrangeMemberDashboard();
+      document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
+      setupAutoHideHeader();
+      MEAL_KEYS.forEach(m => {
+        setupMainFoodNutrition(m);
+        setupMealEditor(m);
+        setupMealShortcutsPanel(m);
+        ['desc', 'cal', 'carb', 'prot', 'fat'].forEach(f => {
+          document.getElementById(`meal-${m}-${f}`).addEventListener('input', () => dirtyMealDrafts.add(m));
+        });
+      });
+      updateAccessState();
+      document.getElementById('currentDateInput').value = selectedDate;
+      const copyDateInput=document.getElementById('routineCopySourceDate');
+      copyDateInput.value=new Date(Date.parse(selectedDate+'T12:00:00Z')-7*86400000).toISOString().slice(0,10);
+      copyDateInput.addEventListener('change',()=>clearRoutineCopyPreview());
+      document.addEventListener('click',event=>{
+        const search=document.getElementById('trainerMemberSearch');
+        const results=document.getElementById('trainerMemberSearchResults');
+        if(search&&!search.parentElement.contains(event.target))results.classList.add('hidden');
+      });
+      document.getElementById('inbodyDate').value = selectedDate;
+      document.getElementById('currentDateInput').addEventListener('change', async (e) => {
+        resetSaveStatus();
+        clearRoutineCopyPreview();
+        dirtyMealDrafts.clear();
+        mealEditorOpen.clear();
+        selectedDate = e.target.value;
+        document.getElementById('todayDateDisplay').innerText = selectedDate;
+        resetRoutineForms();
+        await loadDataFromCloud();
+        if (currentMode === 'member') loadFoodShortcuts();
+        if (currentMode === 'trainer') await loadTrainerOverview();
+      });
+      document.getElementById('todayDateDisplay').innerText = selectedDate;
+      updateTrainerMemberDropdown();
+      if (updateAccessState()) {
+        await loadDataFromCloud();
+        if(currentMode==='member')loadFoodShortcuts();
+      }
+
+      // 자동 새로고침 (입력 중에는 건너뜀)
+      setInterval(() => {
+        const el = document.activeElement;
+        const typing = el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT');
+        if (!document.hidden && !typing && updateAccessState()) loadDataFromCloud(true);
+      }, REFRESH_MS);
+    };
+
+    function setupAutoHideHeader() {
+      const header = document.getElementById('appHeader');
+      let lastY = Math.max(0, window.scrollY);
+      let direction = 0;
+      let directionStart = lastY;
+      let pending = false;
+      window.addEventListener('scroll', () => {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => {
+          const y = Math.max(0, window.scrollY);
+          const difference = y - lastY;
+          const nextDirection = Math.sign(difference);
+          if (nextDirection && nextDirection !== direction) {
+            direction = nextDirection;
+            directionStart = lastY;
+          }
+          if (y < 80 || (direction < 0 && directionStart - y > 12)) header.classList.remove('header-hidden');
+          else if (direction > 0 && y - directionStart > 18 && y > header.offsetHeight + 40) header.classList.add('header-hidden');
+          lastY = y;
+          pending = false;
+        });
+      }, {passive:true});
+      header.addEventListener('focusin', () => header.classList.remove('header-hidden'));
+    }
+
+    function jumpTrainerSection(id) {
+      const target=document.getElementById(id);
+      if(!target)return;
+      target.scrollIntoView({behavior:'smooth',block:'start'});
+      target.classList.add('jump-highlight');
+      setTimeout(()=>target.classList.remove('jump-highlight'),1400);
+    }
+
+    function jumpMemberSection(id) {
+      let target = document.getElementById(id);
+      if (!target) return;
+      if (id === 'trainerFeedbackCard' && target.classList.contains('hidden')) {
+        showToast('아직 등록된 트레이너 피드백이 없어요.');
+        return;
+      }
+      target.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+
+    function getDefaultData() {
+      return {
+        headerMessage: '오늘의 운동과 식단을 완수해볼까요? 💪',
+        routines: [],
+        reflection: { good: '', bad: '' },
+        diet: {
+          breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          lunch: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          dinner: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          snack: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          water: 0
+        },
+        feedback: { workout: '', diet: '', time: '' },
+        memos: []
+      };
+    }
+
+    // 빠진 항목을 기본값으로 채워서 화면이 깨지지 않게 함
+    function normalizeData(d) {
+      const base = getDefaultData();
+      if (!d || typeof d !== 'object' || Object.keys(d).length === 0) return base;
+      d.headerMessage = d.headerMessage || base.headerMessage;
+      if (!Array.isArray(d.routines)) d.routines = [];
+      if (!Array.isArray(d.memos)) d.memos = [];
+      d.reflection = Object.assign({}, base.reflection, d.reflection);
+      d.diet = Object.assign({}, base.diet, d.diet);
+      MEAL_KEYS.forEach(m => { d.diet[m] = Object.assign({}, base.diet[m], d.diet[m]); });
+      d.feedback = Object.assign({}, base.feedback, d.feedback);
+      return d;
+    }
+
+    // 구글 시트에서 최신 데이터 가져오기 (실패하면 오류를 던짐)
+    function getSaveContext() {
+      return {member:activeMemberName,date:selectedDate,mode:currentMode,token:memberToken,password:trainerPassword};
+    }
+    function isCurrentSaveContext(context) {
+      return context.member===activeMemberName&&context.date===selectedDate&&context.mode===currentMode;
+    }
+    // 탭을 닫으면 사라지는 메모리 캐시. 회원 기록을 브라우저 저장소에 보관하지 않습니다.
+    const viewedRecordCache=new Map();
+    function recordCacheKey(context){return `${context.mode}|${context.member}|${context.date}`;}
+    function rememberRecord(context,data){
+      const key=recordCacheKey(context);
+      viewedRecordCache.delete(key);
+      viewedRecordCache.set(key,JSON.parse(JSON.stringify(data)));
+      if(viewedRecordCache.size>12)viewedRecordCache.delete(viewedRecordCache.keys().next().value);
+    }
+    function buildFastSavePatch(before,after,mode){
+      const allowed=mode==='trainer'
+        ? ['diet','reflection','memos','feedback','headerMessage']
+        : ['diet','reflection','memos'];
+      const changed=Object.keys(after).filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]));
+      if(!changed.length||changed.some(k=>!allowed.includes(k)))return null;
+      const patch={};
+      for(const key of changed){
+        if(key==='diet'){
+          const diet={};
+          for(const meal of [...MEAL_KEYS,'water']){
+            if(JSON.stringify(before.diet?.[meal])!==JSON.stringify(after.diet?.[meal]))diet[meal]=after.diet[meal];
+          }
+          if(!Object.keys(diet).length)return null;
+          patch.diet=diet;
+        } else patch[key]=after[key];
+      }
+      return patch;
+    }
+    async function fetchLatest(context=getSaveContext()) {
+      if (context.mode === 'member' && !(context.member && context.token)) throw new Error('회원 전용 링크가 필요합니다.');
+      const json = context.mode === 'trainer' && context.password
+        ? await apiPost({action:'read',member:context.member,date:context.date,password:context.password})
+        : await (await fetch(`${SUPABASE_API}?member=${encodeURIComponent(context.member)}&date=${context.date}&token=${encodeURIComponent(context.token)}&_t=${Date.now()}`,{cache:'no-store'})).json();
+      if (json && (json.status === 'error' || json.status === 'denied')) throw new Error(json.message || '접근 권한 오류');
+      return normalizeData(json);
+    }
+
+    async function loadDataFromCloud(silent = false) {
+      if (silent && queuedSaveCount > 0) return;
+      if (!updateAccessState()) return;
+      const request = ++latestLoadRequest;
+      const member = activeMemberName, date = selectedDate, mode = currentMode;
+      const context=getSaveContext();
+      let shownCached=false;
+      if(!silent&&queuedSaveCount===0){
+        const cached=viewedRecordCache.get(recordCacheKey(context));
+        if(cached){
+          appData=normalizeData(JSON.parse(JSON.stringify(cached)));
+          renderUI();
+          showToast('이전 기록 표시 중 · 최신 기록 확인 중...');
+          shownCached=true;
+        }
+      }
+      if (!silent&&!shownCached) showToast('데이터 불러오는 중...');
+      try {
+        const loaded = await fetchLatest();
+        if (request !== latestLoadRequest || member !== activeMemberName || date !== selectedDate || mode !== currentMode) return;
+        if(queuedSaveCount>0)return; // 조회 중 시작된 저장의 새 값을 오래된 조회 응답으로 덮어쓰지 않음
+        appData = loaded;
+        rememberRecord(context,loaded);
+        document.getElementById('syncError').classList.add('hidden');
+      } catch (e) {
+        if (request !== latestLoadRequest || member !== activeMemberName || date !== selectedDate || mode !== currentMode) return;
+        console.error(e);
+        const error = document.getElementById('syncError');
+        error.classList.remove('hidden');
+        document.getElementById('syncErrorMessage').textContent = '연결 또는 접근 권한을 확인해주세요. 데이터가 확인될 때까지 입력을 저장하지 마세요.';
+        if (!silent) showToast('기록 불러오기 실패');
+        appData = null;
+        if (currentMode === 'member') document.getElementById('memberView').classList.add('hidden');
+        return;
+      }
+      updateAccessState();
+      renderUI(silent);
+      // 운동·식단 본문을 먼저 보여주고, 캘린더·영상 목록은 뒤에서 불러옵니다.
+      if (!silent) loadExtras().catch(e=>console.warn('추가 자료 불러오기 오류',e));
+      if (!silent) loadMemberInsights();
+    }
+
+    async function saveDataToCloud(data=appData, context=getSaveContext()) {
+      const body = { member: context.member, date: context.date, data, token: context.token };
+      // 트레이너 모드일 때만 비밀번호를 함께 보냄 (서버가 확인)
+      if (context.mode === 'trainer' && context.password) body.password = context.password;
+      const result = await apiPost(body);
+      if (result.status !== 'success') throw new Error(result.message || '저장 실패');
+    }
+
+    let saveQueue=Promise.resolve();
+    let queuedSaveCount=0;
+    let lastFailedSave=null;
+    let saveStatusHideTimer=null;
+    let postSaveExtrasTimer=null;
+    let pendingSetBatch=null;
+    function flushPendingSetBatch() {
+      const batch=pendingSetBatch;
+      if(!batch)return Promise.resolve(true);
+      pendingSetBatch=null;
+      clearTimeout(batch.timer);
+      const changes=[...batch.changes.values()];
+      const work=async()=>{
+        try {
+          const context=batch.context;
+          const result=await apiPost({action:'setProgressBatch',member:context.member,date:context.date,
+            token:context.token,...(context.mode==='trainer'&&context.password?{password:context.password}:{}),changes});
+          if(result.status!=='success')throw Error(result.message||'운동 체크 저장 실패');
+          if(isCurrentSaveContext(context))schedulePostSaveExtras();
+          return true;
+        }catch(e){
+          console.error('운동 체크 저장 실패',e);
+          // 기존 재시도 버튼을 사용하되, 최신 기록을 다시 읽고 해당 체크만 병합합니다.
+          lastFailedSave={context:batch.context,mutate:d=>{
+            changes.forEach(c=>{
+              const ex=(d.routines||[]).find(r=>String(r.id)===String(c.id));
+              if(ex){if(!Array.isArray(ex.completedSets))ex.completedSets=[];ex.completedSets[c.index]=c.checked;}
+            });
+          }};
+          if(isCurrentSaveContext(batch.context))setSaveStatus('error','운동 체크 저장 실패 · 다시 시도해주세요');
+          return false;
+        }finally{
+          queuedSaveCount=Math.max(0,queuedSaveCount-1);
+          if(queuedSaveCount===0&&lastFailedSave===null&&isCurrentSaveContext(batch.context))
+            setSaveStatus('saved','저장 완료 ✓ · Supabase에 반영됐어요');
+        }
+      };
+      const result=saveQueue.then(work,work);
+      saveQueue=result.then(()=>undefined,()=>undefined);
+      return result;
+    }
+    function schedulePostSaveExtras() {
+      if(postSaveExtrasTimer)clearTimeout(postSaveExtrasTimer);
+      postSaveExtrasTimer=setTimeout(()=>{
+        postSaveExtrasTimer=null;
+        loadExtras().catch(e=>console.warn('부가 기록 갱신 오류',e));
+      },650);
+    }
+    function setSaveStatus(state,message) {
+      if(saveStatusHideTimer){clearTimeout(saveStatusHideTimer);saveStatusHideTimer=null;}
+      const bar=document.getElementById('saveStatusBar');
+      bar.dataset.state=state;
+      bar.classList.toggle('hidden',state==='idle');
+      document.getElementById('saveStatusIcon').textContent=state==='saving'?'⏳':state==='saved'?'✓':state==='error'?'!':'';
+      document.getElementById('saveStatusText').textContent=message||'';
+      document.getElementById('saveRetryButton').classList.toggle('hidden',state!=='error'||!lastFailedSave);
+      if(state==='saved'){
+        saveStatusHideTimer=setTimeout(()=>{
+          if(bar.dataset.state==='saved'){
+            bar.classList.add('hidden');
+            bar.dataset.state='idle';
+          }
+          saveStatusHideTimer=null;
+        },3000);
+      }
+    }
+    function resetSaveStatus() {
+      lastFailedSave=null;
+      setSaveStatus('idle','');
+    }
+    function retryLastSave() {
+      if(!lastFailedSave)return;
+      const {mutate,context}=lastFailedSave;
+      if(!isCurrentSaveContext(context)){
+        lastFailedSave=null;
+        setSaveStatus('error','회원 또는 날짜가 변경됐어요. 해당 기록으로 돌아가 다시 저장해주세요.');
+        return;
+      }
+      lastFailedSave=null;
+      updateAndSave(mutate);
+    }
+    // 저장 요청을 순서대로 처리하고, 실제 서버 성공 응답을 받은 뒤에만 완료 표시
+    function updateAndSave(mutate) {
+      const context=getSaveContext();
+      queuedSaveCount++;
+      setSaveStatus('saving','Supabase에 저장 중...');
+      const work=async()=>{
+        try {
+          let latest=null;
+          // 일부 기록은 최신 서버 값에 직접 병합해 읽기+쓰기 두 번의 통신을 한 번으로 줄입니다.
+          if(isCurrentSaveContext(context)&&appData){
+            const candidate=JSON.parse(JSON.stringify(appData));
+            mutate(candidate);
+            const patch=buildFastSavePatch(appData,candidate,context.mode);
+            if(patch){
+              const response=await apiPost({action:'patchData',member:context.member,date:context.date,
+                token:context.token,...(context.mode==='trainer'&&context.password?{password:context.password}:{}),patch});
+              if(response.status!=='success'||!response.data)throw Error(response.message||'저장 실패');
+              latest=normalizeData(response.data);
+            }
+          }
+          if(!latest){
+            latest=await fetchLatest(context);
+            mutate(latest);
+            await saveDataToCloud(latest,context);
+          }
+          if(isCurrentSaveContext(context)){
+            appData=latest;
+            rememberRecord(context,latest);
+            renderUI();
+            // Supabase 저장 성공을 먼저 보여주고, 부가 기록/영상 갱신은 백그라운드에서 처리합니다.
+            // 이 조회들은 저장 성공 여부를 바꾸지 않으며 느린 네트워크에서도 저장 표시를 지연시키지 않습니다.
+            schedulePostSaveExtras();
+          }
+          if(lastFailedSave===null&&queuedSaveCount===1&&isCurrentSaveContext(context))setSaveStatus('saved','저장 완료 ✓ · Supabase에 반영됐어요');
+          return true;
+        } catch(e) {
+          console.error(e);
+          lastFailedSave={mutate,context};
+          if(isCurrentSaveContext(context))setSaveStatus('error','저장 실패 · 연결을 확인하고 다시 시도해주세요');
+          return false;
+        } finally {
+          queuedSaveCount=Math.max(0,queuedSaveCount-1);
+          if(queuedSaveCount===0&&lastFailedSave===null&&isCurrentSaveContext(context))setSaveStatus('saved','저장 완료 ✓ · Supabase에 반영됐어요');
+        }
+      };
+      const result=saveQueue.then(work,work);
+      saveQueue=result.then(()=>undefined,()=>undefined);
+      return result;
+    }
+
+    function renderUI(silent = false) {
+      if (!appData) appData = getDefaultData();
+      document.getElementById('memberNameBadge').innerText = `${activeMemberName} 회원님`;
+      document.querySelectorAll('.selectedMemberNameText').forEach(el => el.innerText = activeMemberName);
+      document.getElementById('customHeaderMessage').innerText = appData.headerMessage || '오늘의 운동과 식단을 완수해볼까요? 💪';
+
+      if (currentMode === 'member') {
+        renderMemberRoutines(appData.routines || []);
+        renderMemberFeedback(appData.feedback || {});
+        renderMealPhotos();
+        renderMemos('memberMemoList', appData.memos);
+        if (!silent) {
+          renderMemberReflection(appData.reflection || {});
+          renderMemberDiet(appData.diet || {}, 2100);
+        }
+      } else {
+        if (!silent) document.getElementById('inputCustomHeaderMsg').value = appData.headerMessage || '';
+        renderTrainerRoutines(appData.routines || []);
+        renderTrainerReview(appData, silent);
+        renderTrainerMealPhotos();
+        renderMemos('trainerMemoList', appData.memos);
+      }
+    }
+
+    /* ---------- 메모 (코치 ↔ 회원) ---------- */
+    function renderMemos(listId, memos) {
+      const el = document.getElementById(listId);
+      if (!memos || memos.length === 0) {
+        el.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">아직 메모가 없습니다.</p>';
+        lastMemoCount[listId] = 0;
+        return;
+      }
+      el.innerHTML = memos.map(m => {
+        const isTrainer = m.from === 'trainer';
+        const bubble = isTrainer ? 'bg-brand-500/15 border border-brand-500/30' : 'bg-indigo-500/15 border border-indigo-500/30';
+        const nameColor = isTrainer ? 'text-brand-400' : 'text-indigo-300';
+        const who = isTrainer ? '코치님' : `${esc(activeMemberName)} 회원님`;
+        return `
+          <div class="flex ${isTrainer ? 'justify-start' : 'justify-end'}">
+            <div class="max-w-[85%] rounded-xl px-3 py-2 text-xs text-slate-100 ${bubble}">
+              <div class="text-[10px] font-semibold ${nameColor} mb-0.5">${who} · ${esc(m.time)}</div>
+              <div class="whitespace-pre-wrap">${esc(m.text)}</div>
+            </div>
+          </div>`;
+      }).join('');
+      if (lastMemoCount[listId] !== memos.length) {
+        el.scrollTop = el.scrollHeight;
+        lastMemoCount[listId] = memos.length;
+      }
+    }
+
+    async function sendMemo() {
+      const inputEl = document.getElementById(currentMode === 'trainer' ? 'trainerMemoInput' : 'memberMemoInput');
+      const text = inputEl.value.trim();
+      if (!text) return;
+      const memo = {
+        id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        from: currentMode === 'trainer' ? 'trainer' : 'member',
+        text: text,
+        time: nowTimeStr()
+      };
+      const ok = await updateAndSave(d => { d.memos.push(memo); });
+      if (ok) inputEl.value = '';
+    }
+
+    /* ---------- 루틴 추가/수정/삭제 (회원, 트레이너 공통) ---------- */
+    function resetRoutineForms() {
+      editingRoutineId = null;
+      Object.values(FORM_IDS).forEach(ids => {
+        ['name', 'weight', 'sets', 'reps', 'note'].forEach(k => { document.getElementById(ids[k]).value = ''; });
+        document.getElementById(ids.btn).innerText = ids.addText;
+        document.getElementById(ids.cancel).classList.add('hidden');
+      });
+    }
+
+    function startEditRoutine(id) {
+      const ex = (appData.routines || []).find(r => String(r.id) === String(id));
+      if (!ex) return;
+      resetRoutineForms();
+      if (currentMode === 'member') document.getElementById('memberRoutineEditor').open = true;
+      editingRoutineId = ex.id;
+      const ids = FORM_IDS[currentMode];
+      document.getElementById(ids.name).value = ex.name || '';
+      document.getElementById(ids.weight).value = ex.weight || '';
+      document.getElementById(ids.sets).value = ex.sets || '';
+      document.getElementById(ids.reps).value = ex.reps || '';
+      document.getElementById(ids.note).value = ex.note || '';
+      document.getElementById(ids.btn).innerText = '수정 저장하기';
+      document.getElementById(ids.cancel).classList.remove('hidden');
+      document.getElementById(ids.name).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function submitRoutine(e) {
+      e.preventDefault();
+      const ids = FORM_IDS[currentMode];
+      const name = document.getElementById(ids.name).value.trim();
+      const weight = document.getElementById(ids.weight).value;
+      const sets = document.getElementById(ids.sets).value;
+      const reps = document.getElementById(ids.reps).value;
+      const note = document.getElementById(ids.note).value.trim();
+      const setNum = Number(sets);
+
+      if (!name || !(setNum >= 1 && setNum <= 20) || !(Number(reps) >= 1)) {
+        showToast('운동 이름, 세트수(1~20), 횟수를 확인해주세요');
+        return;
+      }
+      const editId = editingRoutineId;
+      const ok = await updateAndSave(d => {
+        if (editId !== null) {
+          const ex = d.routines.find(r => String(r.id) === String(editId));
+          if (ex) {
+            const old = Array.isArray(ex.completedSets) ? ex.completedSets : [];
+            ex.name = name; ex.weight = weight; ex.sets = sets; ex.reps = reps; ex.note = note;
+            ex.completedSets = Array.from({ length: setNum }, (_, i) => !!old[i]);
+            return;
+          }
+        }
+        d.routines.push({ id: Date.now(), name, weight, sets, reps, note, completedSets: Array(setNum).fill(false) });
+      });
+      if (ok) {
+        resetRoutineForms();
+        if (currentMode === 'member') document.getElementById('memberRoutineEditor').open = false;
+      }
+    }
+
+    async function removeExercise(id) {
+      if (!confirm("이 운동을 삭제할까요?")) return;
+      await updateAndSave(d => { d.routines = d.routines.filter(r => String(r.id) !== String(id)); });
+      if (String(editingRoutineId) === String(id)) resetRoutineForms();
+    }
+
+    async function clearAllRoutines() {
+      if (confirm("전체 삭제하시겠습니까?")) {
+        await updateAndSave(d => { d.routines = []; });
+        resetRoutineForms();
+      }
+    }
+
+    /* ---------- 회원 화면 ---------- */
+    function renderMemberRoutines(routines) {
+      const container = document.getElementById('memberRoutineList');
+      document.getElementById('routineCountBadge').innerText = `${routines.length}개 운동`;
+      if (!routines || routines.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-slate-500 text-sm"><i class="fa-solid fa-dumbbell text-3xl mb-2 block text-slate-600"></i>배정된 루틴이 없습니다.</div>`;
+        updateWorkoutProgress(0, 0);
+        return;
+      }
+
+      let totalSets = 0, completedSets = 0;
+      container.innerHTML = routines.map((ex, exIdx) => {
+        totalSets += Number(ex.sets);
+        const setChecksHtml = Array.from({ length: Number(ex.sets) }).map((_, setIdx) => {
+          const isDone = ex.completedSets && ex.completedSets[setIdx];
+          if (isDone) completedSets++;
+          return `
+            <label class="member-set-check flex items-center justify-center gap-2 min-h-11 bg-slate-950 px-3 py-2 rounded-lg border ${isDone?'border-brand-500/50 bg-brand-500/10':'border-slate-700'} cursor-pointer hover:border-brand-500/60">
+              <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleSetDone(${exIdx}, ${setIdx}, this.checked)" class="custom-checkbox w-5 h-5 rounded text-brand-500 cursor-pointer shrink-0">
+              <span class="text-sm ${isDone ? 'text-brand-400 line-through font-semibold' : 'text-slate-200'}">${setIdx + 1}세트</span>
+            </label>
+          `;
+        }).join('');
+
+        return `
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+            <div class="flex items-start justify-between gap-2">
+              <h4 class="font-bold text-white text-base mb-1">${esc(ex.name)} <span class="text-xs font-normal text-slate-400">(${ex.weight ? esc(ex.weight) + 'kg' : '맨몸'} × ${esc(ex.reps)}회)</span></h4>
+              <div class="flex gap-1 shrink-0">
+                <button onclick="startEditRoutine(${Number(ex.id)})" class="text-slate-400 hover:text-white w-10 h-10 flex items-center justify-center cursor-pointer" title="수정" aria-label="운동 수정"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="removeExercise(${Number(ex.id)})" class="text-rose-400 hover:text-rose-300 w-10 h-10 flex items-center justify-center cursor-pointer" title="삭제" aria-label="운동 삭제"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+            ${ex.note ? `<p class="text-xs text-brand-400 mb-2"><i class="fa-solid fa-lightbulb"></i> ${esc(ex.note)}</p>` : ''}
+            ${(()=>{const v=exerciseVideos.find(v=>String(v.name||'').replace(/\s/g,'').toLowerCase()===String(ex.name||'').replace(/\s/g,'').toLowerCase());return v?`<div class="mt-2">${videoLink(v)}</div>`:'';})()}
+            <div class="flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-900">${setChecksHtml}</div>
+          </div>
+        `;
+      }).join('');
+      updateWorkoutProgress(completedSets, totalSets);
+    }
+
+    function toggleSetDone(exIdx, setIdx, checked) {
+      const ex=appData&&appData.routines&&appData.routines[exIdx];
+      if(!ex)return;
+      const context=getSaveContext();
+      // 즉시 화면에 반영하되, 실제 구글 시트 저장 완료 전에는 완료 표시를 하지 않습니다.
+      if(!Array.isArray(ex.completedSets))ex.completedSets=[];
+      ex.completedSets[setIdx]=checked;
+      renderMemberRoutines(appData.routines);
+      if(pendingSetBatch && (pendingSetBatch.context.member!==context.member ||
+          pendingSetBatch.context.date!==context.date || pendingSetBatch.context.mode!==context.mode))
+        flushPendingSetBatch();
+      if(!pendingSetBatch){
+        pendingSetBatch={context,changes:new Map(),timer:null};
+        queuedSaveCount++;
+      }
+      const batch=pendingSetBatch;
+      batch.changes.set(String(ex.id)+':'+setIdx,{id:ex.id,index:setIdx,checked});
+      clearTimeout(batch.timer);
+      batch.timer=setTimeout(flushPendingSetBatch,500);
+      setSaveStatus('saving','운동 체크 저장 중...');
+    }
+
+    function updateWorkoutProgress(done, total) {
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      document.getElementById('memberWorkoutProgressText').innerText = `${pct}%`;
+      document.getElementById('memberWorkoutProgressSub').innerText = `(${done}/${total})`;
+      document.getElementById('memberWorkoutProgressBar').style.width = `${pct}%`;
+    }
+
+    function renderMemberReflection(ref) {
+      document.getElementById('refGoodText').value = ref.good || '';
+      document.getElementById('refBadText').value = ref.bad || '';
+    }
+
+    function saveWorkoutReflection(e) {
+      e.preventDefault();
+      const good = document.getElementById('refGoodText').value;
+      const bad = document.getElementById('refBadText').value;
+      updateAndSave(d => { d.reflection = { good, bad }; });
+    }
+
+    const dirtyMealDrafts = new Set();
+    const mealEditorOpen = new Set();
+    let foodShortcutState={favorites:[],recent:[]};
+    let foodShortcutRequest=0;
+    function setupMealShortcutsPanel(meal) {
+      const editor=document.getElementById(`meal-${meal}-editor`);
+      const panel=document.createElement('details');
+      panel.id=`meal-${meal}-shortcuts`;
+      panel.className='meal-shortcuts-toggle rounded-xl border border-slate-700/70 bg-slate-900/60 px-3 py-3';
+      const summary=document.createElement('summary');
+      summary.className='text-sm font-bold text-slate-200 py-1';
+      summary.textContent='⭐ 즐겨찾기 · 최근 음식 펼치기';
+      const content=document.createElement('div');
+      content.id=`meal-${meal}-shortcuts-content`;
+      content.className='space-y-3 pt-3';
+      panel.append(summary,content);
+      editor.appendChild(panel);
+      renderMealShortcuts(meal);
+    }
+    function renderMealShortcuts(meal) {
+      const panel=document.getElementById(`meal-${meal}-shortcuts-content`);
+      if(!panel)return;
+      panel.replaceChildren();
+      const groups=[['⭐ 즐겨찾기',foodShortcutState.favorites],['🕘 최근 먹은 음식',foodShortcutState.recent]];
+      groups.forEach(([title,items])=>{
+        const heading=document.createElement('p');heading.className='text-xs font-bold text-slate-300';heading.textContent=title;
+        const row=document.createElement('div');row.className='flex flex-wrap gap-1.5 mt-1.5';
+        items.slice(0,8).forEach(food=>{
+          const btn=document.createElement('button');btn.type='button';
+          btn.className='rounded-full border border-slate-600/80 bg-slate-950 hover:bg-slate-800 px-3 py-2 text-xs text-slate-100';
+          btn.textContent=food.name+(food.grams?' · '+food.grams+'g':'');
+          btn.title='이 음식과 영양성분을 입력칸에 추가';
+          btn.onclick=()=>insertShortcutFood(meal,food);
+          row.appendChild(btn);
+        });
+        if(!items.length){const none=document.createElement('span');none.className='text-xs text-slate-500';none.textContent='아직 등록된 음식이 없어요';row.appendChild(none);}
+        panel.append(heading,row);
+      });
+      const hint=document.createElement('p');hint.className='text-[11px] text-slate-500';
+      hint.textContent='저장된 식단의 ☆ 버튼으로 즐겨찾기를 등록할 수 있어요.';panel.appendChild(hint);
+    }
+    async function loadFoodShortcuts() {
+      if(currentMode!=='member'||!hasMemberAccess())return;
+      const request=++foodShortcutRequest,member=activeMemberName,date=selectedDate;
+      try{
+        const result=await apiPost({...apiCredentials(),action:'foodShortcuts'});
+        if(request!==foodShortcutRequest||member!==activeMemberName||date!==selectedDate)return;
+        if(result.status!=='success')throw Error(result.message||'음식 기록을 불러오지 못했습니다.');
+        foodShortcutState={favorites:Array.isArray(result.favorites)?result.favorites:[],recent:Array.isArray(result.recent)?result.recent:[]};
+        MEAL_KEYS.forEach(renderMealShortcuts);
+        MEAL_KEYS.forEach(m=>renderSavedMealCard(m,appData?.diet?.[m]||{}));
+      }catch(e){console.warn('최근 음식/즐겨찾기 불러오기 실패:',e.message);}
+    }
+    function insertShortcutFood(meal,food) {
+      openMealEditor(meal);
+      const main=document.getElementById(`meal-${meal}-desc`).closest('.food-card');
+      const card=main.querySelector('.food-entry input[type="text"]').value.trim()?null:main;
+      if(card)writeFood(card,food);
+      else addMealFood(meal,food,false);
+      dirtyMealDrafts.add(meal);
+      updateMealDraftTotals(meal);
+      showToast(food.name+' 입력 완료 · 저장 버튼을 눌러주세요.');
+    }
+    async function toggleSavedFoodFavorite(meal,index) {
+      if(currentMode!=='member'||!hasMemberAccess())return;
+      const item=appData?.diet?.[meal]||{};
+      const foods=Array.isArray(item.foods)&&item.foods.length?item.foods:
+        String(item.desc||'').split('\n').filter(Boolean).map((name,i)=>({name,
+          cal:i===0?item.cal:'',carb:i===0?item.carb:'',prot:i===0?item.prot:'',fat:i===0?item.fat:''}));
+      const food=foods[index];if(!food||!food.name)return;
+      const exists=foodShortcutState.favorites.some(f=>f.name.trim().toLowerCase()===String(food.name).trim().toLowerCase());
+      try{
+        const result=await apiPost({...apiCredentials(),action:'saveFoodFavorite',food,enabled:!exists});
+        if(result.status!=='success')throw Error(result.message||'저장 실패');
+        showToast(exists?'즐겨찾기 해제 완료':'즐겨찾기 등록 완료');
+        await loadFoodShortcuts();
+      }catch(e){showToast('즐겨찾기 변경 실패: '+e.message);}
+    }
+    const FOOD_NUTRIENTS = [
+      {key:'cal',label:'kcal'}, {key:'carb',label:'탄수화물(g)'},
+      {key:'prot',label:'단백질(g)'}, {key:'fat',label:'지방(g)'}
+    ];
+    // 100g당 대략적인 참고값. 제품·조리법에 따라 달라지므로 회원이 직접 수정할 수 있습니다.
+    const BASIC_FOODS = [
+      ['흰쌀밥',130,28.2,2.4,0.3],['현미밥',111,23,2.6,0.9],['잡곡밥',145,30,3.2,0.7],
+      ['고구마',90,20.7,1.6,0.1],['감자',87,20.1,1.9,0.1],['오트밀',389,66.3,16.9,6.9],
+      ['식빵',265,49,9,3.2],['통밀빵',247,41,13,4.2],['바나나',89,22.8,1.1,0.3],
+      ['사과',52,13.8,0.3,0.2],['귤',47,12,0.8,0.2],['딸기',32,7.7,0.7,0.3],
+      ['블루베리',57,14.5,0.7,0.3],['오렌지',47,11.8,0.9,0.1],['포도',69,18.1,0.7,0.2],
+      ['닭가슴살',165,0,31,3.6],['닭다리살',209,0,26,10.9],['삶은 계란',155,1.1,12.6,10.6],
+      ['계란',143,0.7,12.6,9.5],['소고기 우둔살',163,0,26,6],['소고기 안심',187,0,26,8],
+      ['돼지고기 안심',143,0,26,4],['돼지고기 목살',250,0,17,20],['연어',208,0,20,13],
+      ['참치',132,0,29,1],['고등어',205,0,19,14],['새우',99,0.2,24,0.3],
+      ['두부',76,1.9,8.1,4.8],['연두부',55,2,5,2.5],['콩나물',30,5.9,3,0.2],
+      ['브로콜리',34,6.6,2.8,0.4],['양배추',25,5.8,1.3,0.1],['오이',15,3.6,0.7,0.1],
+      ['토마토',18,3.9,0.9,0.2],['방울토마토',18,3.9,0.9,0.2],['양상추',15,2.9,1.4,0.2],
+      ['시금치',23,3.6,2.9,0.4],['버섯',22,3.3,3.1,0.3],['아보카도',160,8.5,2,14.7],
+      ['아몬드',579,21.6,21.2,49.9],['호두',654,13.7,15.2,65.2],['땅콩',567,16.1,25.8,49.2],
+      ['우유',61,4.8,3.2,3.3],['저지방 우유',42,5,3.4,1],['그릭요거트 무가당',97,3.9,9,5],
+      ['플레인 요거트',61,4.7,3.5,3.3],['체다치즈',403,1.3,25,33],['김치',15,2.4,1.1,0.5],
+      ['올리브오일',884,0,0,100],['꿀',304,82.4,0.3,0]
+    ].map(([name,cal,carb,prot,fat])=>({name,cal,carb,prot,fat}));
+    const findBasicFood=name=>BASIC_FOODS.find(f=>f.name===String(name||'').trim());
+    const roundFoodValue=n=>String(Math.round(n*10)/10);
+
+    function applyFoodReference(meal,card,food,grams=100,keepValues=false) {
+      if(!food)return;
+      const nameInput=card.querySelector('.food-entry input[type="text"]');
+      nameInput.value=food.name;
+      nameInput.dataset.foodKey=food.name;
+      const serving=card.querySelector('.food-serving');
+      serving.classList.remove('hidden');
+      const gramsInput=serving.querySelector('input');
+      gramsInput.value=grams;
+      if(!keepValues) {
+        FOOD_NUTRIENTS.forEach(({key})=>{
+          card.querySelector(`[data-nutrient="${key}"]`).value=roundFoodValue(Number(food[key])*grams/100);
+        });
+        dirtyMealDrafts.add(meal);
+        updateMealDraftTotals(meal);
+      }
+      card.querySelector('.food-suggestions').replaceChildren();
+      card.querySelector('.food-suggestions').classList.add('hidden');
+    }
+
+    function setupFoodSearch(meal,card) {
+      const input=card.querySelector('.food-entry input[type="text"]');
+      const suggestions=document.createElement('div');
+      suggestions.className='food-suggestions hidden rounded-lg border border-slate-700 bg-slate-800 p-1 mt-2';
+      const serving=document.createElement('label');
+      serving.className='food-serving hidden flex items-center gap-2 mt-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-3 py-2';
+      const caption=document.createElement('span');caption.className='text-xs font-semibold text-emerald-300 shrink-0';caption.textContent='섭취량';
+      const grams=document.createElement('input');grams.type='number';grams.min='1';grams.max='5000';grams.step='1';grams.value='100';
+      grams.className='w-20 min-w-0 rounded-lg bg-slate-900 border border-slate-700 px-2 py-1.5 text-sm text-white';
+      const unit=document.createElement('span');unit.className='text-xs text-slate-300';unit.textContent='g · 100g당 참고값';
+      serving.append(caption,grams,unit);
+      card.querySelector('.food-entry').insertAdjacentElement('afterend',suggestions);
+      suggestions.insertAdjacentElement('afterend',serving);
+      grams.addEventListener('input',()=>{
+        const f=findBasicFood(input.dataset.foodKey);
+        if(f&&Number(grams.value)>0&&Number(grams.value)<=5000)applyFoodReference(meal,card,f,Number(grams.value));
+      });
+      input.addEventListener('input',()=>{
+        if(input.value.trim()!==input.dataset.foodKey){delete input.dataset.foodKey;serving.classList.add('hidden');}
+        suggestions.replaceChildren();
+        const q=input.value.trim().toLowerCase();
+        const results=q?BASIC_FOODS.filter(f=>f.name.toLowerCase().includes(q)).slice(0,6):[];
+        suggestions.classList.toggle('hidden',results.length===0);
+        results.forEach(f=>{
+          const btn=document.createElement('button');btn.type='button';
+          btn.className='block w-full text-left rounded-md px-3 py-2.5 text-sm text-white hover:bg-slate-700';
+          btn.textContent=`${f.name} · 100g ${f.cal}kcal (참고)`;
+          btn.onclick=()=>applyFoodReference(meal,card,f);
+          suggestions.appendChild(btn);
+        });
+      });
+      input.addEventListener('change',()=>{
+        const exact=findBasicFood(input.value);
+        if(exact&&input.dataset.foodKey!==exact.name)applyFoodReference(meal,card,exact);
+      });
+    }
+
+    function makeFoodNutrients(meal, values = {}) {
+      const grid = document.createElement('div');
+      grid.className = 'food-nutrients grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2';
+      FOOD_NUTRIENTS.forEach(({key,label}) => {
+        const wrap=document.createElement('label');wrap.className='block min-w-0';
+        const caption=document.createElement('span');caption.className='block text-[10px] text-slate-400 mb-1';caption.textContent=label;
+        const input=document.createElement('input');input.type='number';input.min='0';input.step='any';
+        input.placeholder='0';input.dataset.nutrient=key;input.value=values[key]??'';
+        input.className='w-full min-w-0 bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200';
+        input.addEventListener('input', () => {dirtyMealDrafts.add(meal);updateMealDraftTotals(meal);});
+        wrap.append(caption,input);grid.appendChild(wrap);
+      });
+      return grid;
+    }
+
+    function setupMainFoodNutrition(meal) {
+      const name=document.getElementById(`meal-${meal}-desc`);
+      FOOD_NUTRIENTS.forEach(({key})=>{
+        const total=document.getElementById(`meal-${meal}-${key}`);
+        total.readOnly=true;total.title='음식별 입력값에서 자동 계산됩니다';
+      });
+      const row=name.parentElement;
+      row.classList.add('food-entry');
+      const card=document.createElement('div');card.className='food-card rounded-lg border border-slate-800/70 p-2.5';
+      row.parentElement.insertBefore(card,row);
+      card.appendChild(row);
+      card.appendChild(makeFoodNutrients(meal));
+      setupFoodSearch(meal,card);
+    }
+
+    function setupMealEditor(meal) {
+      const firstCard=document.getElementById(`meal-${meal}-desc`).closest('.food-card');
+      const parent=firstCard.parentElement;
+      const editor=document.createElement('div');
+      editor.id=`meal-${meal}-editor`;
+      editor.className='space-y-2.5';
+      parent.insertBefore(editor,firstCard);
+      let next=editor.nextSibling;
+      while(next){const current=next;next=next.nextSibling;editor.appendChild(current);}
+    }
+
+    function openMealEditor(meal) {
+      mealEditorOpen.add(meal);
+      const editor=document.getElementById(`meal-${meal}-editor`);
+      editor.classList.remove('hidden');
+      editor.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
+
+    function getFoodRows(meal) {
+      const main = document.getElementById(`meal-${meal}-desc`).closest('.food-card');
+      return [main,...document.querySelectorAll(`#meal-${meal}-extra .food-card`)];
+    }
+
+    function readFood(row) {
+      const food={name:row.querySelector('input[type="text"]').value.trim()};
+      FOOD_NUTRIENTS.forEach(({key})=>food[key]=row.querySelector(`[data-nutrient="${key}"]`).value);
+      const nameInput=row.querySelector('.food-entry input[type="text"]');
+      if(findBasicFood(nameInput.dataset.foodKey) && food.name===nameInput.dataset.foodKey){
+        food.foodKey=nameInput.dataset.foodKey;
+        food.grams=row.querySelector('.food-serving input').value;
+      }
+      return food;
+    }
+
+    function writeFood(row,food) {
+      row.querySelector('input[type="text"]').value=food.name||'';
+      FOOD_NUTRIENTS.forEach(({key})=>row.querySelector(`[data-nutrient="${key}"]`).value=food[key]??'');
+      const nameInput=row.querySelector('.food-entry input[type="text"]');
+      if(food.foodKey&&findBasicFood(food.foodKey)){
+        applyFoodReference('',row,findBasicFood(food.foodKey),Number(food.grams)||100,true);
+      }else{
+        delete nameInput.dataset.foodKey;
+        row.querySelector('.food-serving').classList.add('hidden');
+      }
+    }
+
+    function updateMealDraftTotals(meal) {
+      const foods=getFoodRows(meal).map(readFood);
+      FOOD_NUTRIENTS.forEach(({key})=>{
+        const total=foods.reduce((sum,f)=>sum+(Math.max(0,Number(f[key]))||0),0);
+        document.getElementById(`meal-${meal}-${key}`).value=String(Math.round(total*100)/100);
+      });
+    }
+
+    function renderSavedMealCard(meal,item) {
+      const box=document.getElementById(`meal-${meal}-saved`);
+      const foods=Array.isArray(item.foods)&&item.foods.length
+        ? item.foods
+        : String(item.desc||'').split('\n').filter(Boolean).map((name,index)=>({
+            name,cal:index===0?item.cal:'',carb:index===0?item.carb:'',
+            prot:index===0?item.prot:'',fat:index===0?item.fat:''
+          }));
+      const recorded=foods.some(f=>String(f.name||'').trim()) || ['cal','carb','prot','fat'].some(k=>Number(item[k]));
+      box.classList.toggle('hidden',!recorded);
+      if(!recorded){box.replaceChildren();return;}
+      const nutrientLine=f=>FOOD_NUTRIENTS.filter(({key})=>f[key]!==''&&f[key]!=null)
+        .map(({key,label})=>`${label==='kcal'?'열량':label} ${esc(String(f[key]))}${key==='cal'?'kcal':'g'}`).join(' · ');
+      const rows=foods.filter(f=>String(f.name||'').trim()).map((food,index)=>`
+        <div class="py-2.5 ${index?'border-t border-slate-700/60':''}">
+          <div class="flex items-start justify-between gap-2">
+            <div class="text-xs font-semibold text-white break-words pt-2">${esc(food.name)}</div>
+            ${currentMode==='member'?`<button type="button" onclick="toggleSavedFoodFavorite('${meal}',${index})" aria-label="${esc(food.name)} 즐겨찾기 변경" class="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-sm ${foodShortcutState.favorites.some(f=>f.name.trim().toLowerCase()===String(food.name).trim().toLowerCase())?'text-amber-300':'text-slate-500'}">${foodShortcutState.favorites.some(f=>f.name.trim().toLowerCase()===String(food.name).trim().toLowerCase())?'★':'☆'}</button>`:''}
+          </div>
+          ${nutrientLine(food)?`<div class="mt-1 text-[11px] text-slate-400 leading-relaxed">${nutrientLine(food)}</div>`:''}
+        </div>`).join('');
+      const sum=FOOD_NUTRIENTS.map(({key,label})=>`
+        <div class="rounded-lg bg-slate-900/80 px-2 py-2 text-center min-w-0">
+          <div class="text-[10px] text-slate-400">${label}</div>
+          <div class="text-xs font-bold text-emerald-300 mt-0.5">${esc(String(item[key]||0))}${key==='cal'?' kcal':'g'}</div>
+        </div>`).join('');
+      box.className='rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2';
+      box.innerHTML=`<div class="flex items-center justify-between gap-2">
+        <h5 class="text-xs font-bold text-emerald-400"><i class="fa-solid fa-circle-check"></i> 저장된 식단</h5>
+        <div class="flex items-center gap-2"><span class="text-[11px] text-slate-400">음식 ${foods.filter(f=>String(f.name||'').trim()).length}개</span>
+          <button type="button" onclick="openMealEditor('${meal}')" class="rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-bold text-emerald-300">수정하기</button></div>
+        </div><div class="px-1">${rows||'<div class="text-xs text-slate-400">영양성분 기록</div>'}</div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-slate-700/50 pt-3">${sum}</div>`;
+    }
+
+    function renderMemberDiet(diet, targetCal) {
+      document.getElementById('memberTargetCalorieText').innerText = targetCal.toLocaleString();
+      let totalCal = 0, totalCarb = 0, totalProt = 0, totalFat = 0;
+
+      MEAL_KEYS.forEach(m => {
+        const item = diet[m] || {};
+        renderSavedMealCard(m,item);
+        const hasSaved=!!(String(item.desc||'').trim()||['cal','carb','prot','fat'].some(key=>Number(item[key])));
+        document.getElementById(`meal-${m}-editor`).classList.toggle('hidden',hasSaved&&!mealEditorOpen.has(m));
+        const fields = { cal: item.cal, carb: item.carb, prot: item.prot, fat: item.fat };
+        Object.keys(fields).forEach(f => {
+          const el = document.getElementById(`meal-${m}-${f}`);
+          if (!dirtyMealDrafts.has(m) && document.activeElement !== el) el.value = fields[f] || '';
+        });
+        const mainFood = document.getElementById(`meal-${m}-desc`);
+        const extraFoods = document.getElementById(`meal-${m}-extra`);
+        if (!dirtyMealDrafts.has(m) && !mainFood.closest('.rounded-xl').contains(document.activeElement)) {
+          const foods=Array.isArray(item.foods)?item.foods.map(f=>({...f})):
+            String(item.desc||'').split('\n').map((name,index)=>({name,
+              cal:index===0?item.cal:'',carb:index===0?item.carb:'',
+              prot:index===0?item.prot:'',fat:index===0?item.fat:''}));
+          writeFood(mainFood.closest('.food-card'), foods.shift()||{});
+          extraFoods.replaceChildren();
+          foods.filter(f=>f.name).forEach(food => addMealFood(m, food, false));
+        }
+
+        const badge = document.getElementById(`badge-${m}`);
+        if (item.desc || item.cal) {
+          badge.className = "text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-semibold";
+          badge.innerText = "작성완료";
+        } else {
+          badge.className = "text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded";
+          badge.innerText = "미작성";
+        }
+        totalCal += Number(item.cal) || 0;
+        totalCarb += Number(item.carb) || 0;
+        totalProt += Number(item.prot) || 0;
+        totalFat += Number(item.fat) || 0;
+      });
+
+      document.getElementById('totalCaloriesBadge').innerText = `총 ${totalCal.toLocaleString()} kcal`;
+      document.getElementById('macroCarbText').innerText = `${totalCarb}g`;
+      document.getElementById('macroProteinText').innerText = `${totalProt}g`;
+      document.getElementById('macroFatText').innerText = `${totalFat}g`;
+      document.getElementById('memberCalorieText').innerText = totalCal.toLocaleString();
+      document.getElementById('memberCalorieBar').style.width = `${Math.min(Math.round((totalCal / targetCal) * 100), 100)}%`;
+      document.getElementById('waterDisplay').innerText = `${diet.water || 0} ml`;
+    }
+
+    function addMealFood(meal, value = '', focus = true) {
+      const container = document.getElementById(`meal-${meal}-extra`);
+      const card = document.createElement('div');card.className='food-card rounded-lg border border-slate-800/70 p-2.5';
+      const row = document.createElement('div');row.className = 'food-entry flex items-center gap-2';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = '추가 음식 입력';
+      const food=typeof value==='string'?{name:value}:value;
+      input.value = food.name||'';
+      input.className = 'meal-extra-input min-w-0 flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200';
+      input.addEventListener('input', () => dirtyMealDrafts.add(meal));
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.className = 'shrink-0 min-h-11 px-3 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold';
+      save.textContent = '저장';
+      save.setAttribute('aria-label', '이 끼니의 모든 음식 저장');
+      save.onclick = () => saveSingleMeal(meal);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'shrink-0 min-h-11 px-2.5 rounded-lg border border-rose-500/30 text-rose-400 text-xs';
+      remove.textContent = '삭제';
+      remove.setAttribute('aria-label', '추가 음식 삭제');
+      remove.onclick = () => { dirtyMealDrafts.add(meal); card.remove(); updateMealDraftTotals(meal); };
+      row.append(input, save, remove);
+      card.append(row,makeFoodNutrients(meal,food));container.appendChild(card);
+      setupFoodSearch(meal,card);
+      if(food.foodKey&&findBasicFood(food.foodKey))applyFoodReference(meal,card,findBasicFood(food.foodKey),Number(food.grams)||100,true);
+      if (focus) { dirtyMealDrafts.add(meal); input.focus(); }
+    }
+
+    function getMealValues(m) {
+      const foods=getFoodRows(m).map(readFood).filter(f=>f.name||FOOD_NUTRIENTS.some(({key})=>f[key]!==''));
+      const totals={};
+      FOOD_NUTRIENTS.forEach(({key})=>totals[key]=String(Math.round(foods.reduce((sum,f)=>sum+(Math.max(0,Number(f[key]))||0),0)*100)/100));
+      return {
+          desc: foods.map(f=>f.name).filter(Boolean).join('\n'),
+          ...totals,
+          foods
+      };
+    }
+
+    async function saveSingleMeal(meal) {
+      const values = getMealValues(meal);
+      const saved = await updateAndSave(d => { d.diet[meal] = { ...(d.diet[meal] || {}), ...values }; });
+      if (saved) {
+        dirtyMealDrafts.delete(meal);
+        mealEditorOpen.delete(meal);
+        renderMemberDiet(appData.diet || {},2100);
+        loadFoodShortcuts();
+      }
+    }
+
+    function saveDietLog() {
+      const values = {};
+      MEAL_KEYS.forEach(m => { values[m] = getMealValues(m); });
+      updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = { ...(d.diet[m] || {}), ...values[m] }; }); }).then(saved => {
+        if (saved) { dirtyMealDrafts.clear();mealEditorOpen.clear();renderMemberDiet(appData.diet || {},2100);loadFoodShortcuts(); }
+      });
+    }
+
+    function adjustWater(amt) {
+      updateAndSave(d => { d.diet.water = Math.max(0, (Number(d.diet.water) || 0) + amt); });
+    }
+
+    function renderMemberFeedback(fb) {
+      const card = document.getElementById('trainerFeedbackCard');
+      if (fb && (fb.workout || fb.diet)) {
+        card.classList.remove('hidden');
+        document.getElementById('feedbackTimeDisplay').innerText = fb.time ? `전송시간: ${fb.time}` : '';
+        document.getElementById('feedbackWorkoutText').innerText = fb.workout || '작성된 코멘트가 없습니다.';
+        document.getElementById('feedbackDietText').innerText = fb.diet || '작성된 코멘트가 없습니다.';
+      } else {
+        card.classList.add('hidden');
+      }
+    }
+
+    /* ---------- 모드 전환 ---------- */
+    async function switchMode(mode) {
+      resetSaveStatus();
+      currentMode = mode;
+      latestLoadRequest++;
+      resetRoutineForms();
+      updateAccessState();
+      document.getElementById('trainerView').classList.toggle('hidden', mode !== 'trainer');
+      const modeButtonBase = 'header-mode-button whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5';
+      document.getElementById('btnMemberMode').className = modeButtonBase + (mode === 'member' ? ' bg-brand-500 text-slate-950 font-bold' : ' text-slate-400 hover:text-white');
+      document.getElementById('btnTrainerMode').className = modeButtonBase + (mode === 'trainer' ? ' bg-indigo-600 text-white font-bold' : ' text-slate-400 hover:text-white cursor-pointer');
+      if (mode !== 'trainer' || activeMemberName) await loadDataFromCloud();
+      if (mode==='member')loadFoodShortcuts();
+    }
+
+    // 비밀번호는 서버(Apps Script)에서 확인
+    async function trySwitchToTrainer() {
+      if (trainerPassword) { await switchMode('trainer'); await loadMemberRegistry(); return; }
+      const input = prompt("트레이너 비밀번호를 입력하세요");
+      if (input === null) return;
+      try {
+        showToast('비밀번호 확인 중...');
+        const result = await apiPost({ action: 'verify', password: input });
+        if (result.status === 'success') {
+          trainerPassword = input;
+          await switchMode('trainer');
+          await loadMemberRegistry();
+        } else {
+          alert("비밀번호가 틀렸습니다.\n(Apps Script 코드에서 비밀번호를 바꿨는지도 확인해주세요)");
+        }
+      } catch (e) {
+        console.error(e);
+        alert("비밀번호 확인 중 오류가 났어요. 인터넷 연결을 확인해주세요.");
+      }
+    }
+
+    // 회원 목록은 Apps Script의 MemberAccess 시트에서 불러옵니다.
+    async function loadMemberRegistry() {
+      if (!trainerPassword) return;
+      const status = document.getElementById('memberRegistryStatus');
+      status.textContent = '회원 목록을 불러오는 중...';
+      try {
+        const result = await apiPost({action:'listMembers',password:trainerPassword});
+        if (result.status !== 'success' || !Array.isArray(result.members)) throw new Error(result.message || '목록 조회 실패');
+        const previousMember = activeMemberName;
+        registryMembers = result.members;
+        if (!registryMembers.includes(activeMemberName)) activeMemberName = registryMembers[0] || '';
+        updateTrainerMemberDropdown();
+        if (activeMemberName && (previousMember !== activeMemberName || !appData)) await loadDataFromCloud();
+        document.getElementById('memberRegistryCount').textContent = `(${registryMembers.length}명)`;
+        const list = document.getElementById('memberRegistryList');
+        list.replaceChildren();
+        registryMembers.forEach(name => {
+          const row = document.createElement('div');
+          row.className = 'flex flex-wrap items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-3';
+          const label = document.createElement('span');
+          label.className = 'text-sm text-slate-200 font-semibold flex-1';
+          label.textContent = name + ' 회원님';
+          const copy = document.createElement('button');
+          copy.type='button'; copy.className='text-xs rounded-lg px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white'; copy.textContent='전용 링크 복사';
+          copy.onclick=()=>copyMemberLink(name);
+          const rotate = document.createElement('button');
+          rotate.type='button'; rotate.className='text-xs rounded-lg px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200'; rotate.textContent='링크 재발급';
+          rotate.onclick=()=>rotateMemberLink(name);
+          row.append(label,copy,rotate); list.append(row);
+        });
+        status.textContent = `등록된 회원 ${registryMembers.length}명 · 회원별 기록은 기존대로 유지됩니다.`;
+        await loadTrainerOverview();
+      } catch (e) { status.textContent = '회원 목록을 불러오지 못했습니다: ' + e.message; }
+    }
+
+    let overviewRequest = 0;
+    async function loadTrainerOverview() {
+      if (currentMode !== 'trainer' || !trainerPassword) return;
+      const request = ++overviewRequest, date = selectedDate;
+      const status = document.getElementById('overviewStatus');
+      status.textContent = '회원 현황 불러오는 중...';
+      try {
+        const result = await apiPost({action:'trainerOverview',password:trainerPassword,date});
+        if (request !== overviewRequest || date !== selectedDate || currentMode !== 'trainer') return;
+        if (result.status !== 'success' || !Array.isArray(result.members)) throw Error(result.message || '현황 조회 실패');
+        const items = result.members;
+        const pending = items.filter(m => m.pendingWorkout || m.pendingDiet || Number(m.pendingVideos)>0);
+        const inactive = items.filter(m => {
+          if (!m.lastDate) return true;
+          const elapsed = (Date.parse(date+'T00:00:00')-Date.parse(m.lastDate+'T00:00:00'))/86400000;
+          return elapsed >= 7;
+        });
+        document.getElementById('overviewTotal').textContent = items.length+'명';
+        document.getElementById('overviewActive').textContent = items.filter(m => m.activeToday).length+'명';
+        document.getElementById('overviewPending').textContent = items.filter(m=>m.pendingWorkout||m.pendingDiet).length+'명';
+        document.getElementById('overviewVideos').textContent = items.reduce((n,m)=>n+(Number(m.pendingVideos)||0),0)+'건';
+        const makeRows = (rootId, list, getDetail, empty) => {
+          const root=document.getElementById(rootId);root.replaceChildren();
+          if(!list.length){const p=document.createElement('p');p.className='text-slate-500 py-2';p.textContent=empty;root.appendChild(p);return;}
+          list.forEach(m=>{
+            const button=document.createElement('button');button.type='button';
+            button.className='w-full flex justify-between items-center gap-2 rounded-lg p-2 bg-slate-900 hover:bg-slate-800 text-left';
+            const name=document.createElement('span');name.className='text-slate-100 font-semibold';name.textContent=m.name+' 회원님';
+            const detail=document.createElement('span');detail.className='text-slate-400 text-[11px]';detail.textContent=getDetail(m);
+            button.append(name,detail);
+            button.onclick=()=>openOverviewMember(m,rootId);
+            root.appendChild(button);
+          });
+        };
+        makeRows('overviewNeedsAttention',pending,m=>[
+          m.pendingWorkout?'운동':'',m.pendingDiet?'식단':'',m.pendingVideos?`영상 ${m.pendingVideos}건`:''
+        ].filter(Boolean).join(' · '),'확인 대기 중인 기록이 없습니다.');
+        makeRows('overviewFeedbackDone',items.filter(m=>m.feedbackDone&&!m.pendingWorkout&&!m.pendingDiet),
+          ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
+        makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
+        status.textContent = `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
+      } catch(e) {
+        if(request !== overviewRequest)return;
+        status.textContent='현황을 불러오지 못했습니다: '+e.message;
+      }
+    }
+    async function openOverviewMember(member, listId) {
+      resetSaveStatus();
+      clearRoutineCopyPreview();
+      clearTrainerMemberSearch();
+      const date = listId === 'overviewInactive' && member.lastDate ? member.lastDate : selectedDate;
+      activeMemberName = member.name;
+      selectedDate = date;
+      document.getElementById('currentDateInput').value = date;
+      document.getElementById('todayDateDisplay').textContent = date;
+      document.getElementById('trainerMemberSelect').value = member.name;
+      resetRoutineForms();
+      await loadDataFromCloud(); // 해당 회원의 운동·식단·영상 자료를 함께 갱신
+      if (!appData) { showToast('회원 기록을 불러오지 못했습니다.'); return; }
+      const videoOnly = listId === 'overviewNeedsAttention' && member.pendingVideos && !member.pendingWorkout && !member.pendingDiet;
+      const target = videoOnly
+        ? document.getElementById('trainerFormVideos').closest('section')
+        : document.getElementById('reviewRefGood').closest('.rounded-2xl');
+      if (target) {
+        target.scrollIntoView({behavior:'smooth',block:'start'});
+        target.classList.add('ring-2','ring-brand-500');
+        setTimeout(()=>target.classList.remove('ring-2','ring-brand-500'),2400);
+      }
+      showToast(`${member.name} 회원님의 ${date} 기록을 열었습니다.`);
+    }
+    function buildMemberLink(name, token) {
+      const url = new URL(window.location.origin + window.location.pathname);
+      url.searchParams.set('name', name); url.searchParams.set('token', token);
+      return url.toString();
+    }
+    async function copyTextSafe(value) {
+      try { await navigator.clipboard.writeText(value); }
+      catch (e) { window.prompt('아래 링크를 전체 선택해서 복사하세요.', value); }
+    }
+    async function copyMemberLink(name) {
+      try {
+        const r = await apiPost({action:'getMemberLink',name,password:trainerPassword});
+        if (r.status !== 'success' || !r.token) throw new Error(r.message || '링크 조회 실패');
+        await copyTextSafe(buildMemberLink(name,r.token)); showToast(name + ' 회원 전용 링크 복사 완료');
+      } catch(e) { alert('링크 복사 실패: ' + e.message); }
+    }
+    async function rotateMemberLink(name) {
+      if (!confirm(name + ' 회원의 링크를 재발급할까요? 이전 링크는 즉시 사용할 수 없게 됩니다.')) return;
+      try {
+        const r=await apiPost({action:'rotateMemberToken',name,password:trainerPassword});
+        if(r.status!=='success'||!r.token)throw new Error(r.message||'재발급 실패');
+        await copyTextSafe(buildMemberLink(name,r.token));
+        alert('새 링크를 복사했습니다. 기존 링크는 더 이상 사용할 수 없으니 회원님께 새 링크를 보내주세요.');
+      } catch(e) { alert('링크 재발급 실패: '+e.message); }
+    }
+    async function addNewMember(event) {
+      event.preventDefault();
+      const field=document.getElementById('newMemberName'), button=document.getElementById('addMemberButton');
+      const name=field.value.trim(); if(!name)return;
+      button.disabled=true;
+      try {
+        const r=await apiPost({action:'addMember',name,password:trainerPassword});
+        if(r.status!=='success'||!r.token)throw new Error(r.message||'회원 등록 실패');
+        field.value='';
+        await loadMemberRegistry();
+        await copyTextSafe(buildMemberLink(name,r.token));
+        alert(name+' 회원 등록 완료! 전용 링크를 복사했습니다. 회원님께 개인적으로 보내주세요.');
+      } catch(e) { alert('회원 추가 실패: '+e.message); }
+      finally { button.disabled=false; }
+    }
+
+    function updateTrainerMemberDropdown() {
+      const members = getRegisteredMembers();
+      document.getElementById('trainerMemberSelect').innerHTML = members.map(m => `<option value="${esc(m)}" ${m === activeMemberName ? 'selected' : ''}>${esc(m)} 회원님</option>`).join('');
+    }
+
+    function clearTrainerMemberSearch() {
+      const input=document.getElementById('trainerMemberSearch');
+      const results=document.getElementById('trainerMemberSearchResults');
+      if(input)input.value='';
+      if(results){results.replaceChildren();results.classList.add('hidden');}
+    }
+
+    function filterTrainerMemberSearch() {
+      const input=document.getElementById('trainerMemberSearch');
+      const results=document.getElementById('trainerMemberSearchResults');
+      const query=input.value.trim().toLocaleLowerCase('ko-KR');
+      results.replaceChildren();
+      if(currentMode!=='trainer'||!query){results.classList.add('hidden');return;}
+      const matching=getRegisteredMembers().filter(name=>name.toLocaleLowerCase('ko-KR').includes(query)).slice(0,10);
+      matching.forEach(name=>{
+        const option=document.createElement('button');
+        option.type='button';option.setAttribute('role','option');
+        option.className='block w-full text-left px-3 py-3 rounded-lg text-sm text-slate-100 hover:bg-indigo-600/30 focus:bg-indigo-600/30';
+        option.textContent=name+' 회원님';
+        option.onclick=()=>selectTrainerMemberFromSearch(name);
+        results.appendChild(option);
+      });
+      if(!matching.length){
+        const empty=document.createElement('p');empty.className='text-xs text-slate-400 p-3';
+        empty.textContent='일치하는 회원이 없습니다.';results.appendChild(empty);
+      }
+      results.classList.remove('hidden');
+    }
+
+    function handleTrainerMemberSearchKey(event) {
+      if(event.key==='Escape'){clearTrainerMemberSearch();return;}
+      if(event.key==='Enter'){
+        const first=getRegisteredMembers().find(name=>name.toLocaleLowerCase('ko-KR').includes(event.currentTarget.value.trim().toLocaleLowerCase('ko-KR')));
+        if(first&&event.currentTarget.value.trim()){
+          event.preventDefault();selectTrainerMemberFromSearch(first);
+        }
+      }
+    }
+
+    async function selectTrainerMemberFromSearch(name) {
+      if(!getRegisteredMembers().includes(name))return;
+      clearTrainerMemberSearch();
+      document.getElementById('trainerMemberSelect').value=name;
+      await onSelectMemberChange();
+      if(appData)showToast(name+' 회원님의 기록을 불러왔습니다.');
+    }
+
+    async function onSelectMemberChange() {
+      resetSaveStatus();
+      clearTrainerMemberSearch();
+      clearRoutineCopyPreview();
+      activeMemberName = document.getElementById('trainerMemberSelect').value;
+      resetRoutineForms();
+      await loadDataFromCloud();
+      await loadExtras();
+    }
+
+    /* ---------- 트레이너 화면 ---------- */
+    async function saveCustomHeaderMsg() {
+      const msg = document.getElementById('inputCustomHeaderMsg').value;
+      await updateAndSave(d => { d.headerMessage = msg; });
+    }
+
+    function renderTrainerRoutines(routines) {
+      const container = document.getElementById('trainerPrescribedList');
+      if (!routines || routines.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500 py-2 text-center">처방된 루틴이 없습니다.</p>`;
+        return;
+      }
+      container.innerHTML = routines.map(ex => `
+        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+          <div>
+            <div class="font-bold text-white">${esc(ex.name)}</div>
+            <div class="text-[10px] text-slate-400">${ex.weight ? esc(ex.weight) + 'kg | ' : ''}${esc(ex.sets)}세트 × ${esc(ex.reps)}회</div>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="startEditRoutine(${Number(ex.id)})" class="text-slate-400 hover:text-white p-1 cursor-pointer"><i class="fa-solid fa-pen"></i></button>
+            <button onclick="removeExercise(${Number(ex.id)})" class="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    let routineCopySelection=null;
+    let routineCopyRequest=0;
+    function clearRoutineCopyPreview(message='지난 날짜를 선택해 운동을 확인해보세요.') {
+      ++routineCopyRequest;
+      routineCopySelection=null;
+      document.getElementById('routineCopyPreview').classList.add('hidden');
+      document.getElementById('routineCopyItems').replaceChildren();
+      document.getElementById('routineCopyStatus').textContent=message;
+    }
+
+    async function previewRoutineCopy() {
+      clearRoutineCopyPreview('지난 루틴을 불러오는 중...');
+      const request=routineCopyRequest;
+      if(currentMode!=='trainer'||!trainerPassword){clearRoutineCopyPreview('트레이너 로그인이 필요합니다.');return;}
+      const source=document.getElementById('routineCopySourceDate').value;
+      const member=activeMemberName;
+      const target=selectedDate;
+      if(!source||source>=target){clearRoutineCopyPreview('복사할 날짜는 현재 선택된 날짜보다 이전이어야 합니다.');return;}
+      try {
+        const result=await apiPost({action:'read',member,date:source,password:trainerPassword});
+        if(request!==routineCopyRequest||member!==activeMemberName||target!==selectedDate)return;
+        if(result.status==='error'||result.status==='denied')throw Error(result.message||'조회 권한이 없습니다.');
+        const routines=Array.isArray(result.routines)?result.routines:[];
+        if(!routines.length){clearRoutineCopyPreview(`${source}에 등록된 운동 루틴이 없습니다.`);return;}
+        routineCopySelection={member,target,source,routines:routines.map(r=>({
+          name:String(r.name||''),weight:String(r.weight||''),sets:Number(r.sets)||0,
+          reps:String(r.reps||''),note:String(r.note||'')
+        })).filter(r=>r.name&&r.sets>=1&&r.sets<=20)};
+        if(!routineCopySelection.routines.length){clearRoutineCopyPreview('복사할 수 있는 운동이 없습니다.');return;}
+        const list=document.getElementById('routineCopyItems');list.replaceChildren();
+        routineCopySelection.routines.forEach(r=>{
+          const item=document.createElement('p');item.className='py-1 border-b border-slate-800 last:border-0';
+          item.textContent=`${r.name} · ${r.weight?r.weight+'kg · ':''}${r.sets}세트 × ${r.reps}회`;
+          list.appendChild(item);
+        });
+        document.getElementById('routineCopyPreview').classList.remove('hidden');
+        document.getElementById('routineCopyStatus').textContent=`${source}의 루틴 ${routineCopySelection.routines.length}개를 확인했습니다.`;
+      }catch(e){clearRoutineCopyPreview('루틴 조회 실패: '+e.message);}
+    }
+
+    async function applyRoutineCopy() {
+      const copy=routineCopySelection;
+      if(!copy||currentMode!=='trainer'||copy.member!==activeMemberName||copy.target!==selectedDate||copy.source!==document.getElementById('routineCopySourceDate').value){
+        clearRoutineCopyPreview('회원 또는 날짜가 변경되었습니다. 다시 확인해주세요.');return;
+      }
+      const existing=(appData?.routines||[]).length;
+      const message=existing
+        ? `현재 날짜에 운동 ${existing}개가 있습니다. 기존 운동은 유지하고 지난 루틴 ${copy.routines.length}개를 추가할까요?`
+        : `${copy.source}의 운동 ${copy.routines.length}개를 ${copy.target}에 복사할까요? 완료 세트는 모두 초기화됩니다.`;
+      if(!confirm(message))return;
+      const baseId=Date.now()*100;
+      const saved=await updateAndSave(d=>{
+        if(!Array.isArray(d.routines))d.routines=[];
+        d.routines.push(...copy.routines.map((r,i)=>({
+          id:baseId+i,name:r.name,weight:r.weight,sets:String(r.sets),reps:r.reps,
+          note:r.note,completedSets:Array(r.sets).fill(false)
+        })));
+      });
+      if(saved){
+        clearRoutineCopyPreview(`${copy.source} 루틴 ${copy.routines.length}개를 복사했습니다. 완료 세트는 초기화됐어요.`);
+      }
+    }
+
+    function renderTrainerReview(data, keepInputs = false) {
+      document.getElementById('reviewRefGood').innerText = data.reflection?.good || '작성된 내용이 없습니다.';
+      document.getElementById('reviewRefBad').innerText = data.reflection?.bad || '작성된 내용이 없습니다.';
+
+      const status=document.getElementById('trainerFeedbackStatus');
+      const feedback=data.feedback||{};
+      const sent=!!(String(feedback.workout||'').trim()||String(feedback.diet||'').trim());
+      status.className=sent
+        ? 'rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300'
+        : 'rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-300';
+      status.textContent=sent?`✓ 피드백 작성됨${feedback.time?' · '+feedback.time:''}`:'● 피드백 미작성';
+
+      const routines=data.routines||[];
+      const total=routines.reduce((n,r)=>n+(Number(r.sets)||0),0);
+      const done=routines.reduce((n,r)=>n+(r.completedSets||[]).filter(Boolean).length,0);
+      const meals=MEAL_KEYS.filter(k=>{
+        const m=data.diet?.[k]||{};
+        return !!(String(m.desc||'').trim()||(m.photos||[]).length);
+      }).length;
+      const photoCount=MEAL_KEYS.reduce((n,k)=>n+(data.diet?.[k]?.photos||[]).length,0);
+      const glance=[
+        ['운동 완료',`${done}/${total}세트`,'text-brand-400'],
+        ['식단 기록',`${meals}/4끼`,'text-amber-300'],
+        ['식단 사진',`${photoCount}장`,'text-sky-300'],
+        ['운동 소감',data.reflection?.good||data.reflection?.bad?'작성됨':'미작성','text-indigo-300']
+      ];
+      const glanceRoot=document.getElementById('trainerQuickSummary');glanceRoot.replaceChildren();
+      glance.forEach(([label,value,color])=>{
+        const card=document.createElement('div');card.className='rounded-xl border border-slate-700/60 bg-slate-950 p-3';
+        const title=document.createElement('p');title.className='text-xs text-slate-400 mb-1';title.textContent=label;
+        const number=document.createElement('p');number.className=`text-lg font-bold ${color}`;number.textContent=value;
+        card.append(title,number);glanceRoot.appendChild(card);
+      });
+
+      // 회원의 식단 일지/운동 달성 현황 (트레이너 화면에 박스를 자동으로 추가)
+      let box = document.getElementById('reviewDietBox');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'reviewDietBox';
+        box.className = 'bg-slate-950 p-3.5 rounded-xl border border-amber-500/20';
+        document.getElementById('reviewRefGood').closest('.grid').insertAdjacentElement('afterend', box);
+      }
+      const labels = { breakfast: '아침', lunch: '점심', dinner: '저녁', snack: '간식/보충제' };
+      let cal = 0, carb = 0, prot = 0, fat = 0;
+      const rows = MEAL_KEYS.map(k => {
+        const m = data.diet[k];
+        cal += Number(m.cal) || 0; carb += Number(m.carb) || 0; prot += Number(m.prot) || 0; fat += Number(m.fat) || 0;
+        const text = (m.desc || m.cal)
+          ? `${esc(m.desc || '-')}${m.cal ? ` · ${esc(m.cal)}kcal` : ''}`
+          : '<span class="text-slate-500">미작성</span>';
+        return `<div class="text-xs text-slate-300 whitespace-pre-line"><span class="font-semibold text-amber-400">${labels[k]}</span> ${text}</div>`;
+      }).join('');
+      let totalSets = 0, doneSets = 0;
+      (data.routines || []).forEach(r => {
+        totalSets += Number(r.sets) || 0;
+        doneSets += (r.completedSets || []).filter(Boolean).length;
+      });
+      box.innerHTML = `
+        <span class="text-[11px] font-bold text-amber-400 block mb-1.5"><i class="fa-solid fa-utensils"></i> 식단 일지 / 운동 달성</span>
+        <div class="space-y-1">${rows}</div>
+        <div class="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800">
+          운동 ${doneSets}/${totalSets}세트 · 총 ${cal} kcal · 탄 ${carb}g · 단 ${prot}g · 지 ${fat}g · 수분 ${data.diet.water || 0}ml
+        </div>`;
+
+      if (!keepInputs) {
+        document.getElementById('inputFeedbackWorkout').value = data.feedback?.workout || '';
+        document.getElementById('inputFeedbackDiet').value = data.feedback?.diet || '';
+      }
+    }
+
+    function appendFeedbackTemplate(kind,message) {
+      const field=document.getElementById(kind==='diet'?'inputFeedbackDiet':'inputFeedbackWorkout');
+      const existing=field.value.trim();
+      if(!existing.split('\n').includes(message)) field.value=existing?existing+'\n'+message:message;
+      field.focus();field.setSelectionRange(field.value.length,field.value.length);
+    }
+
+    async function sendTrainerFeedback() {
+      const now = new Date();
+      const workout = document.getElementById('inputFeedbackWorkout').value;
+      const diet = document.getElementById('inputFeedbackDiet').value;
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const saved=await updateAndSave(d => { d.feedback = { workout, diet, time }; });
+      if(saved) await loadTrainerOverview();
+    }
+
+    async function apiPost(body) {
+      const toSupabase = ['read','verify','patchData','setProgressBatch'].includes(body.action)
+        || (!body.action && !!body.data);
+      const response = await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
+        {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
+      if (!response.ok) throw new Error('서버 통신 오류');
+      return await response.json();
+    }
+    function apiCredentials() {
+      return {member:activeMemberName,date:selectedDate,token:memberToken,
+        ...(currentMode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
+    }
+
+    /* ---------- 주간 성과, 인바디, PT 수업 정보 ---------- */
+    let insightsRequest = 0;
+    function renderWeeklyReport(rootId, weekly) {
+      const root=document.getElementById(rootId);
+      if(!weekly){root.textContent='주간 기록을 불러오지 못했습니다.';return;}
+      const cur=weekly.current||{}, prev=weekly.previous||{};
+      root.innerHTML=`<p class="text-xs text-slate-400 mb-3">${esc(weekly.start)} ~ ${esc(weekly.end)} · 월~일 기준</p>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-slate-800 rounded-lg p-3"><div class="text-xs text-slate-400">운동한 날</div><div class="text-xl font-bold text-brand-500">${Number(cur.days)||0}일</div><div class="text-[11px] text-slate-500">지난주 ${Number(prev.days)||0}일</div></div>
+          <div class="bg-slate-800 rounded-lg p-3"><div class="text-xs text-slate-400">완료 세트</div><div class="text-xl font-bold text-white">${Number(cur.sets)||0}</div><div class="text-[11px] text-slate-500">지난주 ${Number(prev.sets)||0}</div></div>
+          <div class="bg-slate-800 rounded-lg p-3"><div class="text-xs text-slate-400">완료 운동</div><div class="text-xl font-bold text-white">${Number(cur.exercises)||0}</div><div class="text-[11px] text-slate-500">지난주 ${Number(prev.exercises)||0}</div></div>
+        </div><p class="text-xs text-slate-400 mt-3">${(weekly.improvements||[]).length?'<span class="text-brand-500 font-bold">중량 증가:</span> '+weekly.improvements.map(x=>`${esc(x.name)} ${Number(x.previous)}→${Number(x.current)}kg`).join(' · '):'지난주와 비교할 중량 증가 기록이 아직 없어요.'}</p>`;
+    }
+    function renderMonthlyReport(rootId, monthly) {
+      const root=document.getElementById(rootId);
+      if(!monthly){root.textContent='월간 기록을 불러오지 못했습니다.';return;}
+      const cur=monthly.current||{},prev=monthly.previous||{};
+      const metrics=[
+        ['운동한 날','days','일'],['완료한 세트','sets','세트'],
+        ['완료 운동','exercises','개'],['식단 기록일','dietDays','일']
+      ];
+      const cards=metrics.map(([label,key,unit])=>`<div class="bg-slate-800 border border-slate-700/60 rounded-xl p-3">
+        <p class="text-xs text-slate-300">${label}</p>
+        <p class="text-xl font-extrabold text-white mt-1">${Number(cur[key])||0}<span class="text-xs font-normal text-slate-400 ml-1">${unit}</span></p>
+        <p class="text-xs text-slate-400 mt-2">지난달 ${Number(prev[key])||0}${unit}</p>
+      </div>`).join('');
+      const change=monthly.inbodyChange;
+      const inbody=change
+        ? [['체중','weight','kg'],['골격근량','muscle','kg'],['체지방률','fat','%p']]
+            .map(([name,key,unit])=>{const n=Number(change[key]);return `<span class="inline-block rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs text-slate-200">${name} <strong class="text-white">${n>0?'+':''}${n.toFixed(1)}${unit}</strong></span>`;}).join(' ')
+        : '<span class="text-slate-500 text-xs">이번 달 인바디 측정이 2회 이상이면 변화량이 표시됩니다.</span>';
+      root.innerHTML=`<p class="text-xs text-slate-400">${esc(monthly.month)} 월간 기록 · 지난달(${esc(monthly.previousMonth)})과 비교</p>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-3">${cards}</div>
+        <div class="mt-4"><p class="text-xs font-semibold text-slate-300 mb-2">이번 달 인바디 첫 측정 → 최근 측정</p><div class="flex flex-wrap gap-2">${inbody}</div></div>
+        <p class="text-xs text-slate-500 mt-3">이번 달은 선택 날짜까지 집계하고, 지난달은 한 달 전체 기록입니다. 운동 완료 세트와 식단 입력 기록 기준이에요.</p>`;
+    }
+    function renderStrengthProgress(rootId, exercises) {
+      const root=document.getElementById(rootId),list=Array.isArray(exercises)?exercises:[];
+      root.replaceChildren();
+      if(!list.length){
+        const p=document.createElement('p');p.className='text-sm text-slate-500 py-3';
+        p.textContent='완료한 세트와 중량이 함께 기록된 운동이 아직 없습니다.';root.appendChild(p);return;
+      }
+      const select=document.createElement('select');
+      select.className='w-full sm:w-auto min-w-[220px] max-w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white';
+      select.setAttribute('aria-label','중량 변화 확인할 운동 선택');
+      list.forEach((ex,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=ex.name;select.appendChild(option);});
+      const graph=document.createElement('div');graph.className='mt-4 space-y-3';
+      root.append(select,graph);
+      const renderSelected=()=>{
+        const item=list[Number(select.value)]||list[0],points=item.points||[];
+        if(!points.length)return;
+        const first=points[0],last=points[points.length-1],previous=points.length>1?points[points.length-2]:null;
+        const values=points.map(p=>Number(p.weight)),minimum=Math.min(...values),maximum=Math.max(...values),span=Math.max(1,maximum-minimum);
+        const coords=values.map((value,i)=>({x:24+i*552/Math.max(1,values.length-1),y:160-(value-minimum)/span*122}));
+        const line=coords.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        const diff=previous?last.weight-previous.weight:null;
+        graph.innerHTML=`<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div class="bg-slate-800 rounded-lg p-3"><p class="text-xs text-slate-400">최근 기록 중량</p><p class="text-xl font-extrabold text-brand-500">${Number(last.weight)}kg</p></div>
+          <div class="bg-slate-800 rounded-lg p-3"><p class="text-xs text-slate-400">첫 기록 중량</p><p class="text-xl font-extrabold text-white">${Number(first.weight)}kg</p></div>
+          <div class="bg-slate-800 rounded-lg p-3 col-span-2 sm:col-span-1"><p class="text-xs text-slate-400">직전 기록 대비</p><p class="text-xl font-extrabold text-white">${diff===null?'비교 전':`${diff>0?'+':''}${diff.toFixed(1)}kg`}</p></div>
+        </div><svg viewBox="0 0 600 190" class="w-full h-auto max-h-64 bg-slate-900/70 rounded-xl" role="img" aria-label="${esc(item.name)} 중량 변화 그래프">
+          <line x1="24" y1="160" x2="576" y2="160" stroke="#64748b" stroke-width="1"/>
+          <polyline points="${line}" fill="none" stroke="#22c55e" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+          ${coords.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="5" fill="#38bdf8" stroke="#0f172a" stroke-width="2"/>`).join('')}
+          <text x="24" y="181" fill="#94a3b8" font-size="12">${esc(first.date)}</text><text x="576" y="181" fill="#94a3b8" font-size="12" text-anchor="end">${esc(last.date)}</text>
+        </svg><p class="text-xs text-slate-400">최근 ${points.length}개 운동일 기록 · 목표 중량이 아닌 저장된 운동 중량 기준</p>`;
+      };
+      select.addEventListener('change',renderSelected);renderSelected();
+    }
+    function renderInbodyChart(rootId, records) {
+      const root=document.getElementById(rootId),list=Array.isArray(records)?records:[];
+      if(!list.length){root.innerHTML='<p class="text-slate-500 text-sm py-3">아직 인바디 측정 기록이 없습니다.</p>';return;}
+      const latest=list[list.length-1];
+      const previous=list.length>1?list[list.length-2]:null;
+      const lines=[['체중','weight','kg','#22c55e'],['골격근량','muscle','kg','#38bdf8'],['체지방률','fat','%','#fbbf24']];
+      const cards=lines.map(([label,key,unit,color])=>{
+        const delta=previous?Number(latest[key])-Number(previous[key]):null;
+        const change=delta===null?'첫 측정':`${delta>0?'+':''}${delta.toFixed(1)}${key==='fat'?'%p':unit}`;
+        return `<div class="bg-slate-800/90 border border-slate-700 rounded-xl p-4 min-w-0">
+          <p class="text-sm font-semibold text-slate-200 mb-2">${label}</p>
+          <p class="text-2xl font-extrabold tracking-tight leading-none" style="color:${color}">${Number(latest[key]).toFixed(1)}<span class="text-sm font-medium ml-0.5">${unit}</span></p>
+          <div class="mt-3 pt-3 border-t border-slate-600/60 flex flex-wrap items-center gap-2">
+            <span class="text-xs font-medium text-slate-400">직전 대비</span>
+            <span class="rounded-lg bg-slate-950 border border-slate-600 px-2.5 py-1 text-sm font-bold text-white whitespace-nowrap">${change}</span>
+          </div>
+        </div>`;
+      }).join('');
+      const graphs=lines.map(([label,key,unit,color])=>{
+        const values=list.map(x=>Number(x[key])||0),lo=Math.min(...values),hi=Math.max(...values),span=Math.max(1,hi-lo);
+        const points=values.map((v,i)=>`${12+(i*276/Math.max(1,values.length-1))},${82-(v-lo)/span*66}`).join(' ');
+        return `<div><p class="text-xs text-slate-400 mb-1">${label} 변화</p><svg viewBox="0 0 300 94" class="w-full h-20" role="img" aria-label="${label} 변화 그래프"><line x1="12" y1="82" x2="288" y2="82" stroke="#475569"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${values.map((v,i)=>`<circle cx="${12+(i*276/Math.max(1,values.length-1))}" cy="${82-(v-lo)/span*66}" r="3" fill="${color}"/>`).join('')}</svg></div>`;
+      }).join('');
+      root.innerHTML=`<p class="text-xs text-slate-400">최근 측정 ${esc(latest.date)} · 총 ${list.length}회</p><div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">${cards}</div><div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">${graphs}</div><p class="text-xs text-slate-500 mt-3">그래프는 기록한 측정일 순서대로 연결됩니다.</p>`;
+    }
+    function renderPtSummary(rootId,pt) {
+      const root=document.getElementById(rootId),total=Number(pt?.total)||0,used=Number(pt?.used)||0;
+      if(!total){root.innerHTML='<p class="text-slate-500 py-3">아직 등록된 PT 수업 정보가 없습니다.</p>';return;}
+      root.innerHTML=`<div class="flex flex-wrap items-baseline gap-2"><span class="text-2xl font-bold text-brand-500">${Math.max(0,total-used)}회 남음</span><span class="text-xs text-slate-400">총 ${total}회 · 사용 ${used}회</span></div><div class="w-full bg-slate-700 rounded-full h-2 mt-2"><div class="bg-brand-500 h-2 rounded-full" style="width:${Math.min(100,used/total*100)}%"></div></div><p class="text-xs text-slate-300 mt-3">다음 수업: ${pt.nextDate?esc(pt.nextDate):'미정'}</p>${pt.note?`<p class="text-xs text-slate-400 mt-1">메모: ${esc(pt.note)}</p>`:''}`;
+    }
+    function renderMemberGoal(rootId,goal,weekly,inbody) {
+      const root=document.getElementById(rootId),days=Number(goal?.weeklyDays)||0;
+      const hasWeight=goal&&goal.targetWeight!==''&&Number.isFinite(Number(goal.targetWeight))&&Number(goal.targetWeight)>0;
+      const note=String(goal?.note||'').trim();
+      if(!hasWeight&&!days&&!note&&!goal?.deadline){root.innerHTML='<p class="text-sm text-slate-500 py-3">아직 설정된 개인 목표가 없습니다.</p>';return;}
+      const currentDays=Number(weekly?.current?.days)||0,rate=days?Math.min(100,Math.round(currentDays/days*100)):0;
+      const latest=Array.isArray(inbody)&&inbody.length?inbody[inbody.length-1]:null;
+      const weight=hasWeight?`<div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <p class="text-xs text-slate-400">목표 체중</p><p class="text-2xl font-extrabold text-brand-500 mt-1">${Number(goal.targetWeight).toFixed(1)}kg</p>
+        <p class="text-xs text-slate-300 mt-2">${latest?`최근 인바디 ${Number(latest.weight).toFixed(1)}kg · 목표와 ${Math.abs(Number(latest.weight)-Number(goal.targetWeight)).toFixed(1)}kg 차이`:'최근 인바디 측정값이 없어 비교할 수 없어요.'}</p>
+      </div>`:'';
+      const activity=days?`<div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <p class="text-xs text-slate-400">주간 운동 목표</p><p class="text-2xl font-extrabold text-white mt-1">${currentDays}<span class="text-base font-medium text-slate-400"> / ${days}일</span></p>
+        <div class="bg-slate-700 h-2 rounded-full mt-3 overflow-hidden"><div class="bg-brand-500 h-2 rounded-full" style="width:${rate}%"></div></div>
+        <p class="text-xs text-slate-400 mt-2">이번 주 완료 세트가 있는 운동일 기준 · ${rate}% 달성</p>
+      </div>`:'';
+      root.innerHTML=`${note?`<p class="rounded-lg bg-brand-500/10 border border-brand-500/30 p-3 text-sm text-slate-100">${esc(note)}</p>`:''}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${weight}${activity}</div>
+        ${goal.deadline?`<p class="text-xs text-slate-400">목표 날짜: ${esc(goal.deadline)}</p>`:''}`;
+    }
+    async function loadMemberInsights() {
+      const request=++insightsRequest, member=activeMemberName,mode=currentMode,date=selectedDate;
+      if(mode==='member'&&!hasMemberAccess())return;
+      try {
+        const result=await apiPost({...apiCredentials(),action:'memberInsights'});
+        if(request!==insightsRequest||member!==activeMemberName||mode!==currentMode||date!==selectedDate)return;
+        if(result.status!=='success')throw Error(result.message||'성장 기록 조회 실패');
+        const prefix=mode==='trainer'?'trainer':'member';
+        renderWeeklyReport(prefix==='trainer'?'trainerWeeklyReport':'memberWeeklyReport',result.weekly);
+        renderMonthlyReport(prefix==='trainer'?'trainerMonthlyReport':'memberMonthlyReport',result.monthly);
+        renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);
+        renderInbodyChart(prefix==='trainer'?'trainerInbodyChart':'memberInbodyChart',result.inbody);
+        renderPtSummary(prefix==='trainer'?'trainerPtSummary':'memberPtSummary',result.pt);
+        renderMemberGoal(prefix==='trainer'?'trainerGoalSummary':'memberGoalSummary',result.goal,result.weekly,result.inbody);
+        if(mode==='trainer'){
+          const pt=result.pt||{};
+          document.getElementById('ptTotal').value=pt.total||0;
+          document.getElementById('ptUsed').value=pt.used||0;
+          document.getElementById('ptNextDate').value=pt.nextDate||'';
+          document.getElementById('ptNote').value=pt.note||'';
+          const goal=result.goal||{};
+          document.getElementById('goalWeight').value=goal.targetWeight===''?'':(goal.targetWeight||'');
+          document.getElementById('goalWeeklyDays').value=goal.weeklyDays||0;
+          document.getElementById('goalDeadline').value=goal.deadline||'';
+          document.getElementById('goalNote').value=goal.note||'';
+          document.getElementById('insightsStatus').textContent='회원별 성장 기록을 불러왔습니다.';
+        }
+      }catch(e){
+        if(request!==insightsRequest)return;
+        if(mode==='trainer')document.getElementById('insightsStatus').textContent='성장 기록을 불러오지 못했습니다: '+e.message;
+        else document.getElementById('memberWeeklyReport').textContent='성장 기록을 불러오지 못했습니다. 잠시 후 다시 접속해주세요.';
+      }
+    }
+    async function saveInbodyRecord(e) {
+      e.preventDefault();
+      try {
+        const body={...apiCredentials(),action:'saveInbody',recordDate:document.getElementById('inbodyDate').value,
+          weight:document.getElementById('inbodyWeight').value,muscle:document.getElementById('inbodyMuscle').value,fat:document.getElementById('inbodyFat').value};
+        const result=await apiPost(body);if(result.status!=='success')throw Error(result.message||'저장 실패');
+        showToast('인바디 기록 저장 완료');await loadMemberInsights();
+      }catch(err){alert('인바디 저장 실패: '+err.message);}
+    }
+    async function savePtManagement(e) {
+      e.preventDefault();
+      try {
+        const body={...apiCredentials(),action:'savePtPlan',total:document.getElementById('ptTotal').value,used:document.getElementById('ptUsed').value,
+          nextDate:document.getElementById('ptNextDate').value,note:document.getElementById('ptNote').value};
+        const result=await apiPost(body);if(result.status!=='success')throw Error(result.message||'저장 실패');
+        showToast('PT 수업 정보 저장 완료');await loadMemberInsights();
+      }catch(err){alert('PT 정보 저장 실패: '+err.message);}
+    }
+    async function saveMemberGoal(e) {
+      e.preventDefault();
+      try {
+        const body={...apiCredentials(),action:'saveMemberGoal',targetWeight:document.getElementById('goalWeight').value,
+          weeklyDays:document.getElementById('goalWeeklyDays').value,deadline:document.getElementById('goalDeadline').value,
+          note:document.getElementById('goalNote').value};
+        const result=await apiPost(body);if(result.status!=='success')throw Error(result.message||'목표 저장 실패');
+        showToast('회원 목표 저장 완료');await loadMemberInsights();
+      }catch(err){alert('목표 저장 실패: '+err.message);}
+    }
+    async function compressPhoto(file) {
+      if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 첨부할 수 있어요.');
+      const bitmap=await createImageBitmap(file);
+      const scale=Math.min(1,1200/Math.max(bitmap.width,bitmap.height));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(bitmap.width*scale); canvas.height=Math.round(bitmap.height*scale);
+      canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+      bitmap.close();
+      let quality=.82, blob;
+      do {blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));quality-=.12;}
+      while(blob&&blob.size>1400000&&quality>.25);
+      if(!blob||blob.size>1400000) throw new Error('사진을 압축할 수 없어요.');
+      return await new Promise((resolve,reject)=>{
+        const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(blob);
+      });
+    }
+    async function uploadMealPhoto(meal,input) {
+      const file=input.files?.[0];if(!file)return;
+      try {
+        showToast('사진을 압축하고 업로드하는 중...');
+        const base64=await compressPhoto(file);
+        const result=await apiPost({...apiCredentials(),action:'uploadPhoto',meal,mime:'image/jpeg',base64});
+        if(result.status!=='success')throw new Error(result.message||'업로드 실패');
+        
+showToast('사진 업로드 완료!');
+try {
+  await loadDataFromCloud();
+} catch (refreshError) {
+  console.error('사진 업로드 후 새로고침 오류:', refreshError);
+  alert('사진은 저장됐지만 화면 새로고침에 실패했습니다: ' + refreshError.message);
+}
+
+      }catch(e){console.error(e);alert('사진 업로드 실패: '+e.message);}
+      finally{input.value='';}
+    }
+    async function photoData(fileId,meal) {
+      const r=await apiPost({...apiCredentials(),action:'photo',fileId,meal});
+      if(r.status!=='success')throw new Error(r.message||'사진 불러오기 실패');
+      return `data:${r.mime};base64,${r.base64}`;
+    }
+    function renderMealPhotos() {
+      MEAL_KEYS.forEach(meal=>{
+        const item=appData.diet?.[meal]||{};
+        const box=document.getElementById('photos-'+meal);box.innerHTML='';
+        const feedback=document.getElementById('photo-feedback-'+meal);
+        feedback.textContent=item.photoFeedback?'코치 피드백: '+item.photoFeedback:'';
+        feedback.classList.toggle('hidden',!item.photoFeedback);
+        (item.photos||[]).forEach(p=>appendPrivatePhoto(box,p,meal));
+      });
+    }
+    function appendPrivatePhoto(box,photo,meal) {
+      const holder=document.createElement('div');holder.className='aspect-square rounded-lg bg-slate-800 overflow-hidden flex items-center justify-center text-[10px] text-slate-400';
+      holder.textContent='불러오는 중';box.appendChild(holder);
+      photoData(photo.fileId,meal).then(src=>{
+        const img=document.createElement('img');img.src=src;img.alt='식단 사진';img.loading='lazy';img.className='w-full h-full object-cover cursor-pointer';
+        img.onclick=()=>{const w=window.open('','_blank');if(w){const im=w.document.createElement('img');im.src=src;im.style.maxWidth='100%';w.document.body.appendChild(im);}};
+        holder.replaceChildren(img);
+     }).catch(err=>{
+  console.error('사진 불러오기 오류:', err);
+  holder.textContent='사진 오류: '+(err.message||'원인 확인 필요');
+});
+    }
+    function renderTrainerMealPhotos() {
+      const root=document.getElementById('trainerMealPhotos');root.innerHTML='';
+      const labels={breakfast:'아침',lunch:'점심',dinner:'저녁',snack:'간식/보충제'};
+      MEAL_KEYS.forEach(meal=>{
+        const item=appData.diet?.[meal]||{};
+        const photos=item.photos||[];
+        const section=document.createElement('details');section.className='trainer-meal-details border-t border-slate-800 pt-3';
+        section.open=photos.length>0;
+        const label=document.createElement('summary');label.className='text-xs font-semibold text-amber-300 py-1 pr-2';
+        label.textContent=labels[meal]+' · '+(photos.length?`사진 ${photos.length}장`:'사진 없음')+(item.photoFeedback?' · 피드백 저장됨':'');section.appendChild(label);
+        const content=document.createElement('div');content.className='space-y-2 pt-3';section.appendChild(content);
+        const gallery=document.createElement('div');gallery.className='grid grid-cols-3 sm:grid-cols-4 gap-2';content.appendChild(gallery);
+        (item.photos||[]).forEach(p=>appendPrivatePhoto(gallery,p,meal));
+        if(!photos.length){const empty=document.createElement('p');empty.className='text-xs text-slate-500';empty.textContent='첨부된 사진이 없습니다. 필요할 때만 피드백을 남겨주세요.';content.appendChild(empty);}
+        const textarea=document.createElement('textarea');textarea.rows=2;textarea.placeholder='사진에 대한 피드백';textarea.className='w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white';textarea.value=item.photoFeedback||'';
+        content.appendChild(textarea);
+        const button=document.createElement('button');button.className='bg-amber-500 text-slate-950 text-xs font-bold rounded-lg px-3 py-2';button.textContent='사진 피드백 저장';
+        button.onclick=async()=>{
+          try {const r=await apiPost({...apiCredentials(),action:'photoFeedback',meal,feedback:textarea.value});
+            if(r.status!=='success')throw new Error(r.message||'저장 실패');await loadDataFromCloud();showToast('사진 피드백 저장 완료');}
+          catch(e){alert(e.message);}
+        };content.appendChild(button);root.appendChild(section);
+      });
+    }
+
+    /* ---------- 운동 기록 히스토리 / 습관 캘린더 / 회원별 영상 ---------- */
+    async function loadExtras() {
+      const request = ++extrasRequest;
+      const member = activeMemberName;
+      try {
+        const auth = {member, date:selectedDate, token:memberToken,
+          ...(currentMode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
+        const [history, videos, formList] = await Promise.all([
+          apiPost({...auth,action:'workoutHistory',month:habitMonth}),
+          apiPost({...auth,action:'listExerciseVideos'}),
+          apiPost({...auth,action:'listFormVideos'})
+        ]);
+        if (request !== extrasRequest || member !== activeMemberName) return;
+        if(history.status !== 'success') throw new Error(history.message || '기록 조회 실패');
+        if(videos.status !== 'success') throw new Error(videos.message || '영상 조회 실패');
+        if(formList.status !== 'success') throw new Error(formList.message || '회원 영상 조회 실패');
+        historyData = history;
+        exerciseVideos = videos.videos || [];
+        formVideos = formList.videos || [];
+        renderHabitCalendar(); renderPreviousRecords(); renderExerciseVideos(); renderFormVideos();
+        if(currentMode === 'member' && appData) renderMemberRoutines(appData.routines || []);
+      } catch(e) { console.error('추가 기능 조회 오류',e); }
+    }
+    function moveHabitMonth(offset) {
+      const [y,m] = habitMonth.split('-').map(Number);
+      const d = new Date(y,m-1+offset,1);
+      habitMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      renderHabitCalendar(); loadExtras();
+    }
+    function renderHabitCalendar() {
+      const root = document.getElementById('habitCalendar'); if(!root)return;
+      const [year,month] = habitMonth.split('-').map(Number);
+      const days = new Set(historyData.month===habitMonth ? historyData.days||[] : []);
+      document.getElementById('habitMonthLabel').textContent = `${year}년 ${month}월`;
+      document.getElementById('habitSummary').textContent = `${days.size}일 운동`;
+      let html=['일','월','화','수','목','금','토'].map(d=>`<div class="text-slate-500 py-1">${d}</div>`).join('');
+      for(let i=0;i<new Date(year,month-1,1).getDay();i++)html+='<div></div>';
+      for(let day=1;day<=new Date(year,month,0).getDate();day++){
+        const date=`${habitMonth}-${String(day).padStart(2,'0')}`;
+        const done=days.has(date);
+        html+=`<button type="button" onclick="jumpToWorkoutDate('${date}')" class="rounded-lg py-2 ${done?'bg-emerald-700/60 text-white font-bold':'bg-slate-800/60 text-slate-400'}" title="${date}">${day}${done?' ✓':''}</button>`;
+      }
+      root.innerHTML=html;
+    }
+    async function jumpToWorkoutDate(date){
+      selectedDate=date;document.getElementById('currentDateInput').value=date;
+      document.getElementById('todayDateDisplay').textContent=date;
+      resetRoutineForms();await loadDataFromCloud();
+    }
+    function renderPreviousRecords(){
+      const root=document.getElementById('previousWorkoutRecords');if(!root)return;
+      const current=(appData?.routines||[]).map(x=>x.name).filter(Boolean);
+      const previous=historyData.previous||{};
+      const names=[...new Set(current)];
+      root.innerHTML=names.length?names.map(name=>{
+        const p=previous[name.trim().toLowerCase()];
+        return `<div class="bg-slate-950 border border-slate-800 rounded-lg p-3"><strong>${esc(name)}</strong><p class="text-sky-400 mt-1">${p?`${esc(p.weight||'맨몸')} ${p.weight?'kg':''} × ${esc(p.reps)}회 · ${esc(p.date)}`:'이전 완료 기록 없음'}</p></div>`;
+      }).join(''):'<p class="text-slate-500">오늘의 운동 루틴을 추가하면 이전 기록이 표시돼요.</p>';
+    }
+    function safeVideoUrl(raw){
+      try {const u=new URL(raw);return u.protocol==='https:'&&(['www.youtube.com','youtube.com','m.youtube.com','youtu.be'].includes(u.hostname))?u.href:null;}
+      catch{return null;}
+    }
+    function videoLink(v){
+      const u=safeVideoUrl(v.url);
+      if(u) return `<a class="text-xs text-sky-400 underline" target="_blank" rel="noopener noreferrer" href="${esc(u)}">▶ 유튜브 영상 보기</a>`;
+      if(v.fileId) return `<button type="button" class="text-xs text-sky-400 underline" onclick="playPrivateVideo('${esc(v.fileId)}',this)">▶ 촬영 영상 재생</button>`;
+      return '';
+    }
+    function renderExerciseVideos(){
+      const memberRoot=document.getElementById('memberExerciseVideos');
+      const trainerRoot=document.getElementById('trainerExerciseVideos');
+      const videos=exerciseVideos||[];
+      if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-300 whitespace-pre-wrap">${esc(v.tip||'')}</p></article>`).join(''):'<p class="text-xs text-slate-500">아직 등록된 운동 영상이 없어요.</p>';
+      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<div class="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2"><strong class="text-xs">${esc(v.name)}</strong><div>${videoLink(v)}</div><textarea id="tip-${esc(v.id)}" maxlength="500" rows="2" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래 설명">${esc(v.tip||'')}</textarea><div class="flex gap-3"><button class="text-sky-400 text-xs" onclick="updateExerciseVideoTip('${esc(v.id)}')">설명 저장</button><button class="text-rose-400 text-xs" onclick="deleteExerciseVideo('${esc(v.id)}')">삭제</button></div></div>`).join(''):'<p class="text-xs text-slate-500">등록된 영상 없음</p>';
+    }
+    function renderFormVideos(){
+      const memberRoot=document.getElementById('memberFormVideos'), trainerRoot=document.getElementById('trainerFormVideos');
+      const videos=formVideos||[];
+      if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">질문: ${esc(v.question||'없음')}</p><div class="bg-slate-900 rounded-lg p-2 text-xs whitespace-pre-wrap"><strong class="text-emerald-400">트레이너 피드백</strong><p class="mt-1">${esc(v.feedback||'아직 피드백을 기다리고 있어요.')}</p>${v.feedback?`<div class="mt-2 flex items-center justify-between gap-2"><span class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?'✓ 확인 완료':'확인 버튼을 눌러주세요'}</span>${v.readAt?'':`<button type="button" onclick="markFormVideoRead('${esc(v.id)}')" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">확인했어요</button>`}</div>`:''}</div></article>`).join(''):'<p class="text-xs text-slate-500">업로드한 운동 영상이 없어요.</p>';
+      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">회원 질문: ${esc(v.question||'없음')}</p><div class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?`✓ 회원 확인 완료 · ${esc(v.readAt)}`:'○ 회원 확인 전'}</div><textarea id="feedback-${esc(v.id)}" maxlength="2000" rows="3" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래에 보여줄 자세 피드백">${esc(v.feedback||'')}</textarea><div class="flex gap-3"><button onclick="saveFormVideoFeedback('${esc(v.id)}')" class="text-xs text-sky-400">피드백 저장</button><button onclick="deleteFormVideo('${esc(v.id)}')" class="text-xs text-rose-400">영상 삭제</button></div></article>`).join(''):'<p class="text-xs text-slate-500">회원님이 올린 운동 영상이 없어요.</p>';
+    }
+    function bytesToBase64(bytes){let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(s);}
+    function base64ToBytes(b64){const s=atob(b64),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+    async function getPrivateVideoMetadata(file){
+      const url=URL.createObjectURL(file);
+      try{
+        return await new Promise((resolve,reject)=>{
+          const video=document.createElement('video');
+          video.preload='metadata';
+          video.onloadedmetadata=()=>resolve({duration:video.duration,width:video.videoWidth,height:video.videoHeight});
+          video.onerror=()=>reject(new Error('영상 정보를 읽을 수 없어요. MP4 또는 MOV 영상으로 다시 선택해주세요.'));
+          video.src=url;
+        });
+      }finally{URL.revokeObjectURL(url);}
+    }
+    function waitForMediaEvent(target,eventName,errorName='error'){
+      return new Promise((resolve,reject)=>{
+        const cleanup=()=>{target.removeEventListener(eventName,onOk);target.removeEventListener(errorName,onErr);};
+        const onOk=()=>{cleanup();resolve();};
+        const onErr=()=>{cleanup();reject(new Error('영상 압축 중 원본을 읽지 못했어요. 다른 영상으로 다시 시도해주세요.'));};
+        target.addEventListener(eventName,onOk,{once:true});
+        target.addEventListener(errorName,onErr,{once:true});
+      });
+    }
+    async function compressPrivateVideo(file){
+      if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){
+        throw new Error('현재 브라우저에서 자동 영상 압축을 지원하지 않아요. iPhone은 Safari, 갤럭시는 Chrome 최신 버전으로 다시 시도해주세요.');
+      }
+      const sourceUrl=URL.createObjectURL(file);
+      const video=document.createElement('video');
+      video.preload='auto';video.playsInline=true;video.setAttribute('playsinline','');
+      video.muted=false;video.volume=0;video.src=sourceUrl;
+      let sourceStream=null,canvasStream=null,recorder=null;
+      try{
+        await waitForMediaEvent(video,'loadedmetadata');
+        const scale=Math.min(1,1280/Math.max(video.videoWidth,video.videoHeight));
+        const width=Math.max(2,Math.round(video.videoWidth*scale/2)*2);
+        const height=Math.max(2,Math.round(video.videoHeight*scale/2)*2);
+        const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+        const ctx=canvas.getContext('2d',{alpha:false});
+        if(!ctx)throw new Error('영상 압축 화면을 준비하지 못했어요.');
+        canvasStream=canvas.captureStream(24);
+        if(typeof video.captureStream==='function')sourceStream=video.captureStream();
+        else if(typeof video.webkitCaptureStream==='function')sourceStream=video.webkitCaptureStream();
+        if(sourceStream){
+          sourceStream.getAudioTracks().forEach(track=>canvasStream.addTrack(track));
+        }
+        const mimeCandidates=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp8,opus','video/webm'];
+        const mimeType=mimeCandidates.find(type=>MediaRecorder.isTypeSupported(type))||'';
+        const options={videoBitsPerSecond:1400000,audioBitsPerSecond:96000};
+        if(mimeType)options.mimeType=mimeType;
+        const chunks=[];
+        recorder=new MediaRecorder(canvasStream,options);
+        recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+        const stopped=new Promise((resolve,reject)=>{
+          recorder.onstop=resolve;
+          recorder.onerror=()=>reject(new Error('영상 압축에 실패했어요. 원본 영상을 다시 선택해주세요.'));
+        });
+        recorder.start(500);
+        await video.play();
+        await new Promise((resolve,reject)=>{
+          let raf=0,finished=false;
+          const cleanup=()=>{cancelAnimationFrame(raf);video.removeEventListener('ended',onEnded);video.removeEventListener('error',onError);};
+          const finish=()=>{if(finished)return;finished=true;cleanup();resolve();};
+          const onEnded=()=>finish();
+          const onError=()=>{if(finished)return;finished=true;cleanup();reject(new Error('영상 압축 중 원본 재생에 실패했어요.'));};
+          const draw=()=>{
+            if(finished)return;
+            try{ctx.drawImage(video,0,0,width,height);}catch(e){}
+            if(video.ended||video.currentTime>=video.duration){finish();return;}
+            raf=requestAnimationFrame(draw);
+          };
+          video.addEventListener('ended',onEnded,{once:true});
+          video.addEventListener('error',onError,{once:true});
+          draw();
+        });
+        if(recorder.state!=='inactive')recorder.stop();
+        await stopped;
+        const outputType=recorder.mimeType||mimeType||'video/webm';
+        const blob=new Blob(chunks,{type:outputType});
+        if(!blob.size)throw new Error('압축된 영상이 비어 있어요. 다시 시도해주세요.');
+        const canonicalType=outputType.includes('mp4')?'video/mp4':'video/webm';
+        const ext=canonicalType==='video/mp4'?'mp4':'webm';
+        return new File([blob],file.name.replace(/\.[^.]+$/,'')+'_compressed.'+ext,{type:canonicalType});
+      }finally{
+        if(recorder&&recorder.state!=='inactive'){try{recorder.stop();}catch(e){}}
+        if(canvasStream)canvasStream.getTracks().forEach(t=>t.stop());
+        if(sourceStream)sourceStream.getTracks().forEach(t=>t.stop());
+        video.pause();video.removeAttribute('src');video.load();URL.revokeObjectURL(sourceUrl);
+      }
+    }
+    async function uploadPrivateVideo(file,kind,name,question,tip){
+      if(!file || !['video/mp4','video/webm','video/quicktime'].includes(file.type))throw Error('MP4, WebM, MOV 영상만 등록할 수 있어요.');
+      if(file.size>VIDEO_INPUT_LIMIT || !file.size)throw Error('원본 영상은 200MB 이하만 선택할 수 있어요.');
+      const meta=await getPrivateVideoMetadata(file);
+      if(!Number.isFinite(meta.duration)||meta.duration<=0)throw Error('영상 길이를 확인할 수 없어요. 다른 파일로 시도해주세요.');
+      if(meta.duration>VIDEO_MAX_DURATION+0.25)throw Error('영상은 최대 40초까지 업로드할 수 있어요.');
+      let uploadFile=file;
+      if(file.size>VIDEO_LIMIT){
+        showToast('영상 자동 압축 중... 잠시만 기다려주세요');
+        uploadFile=await compressPrivateVideo(file);
+        if(uploadFile.size>VIDEO_LIMIT)throw Error('압축 후에도 20MB를 초과했어요. 촬영 화질을 720p로 낮춰 다시 시도해주세요.');
+        showToast(`영상 압축 완료 · ${(uploadFile.size/1024/1024).toFixed(1)}MB`);
+      }
+      const allowedMime=['video/mp4','video/webm','video/quicktime'];
+      if(!allowedMime.includes(uploadFile.type))throw Error('압축 결과 형식을 지원하지 않아요. Safari 또는 Chrome 최신 버전으로 다시 시도해주세요.');
+      const creds=apiCredentials();
+      const init=await apiPost({...creds,action:'beginVideoUpload',kind,name,question,tip,mime:uploadFile.type,size:uploadFile.size});
+      if(init.status!=='success')throw Error(init.message||'업로드 준비 실패');
+      const id=init.uploadId,parts=Math.ceil(uploadFile.size/VIDEO_CHUNK);
+      for(let i=0;i<parts;i++){
+        const chunk=new Uint8Array(await uploadFile.slice(i*VIDEO_CHUNK,Math.min(uploadFile.size,(i+1)*VIDEO_CHUNK)).arrayBuffer());
+        const r=await apiPost({...creds,action:'videoChunk',uploadId:id,index:i,total:parts,base64:bytesToBase64(chunk)});
+        if(r.status!=='success')throw Error(r.message||'영상 업로드 중 오류');
+        showToast(`영상 업로드 ${Math.round((i+1)/parts*100)}%`);
+      }
+      const done=await apiPost({...creds,action:'finishVideoUpload',uploadId:id});
+      if(done.status!=='success')throw Error(done.message||'영상 저장 실패');
+    }
+    async function playPrivateVideo(id,button){
+      if(button.dataset.loading==='1')return;
+      const box=button.parentElement;
+      if(videoObjectUrls.has(id)){
+        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=videoObjectUrls.get(id);box.appendChild(video);button.remove();return;
+      }
+      button.dataset.loading='1';button.textContent='영상 불러오는 중...';
+      try{
+        const creds=apiCredentials();
+        const result=await apiPost({...creds,action:'videoDownload',fileId:id});
+        if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
+        const bytes=base64ToBytes(result.base64);
+        const url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));videoObjectUrls.set(id,url);
+        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
+      }catch(e){alert(e.message);button.textContent='▶ 다시 재생 시도';button.dataset.loading='0';}
+    }
+    async function submitFormVideo(e){
+      e.preventDefault();const name=document.getElementById('memberVideoName').value.trim();
+      const file=document.getElementById('memberVideoFile').files[0];
+      const question=document.getElementById('memberVideoQuestion').value.trim();
+      const member=activeMemberName;
+      try{await uploadPrivateVideo(file,'member',name,question,'');e.target.reset();showToast('영상 업로드 완료');if(member===activeMemberName)await loadExtras();}
+      catch(err){alert(err.message);}
+    }
+    async function saveExerciseVideo(e){
+      e.preventDefault();const name=document.getElementById('videoExerciseName').value.trim();
+      const raw=document.getElementById('videoUrl').value.trim();
+      const file=document.getElementById('trainerVideoFile').files[0];
+      const tip=document.getElementById('videoTip').value.trim();
+      if((!!raw)===(!!file)){alert('유튜브 링크 또는 촬영 영상 중 하나만 선택해주세요.');return;}
+      try{
+        if(file)await uploadPrivateVideo(file,'trainer',name,'',tip);
+        else{const url=safeVideoUrl(raw);if(!url)throw Error('유튜브 https 링크를 확인해주세요.');
+          const r=await apiPost({...apiCredentials(),action:'addExerciseVideo',name,url,tip});if(r.status!=='success')throw Error(r.message||'등록 실패');}
+        e.target.reset();showToast('영상 등록 완료');await loadExtras();
+      }catch(err){alert(err.message);}
+    }
+    async function updateExerciseVideoTip(id){
+      const tip=document.getElementById('tip-'+id).value;
+      try{const r=await apiPost({...apiCredentials(),action:'updateExerciseVideoTip',id,tip});if(r.status!=='success')throw Error(r.message||'저장 실패');showToast('설명 저장 완료');await loadExtras();}catch(e){alert(e.message);}
+    }
+    async function saveFormVideoFeedback(id){
+      const feedback=document.getElementById('feedback-'+id).value;
+      try{const r=await apiPost({...apiCredentials(),action:'formVideoFeedback',id,feedback});if(r.status!=='success')throw Error(r.message||'저장 실패');showToast('피드백 저장 완료');await loadExtras();}catch(e){alert(e.message);}
+    }
+    async function markFormVideoRead(id){
+      try{
+        const r=await apiPost({...apiCredentials(),action:'markFormVideoRead',id});
+        if(r.status!=='success')throw Error(r.message||'확인 저장 실패');
+        showToast('피드백 확인 완료');
+        await loadExtras();
+      }catch(e){alert(e.message);}
+    }
+    async function deleteFormVideo(id){
+      if(!confirm('회원 영상과 피드백을 삭제할까요?'))return;
+      try{const r=await apiPost({...apiCredentials(),action:'deleteFormVideo',id});if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadExtras();}catch(e){alert(e.message);}
+    }
+    async function deleteExerciseVideo(id){
+      if(!confirm('이 영상을 삭제할까요?'))return;
+      try{const r=await apiPost({...apiCredentials(),action:'deleteExerciseVideo',id});if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadExtras();}catch(e){alert(e.message);}
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastNotification');
+      toast.innerText = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 2500);
+    }
+  </script>
+</body>
+</html>

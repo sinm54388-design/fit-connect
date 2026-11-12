@@ -738,7 +738,7 @@
     // Other features continue to read Google Sheets; do not publish as the live member URL.
     const SUPABASE_API = '/api/records';
     const MEMBERS = []; // 회원 목록은 인증된 트레이너만 서버에서 불러옵니다.
-    const REFRESH_MS = 15000; // 15초마다 자동 새로고침
+    const REFRESH_MS = 60000; // 화면이 열려 있을 때 60초마다 가볍게 동기화
     const MEAL_KEYS = ['breakfast', 'lunch', 'dinner', 'snack'];
     const FORM_IDS = {
       member: { name: 'mrName', weight: 'mrWeight', sets: 'mrSets', reps: 'mrReps', note: 'mrNote', btn: 'mrSubmitBtn', cancel: 'mrCancelBtn', addText: '운동 추가하기' },
@@ -2231,7 +2231,7 @@
     }
 
     async function apiPost(body) {
-      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal'].includes(body.action)
+      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory'].includes(body.action)
         || (!body.action && !!body.data);
       const response = await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
         {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
@@ -2390,6 +2390,16 @@
         const prefix=mode==='trainer'?'trainer':'member';
         const supabaseInbody=inbodyResponse.records||[];
         const supabaseGoal=goalResponse.goal||{};
+        // Monthly InBody change is derived from the same Supabase measurements.
+        const inbodyThisMonth=supabaseInbody.filter(x=>x.date?.startsWith(date.slice(0,7))&&x.date<=date);
+        if(inbodyThisMonth.length>1){
+          const first=inbodyThisMonth[0],last=inbodyThisMonth[inbodyThisMonth.length-1];
+          result.monthly.inbodyChange={
+            weight:last.weight-first.weight,
+            muscle:last.muscle-first.muscle,
+            fat:last.fat-first.fat
+          };
+        }
         renderWeeklyReport(prefix==='trainer'?'trainerWeeklyReport':'memberWeeklyReport',result.weekly);
         renderMonthlyReport(prefix==='trainer'?'trainerMonthlyReport':'memberMonthlyReport',result.monthly);
         renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);

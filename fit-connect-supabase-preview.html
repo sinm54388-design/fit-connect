@@ -2512,24 +2512,42 @@ try {
     async function loadExtras() {
       const request = ++extrasRequest;
       const member = activeMemberName;
-      try {
-        const auth = {member, date:selectedDate, token:memberToken,
-          ...(currentMode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
-        const [history, videos, formList] = await Promise.all([
-          apiPost({...auth,action:'workoutHistory',month:habitMonth}),
-          apiPost({...auth,action:'listExerciseVideos'}),
-          apiPost({...auth,action:'listFormVideos'})
-        ]);
-        if (request !== extrasRequest || member !== activeMemberName) return;
-        if(history.status !== 'success') throw new Error(history.message || '기록 조회 실패');
-        if(videos.status !== 'success') throw new Error(videos.message || '영상 조회 실패');
-        if(formList.status !== 'success') throw new Error(formList.message || '회원 영상 조회 실패');
-        historyData = history;
-        exerciseVideos = videos.videos || [];
-        formVideos = formList.videos || [];
-        renderHabitCalendar(); renderPreviousRecords(); renderExerciseVideos(); renderFormVideos();
-        if(currentMode === 'member' && appData) renderMemberRoutines(appData.routines || []);
-      } catch(e) { console.error('추가 기능 조회 오류',e); }
+      const date = selectedDate;
+      const mode = currentMode;
+      const auth = {member,date,token:memberToken,
+        ...(mode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
+      const stillCurrent = () => request===extrasRequest &&
+        member===activeMemberName && date===selectedDate && mode===currentMode;
+
+      // Calendar/history can paint immediately, even if Drive video metadata
+      // is slow. Errors in one independent panel do not block the others.
+      const historyLoad = apiPost({...auth,action:'workoutHistory',month:habitMonth})
+        .then(history => {
+          if(!stillCurrent())return;
+          if(history.status!=='success')throw Error(history.message||'운동 이력 조회 실패');
+          historyData=history;
+          renderHabitCalendar();
+          renderPreviousRecords();
+          if(mode==='member'&&appData)renderMemberRoutines(appData.routines||[]);
+        });
+      const exerciseVideoLoad = apiPost({...auth,action:'listExerciseVideos'})
+        .then(result => {
+          if(!stillCurrent())return;
+          if(result.status!=='success')throw Error(result.message||'운동 영상 조회 실패');
+          exerciseVideos=result.videos||[];
+          renderExerciseVideos();
+        });
+      const formVideoLoad = apiPost({...auth,action:'listFormVideos'})
+        .then(result => {
+          if(!stillCurrent())return;
+          if(result.status!=='success')throw Error(result.message||'자세 영상 조회 실패');
+          formVideos=result.videos||[];
+          renderFormVideos();
+        });
+      await Promise.allSettled([historyLoad,exerciseVideoLoad,formVideoLoad])
+        .then(results => results.forEach(r => {
+          if(r.status==='rejected')console.warn('추가 기능 조회 오류',r.reason);
+        }));
     }
     function moveHabitMonth(offset) {
       const [y,m] = habitMonth.split('-').map(Number);

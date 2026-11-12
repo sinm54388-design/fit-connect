@@ -2248,7 +2248,7 @@
     }
 
     async function apiPost(body) {
-      const toSupabase = ['read','verify','patchData','setProgressBatch'].includes(body.action)
+      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody'].includes(body.action)
         || (!body.action && !!body.data);
       const response = await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
         {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
@@ -2391,9 +2391,13 @@
         renderWeeklyReport(prefix==='trainer'?'trainerWeeklyReport':'memberWeeklyReport',result.weekly);
         renderMonthlyReport(prefix==='trainer'?'trainerMonthlyReport':'memberMonthlyReport',result.monthly);
         renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);
-        renderInbodyChart(prefix==='trainer'?'trainerInbodyChart':'memberInbodyChart',result.inbody);
+        const inbodyResponse=await apiPost({...apiCredentials(),action:'readInbody'});
+        if(inbodyResponse.status!=='success')throw Error(inbodyResponse.message||'Supabase 인바디 조회 실패');
+        if(request!==insightsRequest||member!==activeMemberName||mode!==currentMode||date!==selectedDate)return;
+        const supabaseInbody=inbodyResponse.records||[];
+        renderInbodyChart(prefix==='trainer'?'trainerInbodyChart':'memberInbodyChart',supabaseInbody);
         renderPtSummary(prefix==='trainer'?'trainerPtSummary':'memberPtSummary',result.pt);
-        renderMemberGoal(prefix==='trainer'?'trainerGoalSummary':'memberGoalSummary',result.goal,result.weekly,result.inbody);
+        renderMemberGoal(prefix==='trainer'?'trainerGoalSummary':'memberGoalSummary',result.goal,result.weekly,supabaseInbody);
         if(mode==='trainer'){
           const pt=result.pt||{};
           document.getElementById('ptTotal').value=pt.total||0;

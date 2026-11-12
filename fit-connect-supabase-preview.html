@@ -1828,7 +1828,7 @@
 
     // 비밀번호는 서버(Apps Script)에서 확인
     async function trySwitchToTrainer() {
-      if (trainerPassword) { await switchMode('trainer'); await loadMemberRegistry(); return; }
+      if (trainerPassword) { await switchMode('trainer'); await Promise.allSettled([loadTrainerOverview(),loadMemberRegistry()]); return; }
       const input = prompt("트레이너 비밀번호를 입력하세요");
       if (input === null) return;
       try {
@@ -1837,7 +1837,7 @@
         if (result.status === 'success') {
           trainerPassword = input;
           await switchMode('trainer');
-          await loadMemberRegistry();
+          await Promise.allSettled([loadTrainerOverview(),loadMemberRegistry()]);
         } else {
           alert("비밀번호가 틀렸습니다.\n(Apps Script 코드에서 비밀번호를 바꿨는지도 확인해주세요)");
         }
@@ -1878,7 +1878,6 @@
           row.append(label,copy,rotate); list.append(row);
         });
         status.textContent = `등록된 회원 ${registryMembers.length}명 · 회원별 기록은 기존대로 유지됩니다.`;
-        await loadTrainerOverview();
       } catch (e) { status.textContent = '회원 목록을 불러오지 못했습니다: ' + e.message; }
     }
 
@@ -2071,7 +2070,6 @@
       activeMemberName = document.getElementById('trainerMemberSelect').value;
       resetRoutineForms();
       await loadDataFromCloud();
-      await loadExtras();
     }
 
     /* ---------- 트레이너 화면 ---------- */

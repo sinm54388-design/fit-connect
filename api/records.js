@@ -108,7 +108,8 @@
        'save',
        'patchData',
        'setProgressBatch',
-       'readInbody'
+       'readInbody',
+       'saveInbody'
      ];
 
      if (!allowedActions.includes(action)) {
@@ -157,31 +158,69 @@
        });
      }
 
-     // InBody records: read-only, member-specific.
+     // Original spreadsheet InBody rows stay untouched. New rows are stored
+     // under a member-specific namespace with a unique measurement-date key.
+     const inbodySheet = 'InbodyRecords.' + found.id;
      if (action === 'readInbody') {
-       const records = await supabaseGet(
-         base,
-         key,
-         `/rest/v1/fit_auxiliary_records?select=data&member_id=eq.${encodeURIComponent(found.id)}&source_sheet=eq.InbodyRecords&order=source_row.asc`
-       );
-
-       const inbody = records
-         .map(record => record.data)
-         .filter(data =>
-           data &&
-           typeof data === 'object' &&
-           !Array.isArray(data)
-         )
-         .sort((a, b) =>
-           String(a.Date || '').localeCompare(
-             String(b.Date || '')
-           )
-         );
-
+       const prefix = '/rest/v1/fit_auxiliary_records?select=data&member_id=eq.'
+         + encodeURIComponent(found.id) + '&source_sheet=eq.';
+       const [legacy, recent] = await Promise.all([
+         supabaseGet(base, key, prefix + encodeURIComponent('InbodyRecords') + '&order=source_row.asc'),
+         supabaseGet(base, key, prefix + encodeURIComponent(inbodySheet) + '&order=source_row.asc')
+       ]);
+       const byDate = new Map();
+       for (const record of [...legacy, ...recent]) {
+         const item = record && record.data;
+         if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+         const day = String(item.Date || item.date || '');
+         if (!validDay(day)) continue;
+         const weight = Number(item.Weight ?? item.weight);
+         const muscle = Number(item.Muscle ?? item.muscle);
+         const fat = Number(item.FatPercent ?? item.fat);
+         if (![weight, muscle, fat].every(Number.isFinite)) continue;
+         byDate.set(day, { date: day, weight, muscle, fat });
+       }
        return reply(res, 200, {
          status: 'success',
-         records: inbody
+         records: [...byDate.values()].sort((x, y) => x.date.localeCompare(y.date))
        });
+     }
+
+     if (action === 'saveInbody') {
+       if (!trainer) return reply(res, 403, {
+         status: 'denied', message: '트레이너 전용 기능입니다.'
+       });
+       const recordDate = String(params.recordDate || '');
+       const numeric = (v) => v === '' || v === null || v === undefined ? NaN : Number(v);
+       const weight = numeric(params.weight);
+       const muscle = numeric(params.muscle);
+       const fat = numeric(params.fat);
+       if (!validDay(recordDate) || !Number.isFinite(weight) || weight <= 0 || weight > 500
+         || !Number.isFinite(muscle) || muscle < 0 || muscle > 500
+         || !Number.isFinite(fat) || fat < 0 || fat > 100) {
+         return reply(res, 400, { status: 'error', message: '인바디 측정값을 확인해주세요.' });
+       }
+       const row = {
+         source_sheet: inbodySheet,
+         source_row: Number(recordDate.replace(/-/g, '')),
+         member_id: found.id,
+         data: { Date: recordDate, Weight: weight, Muscle: muscle, FatPercent: fat }
+       };
+       const response = await fetch(
+         base + '/rest/v1/fit_auxiliary_records?on_conflict=source_sheet,source_row',
+         {
+           method: 'POST',
+           headers: {
+             apikey: key,
+             'Content-Type': 'application/json',
+             Prefer: 'resolution=merge-duplicates,return=minimal'
+           },
+           body: JSON.stringify(row),
+           signal: AbortSignal.timeout(10000)
+         }
+       );
+       if (!response.ok) throw new Error('Supabase InBody save HTTP ' + response.status);
+       return reply(res, 200, { status: 'success' });
      }
 
      // Existing daily record reading.

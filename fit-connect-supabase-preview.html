@@ -568,6 +568,15 @@
            <button id="addMemberButton" type="submit" class="bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-lg px-5 py-2.5 text-sm">+ 회원 추가</button>
          </form>
          <p id="memberRegistryStatus" role="status" class="text-xs text-slate-400">트레이너 로그인 후 목록을 불러옵니다.</p>
+         <div class="rounded-xl border border-sky-800/50 bg-slate-950/70 p-3 space-y-2">
+           <div class="flex flex-wrap items-center justify-between gap-2">
+             <div><p class="font-semibold text-sm text-sky-300">영상 원본 점검 · 읽기 전용</p>
+             <p class="text-xs text-slate-400">Google Sheets 영상의 건수·누락·중복만 점검하며 원본은 변경하지 않습니다.</p></div>
+             <button id="videoAuditBtn" type="button" onclick="runVideoAudit()" class="rounded-lg px-3 py-2 bg-sky-700 text-white text-xs font-semibold">영상 원본 점검 실행</button>
+           </div>
+           <pre id="videoAuditOutput" role="status" aria-live="polite" class="whitespace-pre-wrap text-xs text-slate-300">점검 전</pre>
+           <button id="videoAuditCopy" type="button" onclick="copyVideoAudit()" class="hidden text-xs text-sky-300 underline">익명 결과 복사</button>
+         </div>
          <div id="memberRegistryList" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
        </section>
 
@@ -1902,6 +1911,93 @@
         list.append(row);
       });
     }
+    // Read-only inventory; no sensitive values in the copyable report.
+    let videoAuditBusy=false, videoAuditReport='';
+    function copyVideoAudit(){
+      if(!videoAuditReport)return;
+      navigator.clipboard.writeText(videoAuditReport)
+        .then(()=>showToast('익명 점검 결과 복사 완료'))
+        .catch(()=>window.prompt('익명 결과 복사',videoAuditReport));
+    }
+    async function runVideoAudit(){
+      if(videoAuditBusy)return;
+      if(currentMode!=='trainer'||!trainerPassword){
+        alert('트레이너 로그인 후 점검할 수 있습니다.');return;
+      }
+      videoAuditBusy=true;videoAuditReport='';
+      const output=document.getElementById('videoAuditOutput');
+      const btn=document.getElementById('videoAuditBtn');
+      const copy=document.getElementById('videoAuditCopy');
+      btn.disabled=true;copy.classList.add('hidden');
+      btn.textContent='점검 중...';
+      const password=trainerPassword,started=performance.now();
+      const stats={members:0,ok:0,failed:0,exercise:0,form:0,missingId:0,duplicateId:0,missingSource:0,missingFormFile:0,missingTime:0,pendingFeedback:0,invalidRead:0};
+      const call=async(body)=>{
+        const response=await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({...body,password})});
+        if(!response.ok)throw Error('Google Sheets 연결 실패');
+        const data=await response.json();
+        if(data.status!=='success')throw Error('조회 권한 또는 응답 실패');
+        return data;
+      };
+      try{
+        const list=await call({action:'listMembers'});
+        if(!Array.isArray(list.members))throw Error('회원 목록 형식 오류');
+        const members=[...new Set(list.members.filter(v=>typeof v==='string'&&v.trim()))];
+        if(members.length>200)throw Error('점검 회원 수 제한 초과');
+        stats.members=members.length;
+        let cursor=0;
+        const worker=async()=>{
+          while(cursor<members.length){
+            const member=members[cursor++];
+            try{
+              const [a,b]=await Promise.all([
+                call({action:'listExerciseVideos',member,date:selectedDate}),
+                call({action:'listFormVideos',member,date:selectedDate})
+              ]);
+              if(!Array.isArray(a.videos)||!Array.isArray(b.videos))throw Error('영상 목록 형식 오류');
+              const ids=new Set();
+              for(const [kind,videos] of [['exercise',a.videos],['form',b.videos]]){
+                stats[kind]+=videos.length;
+                for(const v of videos){
+                  const id=String(v.id||'').trim(),key=kind+'|'+id;
+                  if(!id)stats.missingId++;
+                  else if(ids.has(key))stats.duplicateId++;
+                  else ids.add(key);
+                  if(kind==='exercise'){
+                    if(!String(v.url||'').trim()&&!String(v.fileId||'').trim())stats.missingSource++;
+                  }else{
+                    if(!String(v.fileId||'').trim())stats.missingFormFile++;
+                    if(!String(v.time||'').trim())stats.missingTime++;
+                    if(!String(v.feedback||'').trim())stats.pendingFeedback++;
+                    if(!String(v.feedback||'').trim()&&String(v.readAt||'').trim())stats.invalidRead++;
+                  }
+                }
+              }
+              stats.ok++;
+            }catch(e){stats.failed++;}
+            output.textContent='점검 중 · '+(stats.ok+stats.failed)+' / '+stats.members+'명';
+          }
+        };
+        await Promise.all([worker(),worker()]);
+        videoAuditReport=[
+          'FIT-CONNECT 영상 원본 점검 (읽기 전용)',
+          '총 회원: '+stats.members,'조회 완료: '+stats.ok,'조회 실패: '+stats.failed,
+          '운동 영상: '+stats.exercise,'자세 영상: '+stats.form,
+          '영상 ID 누락: '+stats.missingId,'회원/종류 내 영상 ID 중복: '+stats.duplicateId,
+          '운동 영상 링크/파일 ID 누락: '+stats.missingSource,
+          '자세 영상 파일 ID 누락: '+stats.missingFormFile,
+          '자세 영상 등록 시각 누락: '+stats.missingTime,
+          '피드백 미작성: '+stats.pendingFeedback,
+          '피드백 없이 확인 기록 존재: '+stats.invalidRead,
+          '점검 시간: '+Math.round((performance.now()-started)/1000)+'초',
+          '주의: Drive 파일 실제 존재/재생 및 Supabase 대조는 별도 검증 필요',
+          '주의: 데이터 이전, 삭제, 덮어쓰기는 수행하지 않음'
+        ].join('\n');
+        output.textContent=videoAuditReport;copy.classList.remove('hidden');
+      }catch(e){output.textContent='점검 중단: '+e.message+' · 원본 변경 없음';}
+      finally{videoAuditBusy=false;btn.disabled=false;btn.textContent='영상 원본 점검 다시 실행';}
+    }
+
     async function loadMemberRegistry() {
       if(!trainerPassword)return;
       const request=++registryRequest,password=trainerPassword;

@@ -848,7 +848,7 @@
       oldGrid.remove();
     }
 
-    window.onload = async function () {
+    document.addEventListener('DOMContentLoaded', async function () {
       arrangeMemberDashboard();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       setupAutoHideHeader();
@@ -897,7 +897,7 @@
         const typing = el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT');
         if (!document.hidden && !typing && updateAccessState()) loadDataFromCloud(true);
       }, REFRESH_MS);
-    };
+    });
 
     function setupAutoHideHeader() {
       const header = document.getElementById('appHeader');

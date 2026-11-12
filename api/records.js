@@ -362,15 +362,26 @@
      const inbodySheet = 'InbodyRecords.' + found.id;
      // Consolidated read: 1 authenticated Vercel request, parallel DB queries.
      if (action === 'insightsBundle') {
-       const prefix = '/rest/v1/fit_auxiliary_records?select=data&member_id=eq.'
-         + encodeURIComponent(found.id) + '&source_sheet=eq.';
-       const [rows, oldInbody, newInbody, oldGoals, newGoals] = await Promise.all([
+       // Bundle four metadata lookups into a single indexed PostgREST read.
+       // Preserve legacy/new namespaces and existing goal precedence.
+       const sheets = ['InbodyRecords', inbodySheet, 'MemberGoals',
+         'MemberGoals.' + found.id];
+       const auxPath = '/rest/v1/fit_auxiliary_records?select=source_sheet,source_row,data' +
+         '&member_id=eq.' + encodeURIComponent(found.id) +
+         '&source_sheet=in.(' + sheets.map(encodeURIComponent).join(',') + ')' +
+         '&limit=1000';
+       const [rows, auxiliary] = await Promise.all([
          getMemberHistory(base, key, found.id, date),
-         supabaseGet(base, key, prefix + encodeURIComponent('InbodyRecords') + '&order=source_row.asc'),
-         supabaseGet(base, key, prefix + encodeURIComponent(inbodySheet) + '&order=source_row.asc'),
-         supabaseGet(base, key, prefix + encodeURIComponent('MemberGoals') + '&order=source_row.desc&limit=1'),
-         supabaseGet(base, key, prefix + encodeURIComponent('MemberGoals.' + found.id) + '&limit=1')
+         supabaseGet(base, key, auxPath)
        ]);
+       if (auxiliary.length === 1000)
+         throw Error('auxiliary record pagination required');
+       const getSheetRows = name => auxiliary.filter(x => x.source_sheet === name)
+         .sort((a,b) => Number(a.source_row) - Number(b.source_row));
+       const oldInbody = getSheetRows('InbodyRecords');
+       const newInbody = getSheetRows(inbodySheet);
+       const oldGoals = getSheetRows('MemberGoals').reverse().slice(0,1);
+       const newGoals = getSheetRows('MemberGoals.' + found.id).slice(0,1);
        const records = new Map();
        for (const row of [...oldInbody, ...newInbody]) {
          const item = row?.data || {};

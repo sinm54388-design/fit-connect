@@ -1841,7 +1841,7 @@
 
     // 비밀번호는 서버(Apps Script)에서 확인
     async function trySwitchToTrainer() {
-      if (trainerPassword) { await switchMode('trainer'); await Promise.allSettled([loadTrainerOverview(),loadMemberRegistry()]); return; }
+      if (trainerPassword) { await Promise.allSettled([switchMode('trainer'),loadTrainerOverview(),loadMemberRegistry()]); return; }
       const input = prompt("트레이너 비밀번호를 입력하세요");
       if (input === null) return;
       try {
@@ -1849,8 +1849,7 @@
         const result = await apiPost({ action: 'verify', password: input });
         if (result.status === 'success') {
           trainerPassword = input;
-          await switchMode('trainer');
-          await Promise.allSettled([loadTrainerOverview(),loadMemberRegistry()]);
+          await Promise.allSettled([switchMode('trainer'),loadTrainerOverview(),loadMemberRegistry()]);
         } else {
           alert("비밀번호가 틀렸습니다.\n(Apps Script 코드에서 비밀번호를 바꿨는지도 확인해주세요)");
         }

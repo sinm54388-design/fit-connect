@@ -56,6 +56,121 @@
    return response.json();
  }
 
+
+ // Supabase daily records power fast history/reports without a Sheets roundtrip.
+ function shiftDay(day, offset) {
+   const d = new Date(day + 'T00:00:00Z');
+   d.setUTCDate(d.getUTCDate() + offset);
+   return d.toISOString().slice(0, 10);
+ }
+ function weekMonday(day) {
+   const weekday = new Date(day + 'T00:00:00Z').getUTCDay();
+   return shiftDay(day, -(weekday + 6) % 7);
+ }
+ function doneRoutines(data) {
+   return (Array.isArray(data?.routines) ? data.routines : []).map(r => ({
+     ...r, doneCount: Array.isArray(r.completedSets) ? r.completedSets.filter(Boolean).length : 0
+   })).filter(r => r.doneCount);
+ }
+ async function getMemberHistory(base, key, memberId, date) {
+   // Query newest-first so that a Supabase/PostgREST page limit cannot
+   // silently return old records while omitting the latest.
+   const rows = await supabaseGet(base, key,
+     '/rest/v1/fit_daily_records?select=record_date,data&member_id=eq.' +
+     encodeURIComponent(memberId) + '&record_date=lte.' + date +
+     '&order=record_date.desc&limit=1000');
+   if (rows.length === 1000) throw new Error('record history pagination is required');
+   return rows.reverse().map(r => ({ date: String(r.record_date), data: r.data || {} }));
+ }
+ function buildWorkoutHistory(rows, date, month) {
+   const days = new Set(), previous = {};
+   for (let i = rows.length - 1; i >= 0; i--) {
+     const record = rows[i], done = doneRoutines(record.data);
+     if (record.date.startsWith(month) && done.length) days.add(record.date);
+     if (record.date >= date) continue;
+     for (const r of done) {
+       const name = String(r.name || '').trim().toLowerCase();
+       if (name && !previous[name]) previous[name] = {
+         date: record.date, weight: String(r.weight || ''), reps: String(r.reps || '')
+       };
+     }
+   }
+   return { status: 'success', month, days: [...days].sort(), previous };
+ }
+ function buildMemberInsights(rows, date) {
+   const start = weekMonday(date), lastStart = shiftDay(start, -7),
+     end = shiftDay(start, 6);
+   const weeklyBucket = () => ({ days: new Set(), sets: 0, exercises: 0, latest: {} });
+   const week = { current: weeklyBucket(), previous: weeklyBucket() };
+   const month = date.slice(0, 7), prevMonth = shiftDay(month + '-01', -1).slice(0, 7);
+   const monthBucket = () => ({ days: new Set(), sets: 0, exercises: 0, dietDays: new Set() });
+   const monthly = { current: monthBucket(), previous: monthBucket() };
+   const progress = new Map();
+   for (const row of rows) {
+     const d = row.date, data = row.data || {}, done = doneRoutines(data);
+     if (d >= lastStart && d <= end) {
+       const bucket = d < start ? week.previous : week.current;
+       for (const r of done) {
+         bucket.days.add(d); bucket.sets += r.doneCount; bucket.exercises++;
+         const name = String(r.name || '').trim();
+         const normalized = name.toLowerCase().replace(/\s+/g, '');
+         const weight = Number(r.weight);
+         if (normalized && Number.isFinite(weight) && weight > 0 &&
+             (!bucket.latest[normalized] || d >= bucket.latest[normalized].day))
+           bucket.latest[normalized] = { day: d, name, weight };
+       }
+     }
+     const mb = d.startsWith(month) ? monthly.current :
+       d.startsWith(prevMonth) ? monthly.previous : null;
+     if (mb) {
+       for (const r of done) {
+         mb.days.add(d); mb.sets += r.doneCount; mb.exercises++;
+       }
+       const diet = data.diet || {};
+       if (['breakfast','lunch','dinner','snack'].some(k => {
+         const food = diet[k] || {};
+         return !!String(food.desc || '').trim() ||
+           (Array.isArray(food.photos) && food.photos.length > 0) ||
+           (Array.isArray(food.foods) && food.foods.length > 0);
+       })) mb.dietDays.add(d);
+     }
+     for (const r of done) {
+       const name = String(r.name || '').trim();
+       const key = name.toLowerCase().replace(/\s+/g, '');
+       const weight = Number(r.weight), reps = Number(r.reps);
+       if (!name || name.length > 80 || !Number.isFinite(weight) ||
+           weight <= 0 || weight > 1500) continue;
+       if (!progress.has(key)) progress.set(key, { name, points: [] });
+       progress.get(key).points.push({
+         date: d, weight, reps: Number.isFinite(reps) && reps >= 0 ? reps : 0
+       });
+     }
+   }
+   const weeklyStat = b => ({ days: b.days.size, sets: b.sets, exercises: b.exercises });
+   const monthlyStat = b => ({
+     days: b.days.size, sets: b.sets, exercises: b.exercises, dietDays: b.dietDays.size
+   });
+   const improvements = Object.entries(week.current.latest).flatMap(([key, now]) => {
+     const prev = week.previous.latest[key];
+     return prev && now.weight > prev.weight ?
+       [{ name: now.name, previous: prev.weight, current: now.weight }] : [];
+   }).slice(0, 8);
+   const exercises = [...progress.values()].map(item => {
+     const byDay = new Map(item.points.map(p => [p.date, p]));
+     item.points = [...byDay.values()].slice(-24);
+     return item;
+   }).sort((a,b) => b.points.length - a.points.length).slice(0,30);
+   return {
+     status: 'success',
+     weekly: { start, end, current: weeklyStat(week.current),
+       previous: weeklyStat(week.previous), improvements },
+     monthly: { month, previousMonth: prevMonth,
+       current: monthlyStat(monthly.current), previous: monthlyStat(monthly.previous),
+       inbodyChange: null },
+     progress: exercises
+   };
+ }
+
  module.exports = async function handler(req, res) {
    if (req.method !== 'GET' && req.method !== 'POST') {
      return reply(res, 405, {
@@ -111,7 +226,9 @@
        'readInbody',
        'saveInbody',
        'readMemberGoal',
-       'saveMemberGoal'
+       'saveMemberGoal',
+       'memberInsights',
+       'workoutHistory'
      ];
 
      if (!allowedActions.includes(action)) {
@@ -283,6 +400,17 @@
        });
        if (!response.ok) throw new Error('Supabase MemberGoal save HTTP ' + response.status);
        return reply(res, 200, { status: 'success' });
+     }
+
+     if (action === 'memberInsights' || action === 'workoutHistory') {
+       const rows = await getMemberHistory(base, key, found.id, date);
+       if (action === 'workoutHistory') {
+         const month = String(params.month || date.slice(0, 7));
+         if (!/^\\d{4}-\\d{2}$/.test(month))
+           return reply(res, 400, {status:'error',message:'월 형식 오류'});
+         return reply(res, 200, buildWorkoutHistory(rows, date, month));
+       }
+       return reply(res, 200, buildMemberInsights(rows, date));
      }
 
      // Existing daily record reading.

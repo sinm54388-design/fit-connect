@@ -408,7 +408,7 @@
        try {
          objectInfo=await fetch(base+'/storage/v1/object/info/fit-private-videos/'+
            storagePath.split('/').map(encodeURIComponent).join('/'),{
-             headers:{apikey:key,Authorization:'Bearer '+key},
+             headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key})},
              signal:AbortSignal.timeout(10000)
            });
        } catch(error) {
@@ -425,7 +425,7 @@
        };
        const inserted=await fetch(base+'/rest/v1/fit_video_metadata',{
          method:'POST',
-         headers:{apikey:key,Authorization:'Bearer '+key,
+         headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),
            'Content-Type':'application/json','Prefer':'return=minimal'},
          body:JSON.stringify(payload),
          signal:AbortSignal.timeout(10000)
@@ -463,7 +463,7 @@
        const signed = await fetch(base + '/storage/v1/object/sign/' + bucket + '/' +
          path.split('/').map(encodeURIComponent).join('/'), {
            method:'POST',
-           headers:{apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json'},
+           headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'},
            body:JSON.stringify({expiresIn:3600}),
            signal:AbortSignal.timeout(10000)
          });

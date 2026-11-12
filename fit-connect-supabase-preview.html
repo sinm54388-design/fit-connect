@@ -1019,6 +1019,7 @@
     async function loadDataFromCloud(silent = false) {
       if (silent && queuedSaveCount > 0) return;
       if (!updateAccessState()) return;
+      resetVideoPanelsIfContextChanged();
       const request = ++latestLoadRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
       const context=getSaveContext();
@@ -2653,6 +2654,23 @@ try {
     // Video metadata is backed by slow Sheets; defer until a video section
     // approaches the viewport, without changing upload or feedback storage.
     let videoLoadRequest=0;
+    let lastVideoPanelKey='';
+    function resetVideoPanelsIfContextChanged(){
+      const key=videoContextKey();
+      if(key===lastVideoPanelKey)return;
+      lastVideoPanelKey=key;
+      exerciseVideos=[];
+      formVideos=[];
+      videoLoadReadyKey='';
+      videoLoadPendingKey='';
+      ++videoLoadRequest;
+      ['memberExerciseVideos','memberFormVideos','trainerExerciseVideos','trainerFormVideos']
+        .forEach(id=>{
+          const root=document.getElementById(id);
+          if(root)root.textContent='영상 영역에 접근하면 최신 목록을 불러옵니다.';
+        });
+    }
+
     let videoLoadReadyKey='';
     let videoLoadPendingKey='';
     function videoContextKey(){

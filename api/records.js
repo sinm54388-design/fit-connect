@@ -109,7 +109,9 @@
        'patchData',
        'setProgressBatch',
        'readInbody',
-       'saveInbody'
+       'saveInbody',
+       'readMemberGoal',
+       'saveMemberGoal'
      ];
 
      if (!allowedActions.includes(action)) {
@@ -121,7 +123,7 @@
 
      if (
        req.method === 'GET' &&
-       !['read', 'readInbody'].includes(action)
+       !['read', 'readInbody', 'readMemberGoal'].includes(action)
      ) {
        return reply(res, 405, {
          status: 'error',
@@ -220,6 +222,66 @@
          }
        );
        if (!response.ok) throw new Error('Supabase InBody save HTTP ' + response.status);
+       return reply(res, 200, { status: 'success' });
+     }
+
+     // Keep imported spreadsheet goals intact; new goals are member-scoped.
+     const goalSheet = 'MemberGoals.' + found.id;
+     if (action === 'readMemberGoal') {
+       const prefix = '/rest/v1/fit_auxiliary_records?select=data&member_id=eq.'
+         + encodeURIComponent(found.id) + '&source_sheet=eq.';
+       const [legacy, current] = await Promise.all([
+         supabaseGet(base, key, prefix + encodeURIComponent('MemberGoals') + '&order=source_row.desc&limit=1'),
+         supabaseGet(base, key, prefix + encodeURIComponent(goalSheet) + '&limit=1')
+       ]);
+       const goal = (current[0] || legacy[0] || {}).data || {};
+       return reply(res, 200, {
+         status: 'success',
+         goal: {
+           targetWeight: goal.TargetWeight ?? goal.targetWeight ?? '',
+           weeklyDays: goal.WeeklyDays ?? goal.weeklyDays ?? 0,
+           deadline: goal.Deadline ?? goal.deadline ?? '',
+           note: goal.Note ?? goal.note ?? ''
+         }
+       });
+     }
+
+     if (action === 'saveMemberGoal') {
+       if (!trainer) return reply(res, 403, {
+         status: 'denied', message: '트레이너 전용 기능입니다.'
+       });
+       const numberOrEmpty = v => v === '' || v === null || v === undefined ? null : Number(v);
+       const targetWeight = numberOrEmpty(params.targetWeight);
+       const weeklyDays = numberOrEmpty(params.weeklyDays);
+       const deadline = String(params.deadline || '');
+       const note = String(params.note || '').trim();
+       if ((targetWeight !== null && (!Number.isFinite(targetWeight) || targetWeight <= 0 || targetWeight > 500))
+         || (weeklyDays !== null && (!Number.isInteger(weeklyDays) || weeklyDays < 0 || weeklyDays > 7))
+         || (deadline && !validDay(deadline)) || note.length > 500) {
+         return reply(res, 400, { status: 'error', message: '회원 목표 입력값을 확인해주세요.' });
+       }
+       const row = {
+         source_sheet: goalSheet,
+         source_row: 1,
+         member_id: found.id,
+         data: {
+           TargetWeight: targetWeight,
+           WeeklyDays: weeklyDays ?? 0,
+           Deadline: deadline,
+           Note: note
+         }
+       };
+       const response = await fetch(base + '/rest/v1/fit_auxiliary_records?on_conflict=source_sheet,source_row', {
+         method: 'POST',
+         headers: {
+           apikey: key,
+           'Content-Type': 'application/json',
+           Prefer: 'resolution=merge-duplicates,return=minimal'
+         },
+         body: JSON.stringify(row),
+         signal: AbortSignal.timeout(10000)
+       });
+       if (!response.ok) throw new Error('Supabase MemberGoal save HTTP ' + response.status);
        return reply(res, 200, { status: 'success' });
      }
 

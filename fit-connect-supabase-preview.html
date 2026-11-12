@@ -2376,22 +2376,24 @@
       const request=++insightsRequest, member=activeMemberName,mode=currentMode,date=selectedDate;
       if(mode==='member'&&!hasMemberAccess())return;
       try {
-        const result=await apiPost({...apiCredentials(),action:'memberInsights'});
+        // Start independent backend requests together rather than waiting serially.
+        const credentials=apiCredentials();
+        const [result, inbodyResponse, goalResponse]=await Promise.all([
+          apiPost({...credentials,action:'memberInsights'}),
+          apiPost({...credentials,action:'readInbody'}),
+          apiPost({...credentials,action:'readMemberGoal'})
+        ]);
         if(request!==insightsRequest||member!==activeMemberName||mode!==currentMode||date!==selectedDate)return;
         if(result.status!=='success')throw Error(result.message||'성장 기록 조회 실패');
+        if(inbodyResponse.status!=='success')throw Error(inbodyResponse.message||'Supabase 인바디 조회 실패');
+        if(goalResponse.status!=='success')throw Error(goalResponse.message||'Supabase 목표 조회 실패');
         const prefix=mode==='trainer'?'trainer':'member';
+        const supabaseInbody=inbodyResponse.records||[];
+        const supabaseGoal=goalResponse.goal||{};
         renderWeeklyReport(prefix==='trainer'?'trainerWeeklyReport':'memberWeeklyReport',result.weekly);
         renderMonthlyReport(prefix==='trainer'?'trainerMonthlyReport':'memberMonthlyReport',result.monthly);
         renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);
-        const inbodyResponse=await apiPost({...apiCredentials(),action:'readInbody'});
-        if(inbodyResponse.status!=='success')throw Error(inbodyResponse.message||'Supabase 인바디 조회 실패');
-        if(request!==insightsRequest||member!==activeMemberName||mode!==currentMode||date!==selectedDate)return;
-        const supabaseInbody=inbodyResponse.records||[];
         renderInbodyChart(prefix==='trainer'?'trainerInbodyChart':'memberInbodyChart',supabaseInbody);
-        const goalResponse=await apiPost({...apiCredentials(),action:'readMemberGoal'});
-        if(goalResponse.status!=='success')throw Error(goalResponse.message||'Supabase 목표 조회 실패');
-        if(request!==insightsRequest||member!==activeMemberName||mode!==currentMode||date!==selectedDate)return;
-        const supabaseGoal=goalResponse.goal||{};
         renderMemberGoal(prefix==='trainer'?'trainerGoalSummary':'memberGoalSummary',supabaseGoal,result.weekly,supabaseInbody);
         if(mode==='trainer'){
           const goal=supabaseGoal;

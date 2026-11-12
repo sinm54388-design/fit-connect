@@ -2467,7 +2467,14 @@
         const response=await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
           {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},
             body:JSON.stringify(body)});
-        if(!response.ok)throw Error('서버 통신 오류');
+        if(!response.ok){
+          // Show safe server-side details, never request credentials or raw payload.
+          let failure=null;
+          try { failure=await response.json(); } catch(e) {}
+          const description=typeof failure?.message==='string'
+            ? failure.message.slice(0,160) : '서버 요청에 실패했습니다.';
+          throw Error('HTTP '+response.status+' · '+description);
+        }
         const result=await response.json();
         if(videoAction && result?.status==='success' && generation===videoListGeneration){
           videoListCache.set(cacheKey,{

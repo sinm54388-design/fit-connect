@@ -230,7 +230,8 @@
        'memberInsights',
        'workoutHistory',
        'insightsBundle',
-       'trainerOverview'
+       'trainerOverview',
+       'listMembersFast'
      ];
 
      if (!allowedActions.includes(action)) {
@@ -248,6 +249,17 @@
          status: 'error',
          message: '저장은 POST만 가능합니다.'
        });
+     }
+
+     // Fast read-only list; Sheets remains the authority during migration.
+     if (action === 'listMembersFast') {
+       if (!trainer) return reply(res, 403, {
+         status: 'denied', message: '트레이너 전용 기능입니다.'
+       });
+       const rows = await supabaseGet(base, key,
+         '/rest/v1/fit_members?select=name&order=name.asc&limit=1000');
+       if (rows.length === 1000) throw Error('member list pagination required');
+       return reply(res, 200, {status:'success',members:rows.map(r=>r.name)});
      }
 
      // Trainer dashboard: build activity and feedback status from Supabase.

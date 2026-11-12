@@ -1034,8 +1034,11 @@
         }
       }
       if (!silent&&!shownCached) showToast('데이터 불러오는 중...');
-      // Growth cards do not depend on daily UI data. Fetch in parallel.
-      if (!silent) loadMemberInsights().catch(e=>console.warn('성장 기록 조회 오류',e));
+      // Daily record, growth stats and exercise history are independent reads.
+      if (!silent) {
+        loadMemberInsights().catch(e=>console.warn('성장 기록 조회 오류',e));
+        loadExtras().catch(e=>console.warn('추가 자료 불러오기 오류',e));
+      }
       try {
         const loaded = await fetchLatest();
         if (request !== latestLoadRequest || member !== activeMemberName || date !== selectedDate || mode !== currentMode) return;
@@ -1056,8 +1059,9 @@
       }
       updateAccessState();
       renderUI(silent);
-      // 본문과 달력은 먼저 표시하고, 영상은 보일 때 조회합니다.
-      if (!silent) loadExtras().catch(e=>console.warn('추가 자료 불러오기 오류',e));
+      // If exercise history arrived before the daily record, render its related
+      // cards again now that the latest routines are available.
+      if (!silent && historyReadyContext === historyContextKey()) renderPreviousRecords();
       if (!silent) requestAnimationFrame(loadVisibleVideos);
     }
 
@@ -2739,6 +2743,10 @@ try {
       }
       window.addEventListener('scroll',loadVisibleVideos,{passive:true});
     }
+    let historyReadyContext='';
+    function historyContextKey(member=activeMemberName,date=selectedDate,mode=currentMode,month=habitMonth){
+      return JSON.stringify([member,date,mode,month]);
+    }
     async function loadExtras() {
       const request=++extrasRequest;
       const member=activeMemberName,date=selectedDate,mode=currentMode,month=habitMonth;
@@ -2750,6 +2758,7 @@ try {
           date!==selectedDate||mode!==currentMode||month!==habitMonth)return;
         if(history.status!=='success')throw Error(history.message||'기록 조회 실패');
         historyData=history;
+        historyReadyContext=historyContextKey(member,date,mode,month);
         renderHabitCalendar();
         renderPreviousRecords();
         if(mode==='member'&&appData)renderMemberRoutines(appData.routines||[]);

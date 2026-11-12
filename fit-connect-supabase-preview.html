@@ -2350,8 +2350,22 @@
       }).join('');
       const graphs=lines.map(([label,key,unit,color])=>{
         const values=list.map(x=>Number(x[key])||0),lo=Math.min(...values),hi=Math.max(...values),span=Math.max(1,hi-lo);
-        const points=values.map((v,i)=>`${12+(i*276/Math.max(1,values.length-1))},${82-(v-lo)/span*66}`).join(' ');
-        return `<div><p class="text-xs text-slate-400 mb-1">${label} 변화</p><svg viewBox="0 0 300 94" class="w-full h-20" role="img" aria-label="${label} 변화 그래프"><line x1="12" y1="82" x2="288" y2="82" stroke="#475569"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${values.map((v,i)=>`<circle cx="${12+(i*276/Math.max(1,values.length-1))}" cy="${82-(v-lo)/span*66}" r="3" fill="${color}"/>`).join('')}</svg></div>`;
+        const xAt=i=>list.length===1?150:12+(i*276/(list.length-1));
+        const yAt=v=>82-(v-lo)/span*66;
+        const points=values.map((v,i)=>`${xAt(i)},${yAt(v)}`).join(' ');
+        // Avoid overlapping dates when many measurements exist.
+        const ticks=[...new Set(Array.from({length:Math.min(5,list.length)},(_,i)=>
+          Math.round(i*(list.length-1)/Math.max(1,Math.min(5,list.length)-1))))];
+        const dateLabels=ticks.map(i=>{
+          const date=String(list[i].date||'');
+          const label=date.length===10?date.slice(5).replace('-', '/'):date;
+          const anchor=i===0&&list.length>1?'start':i===list.length-1&&list.length>1?'end':'middle';
+          return `<text x="${xAt(i)}" y="108" font-size="11" text-anchor="${anchor}" fill="#94a3b8">${esc(label)}</text>`;
+        }).join('');
+        const markers=values.map((v,i)=>
+          `<circle cx="${xAt(i)}" cy="${yAt(v)}" r="3.5" fill="${color}"><title>${esc(list[i].date)}: ${v.toFixed(1)}${unit}</title></circle>`
+        ).join('');
+        return `<div><p class="text-xs text-slate-400 mb-1">${label} 변화</p><svg viewBox="0 0 300 122" class="w-full h-28" role="img" aria-label="${label} 측정 날짜별 변화 그래프"><line x1="12" y1="82" x2="288" y2="82" stroke="#475569"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${markers}${dateLabels}</svg></div>`;
       }).join('');
       root.innerHTML=`<p class="text-xs text-slate-400">최근 측정 ${esc(latest.date)} · 총 ${list.length}회</p><div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">${cards}</div><div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">${graphs}</div><p class="text-xs text-slate-500 mt-3">그래프는 기록한 측정일 순서대로 연결됩니다.</p>`;
     }

@@ -390,8 +390,11 @@
          supabaseGet(base,key,prefix+'&storage_path=eq.'+
            encodeURIComponent(storagePath)+'&limit=2')
        ]);
+       if(bySource.length===1 && bySource[0].file_id===fileId &&
+          bySource[0].storage_path===storagePath)
+         return reply(res,200,{status:'success',alreadyLinked:true});
        if(bySource.length || byPath.length) return reply(res, 409, {
-         status:'error',message:'이미 연결된 영상입니다. 원본을 변경하지 않았습니다.'
+         status:'error',message:'이미 다른 파일에 연결된 영상입니다. 원본을 변경하지 않았습니다.'
        });
        const objectInfo=await fetch(base+'/storage/v1/object/info/fit-private-videos/'+
          storagePath.split('/').map(encodeURIComponent).join('/'),{

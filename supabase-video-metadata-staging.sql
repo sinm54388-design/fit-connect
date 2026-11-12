@@ -17,6 +17,7 @@ create table if not exists public.fit_video_metadata (
   source_id text not null check (length(btrim(source_id)) > 0),
   name text not null default '',
   file_id text,
+  storage_path text,
   external_url text,
   tip text not null default '',
   question text not null default '',
@@ -46,3 +47,14 @@ revoke all on public.fit_video_metadata from anon, authenticated;
 -- 6) Compare data added to Sheets after the initial snapshot.
 -- 7) Keep old video API/Drive unchanged until dual-read parity is proven.
 -- 8) Do NOT delete the Sheets/Drive originals as part of migration.
+
+-- Optional private video storage (execute only after reviewing project setup).
+-- For an existing table, also run: alter table public.fit_video_metadata
+-- add column if not exists storage_path text;
+-- Do not upload original files into a public bucket.
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+values ('fit-private-videos','fit-private-videos',false,20971520,
+        array['video/mp4','video/webm','video/quicktime'])
+on conflict (id) do nothing;
+-- Never add anonymous or authenticated storage read policies.
+-- Playback URLs are signed only by the authenticated Vercel API.

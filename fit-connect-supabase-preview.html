@@ -1889,6 +1889,11 @@
       const status = document.getElementById('overviewStatus');
       status.textContent = '회원 현황 불러오는 중...';
       try {
+        // Load Drive video alerts independently; don't block Supabase activity cards.
+        const videoPromise=fetch(SCRIPT_URL,{
+          method:'POST',body:JSON.stringify({action:'trainerOverview',password:trainerPassword,date})
+        }).then(async r=>{if(!r.ok)throw Error('영상 알림 통신 실패');return r.json();})
+          .catch(e=>({status:'error',message:String(e)}));
         const result = await apiPost({action:'trainerOverview',password:trainerPassword,date});
         if (request !== overviewRequest || date !== selectedDate || currentMode !== 'trainer') return;
         if (result.status !== 'success' || !Array.isArray(result.members)) throw Error(result.message || '현황 조회 실패');
@@ -1902,7 +1907,7 @@
         document.getElementById('overviewTotal').textContent = items.length+'명';
         document.getElementById('overviewActive').textContent = items.filter(m => m.activeToday).length+'명';
         document.getElementById('overviewPending').textContent = items.filter(m=>m.pendingWorkout||m.pendingDiet).length+'명';
-        document.getElementById('overviewVideos').textContent = items.reduce((n,m)=>n+(Number(m.pendingVideos)||0),0)+'건';
+        document.getElementById('overviewVideos').textContent = '확인 중';
         const makeRows = (rootId, list, getDetail, empty) => {
           const root=document.getElementById(rootId);root.replaceChildren();
           if(!list.length){const p=document.createElement('p');p.className='text-slate-500 py-2';p.textContent=empty;root.appendChild(p);return;}
@@ -1922,7 +1927,21 @@
         makeRows('overviewFeedbackDone',items.filter(m=>m.feedbackDone&&!m.pendingWorkout&&!m.pendingDiet),
           ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
         makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
-        status.textContent = `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
+                status.textContent = `${date} 기준 · 운동·식단 갱신 완료 · 영상 알림 확인 중...`;
+        const legacy=await videoPromise;
+        if(request!==overviewRequest||date!==selectedDate||currentMode!=='trainer')return;
+        if(legacy.status==='success'&&Array.isArray(legacy.members)){
+          const videoCounts=new Map(legacy.members.map(m=>[m.name,Number(m.pendingVideos)||0]));
+          items.forEach(m=>{m.pendingVideos=videoCounts.get(m.name)||0;});
+          document.getElementById('overviewVideos').textContent=items.reduce((n,m)=>n+m.pendingVideos,0)+'건';
+          makeRows('overviewNeedsAttention',items.filter(m=>m.pendingWorkout||m.pendingDiet||m.pendingVideos),m=>[
+            m.pendingWorkout?'운동':'',m.pendingDiet?'식단':'',m.pendingVideos?`영상 ${m.pendingVideos}건`:''
+          ].filter(Boolean).join(' · '),'확인 대기 중인 기록이 없습니다.');
+          status.textContent=`${date} 기준 · 현황 갱신 완료`;
+        } else {
+          document.getElementById('overviewVideos').textContent='확인 실패';
+          status.textContent=`${date} 기준 · 운동·식단 정상 · 영상 알림 조회 실패`;
+        }
       } catch(e) {
         if(request !== overviewRequest)return;
         status.textContent='현황을 불러오지 못했습니다: '+e.message;
@@ -2231,7 +2250,7 @@
     }
 
     async function apiPost(body) {
-      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory','insightsBundle'].includes(body.action)
+      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory','insightsBundle','trainerOverview'].includes(body.action)
         || (!body.action && !!body.data);
       const response = await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
         {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});

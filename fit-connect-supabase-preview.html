@@ -2315,19 +2315,65 @@
       else window.prompt('측정 결과 복사',report);
     }
 
+    // Tiny in-memory video metadata cache. No localStorage or persistent PII.
+    const videoListCache=new Map();
+    const videoListInflight=new Map();
+    let videoListGeneration=0;
+    function clearVideoListCache(){
+      videoListGeneration++;
+      videoListCache.clear();
+      videoListInflight.clear();
+    }
     async function apiPost(body) {
       const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory','insightsBundle','trainerOverview','listMembersFast'].includes(body.action)
         || (!body.action && !!body.data);
+      const videoAction = body.action==='listExerciseVideos'||body.action==='listFormVideos';
+      const cacheKey=videoAction
+        ? body.action+'|'+(body.member||'')+'|'+(body.password?'trainer':'member')
+        : '';
+      const now=performance.now();
+      if(videoAction){
+        const cached=videoListCache.get(cacheKey);
+        if(cached && cached.until>now){
+          recordPerformance('캐시 '+body.action,now,true);
+          return cached.result;
+        }
+        if(cached)videoListCache.delete(cacheKey);
+        if(videoListInflight.has(cacheKey)){
+          recordPerformance('요청 재사용 '+body.action,now,true);
+          return videoListInflight.get(cacheKey);
+        }
+      }
+      const generation=videoListGeneration;
       const started=performance.now();
+      const request=(async()=>{
+        const response=await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
+          {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},
+            body:JSON.stringify(body)});
+        if(!response.ok)throw Error('서버 통신 오류');
+        const result=await response.json();
+        if(videoAction && result?.status==='success' && generation===videoListGeneration){
+          videoListCache.set(cacheKey,{
+            until:performance.now()+(body.action==='listExerciseVideos'?90000:8000),
+            result
+          });
+          if(videoListCache.size>40)videoListCache.delete(videoListCache.keys().next().value);
+        }
+        if(result?.status==='success' && [
+          'finishVideoUpload','addExerciseVideo','updateExerciseVideoTip',
+          'formVideoFeedback','markFormVideoRead','deleteFormVideo','deleteExerciseVideo'
+        ].includes(body.action)) clearVideoListCache();
+        return result;
+      })();
+      if(videoAction)videoListInflight.set(cacheKey,request);
       let succeeded=false;
       try {
-        const response = await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
-          {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
-        if (!response.ok) throw new Error('서버 통신 오류');
-        const result=await response.json();
+        const result=await request;
         succeeded=true;
         return result;
-      } finally {
+      }finally{
+        if(videoAction && videoListInflight.get(cacheKey)===request)
+          videoListInflight.delete(cacheKey);
         recordPerformance((toSupabase?'Supabase ':'Google Sheets ')+(body.action||'save'),started,succeeded);
       }
     }

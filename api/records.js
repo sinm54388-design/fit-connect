@@ -232,7 +232,8 @@
        'insightsBundle',
        'trainerOverview',
        'listMembersFast',
-       'videoPlaybackUrl'
+       'videoPlaybackUrl',
+       'linkVideoStorage'
      ];
 
      if (!allowedActions.includes(action)) {
@@ -356,6 +357,68 @@
          status: 'denied',
          message: '접근 권한이 없습니다.'
        });
+     }
+
+     // Trainer-only staging link for two existing test uploads.
+     // Keep all Apps Script rows, feedback and Drive objects unchanged.
+     if (action === 'linkVideoStorage') {
+       if (!trainer) return reply(res, 403, {
+         status:'denied',message:'트레이너 전용 작업입니다.'
+       });
+       if (req.method !== 'POST') return reply(res, 405, {
+         status:'error',message:'POST만 허용됩니다.'
+       });
+       if (member !== '김윤지') return reply(res, 400, {
+         status:'error',message:'테스트 회원 외에는 연결할 수 없습니다.'
+       });
+       const sourceId=String(params.sourceId||'').trim();
+       const fileId=String(params.fileId||'').trim();
+       const storagePath=String(params.storagePath||'').trim();
+       const allowedPaths=[
+         'kim-yunji/kim-yunji-01.mp4',
+         'kim-yunji/kim-yunji-02.mp4'
+       ];
+       if (!sourceId || sourceId.length>200 ||
+           !fileId || fileId.length>200 ||
+           !allowedPaths.includes(storagePath))
+         return reply(res, 400, {status:'error',message:'연결 정보가 올바르지 않습니다.'});
+       const prefix='/rest/v1/fit_video_metadata?select=id,file_id,storage_path&member_id=eq.'+
+         encodeURIComponent(found.id);
+       const [bySource,byPath]=await Promise.all([
+         supabaseGet(base,key,prefix+'&kind=eq.form&source_id=eq.'+
+           encodeURIComponent(sourceId)+'&limit=2'),
+         supabaseGet(base,key,prefix+'&storage_path=eq.'+
+           encodeURIComponent(storagePath)+'&limit=2')
+       ]);
+       if(bySource.length || byPath.length) return reply(res, 409, {
+         status:'error',message:'이미 연결된 영상입니다. 원본을 변경하지 않았습니다.'
+       });
+       const objectInfo=await fetch(base+'/storage/v1/object/info/fit-private-videos/'+
+         storagePath.split('/').map(encodeURIComponent).join('/'),{
+           headers:{apikey:key,Authorization:'Bearer '+key},
+           signal:AbortSignal.timeout(10000)
+         });
+       if(!objectInfo.ok) return reply(res, 409, {
+         status:'error',message:'비공개 저장소에서 파일을 확인하지 못했습니다.'
+       });
+       const payload={
+         member_id:found.id,kind:'form',source_id:sourceId,
+         file_id:fileId,storage_path:storagePath
+       };
+       const inserted=await fetch(base+'/rest/v1/fit_video_metadata',{
+         method:'POST',
+         headers:{apikey:key,Authorization:'Bearer '+key,
+           'Content-Type':'application/json','Prefer':'return=minimal'},
+         body:JSON.stringify(payload),
+         signal:AbortSignal.timeout(10000)
+       });
+       if(!inserted.ok){
+         if(inserted.status===409)return reply(res,409,{
+           status:'error',message:'영상 연결 충돌. 원본은 변경하지 않았습니다.'
+         });
+         throw Error('video metadata link failed HTTP '+inserted.status);
+       }
+       return reply(res,200,{status:'success'});
      }
 
      // Streamable private video playback after a metadata + Storage migration.

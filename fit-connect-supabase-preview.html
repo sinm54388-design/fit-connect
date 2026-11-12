@@ -806,6 +806,8 @@
     const VIDEO_INPUT_LIMIT = 200 * 1024 * 1024;
     const VIDEO_MAX_DURATION = 40;
     const VIDEO_CHUNK = 768 * 1024;
+    // Enable only after staging Storage import and signed-URL playback parity checks.
+    const PRIVATE_VIDEO_STREAMING_ENABLED = false;
     const videoObjectUrls = new Map();
 
     function getRegisteredMembers() {
@@ -2439,7 +2441,7 @@
       videoListInflight.clear();
     }
     async function apiPost(body) {
-      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory','insightsBundle','trainerOverview','listMembersFast'].includes(body.action)
+      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory','insightsBundle','trainerOverview','listMembersFast','videoPlaybackUrl'].includes(body.action)
         || (!body.action && !!body.data);
       const videoAction = body.action==='listExerciseVideos'||body.action==='listFormVideos'||body.action==='listMembers';
       const cacheKey=videoAction
@@ -3053,18 +3055,42 @@ try {
     async function playPrivateVideo(id,button){
       if(button.dataset.loading==='1')return;
       const box=button.parentElement;
-      if(videoObjectUrls.has(id)){
-        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=videoObjectUrls.get(id);box.appendChild(video);button.remove();return;
-      }
-      button.dataset.loading='1';button.textContent='영상 불러오는 중...';
+      const member=activeMemberName,mode=currentMode;
+      const cacheKey=member+'|'+id;
+      button.dataset.loading='1';
+      button.textContent='영상 불러오는 중...';
       try{
-        const creds=apiCredentials();
-        const result=await apiPost({...creds,action:'videoDownload',fileId:id});
-        if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
-        const bytes=base64ToBytes(result.base64);
-        const url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));videoObjectUrls.set(id,url);
-        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
-      }catch(e){alert(e.message);button.textContent='▶ 다시 재생 시도';button.dataset.loading='0';}
+        let url=videoObjectUrls.get(cacheKey);
+        if(!url && PRIVATE_VIDEO_STREAMING_ENABLED){
+          try{
+            const signed=await apiPost({...apiCredentials(),action:'videoPlaybackUrl',fileId:id});
+            if(signed.status==='success'&&signed.url)url=signed.url;
+          }catch(e){
+            console.warn('스트리밍 주소 확인 실패, 기존 재생으로 전환',e);
+          }
+        }
+        if(!url){
+          // Google Drive fallback: requires full Base64 download before playback.
+          const result=await apiPost({...apiCredentials(),action:'videoDownload',fileId:id});
+          if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
+          const bytes=base64ToBytes(result.base64);
+          url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));
+          videoObjectUrls.set(cacheKey,url);
+        }
+        // Prevent cross-member playback after a slow response.
+        if(member!==activeMemberName||mode!==currentMode)return;
+        const video=document.createElement('video');
+        video.controls=true;video.playsInline=true;video.preload='metadata';
+        video.className='w-full mt-2 rounded-lg';
+        video.src=url;
+        box.appendChild(video);
+        button.remove();
+      }catch(e){
+        if(member===activeMemberName&&mode===currentMode){
+          alert(e.message);button.textContent='▶ 다시 재생 시도';
+          button.dataset.loading='0';
+        }
+      }
     }
     async function submitFormVideo(e){
       e.preventDefault();const name=document.getElementById('memberVideoName').value.trim();

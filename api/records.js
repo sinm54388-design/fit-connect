@@ -406,7 +406,7 @@
        const rows = await getMemberHistory(base, key, found.id, date);
        if (action === 'workoutHistory') {
          const month = String(params.month || date.slice(0, 7));
-         if (!/^\\d{4}-\\d{2}$/.test(month))
+         if (!/^\d{4}-\d{2}$/.test(month))
            return reply(res, 400, {status:'error',message:'월 형식 오류'});
          return reply(res, 200, buildWorkoutHistory(rows, date, month));
        }

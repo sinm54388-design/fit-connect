@@ -404,21 +404,39 @@
        if(bySource.length || byPath.length) return reply(res, 409, {
          status:'error',message:'이미 다른 파일에 연결된 영상입니다. 원본을 변경하지 않았습니다.'
        });
-       let objectInfo;
+       // Verify through the same signed URL operation used for actual playback.
+       // This avoids inconsistent Storage /object/info auth behavior.
+       let proof;
        try {
-         objectInfo=await fetch(base+'/storage/v1/object/info/fit-private-videos/'+
+         proof=await fetch(base+'/storage/v1/object/sign/fit-private-videos/'+
            storagePath.split('/').map(encodeURIComponent).join('/'),{
-             headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key})},
+             method:'POST',
+             headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),
+               'Content-Type':'application/json'},
+             body:JSON.stringify({expiresIn:60}),
              signal:AbortSignal.timeout(10000)
            });
        } catch(error) {
-         console.error('FIT-CONNECT video link Storage info:',error.message);
+         console.error('FIT-CONNECT video link sign check:',error.message);
          return reply(res,503,{status:'error',
-           message:'영상 저장소 연결 실패'});
+           message:'영상 저장소 서명 연결 실패'});
        }
-       if(!objectInfo.ok) return reply(res, 409, {
-         status:'error',message:'비공개 저장소 파일 확인 실패 · Storage HTTP '+objectInfo.status
-       });
+       if(!proof.ok) {
+         let code='';
+         try {
+           const detail=await proof.json();
+           code=String(detail.code||detail.error||detail.error_code||'')
+             .replace(/[^a-zA-Z0-9_-]/g,'').slice(0,48);
+         } catch(error) {}
+         console.error('FIT-CONNECT video link sign status:',proof.status,code);
+         return reply(res,409,{status:'error',
+           message:'영상 서명 검증 실패 · Storage HTTP '+proof.status+
+             (code?' · '+code:'')});
+       }
+       const signedProof=await proof.json().catch(()=>({}));
+       if(!signedProof.signedURL && !signedProof.signedUrl)
+         return reply(res,409,{status:'error',
+           message:'영상 서명 주소가 생성되지 않았습니다.'});
        const payload={
          member_id:found.id,kind:'form',source_id:sourceId,
          file_id:fileId,storage_path:storagePath

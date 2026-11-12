@@ -4,8 +4,8 @@
 -- Preserve Google Drive binary files, existing ids, access links and feedback.
 --
 -- Verify the source payloads of listExerciseVideos and listFormVideos first:
--- exercise fields observed in UI: id, name, url, fileId, tip
--- form fields observed in UI: id, name, fileId, question, feedback, readAt
+-- exercise fields confirmed in saved Apps Script: id, name, url, fileId, tip
+-- form fields confirmed in saved Apps Script: id, name, fileId, question, feedback, time, readAt
 -- Additional source fields may exist; retain them in raw_payload.
 -- All videos belong to a member. The source record ID must be confirmed
 -- non-empty and stable before running an import/upsert.
@@ -21,6 +21,7 @@ create table if not exists public.fit_video_metadata (
   tip text not null default '',
   question text not null default '',
   feedback text not null default '',
+  source_time text not null default '',
   read_at text,
   raw_payload jsonb not null default '{}'::jsonb,
   source_updated_at timestamptz,
@@ -40,7 +41,7 @@ revoke all on public.fit_video_metadata from anon, authenticated;
 -- 1) Total count per member/kind matches the original Sheets source.
 -- 2) Every source_id is unique within member/kind.
 -- 3) Every Google Drive file_id and external_url matches its source.
--- 4) Every feedback, read_at, question and tip matches exactly.
+-- 4) Every feedback, read_at, source_time, question and tip matches exactly.
 -- 5) Media playback and member isolation work under existing credentials.
 -- 6) Compare data added to Sheets after the initial snapshot.
 -- 7) Keep old video API/Drive unchanged until dual-read parity is proven.

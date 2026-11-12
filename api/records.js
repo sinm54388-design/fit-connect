@@ -373,15 +373,23 @@
        });
        const sourceId=String(params.sourceId||'').trim();
        const fileId=String(params.fileId||'').trim();
-       const storagePath=String(params.storagePath||'').trim();
+       // Support the prior preview UI still cached with a single .mp4 suffix.
+       const suppliedPath=String(params.storagePath||'').trim();
+       const legacyPathMap={
+         'kim-yunji/kim-yunji-01.mp4':'kim-yunji/kim-yunji-01.mp4.mp4',
+         'kim-yunji/kim-yunji-02.mp4':'kim-yunji/kim-yunji-02.mp4.mp4'
+       };
+       const storagePath=legacyPathMap[suppliedPath]||suppliedPath;
        const allowedPaths=[
          'kim-yunji/kim-yunji-01.mp4.mp4',
          'kim-yunji/kim-yunji-02.mp4.mp4'
        ];
-       if (!sourceId || sourceId.length>200 ||
-           !fileId || fileId.length>200 ||
-           !allowedPaths.includes(storagePath))
-         return reply(res, 400, {status:'error',message:'연결 정보가 올바르지 않습니다.'});
+       if (!sourceId || sourceId.length>200)
+         return reply(res,400,{status:'error',message:'기존 영상 기록 ID를 확인할 수 없습니다.'});
+       if (!fileId || fileId.length>200)
+         return reply(res,400,{status:'error',message:'기존 Google Drive 파일 ID를 확인할 수 없습니다.'});
+       if (!allowedPaths.includes(storagePath))
+         return reply(res,400,{status:'error',message:'저장소 파일 선택 정보가 일치하지 않습니다. 화면을 새로고침해 주세요.'});
        const prefix='/rest/v1/fit_video_metadata?select=id,file_id,storage_path&member_id=eq.'+
          encodeURIComponent(found.id);
        let bySource, byPath;

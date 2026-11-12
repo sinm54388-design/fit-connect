@@ -375,8 +375,8 @@
        const fileId=String(params.fileId||'').trim();
        const storagePath=String(params.storagePath||'').trim();
        const allowedPaths=[
-         'kim-yunji/kim-yunji-01.mp4',
-         'kim-yunji/kim-yunji-02.mp4'
+         'kim-yunji/kim-yunji-01.mp4.mp4',
+         'kim-yunji/kim-yunji-02.mp4.mp4'
        ];
        if (!sourceId || sourceId.length>200 ||
            !fileId || fileId.length>200 ||

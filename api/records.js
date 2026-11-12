@@ -231,7 +231,8 @@
        'workoutHistory',
        'insightsBundle',
        'trainerOverview',
-       'listMembersFast'
+       'listMembersFast',
+       'videoPlaybackUrl'
      ];
 
      if (!allowedActions.includes(action)) {
@@ -355,6 +356,44 @@
          status: 'denied',
          message: '접근 권한이 없습니다.'
        });
+     }
+
+     // Streamable private video playback after a metadata + Storage migration.
+     // Until the object exists in Storage, the client uses legacy Drive playback.
+     if (action === 'videoPlaybackUrl') {
+       const fileId = String(params.fileId || '').trim();
+       if (!fileId || fileId.length > 200)
+         return reply(res, 400, {status:'error',message:'영상 ID 오류'});
+       const matches = await supabaseGet(base, key,
+         '/rest/v1/fit_video_metadata?select=storage_path&member_id=eq.' +
+         encodeURIComponent(found.id) + '&file_id=eq.' + encodeURIComponent(fileId) +
+         '&limit=2');
+       if (!matches.length || !matches[0].storage_path)
+         return reply(res, 200, {status:'not_migrated'});
+       if (matches.length !== 1)
+         return reply(res, 409, {status:'error',message:'영상 중복 데이터 확인 필요'});
+       const path = String(matches[0].storage_path || '');
+       if (!/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)+$/.test(path) ||
+           path.includes('..') || path.length > 500)
+         return reply(res, 409, {status:'error',message:'영상 저장 경로 오류'});
+       const bucket = 'fit-private-videos';
+       const signed = await fetch(base + '/storage/v1/object/sign/' + bucket + '/' +
+         path.split('/').map(encodeURIComponent).join('/'), {
+           method:'POST',
+           headers:{apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json'},
+           body:JSON.stringify({expiresIn:3600}),
+           signal:AbortSignal.timeout(10000)
+         });
+       if (!signed.ok) throw Error('private video signing failed');
+       const item = await signed.json();
+       const partial = String(item.signedURL || item.signedUrl || '');
+       if (!partial) throw Error('private video signature missing');
+       const relative = partial.startsWith('/object/')
+         ? '/storage/v1' + partial : partial;
+       const url = new URL(relative, base);
+       if (url.origin !== base)
+         throw Error('private video signature origin mismatch');
+       return reply(res, 200, {status:'success',url:url.toString()});
      }
 
      // Original spreadsheet InBody rows stay untouched. New rows are stored

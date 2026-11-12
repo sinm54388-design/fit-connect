@@ -272,21 +272,24 @@
        if (!validDay(overviewDate)) return reply(res, 400, {
          status: 'error', message: '날짜 형식 오류'
        });
-       const allMembers = await supabaseGet(base, key,
-         '/rest/v1/fit_members?select=id,name&order=name.asc&limit=1000');
+       const pageSize = 1000;
+       const recordPrefix = '/rest/v1/fit_daily_records?select=member_id,record_date,data&record_date=lte.' +
+         overviewDate + '&order=record_date.desc&limit=' + pageSize;
+       // Independent Supabase queries can run concurrently.
+       const [allMembers, firstPage] = await Promise.all([
+         supabaseGet(base, key,
+           '/rest/v1/fit_members?select=id,name&order=name.asc&limit=1000'),
+         supabaseGet(base, key, recordPrefix + '&offset=0')
+       ]);
        if (allMembers.length === 1000) throw Error('too many members for overview');
        const result = new Map(allMembers.map(row => [row.id, {
          name: row.name, lastDate: '', activeToday: false,
          pendingWorkout: false, pendingDiet: false, pendingVideos: 0,
          feedbackDone: false
        }]));
-       const pageSize = 1000;
        let offset = 0;
+       let records = firstPage;
        while (true) {
-         const records = await supabaseGet(base, key,
-           '/rest/v1/fit_daily_records?select=member_id,record_date,data&record_date=lte.' +
-           overviewDate + '&order=record_date.desc&limit=' + pageSize +
-           '&offset=' + offset);
          for (const record of records) {
            const item = result.get(record.member_id);
            if (!item) continue;
@@ -319,6 +322,7 @@
          if (records.length < pageSize) break;
          offset += pageSize;
          if (offset >= 10000) throw Error('overview pagination limit exceeded');
+         records = await supabaseGet(base, key, recordPrefix + '&offset=' + offset);
        }
        return reply(res, 200, {status:'success',date:overviewDate,
          members:[...result.values()]});

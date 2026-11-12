@@ -2231,7 +2231,7 @@
     }
 
     async function apiPost(body) {
-      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory'].includes(body.action)
+      const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory','insightsBundle'].includes(body.action)
         || (!body.action && !!body.data);
       const response = await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
         {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
@@ -2376,30 +2376,13 @@
       const request=++insightsRequest, member=activeMemberName,mode=currentMode,date=selectedDate;
       if(mode==='member'&&!hasMemberAccess())return;
       try {
-        // Start independent backend requests together rather than waiting serially.
-        const credentials=apiCredentials();
-        const [result, inbodyResponse, goalResponse]=await Promise.all([
-          apiPost({...credentials,action:'memberInsights'}),
-          apiPost({...credentials,action:'readInbody'}),
-          apiPost({...credentials,action:'readMemberGoal'})
-        ]);
+        // One Supabase-backed request contains all growth cards.
+        const result=await apiPost({...apiCredentials(),action:'insightsBundle'});
         if(request!==insightsRequest||member!==activeMemberName||mode!==currentMode||date!==selectedDate)return;
         if(result.status!=='success')throw Error(result.message||'성장 기록 조회 실패');
-        if(inbodyResponse.status!=='success')throw Error(inbodyResponse.message||'Supabase 인바디 조회 실패');
-        if(goalResponse.status!=='success')throw Error(goalResponse.message||'Supabase 목표 조회 실패');
         const prefix=mode==='trainer'?'trainer':'member';
-        const supabaseInbody=inbodyResponse.records||[];
-        const supabaseGoal=goalResponse.goal||{};
-        // Monthly InBody change is derived from the same Supabase measurements.
-        const inbodyThisMonth=supabaseInbody.filter(x=>x.date?.startsWith(date.slice(0,7))&&x.date<=date);
-        if(inbodyThisMonth.length>1){
-          const first=inbodyThisMonth[0],last=inbodyThisMonth[inbodyThisMonth.length-1];
-          result.monthly.inbodyChange={
-            weight:last.weight-first.weight,
-            muscle:last.muscle-first.muscle,
-            fat:last.fat-first.fat
-          };
-        }
+        const supabaseInbody=result.inbody||[];
+        const supabaseGoal=result.goal||{};
         renderWeeklyReport(prefix==='trainer'?'trainerWeeklyReport':'memberWeeklyReport',result.weekly);
         renderMonthlyReport(prefix==='trainer'?'trainerMonthlyReport':'memberMonthlyReport',result.monthly);
         renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);

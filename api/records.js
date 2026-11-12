@@ -393,7 +393,7 @@
              encodeURIComponent(storagePath)+'&limit=2')
          ]);
        } catch(error) {
-         const status=String(error.message||'').match(/Supabase HTTP (\\d{3})/);
+         const status=String(error.message||'').match(/Supabase HTTP (\d{3})/);
          console.error('FIT-CONNECT video link metadata read:',error.message);
          return reply(res,503,{status:'error',
            message:'영상 테이블 조회 실패'+(status?' · Supabase HTTP '+status[1]:' · 연결 확인 필요')});

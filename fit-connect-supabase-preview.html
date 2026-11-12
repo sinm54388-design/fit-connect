@@ -91,6 +91,14 @@
     🧪 Supabase 테스트 화면 · 운동/식단 일지 저장만 신규 DB로 연결됨 · 실제 회원용 주소로 공유하지 마세요.
   </div>
 
+  <section id="performancePanel" hidden style="margin:8px auto;padding:12px;max-width:800px;background:#101d30;color:#eef2ff;border:1px solid #46546b;border-radius:10px;font-size:13px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <strong>속도 진단 (테스트 전용)</strong>
+      <button type="button" onclick="copyPerformanceReport()" style="padding:7px 11px;background:#334155;border-radius:7px;color:white;">측정 결과 복사</button>
+    </div>
+    <p style="color:#cbd5e1;margin:8px 0;">새로고침 후 요청별 소요 시간을 표시합니다. 회원 정보나 비밀번호는 기록하지 않습니다.</p>
+    <pre id="performanceOutput" style="white-space:pre-wrap;font:12px/1.5 monospace;overflow-wrap:anywhere;">아직 측정된 요청이 없습니다.</pre>
+  </section>
   <!-- Header -->
   <header id="appHeader" class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 sm:px-8">
     <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
@@ -2252,13 +2260,43 @@
       if(saved) await loadTrainerOverview();
     }
 
+    // Diagnostic overlay: enabled only on ?perf=1; sensitive values excluded.
+    const performanceEnabled=new URLSearchParams(location.search).get('perf')==='1';
+    const performanceSamples=[];
+    function recordPerformance(label,start,ok=true){
+      if(!performanceEnabled)return;
+      performanceSamples.push({label,ms:Math.round(performance.now()-start),ok});
+      if(performanceSamples.length>35)performanceSamples.shift();
+      const panel=document.getElementById('performancePanel');
+      if(!panel)return;
+      panel.hidden=false;
+      document.getElementById('performanceOutput').textContent=performanceSamples
+        .slice(-18).map(x=>(x.ok?'✓ ':'! ')+x.label+' · '+x.ms+'ms').join('\n');
+    }
+    function copyPerformanceReport(){
+      const report='FIT-CONNECT 로딩 측정\n'+performanceSamples
+        .map(x=>[x.label,x.ms,x.ok?'OK':'ERROR'].join(' : ')).join('\n');
+      if(navigator.clipboard?.writeText)navigator.clipboard.writeText(report)
+        .then(()=>showToast('측정 결과 복사 완료'))
+        .catch(()=>window.prompt('측정 결과 복사',report));
+      else window.prompt('측정 결과 복사',report);
+    }
+
     async function apiPost(body) {
       const toSupabase = ['read','verify','patchData','setProgressBatch','readInbody','saveInbody','readMemberGoal','saveMemberGoal','memberInsights','workoutHistory','insightsBundle','trainerOverview'].includes(body.action)
         || (!body.action && !!body.data);
-      const response = await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
-        {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
-      if (!response.ok) throw new Error('서버 통신 오류');
-      return await response.json();
+      const started=performance.now();
+      let succeeded=false;
+      try {
+        const response = await fetch(toSupabase ? SUPABASE_API : SCRIPT_URL,
+          {method:'POST',headers:toSupabase?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
+        if (!response.ok) throw new Error('서버 통신 오류');
+        const result=await response.json();
+        succeeded=true;
+        return result;
+      } finally {
+        recordPerformance((toSupabase?'Supabase ':'Google Sheets ')+(body.action||'save'),started,succeeded);
+      }
     }
     function apiCredentials() {
       return {member:activeMemberName,date:selectedDate,token:memberToken,

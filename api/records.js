@@ -384,25 +384,40 @@
          return reply(res, 400, {status:'error',message:'연결 정보가 올바르지 않습니다.'});
        const prefix='/rest/v1/fit_video_metadata?select=id,file_id,storage_path&member_id=eq.'+
          encodeURIComponent(found.id);
-       const [bySource,byPath]=await Promise.all([
-         supabaseGet(base,key,prefix+'&kind=eq.form&source_id=eq.'+
-           encodeURIComponent(sourceId)+'&limit=2'),
-         supabaseGet(base,key,prefix+'&storage_path=eq.'+
-           encodeURIComponent(storagePath)+'&limit=2')
-       ]);
+       let bySource, byPath;
+       try {
+         [bySource,byPath]=await Promise.all([
+           supabaseGet(base,key,prefix+'&kind=eq.form&source_id=eq.'+
+             encodeURIComponent(sourceId)+'&limit=2'),
+           supabaseGet(base,key,prefix+'&storage_path=eq.'+
+             encodeURIComponent(storagePath)+'&limit=2')
+         ]);
+       } catch(error) {
+         const status=String(error.message||'').match(/Supabase HTTP (\\d{3})/);
+         console.error('FIT-CONNECT video link metadata read:',error.message);
+         return reply(res,503,{status:'error',
+           message:'영상 테이블 조회 실패'+(status?' · Supabase HTTP '+status[1]:' · 연결 확인 필요')});
+       }
        if(bySource.length===1 && bySource[0].file_id===fileId &&
           bySource[0].storage_path===storagePath)
          return reply(res,200,{status:'success',alreadyLinked:true});
        if(bySource.length || byPath.length) return reply(res, 409, {
          status:'error',message:'이미 다른 파일에 연결된 영상입니다. 원본을 변경하지 않았습니다.'
        });
-       const objectInfo=await fetch(base+'/storage/v1/object/info/fit-private-videos/'+
-         storagePath.split('/').map(encodeURIComponent).join('/'),{
-           headers:{apikey:key,Authorization:'Bearer '+key},
-           signal:AbortSignal.timeout(10000)
-         });
+       let objectInfo;
+       try {
+         objectInfo=await fetch(base+'/storage/v1/object/info/fit-private-videos/'+
+           storagePath.split('/').map(encodeURIComponent).join('/'),{
+             headers:{apikey:key,Authorization:'Bearer '+key},
+             signal:AbortSignal.timeout(10000)
+           });
+       } catch(error) {
+         console.error('FIT-CONNECT video link Storage info:',error.message);
+         return reply(res,503,{status:'error',
+           message:'영상 저장소 연결 실패'});
+       }
        if(!objectInfo.ok) return reply(res, 409, {
-         status:'error',message:'비공개 저장소에서 파일을 확인하지 못했습니다.'
+         status:'error',message:'비공개 저장소 파일 확인 실패 · Storage HTTP '+objectInfo.status
        });
        const payload={
          member_id:found.id,kind:'form',source_id:sourceId,
@@ -419,7 +434,9 @@
          if(inserted.status===409)return reply(res,409,{
            status:'error',message:'영상 연결 충돌. 원본은 변경하지 않았습니다.'
          });
-         throw Error('video metadata link failed HTTP '+inserted.status);
+         console.error('FIT-CONNECT video link insert:',inserted.status);
+         return reply(res,503,{status:'error',
+           message:'영상 테이블 연결 저장 실패 · Supabase HTTP '+inserted.status});
        }
        return reply(res,200,{status:'success'});
      }

@@ -1921,17 +1921,27 @@
           status.textContent='등록 회원 '+quick.members.length+'명 · 최신 목록 확인 중...';
         }
       }catch(e){console.warn('빠른 회원 목록 조회 실패:',e);}
-      const latest=await legacyPromise;
-      if(request!==registryRequest || currentMode!=='trainer')return;
-      if(latest.status==='success' && Array.isArray(latest.members)){
-        if(!fastOk || JSON.stringify(latest.members)!==JSON.stringify(registryMembers)){
-          renderMemberRegistryList(latest.members,request);
+      // Sheets remains the source of truth, but its potentially slow
+      // reconciliation should never delay opening the trainer screen.
+      const reconcile=async()=>{
+        const latest=await legacyPromise;
+        if(request!==registryRequest || currentMode!=='trainer')return;
+        if(latest.status==='success' && Array.isArray(latest.members)){
+          if(!fastOk || JSON.stringify(latest.members)!==JSON.stringify(registryMembers)){
+            renderMemberRegistryList(latest.members,request);
+          }
+          status.textContent='등록된 회원 '+registryMembers.length+'명 · 회원별 기록 유지됨';
+        }else if(fastOk){
+          status.textContent='등록 회원 '+registryMembers.length+'명 · Google Sheets 최신 목록 확인 실패';
+        }else{
+          status.textContent='회원 목록을 불러오지 못했습니다: '+(latest.message||'조회 실패');
         }
-        status.textContent='등록된 회원 '+registryMembers.length+'명 · 회원별 기록 유지됨';
-      }else if(fastOk){
-        status.textContent='등록 회원 '+registryMembers.length+'명 · Google Sheets 최신 목록 확인 실패';
+      };
+      if(fastOk){
+        reconcile().catch(e=>console.warn('회원 목록 최신 확인 오류',e));
       }else{
-        status.textContent='회원 목록을 불러오지 못했습니다: '+(latest.message||'조회 실패');
+        // If Supabase failed, wait for the authoritative Sheets fallback.
+        await reconcile();
       }
     }
 

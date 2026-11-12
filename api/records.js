@@ -229,7 +229,8 @@
        'saveMemberGoal',
        'memberInsights',
        'workoutHistory',
-       'insightsBundle'
+       'insightsBundle',
+       'trainerOverview'
      ];
 
      if (!allowedActions.includes(action)) {
@@ -247,6 +248,68 @@
          status: 'error',
          message: '저장은 POST만 가능합니다.'
        });
+     }
+
+     // Trainer dashboard: build activity and feedback status from Supabase.
+     // Video feedback metadata stays in Apps Script until media migration.
+     if (action === 'trainerOverview') {
+       if (!trainer) return reply(res, 403, {
+         status: 'denied', message: '트레이너 전용 기능입니다.'
+       });
+       const overviewDate = String(params.date || '');
+       if (!validDay(overviewDate)) return reply(res, 400, {
+         status: 'error', message: '날짜 형식 오류'
+       });
+       const allMembers = await supabaseGet(base, key,
+         '/rest/v1/fit_members?select=id,name&order=name.asc&limit=1000');
+       if (allMembers.length === 1000) throw Error('too many members for overview');
+       const result = new Map(allMembers.map(row => [row.id, {
+         name: row.name, lastDate: '', activeToday: false,
+         pendingWorkout: false, pendingDiet: false, pendingVideos: 0,
+         feedbackDone: false
+       }]));
+       const pageSize = 1000;
+       let offset = 0;
+       while (true) {
+         const records = await supabaseGet(base, key,
+           '/rest/v1/fit_daily_records?select=member_id,record_date,data&record_date=lte.' +
+           overviewDate + '&order=record_date.desc&limit=' + pageSize +
+           '&offset=' + offset);
+         for (const record of records) {
+           const item = result.get(record.member_id);
+           if (!item) continue;
+           const day = String(record.record_date || '');
+           const data = record.data || {};
+           const routines = Array.isArray(data.routines) ? data.routines : [];
+           const completed = routines.some(r =>
+             Array.isArray(r.completedSets) && r.completedSets.some(Boolean));
+           const reflection = !!String((data.reflection?.good || '') +
+             (data.reflection?.bad || '')).trim();
+           const diet = data.diet || {};
+           const hasDiet = ['breakfast','lunch','dinner','snack'].some(k => {
+             const food = diet[k] || {};
+             return !!String(food.desc || '').trim() ||
+               (Array.isArray(food.photos) && food.photos.length > 0) ||
+               (Array.isArray(food.foods) && food.foods.length > 0);
+           });
+           const active = completed || reflection || hasDiet;
+           if (active && day > item.lastDate) item.lastDate = day;
+           if (day === overviewDate) {
+             item.activeToday ||= active;
+             const feedback = data.feedback || {};
+             item.pendingWorkout ||= (completed || reflection) &&
+               !String(feedback.workout || '').trim();
+             item.pendingDiet ||= hasDiet && !String(feedback.diet || '').trim();
+             item.feedbackDone ||= !!String(feedback.workout || '').trim() ||
+               !!String(feedback.diet || '').trim();
+           }
+         }
+         if (records.length < pageSize) break;
+         offset += pageSize;
+         if (offset >= 10000) throw Error('overview pagination limit exceeded');
+       }
+       return reply(res, 200, {status:'success',date:overviewDate,
+         members:[...result.values()]});
      }
 
      const member = String(params.member || '').trim();

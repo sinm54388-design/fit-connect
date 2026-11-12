@@ -228,7 +228,8 @@
        'readMemberGoal',
        'saveMemberGoal',
        'memberInsights',
-       'workoutHistory'
+       'workoutHistory',
+       'insightsBundle'
      ];
 
      if (!allowedActions.includes(action)) {
@@ -280,6 +281,49 @@
      // Original spreadsheet InBody rows stay untouched. New rows are stored
      // under a member-specific namespace with a unique measurement-date key.
      const inbodySheet = 'InbodyRecords.' + found.id;
+     // Consolidated read: 1 authenticated Vercel request, parallel DB queries.
+     if (action === 'insightsBundle') {
+       const prefix = '/rest/v1/fit_auxiliary_records?select=data&member_id=eq.'
+         + encodeURIComponent(found.id) + '&source_sheet=eq.';
+       const [rows, oldInbody, newInbody, oldGoals, newGoals] = await Promise.all([
+         getMemberHistory(base, key, found.id, date),
+         supabaseGet(base, key, prefix + encodeURIComponent('InbodyRecords') + '&order=source_row.asc'),
+         supabaseGet(base, key, prefix + encodeURIComponent(inbodySheet) + '&order=source_row.asc'),
+         supabaseGet(base, key, prefix + encodeURIComponent('MemberGoals') + '&order=source_row.desc&limit=1'),
+         supabaseGet(base, key, prefix + encodeURIComponent('MemberGoals.' + found.id) + '&limit=1')
+       ]);
+       const records = new Map();
+       for (const row of [...oldInbody, ...newInbody]) {
+         const item = row?.data || {};
+         const d = String(item.Date || item.date || '');
+         if (!validDay(d)) continue;
+         const weight = Number(item.Weight ?? item.weight);
+         const muscle = Number(item.Muscle ?? item.muscle);
+         const fat = Number(item.FatPercent ?? item.fat);
+         if (![weight, muscle, fat].every(Number.isFinite)) continue;
+         records.set(d, { date: d, weight, muscle, fat });
+       }
+       const inbody = [...records.values()].sort((a,b) => a.date.localeCompare(b.date));
+       const goalRow = (newGoals[0] || oldGoals[0] || {}).data || {};
+       const goal = {
+         targetWeight: goalRow.TargetWeight ?? goalRow.targetWeight ?? '',
+         weeklyDays: goalRow.WeeklyDays ?? goalRow.weeklyDays ?? 0,
+         deadline: goalRow.Deadline ?? goalRow.deadline ?? '',
+         note: goalRow.Note ?? goalRow.note ?? ''
+       };
+       const result = buildMemberInsights(rows, date);
+       const monthlyInbody = inbody.filter(x => x.date.startsWith(date.slice(0,7)) && x.date <= date);
+       if (monthlyInbody.length > 1) {
+         const first = monthlyInbody[0], last = monthlyInbody[monthlyInbody.length-1];
+         result.monthly.inbodyChange = {
+           weight: last.weight - first.weight,
+           muscle: last.muscle - first.muscle,
+           fat: last.fat - first.fat
+         };
+       }
+       return reply(res, 200, { ...result, inbody, goal });
+     }
+
      if (action === 'readInbody') {
        const prefix = '/rest/v1/fit_auxiliary_records?select=data&member_id=eq.'
          + encodeURIComponent(found.id) + '&source_sheet=eq.';

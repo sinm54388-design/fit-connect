@@ -500,6 +500,186 @@
       body.trainer-lime-theme #trainerView > .bg-gradient-to-r h2 { font-size:25px; }
       body.trainer-lime-theme #trainerView .trainer-nav-btn { min-height:52px; }
     }
+
+    /* Trainer workspace layout inspired by modern low-noise coaching SaaS.
+       Visual/structural changes only; overview IDs retain all existing callbacks. */
+    body.trainer-lime-theme #trainerView { max-width:1280px;margin-left:auto;margin-right:auto; }
+    body.trainer-lime-theme #trainerView .trainer-workspace-hero {
+      display:grid;grid-template-columns:minmax(0,1.5fr) minmax(240px,.8fr);
+      gap:34px;align-items:center;
+      background:radial-gradient(ellipse at 88% 8%,rgba(192,253,47,.065),transparent 42%),linear-gradient(130deg,#17191c,#17191b 65%,#1b1d1c);
+      padding:34px 38px;border:1px solid #292c2e;border-radius:22px;
+      box-shadow:none;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-eyebrow,
+    body.trainer-lime-theme #trainerView .trainer-workspace-kicker {
+      color:#baf038;font-size:10px;font-weight:750;letter-spacing:.095em;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-eyebrow {
+      display:inline-flex;align-items:center;gap:8px;
+      border:1px solid rgba(191,241,65,.20);border-radius:30px;
+      padding:5px 10px;background:rgba(190,247,47,.045);letter-spacing:.03em;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-status-dot {
+      display:inline-block;width:6px;height:6px;border-radius:50%;background:#c6fb33;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-hero h2 {
+      font-size:clamp(30px,3.5vw,46px);line-height:1.12;letter-spacing:-.065em;
+      max-width:560px;color:#f6f7f7;font-weight:850;margin:16px 0 12px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-hero h2 em {font-style:normal;color:#c4fb32;}
+    body.trainer-lime-theme #trainerView .trainer-workspace-hero-copy > p {
+      font-size:13px;line-height:1.8;color:#a5a9b2;max-width:450px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-actions {
+      display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:24px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-primary {
+      background:#c5fb31;color:#11130e;border:0;border-radius:10px;
+      padding:13px 19px;font-size:12px;font-weight:800;display:flex;align-items:center;gap:9px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-primary:hover {background:#d9ff74;}
+    body.trainer-lime-theme #trainerView .trainer-workspace-secondary {
+      color:#e0e2e5;font-size:12px;font-weight:600;display:flex;align-items:center;gap:10px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-member {
+      background:rgba(8,10,12,.43);border:1px solid #30343a;border-radius:15px;
+      padding:18px;min-width:0;position:relative;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-member > label:first-child {
+      display:block;color:#e3e5e8;font-size:12px;font-weight:700;margin-bottom:10px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-select-caption {
+      display:block;font-size:11px;color:#9398a2;margin:14px 0 6px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-member-link {
+      color:#b9ef4b;display:flex;align-items:center;gap:9px;margin-top:14px;
+      font-size:11px;font-weight:700;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-nav {
+      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-nav .trainer-nav-btn {
+      min-height:51px;justify-content:center;font-size:12px;gap:9px;
+      background:#141619;border:1px solid #25292d;border-radius:12px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-nav .trainer-nav-btn i {color:#bff13d;}
+    body.trainer-lime-theme #trainerView .trainer-workspace-dashboard {
+      border:0;background:transparent;padding:0;box-shadow:none;
+      display:flex;flex-direction:column;gap:18px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-section-title {
+      display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+      padding:4px 0 0;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-section-title h3 {
+      font-size:24px;font-weight:800;color:#f7f7f8;margin-top:6px;letter-spacing:-.05em;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-section-title p {
+      color:#949aa4;font-size:12px;margin-top:3px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-refresh {
+      color:#c9cdd0;background:#1c1f23;border:1px solid #30343a;
+      border-radius:10px;padding:10px 13px;font-size:11px;white-space:nowrap;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-metrics {
+      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-metric {
+      display:grid;grid-template-columns:1fr auto;gap:6px 8px;
+      padding:18px 17px;background:#121416;border:1px solid #282b30;border-radius:14px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-metric > span {
+      font-size:11px;color:#a2a6ae;font-weight:600;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-metric > i {
+      font-size:14px;color:#c3f637;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-metric strong {
+      grid-column:1/-1;color:#f5f7f8;font-size:31px;line-height:1.15;
+      font-weight:820;letter-spacing:-.05em;font-variant-numeric:tabular-nums;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-metric small {
+      grid-column:1/-1;color:#828891;font-size:10px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-overview-status {
+      color:#8b919a;font-size:11px;min-height:15px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-main-grid {
+      display:grid;grid-template-columns:minmax(0,1.48fr) minmax(260px,.9fr);
+      gap:15px;align-items:start;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-side-panels {
+      display:grid;gap:15px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-activity,
+    body.trainer-lime-theme #trainerView .trainer-workspace-side-card,
+    body.trainer-lime-theme #trainerView .trainer-workspace-report-card {
+      padding:21px;background:#111315;border:1px solid #292c31;
+      border-radius:15px;min-width:0;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-activity {
+      min-height:350px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-list-heading {
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      margin-bottom:16px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-list-heading h4 {
+      color:#f4f6f7;font-size:15px;font-weight:750;letter-spacing:-.035em;
+      margin-top:4px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-list-heading h4 i {
+      color:#bef236;margin-right:5px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-subtle {
+      color:#8d939d;font-size:11px;line-height:1.55;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-list {
+      display:flex;flex-direction:column;gap:7px;
+      max-height:290px;overflow:auto;scrollbar-width:thin;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-list > button {
+      padding:12px 13px;border:1px solid #292e32;border-radius:10px;
+      background:#191b1e;display:flex;align-items:center;gap:8px;
+      text-align:left;min-height:49px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-list > button:hover {
+      background:#242823;border-color:#606b3c;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-list > button span:first-child {
+      font-weight:650;color:#f0f1f2;font-size:12px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-list > button span:last-child {
+      color:#9aa0aa;font-size:10px;text-align:right;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-report-grid {
+      display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;
+    }
+    body.trainer-lime-theme #trainerView .trainer-workspace-report-card > p {
+      margin:-6px 0 12px;
+    }
+    @media(max-width:900px) {
+      body.trainer-lime-theme #trainerView .trainer-workspace-hero {
+        grid-template-columns:minmax(0,1fr);padding:26px;gap:20px;
+      }
+      body.trainer-lime-theme #trainerView .trainer-workspace-main-grid {grid-template-columns:1fr;}
+      body.trainer-lime-theme #trainerView .trainer-workspace-side-panels {grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+    @media(max-width:639px) {
+      body.trainer-lime-theme #trainerView .trainer-workspace-hero {padding:22px 18px;border-radius:18px;}
+      body.trainer-lime-theme #trainerView .trainer-workspace-hero h2 {font-size:30px;}
+      body.trainer-lime-theme #trainerView .trainer-workspace-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}
+      body.trainer-lime-theme #trainerView .trainer-workspace-metric {padding:15px 13px;}
+      body.trainer-lime-theme #trainerView .trainer-workspace-metric strong {font-size:27px;}
+      body.trainer-lime-theme #trainerView .trainer-workspace-side-panels,
+      body.trainer-lime-theme #trainerView .trainer-workspace-report-grid {grid-template-columns:1fr;}
+      body.trainer-lime-theme #trainerView .trainer-workspace-nav {grid-template-columns:repeat(2,minmax(0,1fr));}
+      body.trainer-lime-theme #trainerView .trainer-workspace-activity,
+      body.trainer-lime-theme #trainerView .trainer-workspace-side-card,
+      body.trainer-lime-theme #trainerView .trainer-workspace-report-card {padding:16px;}
+      body.trainer-lime-theme #trainerView .trainer-workspace-section-title h3 {font-size:22px;}
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -917,67 +1097,79 @@
 
     </div>
 
-    <!-- TRAINER VIEW -->
-    <div id="trainerView" class="space-y-6 hidden">
-      <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-semibold border border-indigo-500/30">TRAINER DASHBOARD</span>
-            <span class="text-xs text-slate-400">25인+ 회원 실시간 연동 관리</span>
-          </div>
-          <h2 class="text-xl sm:text-2xl font-bold text-white">운동 루틴 처방 & 실시간 피드백</h2>
-        </div>
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
-          <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl w-full sm:min-w-[240px]">
-            <label for="trainerMemberSearch" class="block text-xs font-semibold text-slate-300 mb-1.5"><i class="fa-solid fa-magnifying-glass text-indigo-400"></i> 회원 이름 검색</label>
-            <div class="relative">
-              <input id="trainerMemberSearch" type="search" placeholder="이름 일부 입력 (예: 윤지)" autocomplete="off" oninput="filterTrainerMemberSearch()" onkeydown="handleTrainerMemberSearchKey(event)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-indigo-500">
-              <div id="trainerMemberSearchResults" class="hidden absolute left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto rounded-xl bg-slate-800 border border-slate-600 shadow-2xl z-40 p-1" role="listbox" aria-label="검색된 회원"></div>
-            </div>
-            <label for="trainerMemberSelect" class="block text-[11px] text-slate-400 mt-2 mb-1">또는 목록에서 선택</label>
-            <select id="trainerMemberSelect" onchange="onSelectMemberChange()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"></select>
-          </div>
-          <button onclick="switchMode('member')" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer">회원 화면으로</button>
-        </div>
-      </div>
 
-      <!-- 트레이너 주요 기능 바로가기 -->
-      <nav aria-label="트레이너 주요 기능 바로가기" class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 rounded-2xl border border-slate-700/70 bg-slate-900 p-3 sm:p-4 shadow-lg">
-        <button type="button" onclick="jumpTrainerSection('trainerDashboardSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-line text-emerald-400"></i><span>회원 관리 대시보드</span></button>
-        <button type="button" onclick="jumpTrainerSection('trainerQuickFeedbackMount')" class="trainer-nav-btn"><i class="fa-solid fa-comments text-sky-400"></i><span>운동·식단 피드백</span></button>
-        <button type="button" onclick="jumpTrainerSection('trainerRoutineSection')" class="trainer-nav-btn"><i class="fa-solid fa-dumbbell text-indigo-400"></i><span>운동 루틴 관리</span></button>
-        <button type="button" onclick="jumpTrainerSection('trainerGrowthSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-simple text-amber-400"></i><span>회원 성장 관리</span></button>
+    <!-- TRAINER VIEW: modern training workspace; dynamic IDs and event actions are preserved -->
+    <div id="trainerView" class="space-y-6 hidden">
+      <section class="trainer-workspace-hero trainer-jump-target" aria-label="트레이너 워크스페이스">
+        <div class="trainer-workspace-hero-copy">
+          <span class="trainer-workspace-eyebrow"><span class="trainer-workspace-status-dot"></span> FIT-CONNECT / TRAINER WORKSPACE</span>
+          <h2>오늘도 회원의 <em>변화</em>에 집중하세요.</h2>
+          <p>회원별 운동·식단 기록을 빠르게 살펴보고, 필요한 피드백부터 전달하세요.</p>
+          <div class="trainer-workspace-actions">
+            <button type="button" class="trainer-workspace-primary" onclick="jumpTrainerSection('trainerDashboardSection')"><i class="fa-solid fa-bolt"></i> 오늘의 현황 보기</button>
+            <button type="button" class="trainer-workspace-secondary" onclick="jumpTrainerSection('trainerQuickFeedbackMount')">피드백 작성 <i class="fa-solid fa-arrow-right"></i></button>
+          </div>
+        </div>
+        <div class="trainer-workspace-member">
+          <label for="trainerMemberSearch"><i class="fa-solid fa-magnifying-glass"></i> 회원 빠른 검색</label>
+          <div class="relative">
+            <input id="trainerMemberSearch" type="search" placeholder="회원 이름 검색" autocomplete="off" oninput="filterTrainerMemberSearch()" onkeydown="handleTrainerMemberSearchKey(event)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-indigo-500">
+            <div id="trainerMemberSearchResults" class="hidden absolute left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto rounded-xl bg-slate-800 border border-slate-600 shadow-2xl z-40 p-1" role="listbox" aria-label="검색된 회원"></div>
+          </div>
+          <label for="trainerMemberSelect" class="trainer-workspace-select-caption">회원 목록에서 선택</label>
+          <select id="trainerMemberSelect" onchange="onSelectMemberChange()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"></select>
+          <button type="button" onclick="switchMode('member')" class="trainer-workspace-member-link">회원 화면으로 전환 <i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+        </div>
+      </section>
+
+      <nav aria-label="트레이너 주요 기능 바로가기" class="trainer-workspace-nav">
+        <button type="button" onclick="jumpTrainerSection('trainerDashboardSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-simple"></i><span>대시보드</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerQuickFeedbackMount')" class="trainer-nav-btn"><i class="fa-regular fa-comment-dots"></i><span>피드백</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerRoutineSection')" class="trainer-nav-btn"><i class="fa-solid fa-dumbbell"></i><span>운동 루틴</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerGrowthSection')" class="trainer-nav-btn"><i class="fa-solid fa-arrow-trend-up"></i><span>성장 기록</span></button>
       </nav>
 
-      <!-- 트레이너 전용: 회원이 이미 남긴 기록으로 만드는 통합 현황 -->
-      <section id="trainerDashboardSection" class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4 trainer-jump-target" aria-label="통합 관리 대시보드">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div><h3 class="font-bold text-white text-base"><i class="fa-solid fa-chart-line text-brand-500"></i> 오늘의 회원 관리 현황</h3><p class="text-xs text-slate-400 mt-1">기존 운동·식단·영상 기록을 자동으로 모아 보여줍니다. 회원님은 추가 입력할 필요가 없어요.</p></div>
-          <button type="button" onclick="loadTrainerOverview()" class="text-xs px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">현황 새로고침</button>
+      <section id="trainerDashboardSection" class="trainer-workspace-dashboard trainer-jump-target" aria-label="통합 관리 대시보드">
+        <div class="trainer-workspace-section-title">
+          <div><span class="trainer-workspace-kicker">AT A GLANCE</span><h3>Overview</h3><p>오늘의 기록과 피드백 현황을 한눈에 확인하세요.</p></div>
+          <button type="button" onclick="loadTrainerOverview()" class="trainer-workspace-refresh"><i class="fa-solid fa-rotate"></i> 새로고침</button>
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-live="polite">
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">등록 회원</p><p id="overviewTotal" class="text-xl font-bold text-white mt-1">-</p></div>
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">오늘 기록한 회원</p><p id="overviewActive" class="text-xl font-bold text-brand-500 mt-1">-</p></div>
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">기록 피드백 대기</p><p id="overviewPending" class="text-xl font-bold text-amber-400 mt-1">-</p></div>
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3"><p class="text-xs text-slate-400">영상 피드백 대기</p><p id="overviewVideos" class="text-xl font-bold text-sky-400 mt-1">-</p></div>
+        <div class="trainer-workspace-metrics" aria-live="polite">
+          <div class="trainer-workspace-metric"><span>등록 회원</span><i class="fa-solid fa-users"></i><strong id="overviewTotal">-</strong><small>전체 관리 회원</small></div>
+          <div class="trainer-workspace-metric"><span>오늘 기록한 회원</span><i class="fa-solid fa-chart-line"></i><strong id="overviewActive">-</strong><small>선택한 날짜 기준</small></div>
+          <div class="trainer-workspace-metric"><span>기록 피드백 대기</span><i class="fa-regular fa-comment-dots"></i><strong id="overviewPending">-</strong><small>운동 · 식단</small></div>
+          <div class="trainer-workspace-metric"><span>영상 피드백 대기</span><i class="fa-solid fa-play"></i><strong id="overviewVideos">-</strong><small>자세 영상 확인</small></div>
         </div>
-        <p id="overviewStatus" role="status" class="text-xs text-slate-400">트레이너 로그인 후 현황을 불러옵니다.</p>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-amber-300">확인이 필요한 회원</h4><div id="overviewNeedsAttention" class="space-y-2 text-xs text-slate-300"></div></div>
-          <div class="bg-slate-950 border border-emerald-500/20 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-emerald-300">기록 피드백 완료 회원</h4><div id="overviewFeedbackDone" class="space-y-2 text-xs text-slate-300"></div></div>
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-slate-200">최근 기록 없는 회원 (7일 기준)</h4><div id="overviewInactive" class="space-y-2 text-xs text-slate-300"></div></div>
-        </div>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
-            <h4 class="text-sm font-semibold text-orange-300">선택한 날짜 · 운동/식단 미기록</h4>
-            <p class="text-xs text-slate-500">그날 기록이 없는 항목을 표시합니다. 수업이 없는 날에도 미기록으로 나타날 수 있어요.</p>
-            <div id="overviewMissingToday" class="space-y-2 text-xs text-slate-300"></div>
+        <p id="overviewStatus" role="status" class="trainer-workspace-overview-status">트레이너 로그인 후 현황을 불러옵니다.</p>
+
+        <div class="trainer-workspace-main-grid">
+          <section class="trainer-workspace-activity">
+            <div class="trainer-workspace-list-heading"><div><span class="trainer-workspace-kicker">PRIORITY</span><h4>우선 확인할 회원</h4></div><span class="trainer-workspace-subtle">운동 · 식단 · 영상</span></div>
+            <div id="overviewNeedsAttention" class="trainer-workspace-list"></div>
+          </section>
+          <div class="trainer-workspace-side-panels">
+            <section class="trainer-workspace-side-card">
+              <div class="trainer-workspace-list-heading"><h4><i class="fa-regular fa-circle-check"></i> 피드백 완료</h4></div>
+              <div id="overviewFeedbackDone" class="trainer-workspace-list"></div>
+            </section>
+            <section class="trainer-workspace-side-card">
+              <div class="trainer-workspace-list-heading"><h4><i class="fa-solid fa-clock-rotate-left"></i> 7일간 기록 없음</h4></div>
+              <div id="overviewInactive" class="trainer-workspace-list"></div>
+            </section>
           </div>
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
-            <h4 class="text-sm font-semibold text-sky-300">최근 7일 회원별 리포트</h4>
-            <p id="overviewWeeklyRange" class="text-xs text-slate-500">선택한 날짜 포함 7일 · 완료 세트와 식단 등록 기준</p>
-            <div id="overviewWeeklyReport" class="space-y-2 text-xs text-slate-300"></div>
-          </div>
+        </div>
+
+        <div class="trainer-workspace-report-grid">
+          <section class="trainer-workspace-report-card">
+            <div class="trainer-workspace-list-heading"><div><span class="trainer-workspace-kicker">DAILY CHECK</span><h4>운동·식단 미기록</h4></div></div>
+            <p class="trainer-workspace-subtle">수업이 없는 날에도 미기록으로 표시될 수 있어요.</p>
+            <div id="overviewMissingToday" class="trainer-workspace-list"></div>
+          </section>
+          <section class="trainer-workspace-report-card">
+            <div class="trainer-workspace-list-heading"><div><span class="trainer-workspace-kicker">WEEKLY REVIEW</span><h4>최근 7일 리포트</h4></div></div>
+            <p id="overviewWeeklyRange" class="trainer-workspace-subtle">선택한 날짜 포함 7일간 기록한 날짜 수</p>
+            <div id="overviewWeeklyReport" class="trainer-workspace-list"></div>
+          </section>
         </div>
       </section>
 

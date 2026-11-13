@@ -3775,7 +3775,7 @@ try {
         video.playsInline=true;
         video.muted=true;
         video.autoplay=true;
-        video.preload='metadata';
+        video.preload='auto';
         video.className='w-full rounded-xl bg-black';
         video.setAttribute('playsinline','');
         video.setAttribute('aria-label','회원 자세 영상 · 음소거 자동 재생');
@@ -3922,13 +3922,13 @@ try {
       let sourceStream=null,canvasStream=null,recorder=null;
       try{
         await waitForMediaEvent(video,'loadedmetadata');
-        const scale=Math.min(1,1280/Math.max(video.videoWidth,video.videoHeight));
+        const scale=Math.min(1,1920/Math.max(video.videoWidth,video.videoHeight));
         const width=Math.max(2,Math.round(video.videoWidth*scale/2)*2);
         const height=Math.max(2,Math.round(video.videoHeight*scale/2)*2);
         const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext('2d',{alpha:false});
         if(!ctx)throw new Error('영상 압축 화면을 준비하지 못했어요.');
-        canvasStream=canvas.captureStream(24);
+        canvasStream=canvas.captureStream(30);
         if(typeof video.captureStream==='function')sourceStream=video.captureStream();
         else if(typeof video.webkitCaptureStream==='function')sourceStream=video.webkitCaptureStream();
         if(sourceStream){
@@ -3936,7 +3936,9 @@ try {
         }
         const mimeCandidates=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp8,opus','video/webm'];
         const mimeType=mimeCandidates.find(type=>MediaRecorder.isTypeSupported(type))||'';
-        const options={videoBitsPerSecond:1400000,audioBitsPerSecond:96000};
+        // 40 seconds at 3.0 Mbps video + 96 kbps audio is generally below 20 MB.
+        // Keep upload limit enforced, and preserve the original source on the device.
+        const options={videoBitsPerSecond:3000000,audioBitsPerSecond:96000};
         if(mimeType)options.mimeType=mimeType;
         const chunks=[];
         recorder=new MediaRecorder(canvasStream,options);
@@ -3988,7 +3990,7 @@ try {
       if(file.size>VIDEO_LIMIT){
         showToast('영상 자동 압축 중... 잠시만 기다려주세요');
         uploadFile=await compressPrivateVideo(file);
-        if(uploadFile.size>VIDEO_LIMIT)throw Error('압축 후에도 20MB를 초과했어요. 촬영 화질을 720p로 낮춰 다시 시도해주세요.');
+        if(uploadFile.size>VIDEO_LIMIT)throw Error('고화질 압축 후에도 20MB를 초과했어요. 촬영 화질을 1080p/30fps로 낮춰 다시 시도해주세요.');
         showToast(`영상 압축 완료 · ${(uploadFile.size/1024/1024).toFixed(1)}MB`);
       }
       const allowedMime=['video/mp4','video/webm','video/quicktime'];

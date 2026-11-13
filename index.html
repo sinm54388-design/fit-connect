@@ -1117,7 +1117,17 @@
       };
       const [sheets,supabase]=await Promise.all([read(SCRIPT_URL),read('/api/records')]);
       perfMark('DB 비교 · Sheets 읽기',sheets.elapsed,!sheets.error);
-      perfMark('DB 비교 · Supabase 읽기',supabase.elapsed,!supabase.error);
+      perfMark('DB 비교 · Supabase 첫 조회',supabase.elapsed,!supabase.error);
+      if(!supabase.error) {
+        const warm=await read('/api/records');
+        perfMark('DB 비교 · Supabase 재조회',warm.elapsed,!warm.error);
+        if(!warm.error) {
+          const sameWarm=stableRecordSignature(normalizeData(structuredClone(supabase.data)))===
+            stableRecordSignature(normalizeData(structuredClone(warm.data)));
+          perfRows.push({label:'Supabase 재조회 · 기록 일치 '+(sameWarm?'예':'아니오'),
+            seconds:'0',ok:sameWarm});
+        }
+      }
       if(supabase.region)perfRows.push({label:'Supabase 함수 지역 · '+supabase.region,seconds:'0',ok:true});
       const lookupMs=/member;dur=([0-9.]+)/.exec(supabase.serverTiming||'');
       const dailyMs=/daily;dur=([0-9.]+)/.exec(supabase.serverTiming||'');

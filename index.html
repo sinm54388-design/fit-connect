@@ -2157,13 +2157,18 @@
       const modeButtonBase = 'header-mode-button whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5';
       document.getElementById('btnMemberMode').className = modeButtonBase + (mode === 'member' ? ' bg-brand-500 text-slate-950 font-bold' : ' text-slate-400 hover:text-white');
       document.getElementById('btnTrainerMode').className = modeButtonBase + (mode === 'trainer' ? ' bg-indigo-600 text-white font-bold' : ' text-slate-400 hover:text-white cursor-pointer');
-      if (mode !== 'trainer' || activeMemberName) await loadDataFromCloud();
-      if (mode==='member')loadFoodShortcuts();
+      if (mode==='member') {
+        await loadDataFromCloud();
+        loadFoodShortcuts();
+      } else if (activeMemberName && appData) {
+        // 트레이너 화면 전환은 네트워크 응답을 기다리지 않음.
+        loadDataFromCloud().catch(e=>console.warn('트레이너 기록 조회 오류',e));
+      }
     }
 
     // 비밀번호는 서버(Apps Script)에서 확인
     async function trySwitchToTrainer() {
-      if (trainerPassword) { await switchMode('trainer'); await Promise.allSettled([loadMemberRegistry(),loadTrainerOverview()]); return; }
+      if (trainerPassword) { await Promise.allSettled([switchMode('trainer'),loadMemberRegistry(),loadTrainerOverview()]); return; }
       const input = prompt("트레이너 비밀번호를 입력하세요");
       if (input === null) return;
       try {
@@ -2171,8 +2176,7 @@
         const result = await apiPost({ action: 'verify', password: input });
         if (result.status === 'success') {
           trainerPassword = input;
-          await switchMode('trainer');
-          await Promise.allSettled([loadMemberRegistry(),loadTrainerOverview()]);
+          await Promise.allSettled([switchMode('trainer'),loadMemberRegistry(),loadTrainerOverview()]);
         } else {
           alert("비밀번호가 틀렸습니다.\n(Apps Script 코드에서 비밀번호를 바꿨는지도 확인해주세요)");
         }
@@ -2194,7 +2198,6 @@
         registryMembers = result.members;
         if (!registryMembers.includes(activeMemberName)) activeMemberName = registryMembers[0] || '';
         updateTrainerMemberDropdown();
-        if (activeMemberName && (previousMember !== activeMemberName || !appData)) await loadDataFromCloud();
         document.getElementById('memberRegistryCount').textContent = `(${registryMembers.length}명)`;
         const list = document.getElementById('memberRegistryList');
         list.replaceChildren();
@@ -2213,7 +2216,9 @@
           row.append(label,copy,rotate); list.append(row);
         });
         status.textContent = `등록된 회원 ${registryMembers.length}명 · 회원별 기록은 기존대로 유지됩니다.`;
-        // 로그인 시 전체 현황은 별도 병렬 요청하므로 중복 호출하지 않음.
+        // 회원 목록은 즉시 표시, 선택 회원 기록은 별도로 조회.
+        if (activeMemberName && (previousMember !== activeMemberName || !appData))
+          loadDataFromCloud().catch(e=>console.warn('선택 회원 기록 조회 오류',e));
       } catch (e) { status.textContent = '회원 목록을 불러오지 못했습니다: ' + e.message; }
     }
 

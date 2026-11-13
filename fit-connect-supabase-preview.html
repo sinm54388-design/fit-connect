@@ -553,6 +553,18 @@
           <div class="bg-slate-950 border border-emerald-500/20 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-emerald-300">기록 피드백 완료 회원</h4><div id="overviewFeedbackDone" class="space-y-2 text-xs text-slate-300"></div></div>
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><h4 class="text-sm font-semibold text-slate-200">최근 기록 없는 회원 (7일 기준)</h4><div id="overviewInactive" class="space-y-2 text-xs text-slate-300"></div></div>
         </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+            <h4 class="text-sm font-semibold text-orange-300">선택한 날짜 · 운동/식단 미기록</h4>
+            <p class="text-xs text-slate-500">그날 기록이 없는 항목을 표시합니다. 수업이 없는 날에도 미기록으로 나타날 수 있어요.</p>
+            <div id="overviewMissingToday" class="space-y-2 text-xs text-slate-300"></div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+            <h4 class="text-sm font-semibold text-sky-300">최근 7일 회원별 리포트</h4>
+            <p id="overviewWeeklyRange" class="text-xs text-slate-500">선택한 날짜 포함 7일 · 완료 세트와 식단 등록 기준</p>
+            <div id="overviewWeeklyReport" class="space-y-2 text-xs text-slate-300"></div>
+          </div>
+        </div>
       </section>
 
       <div id="trainerQuickFeedbackMount" class="space-y-4 trainer-jump-target"></div>
@@ -864,6 +876,7 @@
       arrangeMemberDashboard();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       setupAutoHideHeader();
+      setupQuickSaveShortcuts();
       setupDeferredVideoLoading();
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
@@ -2061,6 +2074,8 @@
         if (result.status !== 'success' || !Array.isArray(result.members)) throw Error(result.message || '현황 조회 실패');
         const items = result.members;
         const pending = items.filter(m => m.pendingWorkout || m.pendingDiet || Number(m.pendingVideos)>0);
+        const missingToday = items.filter(m=>!m.workoutToday||!m.dietToday);
+        const weeklySorted = [...items].sort((a,b)=>Number(b.weeklyActiveDays||0)-Number(a.weeklyActiveDays||0)||a.name.localeCompare(b.name,'ko'));
         const inactive = items.filter(m => {
           if (!m.lastDate) return true;
           const elapsed = (Date.parse(date+'T00:00:00')-Date.parse(m.lastDate+'T00:00:00'))/86400000;
@@ -2089,6 +2104,11 @@
         makeRows('overviewFeedbackDone',items.filter(m=>m.feedbackDone&&!m.pendingWorkout&&!m.pendingDiet),
           ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
         makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
+        makeRows('overviewMissingToday',missingToday,m=>[
+          !m.workoutToday?'운동 미기록':'',!m.dietToday?'식단 미기록':''
+        ].filter(Boolean).join(' · '),'선택한 날짜에 모든 회원이 운동·식단을 기록했어요.');
+        document.getElementById('overviewWeeklyRange').textContent=(result.weekStart||'7일 전')+' ~ '+date+' · 기록한 날짜 수';
+        makeRows('overviewWeeklyReport',weeklySorted,m=>`운동 ${Number(m.weeklyWorkoutDays)||0}일 · 식단 ${Number(m.weeklyDietDays)||0}일 · 소감 ${Number(m.weeklyReflectionDays)||0}일`,'최근 7일 기록이 없습니다.');
                 status.textContent = `${date} 기준 · 운동·식단 갱신 완료 · 영상 알림 확인 중...`;
         const legacy=await videoPromise;
         if(request!==overviewRequest||date!==selectedDate||currentMode!=='trainer')return;
@@ -3233,6 +3253,28 @@ try {
     }
 
     let toastDismissTimer = null;
+    function setupQuickSaveShortcuts() {
+      // Ctrl/Command + Enter avoids accidental submissions from normal Enter keypresses.
+      const shortcuts = [
+        ['refGoodText',()=>document.getElementById('workoutReflectionForm')?.requestSubmit()],
+        ['refBadText',()=>document.getElementById('workoutReflectionForm')?.requestSubmit()],
+        ['inputFeedbackWorkout',()=>{if(currentMode==='trainer')sendTrainerFeedback();}],
+        ['inputFeedbackDiet',()=>{if(currentMode==='trainer')sendTrainerFeedback();}]
+      ];
+      shortcuts.forEach(([id,save])=>{
+        const field=document.getElementById(id);
+        if(!field)return;
+        field.addEventListener('keydown',event=>{
+          if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){
+            event.preventDefault();save();
+          }
+        });
+        if(!field.dataset.quickSaveHint){
+          field.title=(field.title?field.title+' · ':'')+'Ctrl/⌘ + Enter로 저장';
+          field.dataset.quickSaveHint='1';
+        }
+      });
+    }
     function showToast(msg) {
       const toast = document.getElementById('toastNotification');
       if (!toast) return;

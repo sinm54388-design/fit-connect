@@ -1431,6 +1431,29 @@
     // Enable only after staging Storage import and signed-URL playback parity checks.
     const PRIVATE_VIDEO_STREAMING_ENABLED = true; // Legacy Drive fallback if not linked
     const videoObjectUrls = new Map();
+    // Preview-only: warm up up to two signed URLs when the posture-video list loads.
+    // Short-lived, memory-only cache, keyed to the current member and access mode.
+    const playbackUrlWarmCache = new Map();
+    const PLAYBACK_WARM_TTL_MS = 120000;
+    function clearPlaybackWarmCache(){playbackUrlWarmCache.clear();}
+    function getWarmedPlaybackUrl(fileId,member=activeMemberName,mode=currentMode){
+      const key=mode+'|'+member+'|'+fileId;
+      const now=Date.now();
+      const cached=playbackUrlWarmCache.get(key);
+      if(cached && cached.until>now)return cached.promise;
+      if(cached)playbackUrlWarmCache.delete(key);
+      const credentials=apiCredentials();
+      const promise=apiPost({...credentials,action:'videoPlaybackUrl',fileId})
+        .then(result=>result.status==='success'&&result.url?result.url:null)
+        .catch(error=>{console.warn('스트리밍 사전 준비 실패',error);return null;});
+      playbackUrlWarmCache.set(key,{promise,until:now+PLAYBACK_WARM_TTL_MS});
+      return promise;
+    }
+    function warmVisibleFormVideoUrls(member=activeMemberName,mode=currentMode){
+      if(!PRIVATE_VIDEO_STREAMING_ENABLED||member!=='김윤지')return;
+      const ids=[...new Set((formVideos||[]).map(v=>v.fileId).filter(Boolean))].slice(0,2);
+      ids.forEach(fileId=>{void getWarmedPlaybackUrl(fileId,member,mode);});
+    }
 
     function getRegisteredMembers() {
       const list = [...registryMembers];
@@ -3465,6 +3488,7 @@ try {
       const key=videoContextKey();
       if(key===lastVideoPanelKey)return;
       lastVideoPanelKey=key;
+      clearPlaybackWarmCache();
       exerciseVideos=[];
       formVideos=[];
       videoLoadReadyKey='';
@@ -3522,6 +3546,7 @@ try {
           if(!stillCurrent())return;
           if(result.status!=='success')throw Error(result.message||'자세 영상 조회 실패');
           formVideos=result.videos||[];
+          warmVisibleFormVideoUrls(member,mode);
           renderFormVideos();
           renderVideoStorageMapping();
         })
@@ -3819,10 +3844,9 @@ try {
         if(!url && PRIVATE_VIDEO_STREAMING_ENABLED && member==='김윤지'){
           const checkStarted=performance.now();
           try{
-            const signed=await apiPost({...apiCredentials(),action:'videoPlaybackUrl',fileId:id});
-            streamResult=String(signed.status||'상태 없음');
-            if(signed.status==='success'&&signed.url){
-              url=signed.url;
+            url=await getWarmedPlaybackUrl(id,member,mode);
+            streamResult=url?'success':'not_migrated_or_unavailable';
+            if(url){
               source='Supabase 스트리밍';
             }
           }catch(e){

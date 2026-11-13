@@ -1393,7 +1393,7 @@
     }
     const prefetchedRecords=new Map();
     let prefetchGeneration=0;
-    function invalidatePrefetch() {prefetchGeneration++;prefetchedRecords.clear();}
+    function invalidatePrefetch() {prefetchGeneration++;prefetchedRecords.clear();inflightDailyReads.clear();}
     function prefetchTrainerRecord(member,date=selectedDate) {
       if(!member||!trainerPassword||currentMode!=='trainer'||queuedSaveCount>0)return null;
       const context={mode:'trainer',member,date,password:trainerPassword,token:memberToken};

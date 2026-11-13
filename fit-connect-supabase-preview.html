@@ -3125,20 +3125,31 @@ try {
       const box=button.parentElement;
       const member=activeMemberName,mode=currentMode;
       const cacheKey=member+'|'+id;
+      const started=performance.now();
+      let streamCheckMs=0, source='Google Drive', streamResult='조회하지 않음';
       button.dataset.loading='1';
       button.textContent='영상 불러오는 중...';
       try{
         let url=videoObjectUrls.get(cacheKey);
+        if(url){source='Google Drive (임시 캐시)';streamResult='기존 다운로드 재사용';}
         if(!url && PRIVATE_VIDEO_STREAMING_ENABLED && member==='김윤지'){
+          const checkStarted=performance.now();
           try{
             const signed=await apiPost({...apiCredentials(),action:'videoPlaybackUrl',fileId:id});
-            if(signed.status==='success'&&signed.url)url=signed.url;
+            streamResult=String(signed.status||'상태 없음');
+            if(signed.status==='success'&&signed.url){
+              url=signed.url;
+              source='Supabase 스트리밍';
+            }
           }catch(e){
+            streamResult='조회 오류: '+String(e.message||'오류').slice(0,100);
             console.warn('스트리밍 주소 확인 실패, 기존 재생으로 전환',e);
+          }finally{
+            streamCheckMs=performance.now()-checkStarted;
           }
         }
         if(!url){
-          // Google Drive fallback: requires full Base64 download before playback.
+          // Google Drive fallback: requires the full Base64 download before playback.
           const result=await apiPost({...apiCredentials(),action:'videoDownload',fileId:id});
           if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
           const bytes=base64ToBytes(result.base64);
@@ -3147,11 +3158,26 @@ try {
         }
         // Prevent cross-member playback after a slow response.
         if(member!==activeMemberName||mode!==currentMode)return;
+        const loadMs=performance.now()-started;
         const video=document.createElement('video');
         video.controls=true;video.playsInline=true;video.preload='metadata';
         video.className='w-full mt-2 rounded-lg';
+        const info=document.createElement('p');
+        info.className='mt-2 text-xs text-sky-300 whitespace-pre-wrap';
+        const asSeconds=ms=>(ms/1000).toFixed(1)+'초';
+        info.textContent='재생 경로: '+source+' · 재생창 표시: '+asSeconds(loadMs)+
+          (streamCheckMs?' · 스트리밍 확인: '+asSeconds(streamCheckMs):'')+
+          (source.startsWith('Google Drive')?' · 스트리밍 응답: '+streamResult:'');
+        video.addEventListener('loadeddata',()=>{
+          if(member!==activeMemberName||mode!==currentMode)return;
+          info.textContent+=' · 첫 화면 준비: '+asSeconds(performance.now()-started);
+        },{once:true});
+        video.addEventListener('error',()=>{
+          if(member!==activeMemberName||mode!==currentMode)return;
+          info.textContent+=' · 브라우저 영상 재생 오류';
+        },{once:true});
         video.src=url;
-        box.appendChild(video);
+        box.append(video,info);
         button.remove();
       }catch(e){
         if(member===activeMemberName&&mode===currentMode){

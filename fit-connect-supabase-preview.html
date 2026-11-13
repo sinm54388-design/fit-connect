@@ -2826,7 +2826,13 @@
       document.getElementById('trainerMemberSelect').value = member.name;
       resetRoutineForms();
       updateNextPendingButton();
-      await loadDataFromCloud(); // 해당 회원의 운동·식단·영상 자료를 함께 갱신
+      // Fetch the daily record and any pending form videos in parallel.
+      // Do not wait for exercise/history charts before preparing video feedback.
+      const recordPromise=loadDataFromCloud();
+      if(currentMode==='trainer' && Number(member.pendingVideos)>0){
+        void loadVideoLists().catch(error=>console.warn('영상 사전 조회 실패',error));
+      }
+      await recordPromise; // 기존 기록 저장·동기화 절차는 유지
       if (!appData) { showToast('회원 기록을 불러오지 못했습니다.'); return; }
       const videoOnly = listId === 'overviewNeedsAttention' && member.pendingVideos && !member.pendingWorkout && !member.pendingDiet;
       const feedbackPanel=document.getElementById('trainerFeedbackPanel');

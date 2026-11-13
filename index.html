@@ -1069,8 +1069,27 @@
     <button type="button" id="saveRetryButton" onclick="retryLastSave()" class="hidden shrink-0 rounded-lg bg-white/20 px-3 py-2 font-bold text-white">다시 시도</button>
   </div>
 
+  <section id="perfDiagnostic" style="display:none;position:fixed;right:12px;bottom:12px;z-index:1000;width:min(370px,calc(100vw - 24px));max-height:48vh;overflow:auto;background:#101c2e;color:white;border:1px solid #6b8da8;border-radius:12px;padding:12px;box-shadow:0 10px 30px #0007;font-size:12px">
+    <div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><strong>속도 측정 · 개인정보 제외</strong><button type="button" onclick="copyPerfDiagnostic()" style="background:#334155;padding:6px 9px;border-radius:7px">측정 복사</button></div>
+    <div id="perfDiagnosticRows" style="white-space:pre-line;margin-top:8px;line-height:1.6">측정 준비 중</div>
+  </section>
   <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec";
+    // Opt-in performance diagnostics, no member names, credentials or payloads retained.
+    const perfEnabled=new URLSearchParams(location.search).get('perf')==='1';
+    const perfRows=[];
+    function perfMark(label,elapsed,ok=true) {
+      if(!perfEnabled)return;
+      const seconds=(elapsed/1000).toFixed(2);
+      perfRows.push({label,seconds,ok});
+      if(perfRows.length>35)perfRows.shift();
+      const root=document.getElementById('perfDiagnosticRows');
+      if(root)root.textContent=perfRows.map(r=>`${r.label}: ${r.seconds}초 ${r.ok?'✓':'실패'}`).join('\n');
+    }
+    function copyPerfDiagnostic() {
+      const summary=perfRows.map(r=>`${r.label}: ${r.seconds}초 ${r.ok?'정상':'실패'}`).join('\n');
+      if(navigator.clipboard?.writeText)navigator.clipboard.writeText(summary).then(()=>showToast('진단 결과 복사 완료')).catch(()=>showToast('복사 실패'));
+    }
     const MEMBERS = []; // 회원 목록은 인증된 트레이너만 서버에서 불러옵니다.
     const REFRESH_MS = 60000; // 서버 부하를 줄이도록 60초마다 동기화
     const MEAL_KEYS = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -1169,6 +1188,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", async function () {
+      if(perfEnabled)document.getElementById('perfDiagnostic').style.display='block';
       arrangeMemberDashboard();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       setupAutoHideHeader();
@@ -1329,11 +1349,13 @@
       return patch;
     }
     async function fetchLatest(context=getSaveContext()) {
+      const started=performance.now();
       if (context.mode === 'member' && !(context.member && context.token)) throw new Error('회원 전용 링크가 필요합니다.');
       const json = context.mode === 'trainer' && context.password
         ? await apiPost({action:'read',member:context.member,date:context.date,password:context.password})
         : await (await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(context.member)}&date=${context.date}&token=${encodeURIComponent(context.token)}&_t=${Date.now()}`)).json();
       if (json && (json.status === 'error' || json.status === 'denied')) throw new Error(json.message || '접근 권한 오류');
+      perfMark('회원 하루 기록 · '+context.mode,performance.now()-started,true);
       return normalizeData(json);
     }
 
@@ -2570,9 +2592,17 @@
     }
 
     async function apiPost(body) {
-      const response = await fetch(SCRIPT_URL, {method:'POST',body:JSON.stringify(body)});
-      if (!response.ok) throw new Error('서버 통신 오류');
-      return await response.json();
+      const started=performance.now();
+      let ok=false;
+      try {
+        const response = await fetch(SCRIPT_URL, {method:'POST',body:JSON.stringify(body)});
+        if (!response.ok) throw new Error('서버 통신 오류');
+        const result=await response.json();
+        ok=result?.status!=='error' && result?.status!=='denied';
+        return result;
+      } finally {
+        perfMark('Apps Script · '+String(body.action||'save'),performance.now()-started,ok);
+      }
     }
     function apiCredentials() {
       return {member:activeMemberName,date:selectedDate,token:memberToken,

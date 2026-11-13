@@ -42,8 +42,8 @@ async function buildOverview(supaGet,date) {
     '&record_date=gte.'+windowStart+'&record_date=lte.'+date+
     '&order=record_date.desc&limit='+pageSize;
   const [allMembers,firstPage]=await Promise.all([
-    supaGet('/rest/v1/fit_members?select=id,name&order=name.asc&limit=1000'),
-    supaGet(prefix+'&offset=0')
+    supaGet('/rest/v1/fit_members?select=id,name&order=name.asc&limit=1000','overview'),
+    supaGet(prefix+'&offset=0','overview')
   ]);
   if(allMembers.length===1000)throw Error('too many members for overview');
   const result=new Map();
@@ -122,14 +122,27 @@ async function handleRecords(request,env) {
   const key=String(env.SUPABASE_SECRET_KEY||'').trim();
   if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base)||!key)
     return json({status:'error',code:'missing_runtime_configuration'},503);
-  const supaGet=async path=>{
+  // Failure details are limited to the query step, HTTP status and Supabase's own
+  // short error text. Never include the URL, key, password or member data.
+  let step='start';
+  const clean=v=>String(v||'').replace(/[^A-Za-z0-9 _.:-]/g,' ').replace(/ +/g,' ').trim().slice(0,90);
+  const supaGet=async(path,label)=>{
+    step=label||step;
     const response=await fetch(base+path,{
       headers:{apikey:key,Accept:'application/json'},
       signal:AbortSignal.timeout(8000)
     });
-    if(!response.ok)throw Error('Supabase HTTP '+response.status);
+    if(!response.ok) {
+      let detail='';
+      try{const body=await response.json();detail=clean(body?.message||body?.error||body?.code);}catch{}
+      const error=Error('Supabase HTTP '+response.status);
+      error.diagnostic=response.status+(detail?':'+detail:'');
+      throw error;
+    }
     return response.json();
   };
+  const failed=error=>json({status:'error',
+    code:'supabase_read_failed:'+step+':'+(error?.diagnostic||clean(error?.name||'error'))},502);
   const start=performance.now();
   if(action==='trainerOverview') {
     try {
@@ -138,8 +151,8 @@ async function handleRecords(request,env) {
         'Server-Timing':'overview;dur='+(performance.now()-start).toFixed(1),
         'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
       });
-    }catch{
-      return json({status:'error',code:'supabase_read_failed'},502);
+    }catch(error){
+      return failed(error);
     }
   }
   try {
@@ -148,21 +161,21 @@ async function handleRecords(request,env) {
     if(cached && Date.now()-cached.timestamp<600000) memberId=cached.id;
     else {
       const matches=await supaGet('/rest/v1/fit_members?select=id&name=eq.'+
-        encodeURIComponent(member)+'&limit=1');
+        encodeURIComponent(member)+'&limit=1','member');
       if(matches.length!==1)return json({status:'denied',code:'member_not_found'},403);
       memberId=matches[0].id;
       rememberMember(member,memberId);
     }
     const lookupMs=performance.now()-start;
     const daily=await supaGet('/rest/v1/fit_daily_records?select=data&member_id=eq.'+
-      encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1');
+      encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','daily');
     return json(daily.length?daily[0].data:{},200,{
       'Server-Timing':'member;dur='+lookupMs.toFixed(1)+
         ', daily;dur='+(performance.now()-start-lookupMs).toFixed(1),
       'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
     });
-  }catch{
-    return json({status:'error',code:'supabase_read_failed'},502);
+  }catch(error){
+    return failed(error);
   }
 }
 export default {

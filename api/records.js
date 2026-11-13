@@ -275,6 +275,9 @@
          status: 'error', message: '날짜 형식 오류'
        });
        const pageSize = 1000;
+       const startOfWeek = new Date(overviewDate+'T00:00:00Z');
+       startOfWeek.setUTCDate(startOfWeek.getUTCDate()-6);
+       const weekStart = startOfWeek.toISOString().slice(0,10);
        const recordPrefix = '/rest/v1/fit_daily_records?select=member_id,record_date,data&record_date=lte.' +
          overviewDate + '&order=record_date.desc&limit=' + pageSize;
        // Independent Supabase queries can run concurrently.
@@ -287,7 +290,11 @@
        const result = new Map(allMembers.map(row => [row.id, {
          name: row.name, lastDate: '', activeToday: false,
          pendingWorkout: false, pendingDiet: false, pendingVideos: 0,
-         feedbackDone: false
+         feedbackDone: false, workoutToday: false, dietToday: false,
+         weeklyWorkoutDays: 0, weeklyDietDays: 0,
+         weeklyReflectionDays: 0, weeklyActiveDays: 0,
+         _workoutDays: new Set(), _dietDays: new Set(),
+         _reflectionDays: new Set(), _activeDays: new Set()
        }]));
        let offset = 0;
        let records = firstPage;
@@ -310,9 +317,17 @@
                (Array.isArray(food.foods) && food.foods.length > 0);
            });
            const active = completed || reflection || hasDiet;
+           if (day >= weekStart && day <= overviewDate) {
+             if (completed) item._workoutDays.add(day);
+             if (hasDiet) item._dietDays.add(day);
+             if (reflection) item._reflectionDays.add(day);
+             if (active) item._activeDays.add(day);
+           }
            if (active && day > item.lastDate) item.lastDate = day;
            if (day === overviewDate) {
              item.activeToday ||= active;
+             item.workoutToday ||= completed;
+             item.dietToday ||= hasDiet;
              const feedback = data.feedback || {};
              item.pendingWorkout ||= (completed || reflection) &&
                !String(feedback.workout || '').trim();
@@ -326,8 +341,19 @@
          if (offset >= 10000) throw Error('overview pagination limit exceeded');
          records = await supabaseGet(base, key, recordPrefix + '&offset=' + offset);
        }
+       const members = [...result.values()].map(item => {
+         item.weeklyWorkoutDays = item._workoutDays.size;
+         item.weeklyDietDays = item._dietDays.size;
+         item.weeklyReflectionDays = item._reflectionDays.size;
+         item.weeklyActiveDays = item._activeDays.size;
+         delete item._workoutDays;
+         delete item._dietDays;
+         delete item._reflectionDays;
+         delete item._activeDays;
+         return item;
+       });
        return reply(res, 200, {status:'success',date:overviewDate,
-         members:[...result.values()]});
+         weekStart,members});
      }
 
      const member = String(params.member || '').trim();

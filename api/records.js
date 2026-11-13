@@ -171,6 +171,9 @@
    };
  }
 
+ // Short-lived server-memory cache for authenticated trainer read-only lookups.
+ // No member tokens/passwords stored; all member-mode and write paths remain uncached.
+ const trainerReadLookupCache=new Map();
  module.exports = async function handler(req, res) {
    if (req.method !== 'GET' && req.method !== 'POST') {
      return reply(res, 405, {
@@ -374,12 +377,22 @@
      }
 
      const memberLookupStarted=performance.now();
-     const matches = await supabaseGet(
-       base,
-       key,
-       `/rest/v1/fit_members?select=id,access_token_hash&name=eq.${encodeURIComponent(member)}&limit=1`
-     );
-
+     const trainerReadCacheEligible=trainer && action==='read';
+     const hit=trainerReadCacheEligible ? trainerReadLookupCache.get(member) : null;
+     let matches;
+     if(hit && Date.now()-hit.savedAt<90000) {
+       matches=[{id:hit.id}];
+     } else {
+       matches=await supabaseGet(
+         base,
+         key,
+         `/rest/v1/fit_members?select=id,access_token_hash&name=eq.${encodeURIComponent(member)}&limit=1`
+       );
+       if(trainerReadCacheEligible && matches.length) {
+         trainerReadLookupCache.set(member,{id:matches[0].id,savedAt:Date.now()});
+         if(trainerReadLookupCache.size>64)trainerReadLookupCache.delete(trainerReadLookupCache.keys().next().value);
+       }
+     }
      const memberLookupMs=performance.now()-memberLookupStarted;
      const found = matches[0];
 

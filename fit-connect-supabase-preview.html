@@ -1872,11 +1872,11 @@
           trainerPassword = input;
           await Promise.allSettled([switchMode('trainer'),loadTrainerOverview(),loadMemberRegistry()]);
         } else {
-          alert("비밀번호가 틀렸습니다.\n(Apps Script 코드에서 비밀번호를 바꿨는지도 확인해주세요)");
+          alert(result.message || "비밀번호가 올바르지 않습니다.");
         }
       } catch (e) {
-        console.error(e);
-        alert("비밀번호 확인 중 오류가 났어요. 인터넷 연결을 확인해주세요.");
+        console.error('트레이너 인증 실패', e);
+        alert('트레이너 인증 요청 실패: '+(e.message||'알 수 없는 오류')+'\n테스트 배포의 환경변수 및 네트워크 연결 상태를 확인해주세요.');
       }
     }
 
@@ -2959,6 +2959,7 @@ try {
       note.className='text-xs text-slate-400';
       note.textContent='각 기존 영상과 업로드 파일을 선택해 연결합니다. Google Drive 원본·피드백은 그대로 유지됩니다.';
       root.append(heading,note);
+      const linkedPaths=new Set();
       formVideos.forEach((v,index)=>{
         if(!v.id||!v.fileId)return;
         const row=document.createElement('div');
@@ -2981,6 +2982,9 @@ try {
         button.textContent='연결';
         button.addEventListener('click',async()=>{
           if(!select.value){alert('파일을 먼저 선택해주세요.');return;}
+          if(linkedPaths.has(select.value)){
+            alert('이 영상 파일은 이미 다른 기록에 연결했습니다. 다른 파일을 선택해주세요.');return;
+          }
           if(activeMemberName!=='김윤지'||currentMode!=='trainer')return;
           if(!confirm((index+1)+'번째 기존 영상에 '+select.value.split('/').pop()+' 파일을 연결할까요?'))return;
           button.disabled=true;button.textContent='확인 중...';
@@ -2989,6 +2993,8 @@ try {
               sourceId:String(v.id),fileId:String(v.fileId),storagePath:select.value});
             if(result.status!=='success')throw Error(result.message||'연결 실패');
             button.textContent='연결 완료 ✓';
+            linkedPaths.add(select.value);
+            select.disabled=true;
             showToast('빠른 재생 연결 완료 · 영상 재생을 확인해주세요');
           }catch(e){button.disabled=false;button.textContent='연결';alert(e.message);}
         });

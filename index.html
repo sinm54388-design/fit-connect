@@ -1440,15 +1440,65 @@
       }
       return patch;
     }
-    async function fetchLatest(context=getSaveContext()) {
-      const started=performance.now();
-      if (context.mode === 'member' && !(context.member && context.token)) throw new Error('회원 전용 링크가 필요합니다.');
-      const json = context.mode === 'trainer' && context.password
+    // Preview-only fast-read pilot. The canonical writes remain on Google Sheets.
+    // Users enable it explicitly with ?fastdb=1; preview never changes production.
+    const fastDbPilot=new URLSearchParams(location.search).get('fastdb')==='1';
+    const fastDbDisabledKeys=new Set();
+    const fastDbVerification=new Map();
+    function fastDbRecordKey(context){return context.member+'|'+context.date;}
+    async function fetchSheetsRecord(context) {
+      const json=context.mode==='trainer'&&context.password
         ? await apiPost({action:'read',member:context.member,date:context.date,password:context.password})
         : await (await fetch(`${SCRIPT_URL}?member=${encodeURIComponent(context.member)}&date=${context.date}&token=${encodeURIComponent(context.token)}&_t=${Date.now()}`)).json();
-      if (json && (json.status === 'error' || json.status === 'denied')) throw new Error(json.message || '접근 권한 오류');
-      perfMark('회원 하루 기록 · '+context.mode,performance.now()-started,true);
+      if(json && (json.status==='error'||json.status==='denied'))throw Error(json.message||'접근 권한 오류');
       return normalizeData(json);
+    }
+    async function verifyFastRecordInBackground(context,fastData) {
+      const key=fastDbRecordKey(context);
+      if(fastDbVerification.has(key))return;
+      const check=(async()=>{
+        try {
+          const canonical=await fetchSheetsRecord(context);
+          const matched=stableRecordSignature(canonical)===stableRecordSignature(fastData);
+          perfMark('빠른 조회 · Sheets 기록 검증',0,matched);
+          if(!matched){
+            fastDbDisabledKeys.add(key);
+            viewedRecordCache.delete(recordCacheKey(context));
+            invalidatePrefetch();
+            if(queuedSaveCount===0 && currentMode==='trainer' &&
+                activeMemberName===context.member && selectedDate===context.date)
+              await loadDataFromCloud();
+          }
+        }catch(e){perfMark('빠른 조회 · 검증 실패',0,false);}
+        finally{fastDbVerification.delete(key);}
+      })();
+      fastDbVerification.set(key,check);
+    }
+    async function fetchLatest(context=getSaveContext(),forceSheets=false) {
+      const started=performance.now();
+      if(context.mode==='member'&&!(context.member&&context.token))
+        throw Error('회원 전용 링크가 필요합니다.');
+      if(fastDbPilot && !forceSheets && context.mode==='trainer'&&context.password &&
+          !fastDbDisabledKeys.has(fastDbRecordKey(context))) {
+        try {
+          const response=await fetch('/api/records',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({action:'read',member:context.member,date:context.date,password:context.password}),
+            cache:'no-store'
+          });
+          const fast=await response.json();
+          if(!response.ok||fast?.status==='error'||fast?.status==='denied')throw Error('Supabase 조회 오류');
+          const normalized=normalizeData(fast);
+          perfMark('회원 하루 기록 · Supabase',performance.now()-started,true);
+          verifyFastRecordInBackground(context,structuredClone(normalized));
+          return normalized;
+        }catch(e){
+          perfMark('빠른 조회 실패 · Sheets 대체',performance.now()-started,false);
+        }
+      }
+      const result=await fetchSheetsRecord(context);
+      perfMark('회원 하루 기록 · Sheets',performance.now()-started,true);
+      return result;
     }
 
     async function loadDataFromCloud(silent = false) {
@@ -1612,7 +1662,7 @@
             }
           }
           if(!latest){
-            latest=await fetchLatest(context);
+            latest=await fetchLatest(context,true);
             mutate(latest);
             await saveDataToCloud(latest,context);
           }
@@ -2724,7 +2774,10 @@
       const started=performance.now();
       let ok=false;
       const readActions=['read','verify','listMembers','trainerOverview','workoutHistory','listExerciseVideos','listFormVideos','memberInsights','readInbody','readMemberGoal','videoPlaybackUrl','videoDownload'];
-      if(!readActions.includes(String(body.action||''))){invalidatePrefetch();extraReadCache.clear();}
+      if(!readActions.includes(String(body.action||''))){
+        invalidatePrefetch();extraReadCache.clear();
+        if(body.member&&body.date)fastDbDisabledKeys.add(String(body.member)+'|'+String(body.date));
+      }
       try {
         const response = await fetch(SCRIPT_URL, {method:'POST',body:JSON.stringify(body)});
         if (!response.ok) throw new Error('서버 통신 오류');

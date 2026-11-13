@@ -3232,11 +3232,18 @@ try {
       try{const r=await apiPost({...apiCredentials(),action:'deleteExerciseVideo',id});if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadVideoLists(true);}catch(e){alert(e.message);}
     }
 
+    let toastDismissTimer = null;
     function showToast(msg) {
       const toast = document.getElementById('toastNotification');
+      if (!toast) return;
+      // Keep the latest save/progress message visible for its full duration.
+      if (toastDismissTimer !== null) clearTimeout(toastDismissTimer);
       toast.innerText = msg;
       toast.classList.remove('translate-y-20', 'opacity-0');
-      setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 2500);
+      toastDismissTimer = setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+        toastDismissTimer = null;
+      }, 2500);
     }
   </script>
 <script defer src="/date-memory.js"></script>

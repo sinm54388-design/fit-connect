@@ -351,6 +351,155 @@
       main .rounded-2xl { border-radius:17px; }
       .member-nav-btn,.trainer-nav-btn { font-size:13px; }
     }
+
+    /* Trainer-only noir/lime theme; member mode keeps the existing blue/navy design. */
+    body.trainer-lime-theme {
+      background:radial-gradient(ellipse 70% 360px at 72% -170px,rgba(157,194,34,.065),transparent 77%),#090a0c;
+      color:#f2f4f5;
+    }
+    body.trainer-lime-theme #appHeader {
+      background:rgba(11,12,15,.97);
+      border-bottom:1px solid #22262a;
+      box-shadow:0 8px 22px rgba(0,0,0,.14);
+    }
+    body.trainer-lime-theme #appHeader .header-sync-badge {
+      background:rgba(187,246,39,.07);
+      color:#d5fa76;
+      border-color:rgba(187,246,39,.21);
+    }
+    body.trainer-lime-theme #appHeader .w-10.h-10 {
+      background:linear-gradient(135deg,#bfff25,#a4e516);
+      border:0;
+      box-shadow:none;
+    }
+    body.trainer-lime-theme #appHeader .w-10.h-10 i { color:#101508; }
+    body.trainer-lime-theme #appHeader .bg-slate-800 { background:#171a1e; }
+    body.trainer-lime-theme #appHeader .border-slate-700\\/60,
+    body.trainer-lime-theme #appHeader .border-slate-700\\/80 { border-color:#303438; }
+    body.trainer-lime-theme #appHeader #btnTrainerMode {
+      background:#c3fa32;
+      color:#121710;
+      font-weight:800;
+    }
+    body.trainer-lime-theme #appHeader input[type="date"] { color:#f0f1ef; }
+    body.trainer-lime-theme #trainerView .bg-slate-900,
+    body.trainer-lime-theme #trainerView .bg-slate-950 {
+      background-color:#121417;
+      border-color:#282c31;
+    }
+    body.trainer-lime-theme #trainerView .bg-slate-800 {
+      background-color:#202329;
+      border-color:#333840;
+    }
+    body.trainer-lime-theme #trainerView .border-slate-800,
+    body.trainer-lime-theme #trainerView .border-slate-700,
+    body.trainer-lime-theme #trainerView .border-indigo-500\\/30 {
+      border-color:#2a2d32;
+    }
+    body.trainer-lime-theme #trainerView .text-slate-400 { color:#a9adb6; }
+    body.trainer-lime-theme #trainerView .text-slate-500 { color:#9196a1; }
+    body.trainer-lime-theme #trainerView .text-white { color:#f3f5f7; }
+    body.trainer-lime-theme #trainerView .text-brand-500,
+    body.trainer-lime-theme #trainerView .text-brand-400,
+    body.trainer-lime-theme #trainerView .text-indigo-400,
+    body.trainer-lime-theme #trainerView .text-indigo-300,
+    body.trainer-lime-theme #trainerView .text-emerald-300,
+    body.trainer-lime-theme #trainerView .text-emerald-400 { color:#c0f638; }
+    body.trainer-lime-theme #trainerView .bg-brand-500,
+    body.trainer-lime-theme #trainerView .bg-brand-600,
+    body.trainer-lime-theme #trainerView button.bg-indigo-600 {
+      background:#bdF42e;
+      color:#11180a;
+      border-color:transparent;
+      box-shadow:none;
+    }
+    body.trainer-lime-theme #trainerView button.bg-brand-500:hover,
+    body.trainer-lime-theme #trainerView button.bg-brand-600:hover { background:#d5ff74; }
+    body.trainer-lime-theme #trainerView > .bg-gradient-to-r {
+      background:radial-gradient(circle at 90% 12%,rgba(188,244,46,.09),transparent 38%),
+                 linear-gradient(125deg,#191b20,#151719 65%,#1b1e1b) !important;
+      border:1px solid #2e332c !important;
+      box-shadow:none;
+      padding-top:28px;
+      padding-bottom:28px;
+    }
+    body.trainer-lime-theme #trainerView > .bg-gradient-to-r h2 {
+      font-size:clamp(23px,2.7vw,34px);
+      line-height:1.2;
+      font-weight:800;
+      letter-spacing:-.055em;
+    }
+    body.trainer-lime-theme #trainerView > .bg-gradient-to-r .bg-indigo-500\\/20 {
+      background:rgba(190,249,50,.07);
+      border-color:rgba(190,249,50,.20);
+      color:#d2ff72;
+    }
+    body.trainer-lime-theme #trainerView > .bg-gradient-to-r .text-indigo-400 { color:#d2ff72; }
+    body.trainer-lime-theme #trainerView .rounded-2xl {
+      border-radius:17px;
+      box-shadow:none;
+    }
+    body.trainer-lime-theme #trainerView .rounded-xl { border-radius:13px; }
+    body.trainer-lime-theme #trainerView h2,
+    body.trainer-lime-theme #trainerView h3,
+    body.trainer-lime-theme #trainerView h4 {
+      letter-spacing:-.04em;
+    }
+    body.trainer-lime-theme #trainerView .trainer-nav-btn {
+      background:#15171a;
+      border:1px solid #2b3035;
+      color:#e6e9ed;
+      box-shadow:none;
+    }
+    body.trainer-lime-theme #trainerView .trainer-nav-btn:hover,
+    body.trainer-lime-theme #trainerView .trainer-nav-btn:focus-visible {
+      border-color:#a6df22;
+      background:#20251b;
+    }
+    body.trainer-lime-theme #trainerView .quick-feedback-btn {
+      background:#1c2022;
+      border:1px solid #34383e;
+      color:#e6e9ed;
+    }
+    body.trainer-lime-theme #trainerView .quick-feedback-btn:hover {
+      background:#242b20;
+      border-color:#9ad329;
+    }
+    body.trainer-lime-theme #trainerView input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    body.trainer-lime-theme #trainerView textarea,
+    body.trainer-lime-theme #trainerView select {
+      background:#0c0e11;
+      border:1px solid #30343b;
+      color:#f1f2f5;
+    }
+    body.trainer-lime-theme #trainerView input:focus-visible,
+    body.trainer-lime-theme #trainerView textarea:focus-visible,
+    body.trainer-lime-theme #trainerView select:focus-visible {
+      border-color:#b8ec39 !important;
+      box-shadow:0 0 0 3px rgba(193,248,48,.12);
+    }
+    body.trainer-lime-theme #trainerView input::placeholder,
+    body.trainer-lime-theme #trainerView textarea::placeholder { color:#858b95; }
+    body.trainer-lime-theme #trainerView #trainerDashboardSection {
+      background:#131519;
+      border:1px solid #2a2e33;
+    }
+    body.trainer-lime-theme #trainerView #trainerDashboardSection .bg-slate-950 {
+      background:#0e1013;
+      border:1px solid #272b31;
+    }
+    body.trainer-lime-theme #trainerView #trainerDashboardSection .text-amber-400,
+    body.trainer-lime-theme #trainerView #trainerDashboardSection .text-amber-300 { color:#e8e19a; }
+    body.trainer-lime-theme #trainerView #trainerDashboardSection .text-sky-400,
+    body.trainer-lime-theme #trainerView #trainerDashboardSection .text-sky-300 { color:#87c7ea; }
+    body.trainer-lime-theme #trainerView .trainer-jump-target.jump-highlight {
+      box-shadow:0 0 0 2px rgba(193,248,48,.52);
+    }
+    @media(max-width:639px) {
+      body.trainer-lime-theme #trainerView > .bg-gradient-to-r { padding:22px 18px; }
+      body.trainer-lime-theme #trainerView > .bg-gradient-to-r h2 { font-size:25px; }
+      body.trainer-lime-theme #trainerView .trainer-nav-btn { min-height:52px; }
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -2127,6 +2276,7 @@
     async function switchMode(mode) {
       resetSaveStatus();
       currentMode = mode;
+      document.body.classList.toggle('trainer-lime-theme', mode === 'trainer');
       latestLoadRequest++;
       resetRoutineForms();
       updateAccessState();

@@ -20,7 +20,7 @@
       theme: {
         extend: {
           colors: {
-            brand: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d' }
+            brand: { 50: '#eff8ff', 100: '#d9efff', 400: '#78c9ff', 500: '#45aaf4', 600: '#238bd8', 700: '#176cb3' }
           },
           fontFamily: { sans: ['Inter', 'Noto Sans KR', 'sans-serif'] }
         }
@@ -31,7 +31,7 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #1f2937; }
     ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-    .custom-checkbox:checked { background-color: #22c55e; border-color: #22c55e; }
+    .custom-checkbox:checked { background-color: #45aaf4; border-color: #45aaf4; }
     #appHeader { transition: transform .24s ease; will-change: transform; }
     #appHeader.header-hidden { transform: translateY(-100%); }
     .optional-fields summary, .trainer-meal-details summary { cursor: pointer; list-style: none; }
@@ -49,7 +49,7 @@
     .trainer-jump-target.jump-highlight { box-shadow:0 0 0 2px rgba(99,102,241,.65); }
     .member-jump-target { scroll-margin-top:92px; }
     .member-nav-btn { min-height:50px; display:flex; align-items:center; justify-content:center; gap:8px; border:1px solid #334155; border-radius:12px; background:#0f172a; color:#e2e8f0; font-size:13px; font-weight:700; cursor:pointer; }
-    .member-nav-btn:active, .member-nav-btn:focus-visible { background:#1e293b; border-color:#22c55e; outline:none; }
+    .member-nav-btn:active, .member-nav-btn:focus-visible { background:#1e293b; border-color:#45aaf4; outline:none; }
     .meal-shortcuts-toggle summary { list-style:none; cursor:pointer; }
     .meal-shortcuts-toggle summary::-webkit-details-marker { display:none; }
     .meal-shortcuts-toggle summary::after { content:'⌄'; float:right; font-size:18px; line-height:1; color:#fbbf24; }
@@ -81,11 +81,157 @@
       #memberView .food-nutrients span { font-size:12px; }
       #memberView .food-card { background:rgba(15,23,42,.6); border-color:#334155; }
       #memberRoutineList .member-set-check { min-width:84px; touch-action:manipulation; }
-      #memberRoutineList .member-set-check input { accent-color:#22c55e; }
+      #memberRoutineList .member-set-check input { accent-color:#45aaf4; }
       #memberView button { touch-action:manipulation; }
       #toastNotification { bottom: 88px; }
     }
     @media (prefers-reduced-motion: reduce) { #appHeader { transition: none; } }
+
+    /* FIT-CONNECT premium navy visual refresh.
+       Presentation only: no selectors or element IDs used by data logic are changed. */
+    :root {
+      color-scheme: dark;
+      --fc-canvas:#07111f;
+      --fc-surface:#101d31;
+      --fc-surface-deep:#0b1729;
+      --fc-stroke:rgba(133,167,204,.16);
+      --fc-accent:#45aaf4;
+      --fc-ink:#edf5ff;
+      --fc-muted:#adc0d8;
+    }
+    html { scroll-behavior:smooth; }
+    body {
+      background:radial-gradient(ellipse 95% 420px at 50% -120px,rgba(40,114,179,.19),transparent 75%),
+                 linear-gradient(180deg,#09172a 0%,#07111f 50%,#081321 100%);
+      color:var(--fc-ink);
+      letter-spacing:-.011em;
+    }
+    #appHeader {
+      background:rgba(8,20,37,.94);
+      border-color:rgba(141,178,217,.15);
+      box-shadow:0 10px 32px rgba(2,8,18,.20);
+      -webkit-backdrop-filter:blur(18px);
+      backdrop-filter:blur(18px);
+    }
+    #appHeader .header-sync-badge {
+      color:#a1dcff;
+      background:rgba(39,128,202,.15);
+      border-color:rgba(90,177,247,.27);
+    }
+    #appHeader h1 { letter-spacing:.035em; font-weight:800; }
+    #appHeader .from-brand-600 { --tw-gradient-from:#176cb3 var(--tw-gradient-from-position); }
+    #appHeader .to-emerald-400 { --tw-gradient-to:#75d0fb var(--tw-gradient-to-position); }
+    main { position:relative; }
+    main > #memberView, main > #trainerView { isolation:isolate; }
+    main .bg-slate-900 {
+      background-color:var(--fc-surface);
+      border-color:var(--fc-stroke);
+    }
+    main .bg-slate-950 {
+      background-color:var(--fc-surface-deep);
+      border-color:rgba(126,157,198,.18);
+    }
+    main .bg-slate-800 {
+      background-color:#1a2a42;
+    }
+    main .border-slate-800 { border-color:var(--fc-stroke); }
+    main .border-slate-700 { border-color:rgba(133,167,204,.25); }
+    main .text-slate-400 { color:var(--fc-muted); }
+    main .text-slate-500 { color:#8da4c1; }
+    main .rounded-2xl {
+      border-radius:19px;
+    }
+    #memberView > .rounded-2xl,
+    #trainerView > .rounded-2xl,
+    #trainerDashboardSection,
+    #trainerGrowthSection,
+    #memberView section > .bg-slate-900,
+    #memberView .lg\\:col-span-7 > .bg-slate-900,
+    #memberView .lg\\:col-span-5 > .bg-slate-900 {
+      box-shadow:0 14px 36px rgba(1,8,20,.18),inset 0 1px rgba(255,255,255,.025);
+    }
+    #memberView > .bg-gradient-to-r {
+      background:linear-gradient(125deg,rgba(26,64,104,.90),rgba(14,32,55,.95) 53%,rgba(11,27,47,.98)) !important;
+      border-color:rgba(97,173,234,.23) !important;
+      box-shadow:0 20px 48px rgba(0,7,23,.30);
+    }
+    #memberView > .bg-gradient-to-r::after {
+      content:"";position:absolute;inset:-45% -10% auto auto;
+      width:340px;height:340px;pointer-events:none;
+      background:radial-gradient(circle,rgba(93,180,244,.14),transparent 65%);
+    }
+    #memberView > .bg-gradient-to-r > * { position:relative;z-index:1; }
+    .member-nav-btn, .trainer-nav-btn {
+      background:linear-gradient(150deg,#14263f,#0e1b30);
+      border-color:rgba(128,170,213,.24);
+      color:#e0eeff;
+      box-shadow:inset 0 1px rgba(255,255,255,.025);
+      transition:background .18s,border-color .18s,transform .18s;
+    }
+    .member-nav-btn:hover, .trainer-nav-btn:hover {
+      background:#1b3554;border-color:rgba(94,179,248,.65);
+      transform:translateY(-1px);
+    }
+    .member-nav-btn:focus-visible,.trainer-nav-btn:focus-visible {
+      outline:2px solid #83ceff;outline-offset:2px;
+    }
+    .quick-feedback-btn {
+      background:#162940;
+      border-color:rgba(127,170,207,.30);
+      color:#dcecff;
+    }
+    .quick-feedback-btn:hover { background:#223a58;border-color:#569fd7; }
+    main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+    main textarea,main select {
+      background-color:#0b1a2d;
+      border-color:rgba(133,173,212,.29);
+      color:#f0f7ff;
+      border-radius:11px;
+      transition:border-color .18s,box-shadow .18s;
+    }
+    main input::placeholder,main textarea::placeholder { color:#829bb8;opacity:1; }
+    main input:focus-visible,main textarea:focus-visible,main select:focus-visible {
+      border-color:#59b8fa !important;
+      outline:2px solid transparent;
+      box-shadow:0 0 0 3px rgba(69,170,244,.16);
+    }
+    main button { transition:background-color .16s,border-color .16s,box-shadow .16s; }
+    main button:focus-visible,main summary:focus-visible {
+      outline:2px solid #79caff;outline-offset:3px;
+    }
+    main button.bg-brand-500, main button.bg-brand-600 {
+      color:#061a2b;
+      box-shadow:0 5px 16px rgba(34,135,218,.17);
+    }
+    #memberView .food-card, #memberRoutineList > div, #trainerDashboardSection .bg-slate-950 {
+      border-color:rgba(135,175,213,.16);
+      background-color:#0b1a2e;
+    }
+    #memberRoutineList .member-set-check { border-radius:11px; }
+    #memberRoutineList .member-set-check:has(input:checked) {
+      border-color:rgba(77,181,252,.46);
+      background-color:rgba(46,126,194,.13);
+    }
+    #toastNotification {
+      background:#17334f;
+      border:1px solid rgba(130,199,249,.37);
+      box-shadow:0 14px 35px rgba(0,5,16,.35);
+    }
+    @media (max-width:639px) {
+      main { padding:14px 12px 90px; }
+      main .rounded-2xl { border-radius:17px; }
+      #memberView,#trainerView { gap:16px; }
+      #memberView .bg-slate-900,#trainerView .bg-slate-900 { border-color:rgba(133,167,204,.20); }
+      .member-nav-btn,.trainer-nav-btn { min-height:52px; }
+      main button,main summary { touch-action:manipulation; }
+      main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+      main textarea,main select { min-height:44px; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      html { scroll-behavior:auto; }
+      .member-nav-btn,.trainer-nav-btn,main button { transition:none; }
+      .member-nav-btn:hover,.trainer-nav-btn:hover { transform:none; }
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -111,9 +257,9 @@
         <div>
           <div class="flex items-center gap-2">
             <h1 class="font-bold text-lg tracking-tight text-white">FIT-CONNECT</h1>
-            <span class="header-sync-badge text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-500 font-semibold border border-brand-500/20 whitespace-nowrap">구글 실시간 연동</span>
+            <span class="header-sync-badge text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-500 font-semibold border border-brand-500/20 whitespace-nowrap">회원 기록 동기화</span>
           </div>
-          <p class="header-brand-desc text-xs text-slate-400">25인+ 완벽 동기화 PT 밀착 케어 시스템</p>
+          <p class="header-brand-desc text-xs text-slate-400">정확한 기록, 꾸준한 변화 · PT 코칭 시스템</p>
         </div>
       </div>
 

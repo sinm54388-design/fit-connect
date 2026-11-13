@@ -2933,19 +2933,34 @@
 
     async function selectTrainerMemberFromSearch(name) {
       if(!getRegisteredMembers().includes(name))return;
-      clearTrainerMemberSearch();
-      document.getElementById('trainerMemberSelect').value=name;
-      await onSelectMemberChange();
-      if(appData)showToast(name+' 회원님의 기록을 불러왔습니다.');
+      const select=document.getElementById('trainerMemberSelect');
+      select.value=name;
+      const changed=await onSelectMemberChange();
+      if(changed && appData)showToast(name+' 회원님의 기록을 불러왔습니다.');
     }
 
     async function onSelectMemberChange() {
+      const select=document.getElementById('trainerMemberSelect');
+      const nextMember=select.value;
+      if(nextMember===activeMemberName)return true;
+      if(queuedSaveCount>0){
+        select.value=activeMemberName;
+        showToast('저장이 완료된 후 회원을 변경해주세요.');
+        return false;
+      }
+      if(hasUnsavedTrainerFeedback() &&
+          !confirm('작성 중인 피드백이 저장되지 않았어요. 다른 회원으로 이동할까요?')){
+        select.value=activeMemberName;
+        return false;
+      }
       resetSaveStatus();
       clearTrainerMemberSearch();
       clearRoutineCopyPreview();
-      activeMemberName = document.getElementById('trainerMemberSelect').value;
+      activeMemberName=nextMember;
       resetRoutineForms();
       await loadDataFromCloud();
+      updateNextPendingButton();
+      return !!appData;
     }
 
     /* ---------- 트레이너 화면 ---------- */

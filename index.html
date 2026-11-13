@@ -2714,7 +2714,7 @@
       const started=performance.now();
       let ok=false;
       const readActions=['read','verify','listMembers','trainerOverview','workoutHistory','listExerciseVideos','listFormVideos','memberInsights','readInbody','readMemberGoal','videoPlaybackUrl','videoDownload'];
-      if(!readActions.includes(String(body.action||'')))invalidatePrefetch();
+      if(!readActions.includes(String(body.action||''))){invalidatePrefetch();extraReadCache.clear();}
       try {
         const response = await fetch(SCRIPT_URL, {method:'POST',body:JSON.stringify(body)});
         if (!response.ok) throw new Error('서버 통신 오류');
@@ -3007,6 +3007,20 @@ try {
     }
 
     /* ---------- 운동 기록 히스토리 / 습관 캘린더 / 회원별 영상 ---------- */
+    // Short-lived private in-memory cache for video/history metadata; never persists across sessions.
+    const extraReadCache=new Map();
+    function cachedExtraRead(body) {
+      const key=[body.action,body.member,body.month||'',body.date||'',Boolean(body.password)].join('|');
+      const hit=extraReadCache.get(key);
+      if(hit && Date.now()-hit.at<45000)return hit.promise;
+      const promise=apiPost(body).then(result=>{
+        if(result?.status!=='success')extraReadCache.delete(key);
+        return result;
+      }).catch(error=>{extraReadCache.delete(key);throw error;});
+      extraReadCache.set(key,{at:Date.now(),promise});
+      if(extraReadCache.size>24)extraReadCache.delete(extraReadCache.keys().next().value);
+      return promise;
+    }
     async function loadExtras() {
       const request = ++extrasRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
@@ -3015,7 +3029,7 @@ try {
         ...(mode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
       const isCurrent = () => request===extrasRequest && member===activeMemberName && date===selectedDate && mode===currentMode;
       // 기록/영상 목록을 독립적으로 가져와 느린 요청 하나가 다른 화면을 막지 않도록 처리.
-      const historyRequest=apiPost({...auth,action:'workoutHistory',month:habitMonth})
+      const historyRequest=cachedExtraRead({...auth,action:'workoutHistory',month:habitMonth})
         .then(history=>{
           if(!isCurrent())return;
           if(history.status!=='success')throw Error(history.message||'기록 조회 실패');
@@ -3023,7 +3037,7 @@ try {
           renderHabitCalendar();
           renderPreviousRecords();
         }).catch(e=>console.warn('운동 기록 조회 오류',e));
-      const exerciseRequest=apiPost({...auth,action:'listExerciseVideos'})
+      const exerciseRequest=cachedExtraRead({...auth,action:'listExerciseVideos'})
         .then(videos=>{
           if(!isCurrent())return;
           if(videos.status!=='success')throw Error(videos.message||'운동 영상 조회 실패');
@@ -3031,7 +3045,7 @@ try {
           renderExerciseVideos();
           if(currentMode==='member'&&appData)renderMemberRoutines(appData.routines||[]);
         }).catch(e=>console.warn('운동 영상 조회 오류',e));
-      const formRequest=apiPost({...auth,action:'listFormVideos'})
+      const formRequest=cachedExtraRead({...auth,action:'listFormVideos'})
         .then(videos=>{
           if(!isCurrent())return;
           if(videos.status!=='success')throw Error(videos.message||'자세 영상 조회 실패');

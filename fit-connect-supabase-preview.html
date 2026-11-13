@@ -2775,11 +2775,23 @@
         status.textContent='현황을 불러오지 못했습니다: '+e.message;
       }
     }
+    function hasUnsavedTrainerFeedback(){
+      if(currentMode!=='trainer'||!appData)return false;
+      const workoutField=document.getElementById('inputFeedbackWorkout');
+      const dietField=document.getElementById('inputFeedbackDiet');
+      if(!workoutField||!dietField)return false;
+      return workoutField.value!==String(appData.feedback?.workout||'')||
+        dietField.value!==String(appData.feedback?.diet||'');
+    }
     async function openOverviewMember(member, listId) {
       if(queuedSaveCount>0){
         showToast('기록 저장이 끝난 뒤 다음 회원을 열어주세요.');
         return;
       }
+      if(member.name===activeMemberName&&listId!=='overviewInactive'){
+        jumpTrainerSection('trainerQuickFeedbackMount');return;
+      }
+      if(hasUnsavedTrainerFeedback()&&!confirm('작성 중인 피드백이 저장되지 않았어요. 다른 회원으로 이동할까요?'))return;
       resetSaveStatus();
       clearRoutineCopyPreview();
       clearTrainerMemberSearch();

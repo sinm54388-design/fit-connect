@@ -1104,14 +1104,19 @@
         const begun=performance.now();
         try{
           const response=await fetch(url,{method:'POST',headers:url==='/api/records'?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
+          const contentType=response.headers.get('content-type')||'';
+          if(!contentType.includes('json'))
+            return {elapsed:performance.now()-begun,error:true,reason:'HTTP '+response.status+' · JSON 아닌 응답'};
           const payload=await response.json();
-          if(!response.ok||payload?.status==='error'||payload?.status==='denied')throw Error('응답 오류 '+response.status);
+          if(!response.ok||payload?.status==='error'||payload?.status==='denied')
+            return {elapsed:performance.now()-begun,error:true,reason:'HTTP '+response.status+' · '+String(payload?.status||'error')};
           return {elapsed:performance.now()-begun,data:payload};
-        }catch(e){return {elapsed:performance.now()-begun,error:true};}
+        }catch(e){return {elapsed:performance.now()-begun,error:true,reason:'네트워크 또는 JSON 오류'};}
       };
       const [sheets,supabase]=await Promise.all([read(SCRIPT_URL),read('/api/records')]);
       perfMark('DB 비교 · Sheets 읽기',sheets.elapsed,!sheets.error);
       perfMark('DB 비교 · Supabase 읽기',supabase.elapsed,!supabase.error);
+      if(supabase.error)perfRows.push({label:'Supabase 실패 원인 · '+supabase.reason,seconds:'0',ok:false});
       if(!sheets.error&&!supabase.error) {
         const same=stableRecordSignature(normalizeData(structuredClone(sheets.data)))===
           stableRecordSignature(normalizeData(structuredClone(supabase.data)));

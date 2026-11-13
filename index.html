@@ -1110,12 +1110,19 @@
           const payload=await response.json();
           if(!response.ok||payload?.status==='error'||payload?.status==='denied')
             return {elapsed:performance.now()-begun,error:true,reason:'HTTP '+response.status+' · '+String(payload?.code||payload?.status||'error')};
-          return {elapsed:performance.now()-begun,data:payload};
+          return {elapsed:performance.now()-begun,data:payload,
+            serverTiming:response.headers.get('server-timing')||'',
+            region:response.headers.get('x-fit-function-region')||''};
         }catch(e){return {elapsed:performance.now()-begun,error:true,reason:'네트워크 또는 JSON 오류'};}
       };
       const [sheets,supabase]=await Promise.all([read(SCRIPT_URL),read('/api/records')]);
       perfMark('DB 비교 · Sheets 읽기',sheets.elapsed,!sheets.error);
       perfMark('DB 비교 · Supabase 읽기',supabase.elapsed,!supabase.error);
+      if(supabase.region)perfRows.push({label:'Supabase 함수 지역 · '+supabase.region,seconds:'0',ok:true});
+      const lookupMs=/member;dur=([0-9.]+)/.exec(supabase.serverTiming||'');
+      const dailyMs=/daily;dur=([0-9.]+)/.exec(supabase.serverTiming||'');
+      if(lookupMs)perfMark('Supabase 내부 · 회원 확인',Number(lookupMs[1]),true);
+      if(dailyMs)perfMark('Supabase 내부 · 하루 기록',Number(dailyMs[1]),true);
       if(supabase.error)perfRows.push({label:'Supabase 실패 원인 · '+supabase.reason,seconds:'0',ok:false});
       if(!sheets.error&&!supabase.error) {
         const same=stableRecordSignature(normalizeData(structuredClone(sheets.data)))===
@@ -1374,6 +1381,16 @@
       if(viewedRecordCache.size>12)viewedRecordCache.delete(viewedRecordCache.keys().next().value);
     }
     // Trainer-only in-memory prefetched records. Never store member records in localStorage.
+    const inflightDailyReads=new Map();
+    function sharedDailyRead(context) {
+      const key=recordCacheKey(context);
+      if(inflightDailyReads.has(key))return inflightDailyReads.get(key);
+      const promise=fetchLatest(context).finally(()=>{
+        if(inflightDailyReads.get(key)===promise)inflightDailyReads.delete(key);
+      });
+      inflightDailyReads.set(key,promise);
+      return promise;
+    }
     const prefetchedRecords=new Map();
     let prefetchGeneration=0;
     function invalidatePrefetch() {prefetchGeneration++;prefetchedRecords.clear();}
@@ -1383,7 +1400,7 @@
       const key=recordCacheKey(context), existing=prefetchedRecords.get(key);
       if(existing && performance.now()-existing.created<30000)return existing.promise;
       const started=performance.now(),generation=prefetchGeneration;
-      const promise=fetchLatest(context).then(data=>{
+      const promise=sharedDailyRead(context).then(data=>{
         if(generation===prefetchGeneration && currentMode==='trainer' && date===selectedDate && queuedSaveCount===0){
           rememberRecord(context,data);
           perfMark('사전 로딩 · 회원 기록',performance.now()-started,true);
@@ -1444,7 +1461,7 @@
       try {
         const existingPrefetch=mode==='trainer' ? prefetchedRecords.get(recordCacheKey(context)) : null;
         const loaded = existingPrefetch && performance.now()-existingPrefetch.created<30000
-          ? await existingPrefetch.promise : await fetchLatest();
+          ? await existingPrefetch.promise : await sharedDailyRead(context);
         if (request !== latestLoadRequest || member !== activeMemberName || date !== selectedDate || mode !== currentMode) return;
         if(queuedSaveCount>0)return; // 조회 중 시작된 저장의 새 값을 오래된 조회 응답으로 덮어쓰지 않음
         appData = loaded;

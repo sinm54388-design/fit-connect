@@ -3581,6 +3581,7 @@ try {
       const key=videoContextKey();
       if(key===lastVideoPanelKey)return;
       lastVideoPanelKey=key;
+      stopTrainerAutoVideo();
       clearPlaybackWarmCache();
       exerciseVideos=[];
       formVideos=[];
@@ -3641,6 +3642,7 @@ try {
           formVideos=result.videos||[];
           warmVisibleFormVideoUrls(member,mode);
           renderFormVideos();
+          scheduleTrainerAutoPlayback();
           renderVideoStorageMapping();
         })
       ]);
@@ -3739,11 +3741,93 @@ try {
       if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-300 whitespace-pre-wrap">${esc(v.tip||'')}</p></article>`).join(''):'<p class="text-xs text-slate-500">아직 등록된 운동 영상이 없어요.</p>';
       if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<div class="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2"><strong class="text-xs">${esc(v.name)}</strong><div>${videoLink(v)}</div><textarea id="tip-${esc(v.id)}" maxlength="500" rows="2" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래 설명">${esc(v.tip||'')}</textarea><div class="flex gap-3"><button class="text-sky-400 text-xs" onclick="updateExerciseVideoTip('${esc(v.id)}')">설명 저장</button><button class="text-rose-400 text-xs" onclick="deleteExerciseVideo('${esc(v.id)}')">삭제</button></div></div>`).join(''):'<p class="text-xs text-slate-500">등록된 영상 없음</p>';
     }
+
+    // One muted inline streaming preview at a time, only for migrated private videos.
+    // Legacy Google Drive videos remain click-to-play to avoid downloading whole files.
+    let trainerVideoAutoObserver=null;
+    let activeTrainerAutoVideo=null;
+    function stopTrainerAutoVideo(){
+      if(activeTrainerAutoVideo){activeTrainerAutoVideo.pause();activeTrainerAutoVideo=null;}
+      if(trainerVideoAutoObserver){trainerVideoAutoObserver.disconnect();trainerVideoAutoObserver=null;}
+    }
+    function setupTrainerAutoPlayback(){
+      stopTrainerAutoVideo();
+      if(currentMode!=='trainer'||activeMemberName!=='김윤지'||!PRIVATE_VIDEO_STREAMING_ENABLED)return;
+      const root=document.getElementById('trainerFormVideos');
+      if(!root)return;
+      const holders=[...root.querySelectorAll('[data-auto-video-id]')].slice(0,2);
+      if(!holders.length)return;
+      let generation=videoLoadRequest;
+      const isCurrent=()=>currentMode==='trainer'&&activeMemberName==='김윤지'&&generation===videoLoadRequest;
+      const activate=async holder=>{
+        if(!isCurrent()||!holder.isConnected||holder.dataset.loading==='1')return;
+        const fileId=holder.dataset.autoVideoId;
+        holder.dataset.loading='1';
+        const url=await getWarmedPlaybackUrl(fileId,'김윤지','trainer');
+        if(!isCurrent()||!holder.isConnected)return;
+        if(!url){
+          holder.dataset.loading='0';
+          holder.dataset.unavailable='1';
+          return;
+        }
+        const video=document.createElement('video');
+        video.controls=true;
+        video.playsInline=true;
+        video.muted=true;
+        video.autoplay=true;
+        video.preload='metadata';
+        video.className='w-full rounded-xl bg-black';
+        video.setAttribute('playsinline','');
+        video.setAttribute('aria-label','회원 자세 영상 · 음소거 자동 재생');
+        video.src=url;
+        const note=document.createElement('p');
+        note.className='mt-1 text-xs text-slate-400';
+        note.textContent='자동재생은 음소거 상태입니다. 영상의 소리 버튼으로 켤 수 있어요.';
+        holder.replaceChildren(video,note);
+        holder.dataset.loading='2';
+        if(!holder.dataset.visible)return;
+        if(activeTrainerAutoVideo&&activeTrainerAutoVideo!==video)activeTrainerAutoVideo.pause();
+        activeTrainerAutoVideo=video;
+        video.play().catch(()=>{note.textContent='브라우저에서 자동재생을 제한했습니다. 영상 ▶ 버튼으로 재생해주세요.';});
+      };
+      const onEntry=entry=>{
+        const holder=entry.target;
+        if(!isCurrent())return;
+        if(entry.isIntersecting && entry.intersectionRatio>=0.35){
+          holder.dataset.visible='1';
+          const video=holder.querySelector('video');
+          if(video){
+            if(activeTrainerAutoVideo&&activeTrainerAutoVideo!==video)activeTrainerAutoVideo.pause();
+            activeTrainerAutoVideo=video;
+            video.play().catch(()=>{});
+          }else if(holder.dataset.unavailable!=='1'){
+            void activate(holder);
+          }
+        }else{
+          holder.dataset.visible='';
+          const video=holder.querySelector('video');
+          if(video)video.pause();
+          if(activeTrainerAutoVideo===video)activeTrainerAutoVideo=null;
+        }
+      };
+      if('IntersectionObserver' in window){
+        trainerVideoAutoObserver=new IntersectionObserver(entries=>entries.forEach(onEntry),
+          {threshold:[0,.35,.65]});
+        holders.forEach(holder=>trainerVideoAutoObserver.observe(holder));
+      }else{
+        // No automatic network requests on older browsers.
+        holders.forEach(holder=>holder.textContent='아래 재생 버튼을 이용해주세요.');
+      }
+    }
     function renderFormVideos(){
       const memberRoot=document.getElementById('memberFormVideos'), trainerRoot=document.getElementById('trainerFormVideos');
       const videos=formVideos||[];
       if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">질문: ${esc(v.question||'없음')}</p><div class="bg-slate-900 rounded-lg p-2 text-xs whitespace-pre-wrap"><strong class="text-emerald-400">트레이너 피드백</strong><p class="mt-1">${esc(v.feedback||'아직 피드백을 기다리고 있어요.')}</p>${v.feedback?`<div class="mt-2 flex items-center justify-between gap-2"><span class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?'✓ 확인 완료':'확인 버튼을 눌러주세요'}</span>${v.readAt?'':`<button type="button" onclick="markFormVideoRead('${esc(v.id)}')" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">확인했어요</button>`}</div>`:''}</div></article>`).join(''):'<p class="text-xs text-slate-500">업로드한 운동 영상이 없어요.</p>';
-      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">회원 질문: ${esc(v.question||'없음')}</p><div class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?`✓ 회원 확인 완료 · ${esc(v.readAt)}`:'○ 회원 확인 전'}</div><textarea id="feedback-${esc(v.id)}" maxlength="2000" rows="3" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래에 보여줄 자세 피드백">${esc(v.feedback||'')}</textarea><div class="flex gap-3"><button onclick="saveFormVideoFeedback('${esc(v.id)}')" class="text-xs text-sky-400">피드백 저장</button><button onclick="deleteFormVideo('${esc(v.id)}')" class="text-xs text-rose-400">영상 삭제</button></div></article>`).join(''):'<p class="text-xs text-slate-500">회원님이 올린 운동 영상이 없어요.</p>';
+      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong>${currentMode==='trainer'&&activeMemberName==='김윤지'&&v.fileId? `<div data-auto-video-id="${esc(v.fileId)}" class="min-h-14 rounded-xl text-xs text-slate-400">화면에 보이면 스트리밍을 준비합니다.</div>` : ''}<div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">회원 질문: ${esc(v.question||'없음')}</p><div class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?`✓ 회원 확인 완료 · ${esc(v.readAt)}`:'○ 회원 확인 전'}</div><textarea id="feedback-${esc(v.id)}" maxlength="2000" rows="3" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래에 보여줄 자세 피드백">${esc(v.feedback||'')}</textarea><div class="flex gap-3"><button onclick="saveFormVideoFeedback('${esc(v.id)}')" class="text-xs text-sky-400">피드백 저장</button><button onclick="deleteFormVideo('${esc(v.id)}')" class="text-xs text-rose-400">영상 삭제</button></div></article>`).join(''):'<p class="text-xs text-slate-500">회원님이 올린 운동 영상이 없어요.</p>';
+    }
+      // Auto-start only visible migrated Supabase videos; no Drive full-downloads.
+    function scheduleTrainerAutoPlayback(){
+      requestAnimationFrame(()=>setupTrainerAutoPlayback());
     }
     // Test-only mapping UI; original Sheets video metadata stays authoritative.
     function renderVideoStorageMapping(){

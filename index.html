@@ -1331,14 +1331,16 @@
     }
     // Trainer-only in-memory prefetched records. Never store member records in localStorage.
     const prefetchedRecords=new Map();
+    let prefetchGeneration=0;
+    function invalidatePrefetch() {prefetchGeneration++;prefetchedRecords.clear();}
     function prefetchTrainerRecord(member,date=selectedDate) {
       if(!member||!trainerPassword||currentMode!=='trainer'||queuedSaveCount>0)return null;
       const context={mode:'trainer',member,date,password:trainerPassword,token:memberToken};
       const key=recordCacheKey(context), existing=prefetchedRecords.get(key);
       if(existing && performance.now()-existing.created<30000)return existing.promise;
-      const started=performance.now();
+      const started=performance.now(),generation=prefetchGeneration;
       const promise=fetchLatest(context).then(data=>{
-        if(currentMode==='trainer' && date===selectedDate && queuedSaveCount===0){
+        if(generation===prefetchGeneration && currentMode==='trainer' && date===selectedDate && queuedSaveCount===0){
           rememberRecord(context,data);
           perfMark('사전 로딩 · 회원 기록',performance.now()-started,true);
         }
@@ -2643,6 +2645,8 @@
     async function apiPost(body) {
       const started=performance.now();
       let ok=false;
+      const readActions=['read','verify','listMembers','trainerOverview','workoutHistory','listExerciseVideos','listFormVideos','memberInsights','readInbody','readMemberGoal','videoPlaybackUrl','videoDownload'];
+      if(!readActions.includes(String(body.action||'')))invalidatePrefetch();
       try {
         const response = await fetch(SCRIPT_URL, {method:'POST',body:JSON.stringify(body)});
         if (!response.ok) throw new Error('서버 통신 오류');

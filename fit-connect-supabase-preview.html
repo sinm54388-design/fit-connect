@@ -1483,7 +1483,11 @@
 
     document.addEventListener('DOMContentLoaded', async function () {
       arrangeMemberDashboard();
-      document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
+      const feedbackMount=document.getElementById('trainerQuickFeedbackMount');
+      feedbackMount.appendChild(document.getElementById('trainerFeedbackPanel'));
+      // Keep the existing form-video elements and events, but place them next to daily feedback.
+      const formVideoSection=document.getElementById('trainerFormVideos')?.closest('section');
+      if(formVideoSection)feedbackMount.appendChild(formVideoSection);
       setupAutoHideHeader();
       setupQuickSaveShortcuts();
       setupDeferredVideoLoading();

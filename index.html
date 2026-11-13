@@ -1070,7 +1070,7 @@
   </div>
 
   <section id="perfDiagnostic" style="display:none;position:fixed;right:12px;bottom:12px;z-index:1000;width:min(370px,calc(100vw - 24px));max-height:48vh;overflow:auto;background:#101c2e;color:white;border:1px solid #6b8da8;border-radius:12px;padding:12px;box-shadow:0 10px 30px #0007;font-size:12px">
-    <div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><strong>속도 측정 · 개인정보 제외</strong><button type="button" onclick="copyPerfDiagnostic()" style="background:#334155;padding:6px 9px;border-radius:7px">측정 복사</button></div>
+    <div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><strong>속도 측정 · 개인정보 제외</strong><div style="display:flex;gap:5px"><button type="button" onclick="compareReadBackends()" style="background:#28527e;padding:6px 9px;border-radius:7px">DB 속도 비교</button><button type="button" onclick="copyPerfDiagnostic()" style="background:#334155;padding:6px 9px;border-radius:7px">측정 복사</button></div></div>
     <div id="perfDiagnosticRows" style="white-space:pre-line;margin-top:8px;line-height:1.6">측정 준비 중</div>
   </section>
   <script>
@@ -1085,6 +1085,44 @@
       if(perfRows.length>35)perfRows.shift();
       const root=document.getElementById('perfDiagnosticRows');
       if(root)root.textContent=perfRows.map(r=>`${r.label}: ${r.seconds}초 ${r.ok?'✓':'실패'}`).join('\n');
+    }
+    function stableRecordSignature(value) {
+      if(Array.isArray(value))return '['+value.map(stableRecordSignature).join(',')+']';
+      if(value && typeof value==='object')
+        return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+stableRecordSignature(value[k])).join(',')+'}';
+      return JSON.stringify(value);
+    }
+    async function compareReadBackends() {
+      if(!perfEnabled||!trainerPassword||currentMode!=='trainer'||!activeMemberName) {
+        showToast('트레이너 로그인 후 회원을 선택해주세요.');return;
+      }
+      const context=getSaveContext();
+      const body={action:'read',member:context.member,date:context.date,password:context.password};
+      showToast('두 저장소의 읽기 속도와 기록 일치 여부 확인 중...');
+      const start=performance.now();
+      const read=async(url)=>{
+        const begun=performance.now();
+        try{
+          const response=await fetch(url,{method:'POST',headers:url==='/api/records'?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
+          const payload=await response.json();
+          if(!response.ok||payload?.status==='error'||payload?.status==='denied')throw Error('응답 오류 '+response.status);
+          return {elapsed:performance.now()-begun,data:payload};
+        }catch(e){return {elapsed:performance.now()-begun,error:true};}
+      };
+      const [sheets,supabase]=await Promise.all([read(SCRIPT_URL),read('/api/records')]);
+      perfMark('DB 비교 · Sheets 읽기',sheets.elapsed,!sheets.error);
+      perfMark('DB 비교 · Supabase 읽기',supabase.elapsed,!supabase.error);
+      if(!sheets.error&&!supabase.error) {
+        const same=stableRecordSignature(normalizeData(structuredClone(sheets.data)))===
+          stableRecordSignature(normalizeData(structuredClone(supabase.data)));
+        perfRows.push({label:'DB 비교 · 기록 일치 '+(same?'예':'아니오 (운영 전환 금지)'),seconds:'0',ok:same});
+        const root=document.getElementById('perfDiagnosticRows');
+        if(root)root.textContent=perfRows.map(r=>r.label+': '+r.seconds+'초 '+(r.ok?'✓':'확인 필요')).join('\n');
+      }else{
+        perfRows.push({label:'DB 비교 · 서버 오류, 운영 전환 금지',seconds:'0',ok:false});
+        document.getElementById('perfDiagnosticRows').textContent=perfRows.map(r=>r.label+': '+r.seconds+'초 '+(r.ok?'✓':'확인 필요')).join('\n');
+      }
+      showToast('DB 비교 완료 · 측정 복사로 결과를 보내주세요.');
     }
     function copyPerfDiagnostic() {
       const summary=perfRows.map(r=>`${r.label}: ${r.seconds}초 ${r.ok?'정상':'실패'}`).join('\n');

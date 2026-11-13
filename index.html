@@ -1109,7 +1109,7 @@
             return {elapsed:performance.now()-begun,error:true,reason:'HTTP '+response.status+' · JSON 아닌 응답'};
           const payload=await response.json();
           if(!response.ok||payload?.status==='error'||payload?.status==='denied')
-            return {elapsed:performance.now()-begun,error:true,reason:'HTTP '+response.status+' · '+String(payload?.status||'error')};
+            return {elapsed:performance.now()-begun,error:true,reason:'HTTP '+response.status+' · '+String(payload?.code||payload?.status||'error')};
           return {elapsed:performance.now()-begun,data:payload};
         }catch(e){return {elapsed:performance.now()-begun,error:true,reason:'네트워크 또는 JSON 오류'};}
       };

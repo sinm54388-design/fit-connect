@@ -1443,6 +1443,24 @@
     // Preview-only fast-read pilot. The canonical writes remain on Google Sheets.
     // Users enable it explicitly with ?fastdb=1; preview never changes production.
     const fastDbPilot=new URLSearchParams(location.search).get('fastdb')==='1';
+    // Read-only trainer request to the preview's Cloudflare server.
+    // Returns null on any failure so callers fall back to Apps Script.
+    async function fastTrainerRequest(body,label) {
+      if(!fastDbPilot)return null;
+      const started=performance.now();
+      try {
+        const response=await fetch('/api/records',{method:'POST',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+        if(!(response.headers.get('content-type')||'').includes('json'))throw Error('JSON 아님');
+        const result=await response.json();
+        const ok=response.ok&&result?.status==='success';
+        perfMark(label,performance.now()-started,ok);
+        return ok?result:null;
+      }catch(e){
+        perfMark(label+' 실패 · 기존 방식 사용',performance.now()-started,false);
+        return null;
+      }
+    }
     const fastDbDisabledKeys=new Set();
     const fastDbVerification=new Map();
     function fastDbRecordKey(context){return context.member+'|'+context.date;}
@@ -2346,7 +2364,11 @@
       if (input === null) return;
       try {
         showToast('비밀번호 확인 중...');
-        const result = await apiPost({ action: 'verify', password: input });
+        // Preview fast path: the Cloudflare server checks the password first.
+        // Anything other than a clear success falls back to Apps Script.
+        let result = await fastTrainerRequest({ action: 'verify', password: input }, '트레이너 확인 · 빠른 서버');
+        if (!result || result.status !== 'success')
+          result = await apiPost({ action: 'verify', password: input });
         if (result.status === 'success') {
           trainerPassword = input;
           await Promise.allSettled([switchMode('trainer'),loadMemberRegistry(),loadTrainerOverview()]);
@@ -2405,10 +2427,10 @@
       const request = ++overviewRequest, date = selectedDate;
       const status = document.getElementById('overviewStatus');
       status.textContent = '회원 현황 불러오는 중...';
-      try {
-        const result = await apiPost({action:'trainerOverview',password:trainerPassword,date});
-        if (request !== overviewRequest || date !== selectedDate || currentMode !== 'trainer') return;
-        if (result.status !== 'success' || !Array.isArray(result.members)) throw Error(result.message || '현황 조회 실패');
+      // Preview fast path: show the Supabase summary first, then always replace it
+      // with the canonical Apps Script overview (which also has video counts).
+      let canonicalShown=false;
+      const renderOverview = (result, isFast) => {
         const items = result.members;
         // The overview already contains member names. Populate the selector
         // immediately instead of waiting on the slower/possibly stuck listMembers request.
@@ -2459,9 +2481,28 @@
         makeRows('overviewFeedbackDone',items.filter(m=>m.feedbackDone&&!m.pendingWorkout&&!m.pendingDiet),
           ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
         makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
-        status.textContent = `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
+        status.textContent = isFast
+          ? `${date} 기준 · 빠른 현황 표시 중 · 영상 대기 건수 등 최신 내용 확인 중...`
+          : `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
+      };
+      const stillCurrent = () => request === overviewRequest && date === selectedDate && currentMode === 'trainer';
+      if (fastDbPilot) {
+        fastTrainerRequest({action:'trainerOverview',password:trainerPassword,date}, '트레이너 현황 · Supabase')
+          .then(fast => {
+            if (!fast || fast.status !== 'success' || !Array.isArray(fast.members)) return;
+            if (canonicalShown || !stillCurrent()) return;
+            renderOverview(fast, true);
+          }).catch(e=>console.warn('빠른 현황 표시 오류',e));
+      }
+      try {
+        const result = await apiPost({action:'trainerOverview',password:trainerPassword,date});
+        if (!stillCurrent()) return;
+        if (result.status !== 'success' || !Array.isArray(result.members)) throw Error(result.message || '현황 조회 실패');
+        canonicalShown = true;
+        renderOverview(result, false);
       } catch(e) {
         if(request !== overviewRequest)return;
+        canonicalShown = true;
         status.textContent='현황을 불러오지 못했습니다: '+e.message;
       }
     }

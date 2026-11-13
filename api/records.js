@@ -183,10 +183,16 @@
      .replace(/\/+$/, '');
    const key = String(process.env.SUPABASE_SECRET_KEY || '');
 
-   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base) || !key) {
+   const urlValid = /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base);
+   if (!urlValid || !key) {
+     // Public diagnostic code only; never include URLs, keys or password values.
+     const code = !base ? 'missing_supabase_url'
+       : !urlValid ? 'invalid_supabase_url'
+       : 'missing_supabase_secret_key';
      return reply(res, 503, {
        status: 'error',
-       message: '서버 설정이 없습니다.'
+       code,
+       message: 'Supabase 연결 설정 확인 필요'
      });
    }
 

@@ -2635,13 +2635,13 @@ try {
       let sourceStream=null,canvasStream=null,recorder=null;
       try{
         await waitForMediaEvent(video,'loadedmetadata');
-        const scale=Math.min(1,1280/Math.max(video.videoWidth,video.videoHeight));
+        const scale=Math.min(1,1920/Math.max(video.videoWidth,video.videoHeight));
         const width=Math.max(2,Math.round(video.videoWidth*scale/2)*2);
         const height=Math.max(2,Math.round(video.videoHeight*scale/2)*2);
         const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext('2d',{alpha:false});
         if(!ctx)throw new Error('영상 압축 화면을 준비하지 못했어요.');
-        canvasStream=canvas.captureStream(24);
+        canvasStream=canvas.captureStream(30);
         if(typeof video.captureStream==='function')sourceStream=video.captureStream();
         else if(typeof video.webkitCaptureStream==='function')sourceStream=video.webkitCaptureStream();
         if(sourceStream){
@@ -2649,7 +2649,7 @@ try {
         }
         const mimeCandidates=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp8,opus','video/webm'];
         const mimeType=mimeCandidates.find(type=>MediaRecorder.isTypeSupported(type))||'';
-        const options={videoBitsPerSecond:1400000,audioBitsPerSecond:96000};
+        const options={videoBitsPerSecond:3200000,audioBitsPerSecond:96000};
         if(mimeType)options.mimeType=mimeType;
         const chunks=[];
         recorder=new MediaRecorder(canvasStream,options);

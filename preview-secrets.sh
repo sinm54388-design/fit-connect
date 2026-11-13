@@ -8,4 +8,5 @@ for k in SUPABASE_URL SUPABASE_SECRET_KEY TRAINER_PASSWORD; do
   printf '%s' "$v" | npx wrangler preview secret put "$k" --name "$WORKERS_CI_BRANCH"
   echo "set preview secret: $k"
 done
+# ok
 

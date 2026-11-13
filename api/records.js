@@ -373,12 +373,14 @@
        });
      }
 
+     const memberLookupStarted=performance.now();
      const matches = await supabaseGet(
        base,
        key,
        `/rest/v1/fit_members?select=id,access_token_hash&name=eq.${encodeURIComponent(member)}&limit=1`
      );
 
+     const memberLookupMs=performance.now()-memberLookupStarted;
      const found = matches[0];
 
      if (
@@ -729,12 +731,16 @@
 
      // Existing daily record reading.
      if (action === 'read') {
+       const dailyReadStarted=performance.now();
        const records = await supabaseGet(
          base,
          key,
          `/rest/v1/fit_daily_records?select=data&member_id=eq.${encodeURIComponent(found.id)}&record_date=eq.${date}&limit=1`
        );
 
+       const dailyReadMs=performance.now()-dailyReadStarted;
+       res.setHeader('Server-Timing','member;dur='+memberLookupMs.toFixed(1)+', daily;dur='+dailyReadMs.toFixed(1));
+       res.setHeader('X-Fit-Function-Region',String(process.env.VERCEL_REGION||'unknown'));
        return reply(
          res,
          200,

@@ -92,10 +92,10 @@
     :root {
       color-scheme: dark;
       --fc-canvas:#07111f;
-      --fc-surface:#101d31;
-      --fc-surface-deep:#0b1729;
-      --fc-stroke:rgba(133,167,204,.16);
-      --fc-accent:#45aaf4;
+      --fc-surface:#111e30;
+      --fc-surface-deep:#0b1728;
+      --fc-stroke:rgba(162,192,224,.11);
+      --fc-accent:#6dbaff;
       --fc-ink:#edf5ff;
       --fc-muted:#adc0d8;
     }
@@ -118,7 +118,7 @@
       background:rgba(39,128,202,.15);
       border-color:rgba(90,177,247,.27);
     }
-    #appHeader h1 { letter-spacing:.035em; font-weight:800; }
+    #appHeader h1 { letter-spacing:.055em; font-weight:800; }
     #appHeader .from-brand-600 { --tw-gradient-from:#176cb3 var(--tw-gradient-from-position); }
     #appHeader .to-emerald-400 { --tw-gradient-to:#75d0fb var(--tw-gradient-to-position); }
     main { position:relative; }
@@ -231,6 +231,125 @@
       html { scroll-behavior:auto; }
       .member-nav-btn,.trainer-nav-btn,main button { transition:none; }
       .member-nav-btn:hover,.trainer-nav-btn:hover { transform:none; }
+    }
+
+    /* Premium refinement: flatter surfaces, restrained highlights, clear hierarchy. */
+    body {
+      background:radial-gradient(ellipse 75% 420px at 50% -190px,rgba(42,103,165,.12),transparent 75%),#08121f;
+      -webkit-font-smoothing:antialiased;
+    }
+    #appHeader {
+      border-bottom-color:rgba(196,216,239,.09);
+      box-shadow:0 6px 22px rgba(2,8,18,.11);
+    }
+    #appHeader .w-10.h-10 {
+      border:1px solid rgba(180,224,255,.18);
+      box-shadow:0 5px 18px rgba(3,22,44,.24);
+    }
+    #appHeader .header-sync-badge {
+      border-color:rgba(112,186,236,.17);
+      color:#b3ddfa;
+      background:rgba(99,168,221,.08);
+      font-weight:500;
+    }
+    main h2,main h3,main h4 {
+      letter-spacing:-.035em;
+      line-height:1.42;
+    }
+    main h2 { font-weight:750; }
+    main h3 { font-weight:700; }
+    main .rounded-2xl { border-radius:20px; }
+    #memberView, #trainerView { row-gap:22px; }
+    #memberView > .bg-gradient-to-r {
+      background:linear-gradient(130deg,#1c3550 0%,#12243a 56%,#101e30 100%) !important;
+      border:1px solid rgba(154,194,231,.19) !important;
+      box-shadow:0 18px 45px rgba(0,5,17,.19);
+    }
+    #memberView > .bg-gradient-to-r::after {
+      inset:-60% -18% auto auto;
+      background:radial-gradient(circle,rgba(129,191,240,.10),transparent 65%);
+    }
+    #memberView > .bg-gradient-to-r .bg-slate-800\\/60 {
+      background:rgba(8,22,40,.39);
+      border-color:rgba(145,187,221,.14);
+    }
+    main .bg-slate-900 {
+      background-color:#101e30;
+      border-color:rgba(169,197,227,.11);
+    }
+    main .bg-slate-950 {
+      background-color:#0c1829;
+      border-color:rgba(151,187,224,.12);
+    }
+    #trainerDashboardSection,
+    #trainerGrowthSection,
+    #memberView section > .bg-slate-900 {
+      box-shadow:0 10px 34px rgba(0,5,16,.12);
+    }
+    .member-nav-btn,.trainer-nav-btn {
+      background:#14243a;
+      border:1px solid rgba(169,197,227,.14);
+      color:#d8e7f8;
+      box-shadow:none;
+      border-radius:14px;
+      font-weight:650;
+    }
+    .member-nav-btn:hover,.trainer-nav-btn:hover {
+      background:#1a2d46;
+      border-color:rgba(123,186,238,.42);
+      transform:none;
+    }
+    .quick-feedback-btn {
+      background:#13253b;
+      border-color:rgba(159,189,217,.18);
+    }
+    .quick-feedback-btn:hover {
+      background:#1b304c;
+      border-color:rgba(110,186,246,.38);
+    }
+    main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+    main textarea, main select {
+      background-color:#0c1929;
+      border-color:rgba(166,198,230,.20);
+      border-radius:12px;
+      color:#edf5ff;
+    }
+    main input::placeholder, main textarea::placeholder { color:#93a9c2; }
+    main input:focus-visible, main textarea:focus-visible, main select:focus-visible {
+      border-color:#88cafa !important;
+      box-shadow:0 0 0 3px rgba(95,165,228,.12);
+    }
+    main button.bg-brand-500,main button.bg-brand-600 {
+      background:#78bef4;
+      color:#092033;
+      box-shadow:none;
+      font-weight:700;
+    }
+    main button.bg-brand-500:hover,main button.bg-brand-600:hover {
+      background:#a0d3fa;
+    }
+    #memberRoutineList > div,
+    #memberView .food-card,
+    #trainerDashboardSection .bg-slate-950 {
+      border-color:rgba(161,191,223,.13);
+      background-color:#0d1a2b;
+    }
+    #memberRoutineList .member-set-check:has(input:checked) {
+      border-color:rgba(100,182,242,.42);
+      background-color:rgba(58,125,190,.11);
+    }
+    #habitCalendarTop .rounded-2xl, #trainerDashboardSection {
+      border-color:rgba(166,195,224,.14);
+    }
+    #memberView .text-slate-400,#trainerView .text-slate-400 { color:#b4c5d9; }
+    #memberView .text-slate-500,#trainerView .text-slate-500 { color:#91a8c1; }
+    #toastNotification { background:#172b43; }
+    @media(max-width:639px) {
+      #memberView,#trainerView { row-gap:16px; }
+      #memberView > .bg-gradient-to-r { padding:20px; }
+      #memberView > .bg-gradient-to-r h2 { font-size:21px;line-height:1.34; }
+      main .rounded-2xl { border-radius:17px; }
+      .member-nav-btn,.trainer-nav-btn { font-size:13px; }
     }
   </style>
 </head>

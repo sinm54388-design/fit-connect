@@ -1515,6 +1515,7 @@
       setupQuickSaveShortcuts();
       setupDeferredVideoLoading();
       setupTrainerInsightsOnDemand();
+      setupTrainerHistoryOnDemand();
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
         setupMealEditor(m);
@@ -1589,6 +1590,7 @@
 
     function jumpTrainerSection(id) {
       if(id==='trainerGrowthSection')requestTrainerInsightsWhenNeeded();
+      if(id==='trainerRoutineSection')requestTrainerHistoryWhenNeeded();
       const target=document.getElementById(id);
       if(!target)return;
       target.scrollIntoView({behavior:'smooth',block:'start'});
@@ -1704,14 +1706,19 @@
       if (!silent) {
         if(mode==='trainer'){
           requestedTrainerInsightsKey='';
+          requestedTrainerHistoryKey='';
           const growth=document.getElementById('trainerGrowthSection');
           if(growth && growth.getBoundingClientRect().top<window.innerHeight+200 &&
               growth.getBoundingClientRect().bottom>0)
             requestTrainerInsightsWhenNeeded();
+          const routines=document.getElementById('trainerRoutineSection');
+          if(routines && routines.getBoundingClientRect().top<window.innerHeight+200 &&
+              routines.getBoundingClientRect().bottom>0)
+            requestTrainerHistoryWhenNeeded();
         }else{
           loadMemberInsights().catch(e=>console.warn('성장 기록 조회 오류',e));
+          loadExtras().catch(e=>console.warn('추가 자료 불러오기 오류',e));
         }
-        loadExtras().catch(e=>console.warn('추가 자료 불러오기 오류',e));
       }
       try {
         const loaded = await fetchLatest();
@@ -3260,6 +3267,32 @@
         requestedTrainerInsightsKey='';
         console.warn('성장 기록 조회 오류',error);
       });
+    }
+    let requestedTrainerHistoryKey = '';
+    function requestTrainerHistoryWhenNeeded(){
+      if(currentMode!=='trainer'||!trainerPassword||!activeMemberName)return;
+      const key=historyContextKey();
+      if(requestedTrainerHistoryKey===key)return;
+      requestedTrainerHistoryKey=key;
+      Promise.resolve(loadExtras()).catch(error=>{
+        requestedTrainerHistoryKey='';
+        console.warn('운동 이력 조회 오류',error);
+      });
+    }
+    function setupTrainerHistoryOnDemand(){
+      const section=document.getElementById('trainerRoutineSection');
+      if(!section)return;
+      if('IntersectionObserver' in window){
+        const observer=new IntersectionObserver(entries=>{
+          if(entries.some(entry=>entry.isIntersecting))requestTrainerHistoryWhenNeeded();
+        },{rootMargin:'200px 0px'});
+        observer.observe(section);
+      }else{
+        window.addEventListener('scroll',()=>{
+          if(currentMode==='trainer'&&section.getBoundingClientRect().top<window.innerHeight+200)
+            requestTrainerHistoryWhenNeeded();
+        },{passive:true});
+      }
     }
     function setupTrainerInsightsOnDemand(){
       const section=document.getElementById('trainerGrowthSection');

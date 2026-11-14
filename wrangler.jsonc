@@ -1,0 +1,13 @@
+{
+  "name": "fit-connect",
+  "main": "./cloudflare-worker.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./cloudflare-assets",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "previews": {}
+}

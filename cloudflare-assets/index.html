@@ -3662,7 +3662,7 @@ try {
       const attachVideo=url=>{
         if(!button.isConnected||!isCurrentSaveContext(context))return;
         const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='auto';video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
-        video.play().catch(()=>{video.muted=true;video.play().catch(()=>{});});
+        video.autoplay=true;video.muted=true;video.play().catch(()=>{});
       };
       if(videoObjectUrls.has(cacheKey)){
         attachVideo(videoObjectUrls.get(cacheKey));return;
@@ -3670,6 +3670,16 @@ try {
       button.dataset.loading='1';button.textContent='영상 불러오는 중...';
       try{
         const creds=apiCredentials();
+        let streamed=null;
+        try {
+          const response=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({...creds,action:'videoPlaybackUrl',fileId:id})});
+          if(response.ok)streamed=await response.json();
+        }catch{}
+        if(streamed?.status==='success'&&streamed.url){
+          if(!button.isConnected||!isCurrentSaveContext(context))return;
+          attachVideo(streamed.url);
+          return;
+        }
         const result=await apiPost({...creds,action:'videoDownload',fileId:id});
         if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
         const bytes=base64ToBytes(result.base64);

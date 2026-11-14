@@ -406,10 +406,15 @@ async function handleAppsScriptPost(request) {
       redirect:'follow',signal:AbortSignal.timeout(60000)
     });
     if(!upstream.ok)return json({status:'error',message:'Apps Script HTTP '+upstream.status},502);
-    const result=await upstream.json();
+    const type=upstream.headers.get('content-type')||'';
+    const raw=await upstream.text();
+    let result;
+    try { result=JSON.parse(raw); } catch {
+      return json({status:'error',message:'Apps Script returned non-JSON ('+(type.split(';')[0]||'unknown')+'); '+( /quota|too many times/i.test(raw)?'quota limit':/sign in|accounts.google.com/i.test(raw)?'authentication required':/exception|script error/i.test(raw)?'script exception':'unexpected response')},502);
+    }
     return new Response(JSON.stringify(result),{headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
   }catch(e){
-    return json({status:'error',message:'Apps Script response unavailable'},502);
+    return json({status:'error',message:'Apps Script transport failure: '+(e?.name==='TimeoutError'?'timeout':e?.name==='AbortError'?'aborted':e?.name==='SyntaxError'?'invalid JSON':'network error')},502);
   }
 }
 export default {

@@ -3570,13 +3570,13 @@ try {
       let sourceStream=null,canvasStream=null,recorder=null;
       try{
         await waitForMediaEvent(video,'loadedmetadata');
-        const scale=Math.min(1,1280/Math.max(video.videoWidth,video.videoHeight));
+        const scale=Math.min(1,1920/Math.max(video.videoWidth,video.videoHeight));
         const width=Math.max(2,Math.round(video.videoWidth*scale/2)*2);
         const height=Math.max(2,Math.round(video.videoHeight*scale/2)*2);
         const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext('2d',{alpha:false});
         if(!ctx)throw new Error('영상 압축 화면을 준비하지 못했어요.');
-        canvasStream=canvas.captureStream(24);
+        canvasStream=canvas.captureStream(30);
         if(typeof video.captureStream==='function')sourceStream=video.captureStream();
         else if(typeof video.webkitCaptureStream==='function')sourceStream=video.webkitCaptureStream();
         if(sourceStream){
@@ -3584,7 +3584,7 @@ try {
         }
         const mimeCandidates=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp8,opus','video/webm'];
         const mimeType=mimeCandidates.find(type=>MediaRecorder.isTypeSupported(type))||'';
-        const options={videoBitsPerSecond:1400000,audioBitsPerSecond:96000};
+        const options={videoBitsPerSecond:2800000,audioBitsPerSecond:96000};
         if(mimeType)options.mimeType=mimeType;
         const chunks=[];
         recorder=new MediaRecorder(canvasStream,options);
@@ -3657,8 +3657,15 @@ try {
     async function playPrivateVideo(id,button){
       if(button.dataset.loading==='1')return;
       const box=button.parentElement;
-      if(videoObjectUrls.has(id)){
-        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=videoObjectUrls.get(id);box.appendChild(video);button.remove();return;
+      const context=getSaveContext();
+      const cacheKey=JSON.stringify([context.mode,context.member,context.token,context.password,id]);
+      const attachVideo=url=>{
+        if(!button.isConnected||!isCurrentSaveContext(context))return;
+        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='auto';video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
+        video.play().catch(()=>{video.muted=true;video.play().catch(()=>{});});
+      };
+      if(videoObjectUrls.has(cacheKey)){
+        attachVideo(videoObjectUrls.get(cacheKey));return;
       }
       button.dataset.loading='1';button.textContent='영상 불러오는 중...';
       try{
@@ -3666,8 +3673,9 @@ try {
         const result=await apiPost({...creds,action:'videoDownload',fileId:id});
         if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
         const bytes=base64ToBytes(result.base64);
-        const url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));videoObjectUrls.set(id,url);
-        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
+        if(!button.isConnected||!isCurrentSaveContext(context))return;
+        const url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));videoObjectUrls.set(cacheKey,url);
+        attachVideo(url);
       }catch(e){alert(e.message);button.textContent='▶ 다시 재생 시도';button.dataset.loading='0';}
     }
     async function submitFormVideo(e){

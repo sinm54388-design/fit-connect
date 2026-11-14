@@ -3736,6 +3736,8 @@ try {
     const directVideoUploads=new WeakMap();
     async function uploadDirectMemberVideo(file,name,question){
       const creds=apiCredentials(),context=getSaveContext();
+      const directLimit=50000000, started=performance.now();
+      let compressionMs=0,transferMs=0;
       if(!file||!['video/mp4','video/webm','video/quicktime'].includes(file.type))throw Error('MP4, WebM, MOV 영상만 등록할 수 있어요.');
       if(!file.size||file.size>VIDEO_INPUT_LIMIT)throw Error('원본 영상은 200MB 이하만 선택해주세요.');
       const meta=await getPrivateVideoMetadata(file);
@@ -3743,8 +3745,8 @@ try {
       let job=directVideoUploads.get(file);
       if(!job||job.member!==creds.member){
         let output=file;
-        if(file.size>VIDEO_LIMIT){showToast('고화질 영상 압축 중');output=await compressPrivateVideo(file);}
-        if(output.size>VIDEO_LIMIT)throw Error('압축 영상이 20MB를 초과했어요.');
+        if(file.size>directLimit){const t=performance.now();showToast('50MB 초과 · 고화질 영상 압축 중');output=await compressPrivateVideo(file);compressionMs=performance.now()-t;}
+        if(output.size>directLimit)throw Error('압축 영상이 50MB를 초과했어요.');
         job={member:creds.member,id:crypto.randomUUID(),file:output,sent:false};
         directVideoUploads.set(file,job);
       }
@@ -3752,6 +3754,8 @@ try {
       if(!job.sent){
         const init=await directVideoRequest({...creds,action:'directVideoBegin',id:job.id,size:job.file.size,mime:job.file.type,name,question});
         if(!init.alreadyReady){
+          const t=performance.now();
+          showToast((compressionMs?'압축 완료':'원본 화질 유지')+' · 영상 직접 전송 시작');
           await new Promise((resolve,reject)=>{
             const xhr=new XMLHttpRequest();
             xhr.open('PUT',init.url);
@@ -3763,11 +3767,16 @@ try {
             xhr.ontimeout=()=>reject(Error('영상 전송 시간 초과'));
             xhr.send(job.file);
           });
+          transferMs=performance.now()-t;
         }
         job.sent=true;
       }
       showToast('영상 최종 등록 중');
+      const finishStarted=performance.now();
       const done=await directVideoRequest({...creds,action:'directVideoFinish',id:job.id});
+      const finishMs=performance.now()-finishStarted;
+      perfMark('영상 압축',compressionMs,true);perfMark('영상 직접 전송',transferMs,true);perfMark('영상 등록',finishMs,true);
+      done.timingLabel='업로드 완료 · 총 '+((performance.now()-started)/1000).toFixed(1)+'초 · 압축 '+(compressionMs/1000).toFixed(1)+'초 · 전송 '+(transferMs/1000).toFixed(1)+'초 · 등록 '+(finishMs/1000).toFixed(1)+'초';
       if(isCurrentSaveContext(context)){
         formVideos=[done.video,...(formVideos||[]).filter(v=>v.id!==done.video.id)];
         renderFormVideos();
@@ -3780,7 +3789,7 @@ try {
       const question=document.getElementById('memberVideoQuestion').value.trim();
       const member=activeMemberName;
       const submit=e.target.querySelector('button[type=submit]');if(e.target.dataset.uploading==='1')return;e.target.dataset.uploading='1';if(submit)submit.disabled=true;
-      try{await uploadDirectMemberVideo(file,name,question);e.target.reset();showToast('영상 업로드 완료');if(member===activeMemberName)await loadExtras();}
+      try{const uploaded=await uploadDirectMemberVideo(file,name,question);e.target.reset();showToast(uploaded.timingLabel||'영상 업로드 완료');if(member===activeMemberName)await loadExtras();}
       catch(err){alert(err.message);}
       finally{e.target.dataset.uploading='0';if(submit)submit.disabled=false;}
     }

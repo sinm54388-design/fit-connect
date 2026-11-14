@@ -1552,6 +1552,55 @@
         return null;
       }
     }
+    // Member-link fast path (preview only). The preview server checks the member
+    // link with Apps Script once and returns a short-lived "session" that can only
+    // read this member's day and workout history. Only that session is kept in
+    // this browser (never the records); Sheets still re-checks every fast result.
+    const MEMBER_SESSION_STORE='fitMemberSession:';
+    function storedMemberSession(member) {
+      try {
+        const raw=localStorage.getItem(MEMBER_SESSION_STORE+member);
+        if(!raw)return '';
+        const saved=JSON.parse(raw);
+        if(typeof saved?.session==='string'&&saved.session&&Number(saved.exp)>Date.now()+60000)
+          return saved.session;
+        localStorage.removeItem(MEMBER_SESSION_STORE+member);
+      }catch{}
+      return '';
+    }
+    function forgetMemberSession(member) {
+      try{localStorage.removeItem(MEMBER_SESSION_STORE+member);}catch{}
+    }
+    let memberSessionRequest=null;
+    function ensureMemberSession(context) {
+      if(!fastDbPilot||context.mode!=='member'||!context.member||!context.token)return;
+      if(memberSessionRequest||storedMemberSession(context.member))return;
+      const started=performance.now();
+      memberSessionRequest=fetch('/api/records',{method:'POST',cache:'no-store',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'memberSession',member:context.member,token:context.token,date:context.date})})
+        .then(async response=>{
+          const result=(response.headers.get('content-type')||'').includes('json')?await response.json():null;
+          const ok=response.ok&&result?.status==='success'&&typeof result.session==='string';
+          perfMark('회원 출입증 발급'+(ok?'':' 실패 · '+String(result?.code||response.status)),
+            performance.now()-started,ok);
+          if(ok){
+            try{localStorage.setItem(MEMBER_SESSION_STORE+context.member,
+              JSON.stringify({session:result.session,exp:Number(result.exp)}));}catch{}
+          }
+        })
+        .catch(()=>perfMark('회원 출입증 발급 실패 · 네트워크',performance.now()-started,false))
+        .finally(()=>{memberSessionRequest=null;});
+    }
+    // Credentials for the preview server: trainer password, or a member session.
+    function fastReadAuth(context) {
+      if(context.mode==='trainer'&&context.password)return {password:context.password};
+      if(context.mode==='member'&&context.member&&context.token){
+        const session=storedMemberSession(context.member);
+        if(session)return {session};
+      }
+      return null;
+    }
     const fastDbDisabledKeys=new Set();
     const fastDbVerification=new Map();
     function fastDbRecordKey(context){return context.member+'|'+context.date;}
@@ -1574,11 +1623,25 @@
             fastDbDisabledKeys.add(key);
             viewedRecordCache.delete(recordCacheKey(context));
             invalidatePrefetch();
-            if(queuedSaveCount===0 && currentMode==='trainer' &&
+            if(queuedSaveCount===0 && currentMode===context.mode &&
                 activeMemberName===context.member && selectedDate===context.date)
               await loadDataFromCloud();
           }
-        }catch(e){perfMark('빠른 조회 · 검증 실패',0,false);}
+        }catch(e){
+          perfMark('빠른 조회 · 검증 실패',0,false);
+          // A member link that Sheets no longer accepts (for example after
+          // "링크 재발급") must not keep showing fast data: drop the session and
+          // reload through Sheets, which shows the normal access error.
+          if(context.mode==='member'){
+            forgetMemberSession(context.member);
+            fastDbDisabledKeys.add(key);
+            viewedRecordCache.delete(recordCacheKey(context));
+            invalidatePrefetch();
+            if(queuedSaveCount===0 && currentMode==='member' &&
+                activeMemberName===context.member && selectedDate===context.date)
+              loadDataFromCloud().catch(()=>{});
+          }
+        }
         finally{fastDbVerification.delete(key);}
       })();
       fastDbVerification.set(key,check);
@@ -1587,18 +1650,20 @@
       const started=performance.now();
       if(context.mode==='member'&&!(context.member&&context.token))
         throw Error('회원 전용 링크가 필요합니다.');
-      if(fastDbPilot && !forceSheets && context.mode==='trainer'&&context.password &&
-          !fastDbDisabledKeys.has(fastDbRecordKey(context))) {
+      const fastAuth=fastDbPilot&&!forceSheets&&!fastDbDisabledKeys.has(fastDbRecordKey(context))
+        ? fastReadAuth(context) : null;
+      if(fastAuth) {
         try {
           const response=await fetch('/api/records',{
             method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({action:'read',member:context.member,date:context.date,password:context.password}),
+            body:JSON.stringify({action:'read',member:context.member,date:context.date,...fastAuth}),
             cache:'no-store'
           });
           const fast=await response.json();
+          if(fastAuth.session&&response.status===403)forgetMemberSession(context.member);
           if(!response.ok||fast?.status==='error'||fast?.status==='denied')throw Error('Supabase 조회 오류');
           const normalized=normalizeData(fast);
-          perfMark('회원 하루 기록 · Supabase',performance.now()-started,true);
+          perfMark((context.mode==='member'?'회원 화면 · ':'')+'회원 하루 기록 · Supabase',performance.now()-started,true);
           verifyFastRecordInBackground(context,structuredClone(normalized));
           return normalized;
         }catch(e){
@@ -1606,7 +1671,9 @@
         }
       }
       const result=await fetchSheetsRecord(context);
-      perfMark('회원 하루 기록 · Sheets',performance.now()-started,true);
+      perfMark((context.mode==='member'?'회원 화면 · ':'')+'회원 하루 기록 · Sheets',performance.now()-started,true);
+      // The member link just worked with Sheets: get a session for the next reads.
+      ensureMemberSession(context);
       return result;
     }
 
@@ -3290,8 +3357,10 @@ try {
       // Apps Script 결과가 오면 항상 그 결과로 바꿔 그린 뒤 둘이 같은지 기록합니다.
       const month = habitMonth;
       let historyCanonicalShown=false;
-      const fastHistory = fastDbPilot && mode==='trainer' && trainerPassword
-        ? fastTrainerRequest({action:'workoutHistory',member,date,month,password:trainerPassword},'운동 기록 · Supabase')
+      const historyAuth = fastDbPilot ? fastReadAuth({mode,member,token:memberToken,password:trainerPassword}) : null;
+      const fastHistory = historyAuth
+        ? fastTrainerRequest({action:'workoutHistory',member,date,month,...historyAuth},
+            (mode==='member'?'회원 화면 · ':'')+'운동 기록 · Supabase')
         : Promise.resolve(null);
       fastHistory.then(fast=>{
         if(!fast||historyCanonicalShown||!isCurrent()||month!==habitMonth||fast.month!==month)return;

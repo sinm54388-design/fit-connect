@@ -1,7 +1,62 @@
 // FIT-CONNECT Cloudflare preview: read-only Supabase endpoint
 // (daily record read, trainer password check, trainer dashboard summary,
 // workout history calendar).
-// Writes and member logins continue to use the existing Apps Script backend.
+// Writes continue to use the existing Apps Script backend.
+//
+// Member links: Apps Script stays the only judge of member tokens. The page
+// asks for a short-lived "member session" (action memberSession); the Worker
+// checks the token by asking Apps Script itself, then signs
+// {member, expiry} with MEMBER_SESSION_SECRET. That session can only read that
+// one member's daily record and workout history. A rotated link is refused by
+// Apps Script immediately, and any session made before it expires within
+// MEMBER_SESSION_HOURS.
+const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
+const MEMBER_SESSION_HOURS=8;
+const MEMBER_ACTIONS=['read','workoutHistory'];
+const b64url={
+  encode:bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
+  decode:text=>{
+    const s=String(text).replace(/-/g,'+').replace(/_/g,'/');
+    const bin=atob(s+'='.repeat((4-s.length%4)%4));
+    return Uint8Array.from(bin,c=>c.charCodeAt(0));
+  }
+};
+async function sessionKey(secret) {
+  return crypto.subtle.importKey('raw',new TextEncoder().encode(secret),
+    {name:'HMAC',hash:'SHA-256'},false,['sign','verify']);
+}
+async function signMemberSession(secret,member) {
+  const exp=Date.now()+MEMBER_SESSION_HOURS*3600000;
+  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({m:member,exp})));
+  const sig=new Uint8Array(await crypto.subtle.sign('HMAC',await sessionKey(secret),
+    new TextEncoder().encode('fit-member-v1.'+payload)));
+  return {session:payload+'.'+b64url.encode(sig),exp};
+}
+// Returns the member name inside a valid, unexpired session, or ''.
+async function readMemberSession(secret,session) {
+  try {
+    const [payload,sig,extra]=String(session||'').split('.');
+    if(!payload||!sig||extra!==undefined||session.length>1000)return '';
+    const ok=await crypto.subtle.verify('HMAC',await sessionKey(secret),b64url.decode(sig),
+      new TextEncoder().encode('fit-member-v1.'+payload));
+    if(!ok)return '';
+    const data=JSON.parse(new TextDecoder().decode(b64url.decode(payload)));
+    if(typeof data?.m!=='string'||!data.m||typeof data.exp!=='number'||data.exp<Date.now())return '';
+    return data.m;
+  }catch{return '';}
+}
+// Asks Apps Script whether this member link is valid, the same way the page
+// reads a member's day. Anything other than a clean JSON record means "no".
+async function appsScriptAcceptsMember(member,token,date) {
+  const url=APPS_SCRIPT_URL+'?member='+encodeURIComponent(member)+'&date='+date+
+    '&token='+encodeURIComponent(token)+'&_t='+Date.now();
+  const response=await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(10000)});
+  if(!response.ok)return false;
+  let body;
+  try{body=await response.json();}catch{return false;}
+  return !!body&&typeof body==='object'&&!Array.isArray(body)&&
+    body.status!=='error'&&body.status!=='denied';
+}
 const json=(body,status=200,extra={})=>new Response(JSON.stringify(body),{
   status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',
     'X-Content-Type-Options':'nosniff',...extra}
@@ -139,14 +194,35 @@ async function handleRecords(request,env) {
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
-  if(!['read','verify','trainerOverview','workoutHistory'].includes(action))
+  if(!['read','verify','trainerOverview','workoutHistory','memberSession'].includes(action))
     return json({status:'error',code:'read_only'},405);
-  if(!env.TRAINER_PASSWORD)
-    return json({status:'error',code:'missing_runtime_configuration'},503);
-  if(!constantTimeEquals(input.password,env.TRAINER_PASSWORD))
-    return json({status:'denied',code:'unauthorized'},403);
-  if(action==='verify')return json({status:'success'});
   const member=String(input.member||'').trim(),date=input.date;
+  const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
+  // Member path: either exchange a member link for a session, or use a session.
+  if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {
+    if(sessionSecret.length<32)
+      return json({status:'error',code:'missing_runtime_configuration'},503);
+    if(action==='memberSession') {
+      const token=String(input.token||'');
+      if(!member||member.length>100||!token||token.length>200||!validDay(date))
+        return json({status:'error',code:'invalid_query'},400);
+      let accepted=false;
+      try{accepted=await appsScriptAcceptsMember(member,token,date);}
+      catch{return json({status:'error',code:'apps_script_unreachable'},502);}
+      if(!accepted)return json({status:'denied',code:'unauthorized'},403);
+      return json({status:'success',...await signMemberSession(sessionSecret,member)});
+    }
+    if(!MEMBER_ACTIONS.includes(action))return json({status:'denied',code:'unauthorized'},403);
+    const sessionMember=await readMemberSession(sessionSecret,input.session);
+    if(!sessionMember||sessionMember!==member)
+      return json({status:'denied',code:'session_invalid'},403);
+  } else {
+    if(!env.TRAINER_PASSWORD)
+      return json({status:'error',code:'missing_runtime_configuration'},503);
+    if(!constantTimeEquals(input.password,env.TRAINER_PASSWORD))
+      return json({status:'denied',code:'unauthorized'},403);
+    if(action==='verify')return json({status:'success'});
+  }
   const needsMember=action==='read'||action==='workoutHistory';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);

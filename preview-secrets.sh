@@ -8,5 +8,11 @@ for k in SUPABASE_URL SUPABASE_SECRET_KEY TRAINER_PASSWORD; do
   printf '%s' "$v" | npx wrangler preview secret put "$k" --name "$WORKERS_CI_BRANCH"
   echo "set preview secret: $k"
 done
-# ok2
-
+# 회원 화면 빠른 조회용 출입증 서명키 (선택). 없으면 회원 화면은 기존 방식(Sheets)만 씁니다.
+if [ -n "$MEMBER_SESSION_SECRET" ]; then
+  printf '%s' "$MEMBER_SESSION_SECRET" | npx wrangler preview secret put MEMBER_SESSION_SECRET --name "$WORKERS_CI_BRANCH"
+  echo "set preview secret: MEMBER_SESSION_SECRET"
+else
+  echo "skip optional build variable: MEMBER_SESSION_SECRET"
+fi
+# ok3

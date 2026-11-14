@@ -3659,25 +3659,32 @@ try {
       const box=button.parentElement;
       const context=getSaveContext();
       const cacheKey=JSON.stringify([context.mode,context.member,context.token,context.password,id]);
-      const attachVideo=url=>{
+      const playbackStarted=performance.now();
+      const attachVideo=(url,source)=>{
         if(!button.isConnected||!isCurrentSaveContext(context))return;
         const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='auto';video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
+        const status=document.createElement('p');status.className='text-xs text-slate-400 mt-1';status.textContent=source+' · 재생 준비 중';box.appendChild(status);
+        video.addEventListener('playing',()=>{const ms=performance.now()-playbackStarted;status.textContent=source+' · '+(ms/1000).toFixed(2)+'초';perfMark('영상 재생 · '+source,ms,true);},{once:true});
+        video.addEventListener('error',()=>{status.textContent=source+' · 재생 오류';},{once:true});
         video.autoplay=true;video.muted=true;video.play().catch(()=>{});
       };
       if(videoObjectUrls.has(cacheKey)){
-        attachVideo(videoObjectUrls.get(cacheKey));return;
+        attachVideo(videoObjectUrls.get(cacheKey),'브라우저 캐시');return;
       }
       button.dataset.loading='1';button.textContent='영상 불러오는 중...';
       try{
         const creds=apiCredentials();
-        let streamed=null;
+        let streamed=null,streamReason='network_error';
+        const signingStarted=performance.now();
         try {
           const response=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({...creds,action:'videoPlaybackUrl',fileId:id})});
-          if(response.ok)streamed=await response.json();
+          streamed=await response.json();
+          streamReason=String(streamed.code||streamed.status||('HTTP '+response.status));
+          perfMark('영상 스트리밍 주소 · '+streamReason,performance.now()-signingStarted,response.ok&&streamed.status==='success');
         }catch{}
         if(streamed?.status==='success'&&streamed.url){
           if(!button.isConnected||!isCurrentSaveContext(context))return;
-          attachVideo(streamed.url);
+          attachVideo(streamed.url,'Supabase 스트리밍');
           return;
         }
         const result=await apiPost({...creds,action:'videoDownload',fileId:id});
@@ -3685,7 +3692,7 @@ try {
         const bytes=base64ToBytes(result.base64);
         if(!button.isConnected||!isCurrentSaveContext(context))return;
         const url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));videoObjectUrls.set(cacheKey,url);
-        attachVideo(url);
+        attachVideo(url,'Drive 대체 조회 ('+streamReason+')');
       }catch(e){alert(e.message);button.textContent='▶ 다시 재생 시도';button.dataset.loading='0';}
     }
     async function submitFormVideo(e){

@@ -281,12 +281,15 @@ async function handleRecords(request,env) {
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
-  if(!['read','verify','trainerOverview','workoutHistory','memberInsights','memberSession'].includes(action))
+  if(!['read','verify','trainerOverview','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action))
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
   // Member path: either exchange a member link for a session, or use a session.
-  if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {
+  if(action==='videoPlaybackUrl'&&input.password===undefined){
+    if(!member||!input.token||!validDay(date))return json({status:'denied'},403);
+    try{if(!await appsScriptAcceptsMember(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
+  } else if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {
     if(sessionSecret.length<32)
       return json({status:'error',code:'missing_runtime_configuration'},503);
     if(action==='memberSession') {
@@ -310,7 +313,7 @@ async function handleRecords(request,env) {
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify')return json({status:'success'});
   }
-  const needsMember=action==='read'||action==='workoutHistory'||action==='memberInsights';
+  const needsMember=action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -365,6 +368,24 @@ async function handleRecords(request,env) {
       rememberMember(member,memberId);
     }
     const lookupMs=performance.now()-start;
+    if(action==='videoPlaybackUrl'){
+      const fileId=String(input.fileId||'').trim();
+      if(!fileId||fileId.length>200)return json({status:'error',code:'invalid_video'},400);
+      const matches=await supaGet('/rest/v1/fit_video_metadata?select=storage_path&member_id=eq.'+encodeURIComponent(memberId)+'&file_id=eq.'+encodeURIComponent(fileId)+'&limit=2','video');
+      if(!matches.length)return json({status:'not_migrated'});
+      const path=String(matches[0].storage_path||'');
+      if(matches.length!==1||!path||path.includes('..')||!path.split('/').every(x=>/^[a-zA-Z0-9_.-]+$/.test(x)))return json({status:'error',code:'invalid_video_path'},409);
+      const signed=await fetch(base+'/storage/v1/object/sign/fit-private-videos/'+path.split('/').map(encodeURIComponent).join('/'),{
+        method:'POST',headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'},
+        body:JSON.stringify({expiresIn:300}),signal:AbortSignal.timeout(10000)
+      });
+      if(!signed.ok)return json({status:'error',code:'video_sign_failed'},502);
+      const item=await signed.json(),partial=String(item.signedURL||item.signedUrl||'');
+      if(!partial)return json({status:'error',code:'video_signature_missing'},502);
+      const url=new URL(partial.startsWith('/object/')?'/storage/v1'+partial:partial,base);
+      if(url.origin!==base)return json({status:'error',code:'video_origin_invalid'},502);
+      return json({status:'success',url:url.toString()});
+    }
     if(action==='workoutHistory') {
       const history=await buildWorkoutHistory(supaGet,memberId,date,month);
       return json(history,200,{

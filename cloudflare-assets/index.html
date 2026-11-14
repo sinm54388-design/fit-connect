@@ -749,7 +749,7 @@
        </section>
        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
-         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v4 · 고속 압축)</p>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v5 · 압축 진단)</p>
          <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
            <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
            <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
@@ -3783,7 +3783,7 @@ try {
     async function uploadDirectMemberVideo(file,name,question){
       const creds=apiCredentials(),context=getSaveContext();
       const directLimit=50000000, started=performance.now();
-      let compressionMs=0,transferMs=0;
+      let compressionMs=0,transferMs=0,compressionRoute='원본',compressionDiagnostic='';
       if(!file||!['video/mp4','video/webm','video/quicktime'].includes(file.type))throw Error('MP4, WebM, MOV 영상만 등록할 수 있어요.');
       if(!file.size||file.size>VIDEO_INPUT_LIMIT)throw Error('원본 영상은 200MB 이하만 선택해주세요.');
       const meta=await getPrivateVideoMetadata(file);
@@ -3791,7 +3791,7 @@ try {
       let job=directVideoUploads.get(file);
       if(!job||job.member!==creds.member){
         let output=file;
-        if(file.size>directLimit){const t=performance.now();setVideoUploadStatus('고화질 영상 압축 중…');showToast('50MB 초과 · 고화질 영상 압축 중');let lastProgress=-1;const report=(label,p)=>{if(p!==lastProgress){lastProgress=p;setVideoUploadStatus(label+' '+p+'%',p);}};try{output=await compressFastMemberVideo(file,meta,p=>report('고속 압축',p));setVideoUploadStatus('고속 압축 완료',100);}catch(err){lastProgress=-1;setVideoUploadStatus('기본 압축으로 전환',0);output=await compressPrivateVideo(file,p=>report('기본 압축',p));}compressionMs=performance.now()-t;}
+        if(file.size>directLimit){const t=performance.now();setVideoUploadStatus('고화질 영상 압축 중…');showToast('50MB 초과 · 고화질 영상 압축 중');let lastProgress=-1;const report=(label,p)=>{if(p!==lastProgress){lastProgress=p;setVideoUploadStatus(label+' '+p+'%',p);}};try{output=await compressFastMemberVideo(file,meta,p=>report('고속 압축',p));compressionRoute='고속 압축';setVideoUploadStatus('고속 압축 완료',100);}catch(err){compressionRoute='기본 압축';compressionDiagnostic=String(err?.message||'unknown').replace(/https?:\/\/\S+/g,'[주소]').slice(0,180);lastProgress=-1;setVideoUploadStatus('기본 압축으로 전환',0);output=await compressPrivateVideo(file,p=>report('기본 압축',p));}compressionMs=performance.now()-t;}
         if(output.size>directLimit)throw Error('압축 영상이 50MB를 초과했어요.');
         job={member:creds.member,id:crypto.randomUUID(),file:output,sent:false};
         directVideoUploads.set(file,job);
@@ -3827,6 +3827,7 @@ try {
         formVideos=[done.video,...(formVideos||[]).filter(v=>v.id!==done.video.id)];
         renderFormVideos();
       }
+      done.timingLabel+=' · '+compressionRoute+(compressionDiagnostic?' ('+compressionDiagnostic+')':'');
       done.uploadBytes=job.file.size;
       return done;
     }

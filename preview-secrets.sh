@@ -5,7 +5,15 @@ set -e
 for k in SUPABASE_URL SUPABASE_SECRET_KEY TRAINER_PASSWORD; do
   eval "v=\$$k"
   if [ -z "$v" ]; then echo "missing build variable: $k"; exit 1; fi
-  printf '%s' "$v" | npx wrangler preview secret put "$k" --name "$WORKERS_CI_BRANCH"
+  if output=$(printf '%s' "$v" | npx wrangler preview secret put "$k" --name "$WORKERS_CI_BRANCH" 2>&1); then
+    :
+  elif printf '%s' "$output" | grep -Fq "There are currently no deployments for the Preview"; then
+    echo "Initial preview deployment required; bootstrap without fast-read secrets. Rebuild after deployment."
+    exit 0
+  else
+    echo "Failed to configure preview secret: $k"
+    exit 1
+  fi
   echo "set preview secret: $k"
 done
 # 회원 화면 빠른 조회용 출입증 서명키 (선택). 없으면 회원 화면은 기존 방식(Sheets)만 씁니다.

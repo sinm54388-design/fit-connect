@@ -24,3 +24,5 @@ else
   echo "skip optional build variable: MEMBER_SESSION_SECRET"
 fi
 # ok4
+
+# Rebuild after initial preview deployment to provision runtime secrets.

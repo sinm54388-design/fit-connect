@@ -1071,6 +1071,8 @@
 
   <section id="perfDiagnostic" style="display:none;position:fixed;right:12px;bottom:12px;z-index:1000;width:min(370px,calc(100vw - 24px));max-height:48vh;overflow:auto;background:#101c2e;color:white;border:1px solid #6b8da8;border-radius:12px;padding:12px;box-shadow:0 10px 30px #0007;font-size:12px">
     <div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><strong>속도 측정 · 개인정보 제외</strong><div style="display:flex;gap:5px"><button type="button" onclick="compareReadBackends()" style="background:#28527e;padding:6px 9px;border-radius:7px">DB 속도 비교</button><button type="button" onclick="copyPerfDiagnostic()" style="background:#334155;padding:6px 9px;border-radius:7px">측정 복사</button></div></div>
+    <button type="button" id="perfAuditButton" onclick="auditAllMembers()" style="margin-top:8px;width:100%;background:#3f6212;padding:7px 9px;border-radius:7px">전체 회원 검사 (읽기 전용)</button>
+    <div id="perfAuditRows" style="white-space:pre-line;margin-top:8px;line-height:1.6;display:none"></div>
     <div id="perfDiagnosticRows" style="white-space:pre-line;margin-top:8px;line-height:1.6">측정 준비 중</div>
   </section>
   <script>
@@ -1146,8 +1148,97 @@
       }
       showToast('DB 비교 완료 · 측정 복사로 결과를 보내주세요.');
     }
+    // Whole-member parity audit (preview only, read-only). Every registered
+    // member is read from both Supabase (preview server) and Sheets, one member
+    // at a time. Results name members by their position in the trainer's
+    // member list, never by name, and show counts instead of record values.
+    let perfAuditLines=[];
+    let perfAuditRunning=false;
+    function showAuditLines() {
+      const root=document.getElementById('perfAuditRows');
+      if(!root)return;
+      root.style.display=perfAuditLines.length?'block':'none';
+      root.textContent=perfAuditLines.join('\n');
+    }
+    async function auditPost(url,body) {
+      const response=await fetch(url,{method:'POST',cache:'no-store',
+        headers:url==='/api/records'?{'Content-Type':'application/json'}:{},body:JSON.stringify(body)});
+      if(!(response.headers.get('content-type')||'').includes('json'))throw Error('HTTP '+response.status);
+      const result=await response.json();
+      if(!response.ok||result?.status==='error'||result?.status==='denied')
+        throw Error('HTTP '+response.status+' '+String(result?.code||result?.status||''));
+      return result;
+    }
+    function dailyRecordDiff(fast,sheets) {
+      const a=normalizeData(structuredClone(fast)),b=normalizeData(structuredClone(sheets));
+      const keys=[...new Set([...Object.keys(a||{}),...Object.keys(b||{})])].sort();
+      const differing=keys.filter(k=>stableRecordSignature(a?.[k])!==stableRecordSignature(b?.[k]));
+      return differing.length?'다른 항목: '+differing.join(', '):'';
+    }
+    async function auditAllMembers() {
+      if(perfAuditRunning)return;
+      if(!fastDbPilot){showToast('주소에 ?fastdb=1 이 있어야 검사할 수 있어요.');return;}
+      if(currentMode!=='trainer'||!trainerPassword||!registryMembers.length){
+        showToast('트레이너 로그인 후 회원 목록이 뜨면 다시 눌러주세요.');return;
+      }
+      if(queuedSaveCount>0){showToast('저장이 끝난 뒤 다시 눌러주세요.');return;}
+      perfAuditRunning=true;
+      const button=document.getElementById('perfAuditButton');
+      if(button)button.disabled=true;
+      const members=[...registryMembers],date=selectedDate,month=date.slice(0,7);
+      const password=trainerPassword,total=members.length;
+      let dailySame=0,historySame=0,errors=0;
+      const problems=[];
+      perfAuditLines=[`전체 회원 검사 · ${date} 하루 기록 + ${month} 운동 기록 · 0/${total}`];
+      showAuditLines();
+      const started=performance.now();
+      try {
+        for(let i=0;i<total;i++) {
+          const member=members[i],no=`${i+1}번째 회원`;
+          const base={member,date,password};
+          const [fd,sd,fh,sh]=await Promise.allSettled([
+            auditPost('/api/records',{...base,action:'read'}),
+            auditPost(SCRIPT_URL,{...base,action:'read'}),
+            auditPost('/api/records',{...base,action:'workoutHistory',month}),
+            auditPost(SCRIPT_URL,{...base,action:'workoutHistory',month})
+          ]);
+          if(fd.status==='fulfilled'&&sd.status==='fulfilled') {
+            const diff=dailyRecordDiff(fd.value,sd.value);
+            if(diff)problems.push(`${no} · 하루 기록 불일치 · ${diff}`);else dailySame++;
+          }else{
+            errors++;
+            problems.push(`${no} · 하루 기록 조회 실패 · `+
+              (fd.status==='rejected'?'Supabase '+fd.reason.message:'Sheets '+sd.reason.message));
+          }
+          if(fh.status==='fulfilled'&&sh.status==='fulfilled') {
+            if(sameWorkoutHistory(fh.value,sh.value))historySame++;
+            else problems.push(`${no} · 운동 기록 불일치 · ${workoutHistoryDiff(fh.value,sh.value)}`);
+          }else{
+            errors++;
+            problems.push(`${no} · 운동 기록 조회 실패 · `+
+              (fh.status==='rejected'?'Supabase '+fh.reason.message:'Sheets '+sh.reason.message));
+          }
+          perfAuditLines=[`전체 회원 검사 · ${date} 하루 기록 + ${month} 운동 기록 · ${i+1}/${total}`,...problems];
+          showAuditLines();
+        }
+        const seconds=((performance.now()-started)/1000).toFixed(0);
+        perfAuditLines=[
+          `전체 회원 검사 완료 · ${total}명 · ${seconds}초 · 기준일 ${date}`,
+          `하루 기록 일치 ${dailySame}/${total}명`,
+          `운동 기록(${month}) 일치 ${historySame}/${total}명`,
+          ...(errors?[`조회 실패 ${errors}건`]:[]),
+          ...(problems.length?problems:['모든 회원 일치 ✓'])
+        ];
+        showAuditLines();
+        showToast('전체 회원 검사 완료 · 측정 복사로 결과를 보내주세요.');
+      }finally{
+        perfAuditRunning=false;
+        if(button)button.disabled=false;
+      }
+    }
     function copyPerfDiagnostic() {
-      const summary=perfRows.map(r=>`${r.label}: ${r.seconds}초 ${r.ok?'정상':'실패'}`).join('\n');
+      const summary=[...perfAuditLines,...(perfAuditLines.length?['']:[]),
+        ...perfRows.map(r=>`${r.label}: ${r.seconds}초 ${r.ok?'정상':'실패'}`)].join('\n');
       if(navigator.clipboard?.writeText)navigator.clipboard.writeText(summary).then(()=>showToast('진단 결과 복사 완료')).catch(()=>showToast('복사 실패'));
     }
     const MEMBERS = []; // 회원 목록은 인증된 트레이너만 서버에서 불러옵니다.

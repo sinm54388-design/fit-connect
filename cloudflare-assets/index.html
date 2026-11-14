@@ -749,7 +749,7 @@
        </section>
        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
-         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v5 · 압축 진단)</p>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v6 · 아이폰 호환)</p>
          <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
            <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
            <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
@@ -3593,7 +3593,7 @@ try {
       const sourceUrl=URL.createObjectURL(file);
       const video=document.createElement('video');
       video.preload='auto';video.playsInline=true;video.setAttribute('playsinline','');
-      video.muted=false;video.volume=0;video.src=sourceUrl;
+      video.muted=true;video.defaultMuted=true;video.setAttribute('muted','');video.volume=0;video.src=sourceUrl;
       let sourceStream=null,canvasStream=null,recorder=null;
       try{
         await waitForMediaEvent(video,'loadedmetadata');
@@ -3621,7 +3621,7 @@ try {
           recorder.onerror=()=>reject(new Error('영상 압축에 실패했어요. 원본 영상을 다시 선택해주세요.'));
         });
         recorder.start(500);
-        await video.play();
+        try{await video.play();}catch(err){throw new Error('기본 압축 재생 실패 · '+(err.name||'media error')+' · Safari에서 직접 접속해 다시 시도해주세요.');}
         await new Promise((resolve,reject)=>{
           let raf=0,finished=false;
           const cleanup=()=>{cancelAnimationFrame(raf);video.removeEventListener('ended',onEnded);video.removeEventListener('error',onError);};

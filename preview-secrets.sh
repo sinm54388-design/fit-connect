@@ -15,4 +15,4 @@ if [ -n "$MEMBER_SESSION_SECRET" ]; then
 else
   echo "skip optional build variable: MEMBER_SESSION_SECRET"
 fi
-# ok3
+# ok4

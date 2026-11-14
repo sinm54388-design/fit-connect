@@ -2989,9 +2989,9 @@
         if(body.member&&body.date)fastDbDisabledKeys.add(String(body.member)+'|'+String(body.date));
       }
       try {
-        const response = await fetch(SCRIPT_URL, {method:'POST',body:JSON.stringify(body)});
-        if (!response.ok) throw new Error('서버 통신 오류');
+        const response = await fetch('/api/apps-script', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
         const result=await response.json();
+        if (!response.ok) throw new Error(result?.message || '서버 통신 오류');
         ok=result?.status!=='error' && result?.status!=='denied';
         return result;
       } finally {

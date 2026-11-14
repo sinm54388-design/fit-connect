@@ -12,17 +12,24 @@ This file documents the isolated Cloudflare Worker preview for FIT-CONNECT.
 
 ## Fast-read pilot (`?fastdb=1`, preview only)
 
-- Worker route `POST /api/records` is **read-only** and requires the trainer password.
-  Actions: `verify`, `read` (one daily record), `trainerOverview`, `workoutHistory`.
-- Google Apps Script / Sheets stays canonical for all writes and member (token) links.
+- Worker route `POST /api/records` is **read-only**.
+  Trainer password: `verify`, `read` (one daily record), `trainerOverview`, `workoutHistory`,
+  `memberInsights` (weekly/monthly/strength only; InBody, PT and goal still come from Apps Script).
+- Member links: `memberSession` asks Apps Script whether the member link is valid and, if so,
+  returns an 8-hour session signed with `MEMBER_SESSION_SECRET`. A session can only call
+  `read`, `workoutHistory` and `memberInsights` for that one member. The page stores only the
+  session (never records) in the browser. A rotated link is refused by Apps Script at once;
+  the page then drops the session and falls back to Sheets.
+- Google Apps Script / Sheets stays canonical for all writes and member tokens.
 - Every fast result is shown first and then replaced by the Apps Script result;
   any mismatch is logged in the `perf=1` panel (for daily records it also stops
   using the fast copy for that member/date until reload).
-- Member-link (token) screens do not use the fast path yet.
+- Member-link screens use the fast path from the second read on (after a session is issued).
 
 ## Secrets
 
 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `TRAINER_PASSWORD` are runtime preview secrets.
+`MEMBER_SESSION_SECRET` (random, 64 chars) is optional; without it member screens use Sheets only.
 
 - Previews Base **runtime** secrets cannot be set in the dashboard because the
   production Worker (`main`) is static-assets only.
@@ -30,6 +37,9 @@ This file documents the isolated Cloudflare Worker preview for FIT-CONNECT.
   Previews Base build command `sh preview-secrets.sh` copies them into this branch's
   preview with `wrangler preview secret put` (values are never printed).
 - Production builds must not hold these values (removed on 2026-11-15).
+- Previews Base build variables are copied only into **new** previews. An existing preview
+  has its own Builds variables (Worker → choose the preview in the top selector → Settings →
+  Builds); add new variables there too, then push a commit to rebuild.
 
 ## Parity checks
 

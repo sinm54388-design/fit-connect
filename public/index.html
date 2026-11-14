@@ -1187,7 +1187,7 @@
       if(button)button.disabled=true;
       const members=[...registryMembers],date=selectedDate,month=date.slice(0,7);
       const password=trainerPassword,total=members.length;
-      let dailySame=0,historySame=0,errors=0;
+      let dailySame=0,historySame=0,insightsSame=0,errors=0;
       const problems=[];
       perfAuditLines=[`전체 회원 검사 · ${date} 하루 기록 + ${month} 운동 기록 · 0/${total}`];
       showAuditLines();
@@ -1196,12 +1196,22 @@
         for(let i=0;i<total;i++) {
           const member=members[i],no=`${i+1}번째 회원`;
           const base={member,date,password};
-          const [fd,sd,fh,sh]=await Promise.allSettled([
+          const [fd,sd,fh,sh,fi,si]=await Promise.allSettled([
             auditPost('/api/records',{...base,action:'read'}),
             auditPost(SCRIPT_URL,{...base,action:'read'}),
             auditPost('/api/records',{...base,action:'workoutHistory',month}),
-            auditPost(SCRIPT_URL,{...base,action:'workoutHistory',month})
+            auditPost(SCRIPT_URL,{...base,action:'workoutHistory',month}),
+            auditPost('/api/records',{...base,action:'memberInsights'}),
+            auditPost(SCRIPT_URL,{...base,action:'memberInsights'})
           ]);
+          if(fi.status==='fulfilled'&&si.status==='fulfilled') {
+            if(sameMemberInsights(fi.value,si.value))insightsSame++;
+            else problems.push(`${no} · 성장 기록 불일치 · ${memberInsightsDiff(fi.value,si.value)}`);
+          }else{
+            errors++;
+            problems.push(`${no} · 성장 기록 조회 실패 · `+
+              (fi.status==='rejected'?'Supabase '+fi.reason.message:'Sheets '+si.reason.message));
+          }
           if(fd.status==='fulfilled'&&sd.status==='fulfilled') {
             const diff=dailyRecordDiff(fd.value,sd.value);
             if(diff)problems.push(`${no} · 하루 기록 불일치 · ${diff}`);else dailySame++;
@@ -1226,6 +1236,7 @@
           `전체 회원 검사 완료 · ${total}명 · ${seconds}초 · 기준일 ${date}`,
           `하루 기록 일치 ${dailySame}/${total}명`,
           `운동 기록(${month}) 일치 ${historySame}/${total}명`,
+          `성장 기록(주간·월간·중량) 일치 ${insightsSame}/${total}명`,
           ...(errors?[`조회 실패 ${errors}건`]:[]),
           ...(problems.length?problems:['모든 회원 일치 ✓'])
         ];
@@ -3119,14 +3130,35 @@
       if(!force && insightsInflight.has(key))return insightsInflight.get(key);
       const request=++insightsRequest;
       if(mode==='member'&&!hasMemberAccess())return;
+      // Preview fast path: weekly/monthly/strength first, then Apps Script
+      // always redraws everything (and adds InBody, PT and goal data).
+      const prefix=mode==='trainer'?'trainer':'member';
+      const insightsAuth=fastDbPilot?fastReadAuth({mode,member,token:memberToken,password:trainerPassword}):null;
+      let insightsCanonicalShown=false;
+      const fastInsights=insightsAuth
+        ? fastTrainerRequest({action:'memberInsights',member,date,...insightsAuth},
+            (mode==='member'?'회원 화면 · ':'')+'성장 기록 · Supabase')
+        : Promise.resolve(null);
+      fastInsights.then(fast=>{
+        if(!fast||insightsCanonicalShown||request!==insightsRequest||member!==activeMemberName||
+            mode!==currentMode||date!==selectedDate)return;
+        renderWeeklyReport(prefix+'WeeklyReport',fast.weekly);
+        renderMonthlyReport(prefix+'MonthlyReport',fast.monthly);
+        renderStrengthProgress(prefix+'StrengthProgress',fast.progress);
+      }).catch(e=>console.warn('빠른 성장 기록 표시 오류',e));
       try {
         const inflight=apiPost({...apiCredentials(),action:'memberInsights'});
         insightsInflight.set(key,inflight);
         const result=await inflight;
         if(insightsInflight.get(key)===inflight)insightsInflight.delete(key);
+        if(result?.status==='success')fastInsights.then(fast=>{
+          if(!fast)return;
+          const same=sameMemberInsights(fast,result);
+          perfMark('성장 기록 · Sheets 검증 '+(same?'일치':'불일치 · '+memberInsightsDiff(fast,result)),0,same);
+        });
         if(request!==insightsRequest||member!==activeMemberName||mode!==currentMode||date!==selectedDate)return;
         if(result.status!=='success')throw Error(result.message||'성장 기록 조회 실패');
-        const prefix=mode==='trainer'?'trainer':'member';
+        insightsCanonicalShown=true;
         renderWeeklyReport(prefix==='trainer'?'trainerWeeklyReport':'memberWeeklyReport',result.weekly);
         renderMonthlyReport(prefix==='trainer'?'trainerMonthlyReport':'memberMonthlyReport',result.monthly);
         renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);
@@ -3294,6 +3326,52 @@ try {
     function sameWorkoutHistory(a,b){return workoutHistorySignature(a)===workoutHistorySignature(b);}
     // Counts only (no member names, exercise names or values) so the copied
     // diagnostic can be shared safely.
+    // Member insights: compare only the parts the preview server computes
+    // (weekly, monthly without InBody, strength progress). Numbers sent as
+    // strings by Apps Script are compared as numbers.
+    function insightsNumbers(value) {
+      if(Array.isArray(value))return value.map(insightsNumbers);
+      if(value&&typeof value==='object'){
+        const out={};for(const [k,v] of Object.entries(value))out[k]=insightsNumbers(v);return out;
+      }
+      if(typeof value==='string'&&value.trim()!==''&&Number.isFinite(Number(value)))return Number(value);
+      return value;
+    }
+    function insightsParts(h) {
+      const monthly={...(h?.monthly||{})};delete monthly.inbodyChange;
+      return insightsNumbers({weekly:h?.weekly||null,monthly,progress:Array.isArray(h?.progress)?h.progress:[]});
+    }
+    function sameMemberInsights(a,b){
+      return stableRecordSignature(insightsParts(a))===stableRecordSignature(insightsParts(b));
+    }
+    // Counts only: which numbers differ, never exercise names or weights.
+    function memberInsightsDiff(fast,canonical) {
+      const f=insightsParts(fast),s=insightsParts(canonical),parts=[];
+      const labels={days:'운동일',sets:'세트',exercises:'운동 수',dietDays:'식단일'};
+      const compare=(title,a,b,keys)=>{
+        const diffs=keys.filter(k=>stableRecordSignature(a?.[k])!==stableRecordSignature(b?.[k]))
+          .map(k=>`${labels[k]} ${a?.[k]??'-'}/${b?.[k]??'-'}`);
+        if(diffs.length)parts.push(`${title} (Supabase/Sheets) `+diffs.join(', '));
+      };
+      if(f.weekly?.start!==s.weekly?.start||f.weekly?.end!==s.weekly?.end)parts.push('주간 기간 다름');
+      compare('이번 주',f.weekly?.current,s.weekly?.current,['days','sets','exercises']);
+      compare('지난 주',f.weekly?.previous,s.weekly?.previous,['days','sets','exercises']);
+      const fi=f.weekly?.improvements||[],si=s.weekly?.improvements||[];
+      if(stableRecordSignature(fi)!==stableRecordSignature(si))parts.push(`중량 증가 ${fi.length}/${si.length}개`);
+      if(f.monthly?.month!==s.monthly?.month)parts.push('월 다름');
+      compare('이번 달',f.monthly?.current,s.monthly?.current,['days','sets','exercises','dietDays']);
+      compare('지난 달',f.monthly?.previous,s.monthly?.previous,['days','sets','exercises','dietDays']);
+      if(stableRecordSignature(f.progress)!==stableRecordSignature(s.progress)){
+        const points=list=>list.reduce((n,x)=>n+(Array.isArray(x?.points)?x.points.length:0),0);
+        parts.push(`중량 그래프 운동 ${f.progress.length}/${s.progress.length}개, 기록점 ${points(f.progress)}/${points(s.progress)}개`+
+          (f.progress.length===s.progress.length&&points(f.progress)===points(s.progress)?' (순서나 값 차이)':''));
+      }
+      const extra=[...new Set([...Object.keys(f.weekly||{}),...Object.keys(s.weekly||{}),
+        ...Object.keys(f.monthly||{}),...Object.keys(s.monthly||{})])]
+        .filter(k=>!['start','end','current','previous','improvements','month','previousMonth'].includes(k));
+      if(extra.length)parts.push('추가 항목: '+extra.join(', '));
+      return parts.join(' · ')||'표시 내용 외 차이';
+    }
     // Describes a "previous" entry found on one side only, without names or values:
     // how many days before the reference date, and which fields are empty.
     function describePreviousEntry(p,refDate) {

@@ -12,7 +12,7 @@
 // MEMBER_SESSION_HOURS.
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
 const MEMBER_SESSION_HOURS=8;
-const MEMBER_ACTIONS=['read','workoutHistory'];
+const MEMBER_ACTIONS=['read','workoutHistory','memberInsights'];
 const b64url={
   encode:bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
   decode:text=>{
@@ -187,6 +187,93 @@ async function buildWorkoutHistory(supaGet,memberId,date,month) {
   }
   return {status:'success',month,days:[...days].sort(),previous};
 }
+// Weekly/monthly reports and strength progress, computed exactly like
+// api/records.js buildMemberInsights from the member's daily records up to
+// `date`. InBody, PT and goal data live elsewhere and are not included; the
+// page fills those from Apps Script.
+function weekMonday(day) {
+  const weekday=new Date(day+'T00:00:00Z').getUTCDay();
+  return shiftDay(day,-(weekday+6)%7);
+}
+function doneRoutines(data) {
+  return (Array.isArray(data?.routines)?data.routines:[]).map(r=>({
+    ...r,doneCount:Array.isArray(r?.completedSets)?r.completedSets.filter(Boolean).length:0
+  })).filter(r=>r.doneCount);
+}
+async function memberRowsAscending(supaGet,memberId,date) {
+  const pageSize=1000;
+  const prefix='/rest/v1/fit_daily_records?select=record_date,routines:data->routines,diet:data->diet'+
+    '&member_id=eq.'+encodeURIComponent(memberId)+'&record_date=lte.'+date+
+    '&order=record_date.desc&limit='+pageSize;
+  const rows=[];
+  for(let offset=0;;offset+=pageSize) {
+    if(offset>=10000)throw Error('insights pagination limit exceeded');
+    const page=await supaGet(prefix+'&offset='+offset,'insights');
+    rows.push(...page);
+    if(page.length<pageSize)break;
+  }
+  return rows.reverse().map(r=>({date:String(r.record_date),
+    data:{routines:r.routines,diet:r.diet}}));
+}
+function buildMemberInsights(rows,date) {
+  const start=weekMonday(date),lastStart=shiftDay(start,-7),end=shiftDay(start,6);
+  const weeklyBucket=()=>({days:new Set(),sets:0,exercises:0,latest:{}});
+  const week={current:weeklyBucket(),previous:weeklyBucket()};
+  const month=date.slice(0,7),prevMonth=shiftDay(month+'-01',-1).slice(0,7);
+  const monthBucket=()=>({days:new Set(),sets:0,exercises:0,dietDays:new Set()});
+  const monthly={current:monthBucket(),previous:monthBucket()};
+  const progress=new Map();
+  for(const row of rows) {
+    const d=row.date,data=row.data||{},done=doneRoutines(data);
+    if(d>=lastStart&&d<=end) {
+      const bucket=d<start?week.previous:week.current;
+      for(const r of done) {
+        bucket.days.add(d);bucket.sets+=r.doneCount;bucket.exercises++;
+        const name=String(r.name||'').trim();
+        const normalized=name.toLowerCase().replace(/\s+/g,'');
+        const weight=Number(r.weight);
+        if(normalized&&Number.isFinite(weight)&&weight>0&&
+            (!bucket.latest[normalized]||d>=bucket.latest[normalized].day))
+          bucket.latest[normalized]={day:d,name,weight};
+      }
+    }
+    const mb=d.startsWith(month)?monthly.current:d.startsWith(prevMonth)?monthly.previous:null;
+    if(mb) {
+      for(const r of done){mb.days.add(d);mb.sets+=r.doneCount;mb.exercises++;}
+      const diet=data.diet||{};
+      if(['breakfast','lunch','dinner','snack'].some(k=>{
+        const food=diet[k]||{};
+        return !!String(food.desc||'').trim()||
+          (Array.isArray(food.photos)&&food.photos.length>0)||
+          (Array.isArray(food.foods)&&food.foods.length>0);
+      }))mb.dietDays.add(d);
+    }
+    for(const r of done) {
+      const name=String(r.name||'').trim();
+      const key=name.toLowerCase().replace(/\s+/g,'');
+      const weight=Number(r.weight),reps=Number(r.reps);
+      if(!name||name.length>80||!Number.isFinite(weight)||weight<=0||weight>1500)continue;
+      if(!progress.has(key))progress.set(key,{name,points:[]});
+      progress.get(key).points.push({date:d,weight,reps:Number.isFinite(reps)&&reps>=0?reps:0});
+    }
+  }
+  const weeklyStat=b=>({days:b.days.size,sets:b.sets,exercises:b.exercises});
+  const monthlyStat=b=>({days:b.days.size,sets:b.sets,exercises:b.exercises,dietDays:b.dietDays.size});
+  const improvements=Object.entries(week.current.latest).flatMap(([key,now])=>{
+    const prev=week.previous.latest[key];
+    return prev&&now.weight>prev.weight?[{name:now.name,previous:prev.weight,current:now.weight}]:[];
+  }).slice(0,8);
+  const exercises=[...progress.values()].map(item=>{
+    const byDay=new Map(item.points.map(p=>[p.date,p]));
+    item.points=[...byDay.values()].slice(-24);
+    return item;
+  }).sort((a,b)=>b.points.length-a.points.length).slice(0,30);
+  return {status:'success',partial:true,
+    weekly:{start,end,current:weeklyStat(week.current),previous:weeklyStat(week.previous),improvements},
+    monthly:{month,previousMonth:prevMonth,current:monthlyStat(monthly.current),
+      previous:monthlyStat(monthly.previous),inbodyChange:null},
+    progress:exercises};
+}
 async function handleRecords(request,env) {
   if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
   if(Number(request.headers.get('content-length')||0)>16384)
@@ -194,7 +281,7 @@ async function handleRecords(request,env) {
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
-  if(!['read','verify','trainerOverview','workoutHistory','memberSession'].includes(action))
+  if(!['read','verify','trainerOverview','workoutHistory','memberInsights','memberSession'].includes(action))
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -223,7 +310,7 @@ async function handleRecords(request,env) {
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify')return json({status:'success'});
   }
-  const needsMember=action==='read'||action==='workoutHistory';
+  const needsMember=action==='read'||action==='workoutHistory'||action==='memberInsights';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -283,6 +370,14 @@ async function handleRecords(request,env) {
       return json(history,200,{
         'Server-Timing':'member;dur='+lookupMs.toFixed(1)+
           ', history;dur='+(performance.now()-start-lookupMs).toFixed(1),
+        'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
+      });
+    }
+    if(action==='memberInsights') {
+      const insights=buildMemberInsights(await memberRowsAscending(supaGet,memberId,date),date);
+      return json(insights,200,{
+        'Server-Timing':'member;dur='+lookupMs.toFixed(1)+
+          ', insights;dur='+(performance.now()-start-lookupMs).toFixed(1),
         'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
       });
     }

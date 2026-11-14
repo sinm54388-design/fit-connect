@@ -3645,14 +3645,41 @@ try {
       const init=await apiPost({...creds,action:'beginVideoUpload',kind,name,question,tip,mime:uploadFile.type,size:uploadFile.size});
       if(init.status!=='success')throw Error(init.message||'업로드 준비 실패');
       const id=init.uploadId,parts=Math.ceil(uploadFile.size/VIDEO_CHUNK);
-      for(let i=0;i<parts;i++){
-        const chunk=new Uint8Array(await uploadFile.slice(i*VIDEO_CHUNK,Math.min(uploadFile.size,(i+1)*VIDEO_CHUNK)).arrayBuffer());
-        const r=await apiPost({...creds,action:'videoChunk',uploadId:id,index:i,total:parts,base64:bytesToBase64(chunk)});
-        if(r.status!=='success')throw Error(r.message||'영상 업로드 중 오류');
-        showToast(`영상 업로드 ${Math.round((i+1)/parts*100)}%`);
+      let nextPart=0,completed=0,uploadError=null;
+      // Limit parallel requests to avoid flooding Apps Script on mobile.
+      async function sendParts(){
+        while(!uploadError && nextPart<parts){
+          const i=nextPart++;
+          try{
+            const chunk=new Uint8Array(await uploadFile.slice(i*VIDEO_CHUNK,Math.min(uploadFile.size,(i+1)*VIDEO_CHUNK)).arrayBuffer());
+            const r=await apiPost({...creds,action:'videoChunk',uploadId:id,index:i,total:parts,base64:bytesToBase64(chunk)});
+            if(r.status!=='success')throw Error(r.message||'영상 전송 실패');
+            completed++;
+            showToast('영상 전송 '+Math.min(95,Math.round(completed/parts*95))+'%');
+          }catch(e){uploadError=e;}
+        }
       }
-      const done=await apiPost({...creds,action:'finishVideoUpload',uploadId:id});
-      if(done.status!=='success')throw Error(done.message||'영상 저장 실패');
+      await Promise.all([sendParts(),sendParts(),sendParts()]);
+      if(uploadError)throw uploadError;
+      showToast('영상 최종 저장 중 · 화면을 유지해주세요');
+      let finishError=null;
+      try{
+        const done=await apiPost({...creds,action:'finishVideoUpload',uploadId:id});
+        if(done.status!=='success')throw Error(done.message||'영상 저장 실패');
+      }catch(e){finishError=e;}
+      // Verify the original list, not a cached promise. Do not resend finish
+      // automatically: the upstream write could have succeeded despite a timeout.
+      extraReadCache.clear();
+      if(finishError)throw Error('최종 저장 결과를 확인하지 못했어요. 영상 목록을 새로고침해 확인해주세요. ('+finishError.message+')');
+      showToast('영상 저장 완료 · 목록 확인 중');
+      const action=kind==='member'?'listFormVideos':'listExerciseVideos';
+      const listed=await apiPost({...creds,action});
+      if(listed.status!=='success')throw Error('영상은 저장됐지만 목록 조회에 실패했어요. 새로고침해주세요.');
+      extraReadCache.clear();
+      if(activeMemberName===creds.member){
+        if(kind==='member'){formVideos=listed.videos||[];renderFormVideos();}
+        else{exerciseVideos=listed.videos||[];renderExerciseVideos();}
+      }
     }
     async function playPrivateVideo(id,button){
       if(button.dataset.loading==='1')return;

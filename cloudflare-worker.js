@@ -388,20 +388,18 @@ async function handleRecords(request,env) {
       const id=String(input.id||'').replace(/^direct:/,'');
       if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return json({status:'error',code:'invalid_id'},400);
       const filter=scope+'&id=eq.'+encodeURIComponent(id);
-      let rows=await supaGet(table+'?select=*&'+filter+'&limit=1','direct_row');
-      let row=rows[0];
+      let row;
       if(action==='directVideoBegin'){
         if(trainer)return json({status:'denied',code:'member_upload_only'},403);
         const size=Number(input.size),mime=String(input.mime||''),name=String(input.name||'').trim().slice(0,150),question=String(input.question||'').slice(0,1000);
         const ext={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}[mime];
         if(!ext||!name||!Number.isInteger(size)||size<1||size>50000000)return json({status:'error',code:'invalid_file'},400);
-        if(!row){
-          const storage_path='member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
-          await send(table,'POST',{id,member_id:String(memberId),storage_path,name,question,mime,size_bytes:size},{Prefer:'return=minimal'}).catch(async e=>{
-            const check=await supaGet(table+'?select=*&'+filter+'&limit=1','direct_retry');if(!check.length)throw e;
-          });
-          row=(await supaGet(table+'?select=*&'+filter+'&limit=1','direct_row'))[0];
-        }
+        const storage_path='member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
+        // Insert and return the row in one round trip; conflicts are scoped to this member.
+        const inserted=await send(table+'?on_conflict=id','POST',{id,member_id:String(memberId),storage_path,name,question,mime,size_bytes:size},{Prefer:'resolution=ignore-duplicates,return=representation'});
+        row=Array.isArray(inserted)?inserted[0]:null;
+        if(!row)row=(await supaGet(table+'?select=*&'+filter+'&limit=1','direct_retry'))[0];
+        if(row&&String(row.member_id)!==String(memberId))return json({status:'denied'},403);
         if(!row||row.size_bytes!=size||row.mime!==mime||row.state==='deleted')return json({status:'error',code:'upload_conflict'},409);
         if(row.state==='ready')return json({status:'success',alreadyReady:true});
         const path=row.storage_path.split('/').map(encodeURIComponent).join('/');
@@ -412,6 +410,7 @@ async function handleRecords(request,env) {
         if(url.origin!==base)return json({status:'error',code:'upload_origin_invalid'},502);
         return json({status:'success',url:url.toString()});
       }
+      row=(await supaGet(table+'?select=*&'+filter+'&limit=1','direct_row'))[0];
       if(!row||row.state==='deleted')return json({status:'error',code:'video_not_found'},404);
       const path=row.storage_path.split('/').map(encodeURIComponent).join('/');
       if(action==='directVideoFinish'){
@@ -420,8 +419,10 @@ async function handleRecords(request,env) {
         const info=await send(bucket+'/info/fit-direct-videos/'+path,'GET');
         const bytes=Number(info.size??info.metadata?.size);
         if(bytes!==Number(row.size_bytes))return json({status:'error',code:'upload_size_mismatch'},409);
-        await send(table+'?'+filter+'&state=eq.pending','PATCH',{state:'ready'},{Prefer:'return=minimal'});
-        return json({status:'success',video:format(row)});
+        const updated=await send(table+'?'+filter+'&state=eq.pending','PATCH',{state:'ready'},{Prefer:'return=representation'});
+        const ready=updated?.[0]||(await supaGet(table+'?select=*&'+filter+'&state=eq.ready&limit=1','direct_finish_retry'))[0];
+        if(!ready)return json({status:'error',code:'upload_state_changed'},409);
+        return json({status:'success',video:format(ready)});
       }
       if(row.state!=='ready')return json({status:'error',code:'not_ready'},409);
       if(action==='directVideoPlay'){

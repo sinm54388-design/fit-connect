@@ -3134,6 +3134,37 @@ try {
         days:[...new Set((h?.days||[]).map(String))].sort(),previous});
     }
     function sameWorkoutHistory(a,b){return workoutHistorySignature(a)===workoutHistorySignature(b);}
+    // Counts only (no member names, exercise names or values) so the copied
+    // diagnostic can be shared safely.
+    function workoutHistoryDiff(fast,canonical) {
+      const parts=[];
+      const norm=h=>{
+        const previous=new Map();
+        for(const [name,p] of Object.entries(h?.previous||{}))
+          previous.set(String(name).trim().toLowerCase(),
+            {date:String(p?.date||''),weight:String(p?.weight||''),reps:String(p?.reps||'')});
+        return {month:String(h?.month||''),days:new Set((h?.days||[]).map(String)),previous};
+      };
+      const f=norm(fast),s=norm(canonical);
+      if(f.month!==s.month)parts.push('월 다름');
+      const onlyF=[...f.days].filter(d=>!s.days.has(d)).length;
+      const onlyS=[...s.days].filter(d=>!f.days.has(d)).length;
+      if(onlyF||onlyS)parts.push(`운동한 날 Supabase ${f.days.size}일/Sheets ${s.days.size}일`+
+        ` (Supabase에만 ${onlyF}, Sheets에만 ${onlyS})`);
+      let onlyFNames=0,onlySNames=0;const fieldDiff={date:0,weight:0,reps:0};
+      for(const [name,p] of f.previous) {
+        const q=s.previous.get(name);
+        if(!q){onlyFNames++;continue;}
+        for(const k of Object.keys(fieldDiff))if(p[k]!==q[k])fieldDiff[k]++;
+      }
+      for(const name of s.previous.keys())if(!f.previous.has(name))onlySNames++;
+      if(onlyFNames||onlySNames)parts.push(`이전 기록 운동 수 Supabase ${f.previous.size}/Sheets ${s.previous.size}`+
+        ` (Supabase에만 ${onlyFNames}, Sheets에만 ${onlySNames})`);
+      const labels={date:'날짜',weight:'중량',reps:'횟수'};
+      const fields=Object.entries(fieldDiff).filter(([,n])=>n).map(([k,n])=>`${labels[k]} ${n}개`);
+      if(fields.length)parts.push('같은 운동인데 다른 값: '+fields.join(', '));
+      return parts.join(' · ')||'표시 내용 외 차이';
+    }
     async function loadExtras() {
       const request = ++extrasRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
@@ -3161,7 +3192,7 @@ try {
           fastHistory.then(fast=>{
             if(!fast)return;
             const same=sameWorkoutHistory(fast,history);
-            perfMark('운동 기록 · Sheets 검증 '+(same?'일치':'불일치'),0,same);
+            perfMark('운동 기록 · Sheets 검증 '+(same?'일치':'불일치 · '+workoutHistoryDiff(fast,history)),0,same);
           });
           if(!isCurrent())return;
           historyCanonicalShown=true;

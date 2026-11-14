@@ -394,7 +394,7 @@ async function handleRecords(request,env) {
         if(trainer)return json({status:'denied',code:'member_upload_only'},403);
         const size=Number(input.size),mime=String(input.mime||''),name=String(input.name||'').trim().slice(0,150),question=String(input.question||'').slice(0,1000);
         const ext={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}[mime];
-        if(!ext||!name||!Number.isInteger(size)||size<1||size>20971520)return json({status:'error',code:'invalid_file'},400);
+        if(!ext||!name||!Number.isInteger(size)||size<1||size>50000000)return json({status:'error',code:'invalid_file'},400);
         if(!row){
           const storage_path='member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
           await send(table,'POST',{id,member_id:String(memberId),storage_path,name,question,mime,size_bytes:size},{Prefer:'return=minimal'}).catch(async e=>{

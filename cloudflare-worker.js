@@ -1,5 +1,6 @@
 // FIT-CONNECT Cloudflare preview: read-only Supabase endpoint
-// (daily record read, trainer password check, trainer dashboard summary).
+// (daily record read, trainer password check, trainer dashboard summary,
+// workout history calendar).
 // Writes and member logins continue to use the existing Apps Script backend.
 const json=(body,status=200,extra={})=>new Response(JSON.stringify(body),{
   status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',
@@ -101,6 +102,36 @@ async function buildOverview(supaGet,date) {
   });
   return {status:'success',date,weekStart,members,partial:true,windowDays:OVERVIEW_WINDOW_DAYS};
 }
+// Workout history for the habit calendar and "previous record" hints.
+// Same rules as api/records.js buildWorkoutHistory: a day counts when any set
+// is completed; "previous" is the latest completed entry per exercise name
+// strictly before the selected date. Only the routines field is fetched.
+async function buildWorkoutHistory(supaGet,memberId,date,month) {
+  const pageSize=1000;
+  const prefix='/rest/v1/fit_daily_records?select=record_date,routines:data->routines'+
+    '&member_id=eq.'+encodeURIComponent(memberId)+'&record_date=lte.'+date+
+    '&order=record_date.desc&limit='+pageSize;
+  const days=new Set(),previous={};
+  for(let offset=0;;offset+=pageSize) {
+    if(offset>=10000)throw Error('history pagination limit exceeded');
+    const rows=await supaGet(prefix+'&offset='+offset,'history');
+    // Rows arrive newest first, so the first hit per name is the latest one.
+    for(const row of rows) {
+      const day=String(row.record_date||'');
+      const done=(Array.isArray(row.routines)?row.routines:[])
+        .filter(r=>Array.isArray(r?.completedSets)&&r.completedSets.some(Boolean));
+      if(!done.length)continue;
+      if(day.startsWith(month))days.add(day);
+      if(day>=date)continue;
+      for(const r of done) {
+        const name=String(r.name||'').trim().toLowerCase();
+        if(name&&!previous[name])previous[name]={date:day,weight:String(r.weight||''),reps:String(r.reps||'')};
+      }
+    }
+    if(rows.length<pageSize)break;
+  }
+  return {status:'success',month,days:[...days].sort(),previous};
+}
 async function handleRecords(request,env) {
   if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
   if(Number(request.headers.get('content-length')||0)>16384)
@@ -108,7 +139,7 @@ async function handleRecords(request,env) {
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
-  if(!['read','verify','trainerOverview'].includes(action))
+  if(!['read','verify','trainerOverview','workoutHistory'].includes(action))
     return json({status:'error',code:'read_only'},405);
   if(!env.TRAINER_PASSWORD)
     return json({status:'error',code:'missing_runtime_configuration'},503);
@@ -116,7 +147,11 @@ async function handleRecords(request,env) {
     return json({status:'denied',code:'unauthorized'},403);
   if(action==='verify')return json({status:'success'});
   const member=String(input.member||'').trim(),date=input.date;
-  if(!validDay(date)||(action==='read'&&(!member||member.length>100)))
+  const needsMember=action==='read'||action==='workoutHistory';
+  if(!validDay(date)||(needsMember&&(!member||member.length>100)))
+    return json({status:'error',code:'invalid_query'},400);
+  const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
+  if(action==='workoutHistory'&&(typeof month!=='string'||!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(month)))
     return json({status:'error',code:'invalid_query'},400);
   const base=String(env.SUPABASE_URL||'').trim().replace(/\/+$/,'');
   const key=String(env.SUPABASE_SECRET_KEY||'').trim();
@@ -167,6 +202,14 @@ async function handleRecords(request,env) {
       rememberMember(member,memberId);
     }
     const lookupMs=performance.now()-start;
+    if(action==='workoutHistory') {
+      const history=await buildWorkoutHistory(supaGet,memberId,date,month);
+      return json(history,200,{
+        'Server-Timing':'member;dur='+lookupMs.toFixed(1)+
+          ', history;dur='+(performance.now()-start-lookupMs).toFixed(1),
+        'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
+      });
+    }
     const daily=await supaGet('/rest/v1/fit_daily_records?select=data&member_id=eq.'+
       encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','daily');
     return json(daily.length?daily[0].data:{},200,{

@@ -3125,6 +3125,15 @@ try {
       if(extraReadCache.size>24)extraReadCache.delete(extraReadCache.keys().next().value);
       return promise;
     }
+    // Compares only what the calendar and "previous record" hints display.
+    function workoutHistorySignature(h) {
+      const previous={};
+      for(const [name,p] of Object.entries(h?.previous||{}))
+        previous[String(name).trim().toLowerCase()]={date:String(p?.date||''),weight:String(p?.weight||''),reps:String(p?.reps||'')};
+      return stableRecordSignature({month:String(h?.month||''),
+        days:[...new Set((h?.days||[]).map(String))].sort(),previous});
+    }
+    function sameWorkoutHistory(a,b){return workoutHistorySignature(a)===workoutHistorySignature(b);}
     async function loadExtras() {
       const request = ++extrasRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
@@ -3133,10 +3142,29 @@ try {
         ...(mode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
       const isCurrent = () => request===extrasRequest && member===activeMemberName && date===selectedDate && mode===currentMode;
       // 기록/영상 목록을 독립적으로 가져와 느린 요청 하나가 다른 화면을 막지 않도록 처리.
-      const historyRequest=cachedExtraRead({...auth,action:'workoutHistory',month:habitMonth})
+      // 미리보기(?fastdb=1) 트레이너 화면은 Supabase 운동 기록을 먼저 보여주고,
+      // Apps Script 결과가 오면 항상 그 결과로 바꿔 그린 뒤 둘이 같은지 기록합니다.
+      const month = habitMonth;
+      let historyCanonicalShown=false;
+      const fastHistory = fastDbPilot && mode==='trainer' && trainerPassword
+        ? fastTrainerRequest({action:'workoutHistory',member,date,month,password:trainerPassword},'운동 기록 · Supabase')
+        : Promise.resolve(null);
+      fastHistory.then(fast=>{
+        if(!fast||historyCanonicalShown||!isCurrent()||month!==habitMonth||fast.month!==month)return;
+        historyData=fast;
+        renderHabitCalendar();
+        renderPreviousRecords();
+      }).catch(e=>console.warn('빠른 운동 기록 표시 오류',e));
+      const historyRequest=cachedExtraRead({...auth,action:'workoutHistory',month})
         .then(history=>{
-          if(!isCurrent())return;
           if(history.status!=='success')throw Error(history.message||'기록 조회 실패');
+          fastHistory.then(fast=>{
+            if(!fast)return;
+            const same=sameWorkoutHistory(fast,history);
+            perfMark('운동 기록 · Sheets 검증 '+(same?'일치':'불일치'),0,same);
+          });
+          if(!isCurrent())return;
+          historyCanonicalShown=true;
           historyData=history;
           renderHabitCalendar();
           renderPreviousRecords();

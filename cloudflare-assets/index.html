@@ -3735,7 +3735,28 @@ try {
       return result;
     }
     const directVideoUploads=new WeakMap();
-    function setVideoUploadStatus(message){const el=document.getElementById('memberVideoUploadStatus');if(el){el.textContent=message;el.classList.remove('hidden');}}
+    let videoUploadActive=false, videoUploadOwner=null;
+    function setVideoUploadStatus(message,percent=null,state='active'){
+      if(videoUploadOwner&&(currentMode!=='member'||activeMemberName!==videoUploadOwner.member||memberToken!==videoUploadOwner.token))return;
+      const el=document.getElementById('memberVideoUploadStatus');if(el){el.textContent=message;el.classList.remove('hidden');}
+      let bar=document.getElementById('videoUploadFloating');
+      if(!bar){
+        bar=document.createElement('aside');bar.id='videoUploadFloating';bar.className='fixed left-3 right-3 mx-auto max-w-md rounded-xl border border-sky-500/40 bg-slate-900 shadow-xl p-3 text-xs text-white';
+        bar.style.cssText='bottom:calc(90px + env(safe-area-inset-bottom, 0px));z-index:45';
+        bar.innerHTML='<div class="flex items-start justify-between gap-3"><div class="font-semibold" id="videoUploadFloatingTitle"></div><button type="button" id="videoUploadDismiss" class="hidden px-2" aria-label="알림 닫기">×</button></div><div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700"><div id="videoUploadProgressBar" class="h-full bg-sky-400 transition-all" style="width:0%"></div></div><div id="videoUploadFloatingHint" class="mt-2 text-slate-400"></div>';
+        document.body.appendChild(bar);
+        document.getElementById('videoUploadDismiss').onclick=()=>bar.classList.add('hidden');
+      }
+      bar.classList.remove('hidden');
+      document.getElementById('videoUploadFloatingTitle').textContent=message;
+      document.getElementById('videoUploadProgressBar').style.width=(state==='done'?100:percent===null?5:Math.max(0,Math.min(100,percent)))+'%';
+      document.getElementById('videoUploadFloatingHint').textContent=state==='active'?'운동·식단 기록을 계속 작성할 수 있어요. 이 탭은 닫지 마세요.':state==='done'?'영상 목록에 등록됐어요.':'영상 화면에서 다시 보내기를 눌러주세요.';
+      document.getElementById('videoUploadDismiss').classList.toggle('hidden',state==='active');
+    }
+    window.addEventListener('beforeunload',e=>{if(videoUploadActive){e.preventDefault();e.returnValue='';}});
+    // Hide private upload messages immediately when switching member identity.
+    setInterval(()=>{if(videoUploadOwner&&(currentMode!=='member'||activeMemberName!==videoUploadOwner.member||memberToken!==videoUploadOwner.token)){document.getElementById('videoUploadFloating')?.classList.add('hidden');document.getElementById('memberVideoUploadStatus')?.classList.add('hidden');}},500);
+
     async function uploadDirectMemberVideo(file,name,question){
       const creds=apiCredentials(),context=getSaveContext();
       const directLimit=50000000, started=performance.now();
@@ -3752,7 +3773,7 @@ try {
         job={member:creds.member,id:crypto.randomUUID(),file:output,sent:false};
         directVideoUploads.set(file,job);
       }
-      if(!isCurrentSaveContext(context))throw Error('회원 화면이 변경됐어요.');
+      if(currentMode!==context.mode||activeMemberName!==context.member||memberToken!==context.token)throw Error('회원 화면이 변경됐어요.');
       if(!job.sent){
         const init=await directVideoRequest({...creds,action:'directVideoBegin',id:job.id,size:job.file.size,mime:job.file.type,name,question});
         if(!init.alreadyReady){
@@ -3763,7 +3784,7 @@ try {
             xhr.open('PUT',init.url);
             xhr.timeout=180000;
             xhr.setRequestHeader('Content-Type',job.file.type);
-            xhr.upload.onprogress=e=>{if(e.lengthComputable){const mb=e.loaded/1000000,total=e.total/1000000,sec=(performance.now()-t)/1000;setVideoUploadStatus('영상 전송 '+Math.min(100,Math.round(e.loaded/e.total*100))+'% · '+mb.toFixed(1)+' / '+total.toFixed(1)+' MB · '+sec.toFixed(1)+'초');}};
+            xhr.upload.onprogress=e=>{if(e.lengthComputable){const mb=e.loaded/1000000,total=e.total/1000000,sec=(performance.now()-t)/1000;setVideoUploadStatus('영상 전송 '+Math.min(100,Math.round(e.loaded/e.total*100))+'% · '+mb.toFixed(1)+' / '+total.toFixed(1)+' MB · '+sec.toFixed(1)+'초',e.loaded/e.total*100);}};
             xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(Error('영상 직접 전송 실패 · HTTP '+xhr.status));
             xhr.onerror=()=>reject(Error('영상 전송 연결 오류'));
             xhr.ontimeout=()=>reject(Error('영상 전송 시간 초과'));
@@ -3773,7 +3794,7 @@ try {
         }
         job.sent=true;
       }
-      setVideoUploadStatus('전송 완료 · 영상 최종 등록 중');showToast('영상 최종 등록 중');
+      setVideoUploadStatus('전송 완료 · 영상 최종 등록 중',100);showToast('영상 최종 등록 중');
       const finishStarted=performance.now();
       const done=await directVideoRequest({...creds,action:'directVideoFinish',id:job.id});
       const finishMs=performance.now()-finishStarted;
@@ -3791,10 +3812,10 @@ try {
       const file=document.getElementById('memberVideoFile').files[0];
       const question=document.getElementById('memberVideoQuestion').value.trim();
       const member=activeMemberName;
-      const submit=e.target.querySelector('button[type=submit]');if(e.target.dataset.uploading==='1')return;e.target.dataset.uploading='1';if(submit)submit.disabled=true;setVideoUploadStatus('영상 업로드 준비 중…');
-      try{const uploaded=await uploadDirectMemberVideo(file,name,question);e.target.reset();setVideoUploadStatus((uploaded.timingLabel||'영상 업로드 완료')+' · 전송 파일 '+(uploaded.uploadBytes/1000000).toFixed(1)+'MB');showToast(uploaded.timingLabel||'영상 업로드 완료');if(member===activeMemberName)await loadExtras();}
-      catch(err){setVideoUploadStatus('업로드 오류 · '+err.message);alert(err.message);}
-      finally{e.target.dataset.uploading='0';if(submit)submit.disabled=false;}
+      const submit=e.target.querySelector('button[type=submit]');if(videoUploadActive||e.target.dataset.uploading==='1')return;videoUploadActive=true;videoUploadOwner={member,token:memberToken};e.target.dataset.uploading='1';if(submit)submit.disabled=true;setVideoUploadStatus('영상 업로드 준비 중…');
+      try{const uploaded=await uploadDirectMemberVideo(file,name,question);e.target.reset();setVideoUploadStatus((uploaded.timingLabel||'영상 업로드 완료')+' · 전송 파일 '+(uploaded.uploadBytes/1000000).toFixed(1)+'MB',100,'done');showToast(uploaded.timingLabel||'영상 업로드 완료');if(member===activeMemberName)await loadExtras();}
+      catch(err){setVideoUploadStatus('업로드 오류 · '+err.message,0,'error');}
+      finally{videoUploadActive=false;e.target.dataset.uploading='0';if(submit)submit.disabled=false;}
     }
     async function saveExerciseVideo(e){
       e.preventDefault();const name=document.getElementById('videoExerciseName').value.trim();

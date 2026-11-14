@@ -749,7 +749,7 @@
        </section>
        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
-         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 용량이 크면 휴대폰에서 자동으로 압축해 업로드해요.</p>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v3)</p>
          <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
            <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
            <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
@@ -3564,7 +3564,7 @@ try {
         target.addEventListener(errorName,onErr,{once:true});
       });
     }
-    async function compressPrivateVideo(file){
+    async function compressPrivateVideo(file,onProgress){
       if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){
         throw new Error('현재 브라우저에서 자동 영상 압축을 지원하지 않아요. iPhone은 Safari, 갤럭시는 Chrome 최신 버전으로 다시 시도해주세요.');
       }
@@ -3609,6 +3609,7 @@ try {
           const draw=()=>{
             if(finished)return;
             try{ctx.drawImage(video,0,0,width,height);}catch(e){}
+            if(onProgress&&Number.isFinite(video.duration)&&video.duration>0)onProgress(Math.min(99,Math.floor(video.currentTime/video.duration*100)));
             if(video.ended||video.currentTime>=video.duration){finish();return;}
             raf=requestAnimationFrame(draw);
           };
@@ -3742,12 +3743,12 @@ try {
       let bar=document.getElementById('videoUploadFloating');
       if(!bar){
         bar=document.createElement('aside');bar.id='videoUploadFloating';bar.className='fixed left-3 right-3 mx-auto max-w-md rounded-xl border border-sky-500/40 bg-slate-900 shadow-xl p-3 text-xs text-white';
-        bar.style.cssText='bottom:calc(90px + env(safe-area-inset-bottom, 0px));z-index:45';
+        bar.style.cssText='position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom, 0px));z-index:1100;max-width:440px;margin:0 auto;background:#14243a;color:#fff;padding:12px;border:1px solid #38bdf8;border-radius:12px;box-shadow:0 4px 24px #0008;';
         bar.innerHTML='<div class="flex items-start justify-between gap-3"><div class="font-semibold" id="videoUploadFloatingTitle"></div><button type="button" id="videoUploadDismiss" class="hidden px-2" aria-label="알림 닫기">×</button></div><div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700"><div id="videoUploadProgressBar" class="h-full bg-sky-400 transition-all" style="width:0%"></div></div><div id="videoUploadFloatingHint" class="mt-2 text-slate-400"></div>';
         document.body.appendChild(bar);
-        document.getElementById('videoUploadDismiss').onclick=()=>bar.classList.add('hidden');
+        document.getElementById('videoUploadDismiss').onclick=()=>{bar.classList.add('hidden');bar.style.display='none';};
       }
-      bar.classList.remove('hidden');
+      bar.classList.remove('hidden');bar.style.display='block';
       document.getElementById('videoUploadFloatingTitle').textContent=message;
       document.getElementById('videoUploadProgressBar').style.width=(state==='done'?100:percent===null?5:Math.max(0,Math.min(100,percent)))+'%';
       document.getElementById('videoUploadFloatingHint').textContent=state==='active'?'운동·식단 기록을 계속 작성할 수 있어요. 이 탭은 닫지 마세요.':state==='done'?'영상 목록에 등록됐어요.':'영상 화면에서 다시 보내기를 눌러주세요.';
@@ -3755,7 +3756,7 @@ try {
     }
     window.addEventListener('beforeunload',e=>{if(videoUploadActive){e.preventDefault();e.returnValue='';}});
     // Hide private upload messages immediately when switching member identity.
-    setInterval(()=>{if(videoUploadOwner&&(currentMode!=='member'||activeMemberName!==videoUploadOwner.member||memberToken!==videoUploadOwner.token)){document.getElementById('videoUploadFloating')?.classList.add('hidden');document.getElementById('memberVideoUploadStatus')?.classList.add('hidden');}},500);
+    setInterval(()=>{if(videoUploadOwner&&(currentMode!=='member'||activeMemberName!==videoUploadOwner.member||memberToken!==videoUploadOwner.token)){const floating=document.getElementById('videoUploadFloating');if(floating){floating.classList.add('hidden');floating.style.display='none';}document.getElementById('memberVideoUploadStatus')?.classList.add('hidden');}},500);
 
     async function uploadDirectMemberVideo(file,name,question){
       const creds=apiCredentials(),context=getSaveContext();
@@ -3768,7 +3769,7 @@ try {
       let job=directVideoUploads.get(file);
       if(!job||job.member!==creds.member){
         let output=file;
-        if(file.size>directLimit){const t=performance.now();setVideoUploadStatus('고화질 영상 압축 중…');showToast('50MB 초과 · 고화질 영상 압축 중');output=await compressPrivateVideo(file);compressionMs=performance.now()-t;}
+        if(file.size>directLimit){const t=performance.now();setVideoUploadStatus('고화질 영상 압축 중…');showToast('50MB 초과 · 고화질 영상 압축 중');let lastProgress=-1;output=await compressPrivateVideo(file,p=>{if(p!==lastProgress){lastProgress=p;setVideoUploadStatus('고화질 영상 압축 중 '+p+'%',p);}});compressionMs=performance.now()-t;}
         if(output.size>directLimit)throw Error('압축 영상이 50MB를 초과했어요.');
         job={member:creds.member,id:crypto.randomUUID(),file:output,sent:false};
         directVideoUploads.set(file,job);

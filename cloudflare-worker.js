@@ -281,12 +281,13 @@ async function handleRecords(request,env) {
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
-  if(!['read','verify','trainerOverview','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action))
+  const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
+  if(!['read','verify','trainerOverview','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
   // Member path: either exchange a member link for a session, or use a session.
-  if(action==='videoPlaybackUrl'&&input.password===undefined){
+  if((action==='videoPlaybackUrl'||directVideo)&&input.password===undefined){
     if(!member||!input.token||!validDay(date))return json({status:'denied'},403);
     try{if(!await appsScriptAcceptsMember(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
   } else if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {
@@ -313,7 +314,7 @@ async function handleRecords(request,env) {
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify')return json({status:'success'});
   }
-  const needsMember=action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl';
+  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -368,6 +369,77 @@ async function handleRecords(request,env) {
       rememberMember(member,memberId);
     }
     const lookupMs=performance.now()-start;
+    if(directVideo){
+      const trainer=input.password!==undefined;
+      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'};
+      const table='/rest/v1/fit_direct_videos';
+      const scope='member_id=eq.'+encodeURIComponent(memberId);
+      const bucket='/storage/v1/object';
+      const send=async(path,method,body,extra={})=>{
+        const res=await fetch(base+path,{method,headers:{...headers,...extra},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(12000)});
+        if(!res.ok)throw Error('direct_video_http_'+res.status);
+        const raw=await res.text();return raw?JSON.parse(raw):null;
+      };
+      const format=row=>({id:'direct:'+row.id,fileId:'direct:'+row.id,name:row.name,question:row.question,feedback:row.feedback,readAt:row.read_at||'',createdAt:row.created_at});
+      if(action==='directVideoList'){
+        const rows=await supaGet(table+'?select=*&'+scope+'&state=eq.ready&order=created_at.desc&limit=200','direct_list');
+        return json({status:'success',videos:rows.map(format)});
+      }
+      const id=String(input.id||'').replace(/^direct:/,'');
+      if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return json({status:'error',code:'invalid_id'},400);
+      const filter=scope+'&id=eq.'+encodeURIComponent(id);
+      let rows=await supaGet(table+'?select=*&'+filter+'&limit=1','direct_row');
+      let row=rows[0];
+      if(action==='directVideoBegin'){
+        if(trainer)return json({status:'denied',code:'member_upload_only'},403);
+        const size=Number(input.size),mime=String(input.mime||''),name=String(input.name||'').trim().slice(0,150),question=String(input.question||'').slice(0,1000);
+        const ext={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}[mime];
+        if(!ext||!name||!Number.isInteger(size)||size<1||size>20971520)return json({status:'error',code:'invalid_file'},400);
+        if(!row){
+          const storage_path='member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
+          await send(table,'POST',{id,member_id:String(memberId),storage_path,name,question,mime,size_bytes:size},{Prefer:'return=minimal'}).catch(async e=>{
+            const check=await supaGet(table+'?select=*&'+filter+'&limit=1','direct_retry');if(!check.length)throw e;
+          });
+          row=(await supaGet(table+'?select=*&'+filter+'&limit=1','direct_row'))[0];
+        }
+        if(!row||row.size_bytes!=size||row.mime!==mime||row.state==='deleted')return json({status:'error',code:'upload_conflict'},409);
+        if(row.state==='ready')return json({status:'success',alreadyReady:true});
+        const path=row.storage_path.split('/').map(encodeURIComponent).join('/');
+        const signed=await send(bucket+'/upload/sign/fit-direct-videos/'+path,'POST',{});
+        const relative=String(signed.url||signed.signedURL||'');
+        if(!relative)return json({status:'error',code:'upload_signature_missing'},502);
+        const url=new URL(relative.startsWith('/object/')?'/storage/v1'+relative:relative,base);
+        if(url.origin!==base)return json({status:'error',code:'upload_origin_invalid'},502);
+        return json({status:'success',url:url.toString()});
+      }
+      if(!row||row.state==='deleted')return json({status:'error',code:'video_not_found'},404);
+      const path=row.storage_path.split('/').map(encodeURIComponent).join('/');
+      if(action==='directVideoFinish'){
+        if(trainer)return json({status:'denied'},403);
+        if(row.state==='ready')return json({status:'success',video:format(row)});
+        const info=await send(bucket+'/info/fit-direct-videos/'+path,'GET');
+        const bytes=Number(info.size??info.metadata?.size);
+        if(bytes!==Number(row.size_bytes))return json({status:'error',code:'upload_size_mismatch'},409);
+        await send(table+'?'+filter+'&state=eq.pending','PATCH',{state:'ready'},{Prefer:'return=minimal'});
+        return json({status:'success',video:format(row)});
+      }
+      if(row.state!=='ready')return json({status:'error',code:'not_ready'},409);
+      if(action==='directVideoPlay'){
+        const signed=await send(bucket+'/sign/fit-direct-videos/'+path,'POST',{expiresIn:300});
+        const partial=String(signed.signedURL||signed.signedUrl||'');
+        if(!partial)return json({status:'error',code:'signature_missing'},502);
+        const url=new URL(partial.startsWith('/object/')?'/storage/v1'+partial:partial,base);
+        if(url.origin!==base)return json({status:'error',code:'origin_invalid'},502);
+        return json({status:'success',url:url.toString()});
+      }
+      let patch;
+      if(action==='directVideoFeedback'&&trainer)patch={feedback:String(input.feedback||'').slice(0,2000),read_at:null};
+      if(action==='directVideoRead'&&!trainer&&row.feedback)patch={read_at:new Date().toISOString()};
+      if(action==='directVideoDelete'&&trainer)patch={state:'deleted'};
+      if(!patch)return json({status:'denied'},403);
+      await send(table+'?'+filter+'&state=eq.ready','PATCH',patch,{Prefer:'return=minimal'});
+      return json({status:'success'});
+    }
     if(action==='videoPlaybackUrl'){
       const fileId=String(input.fileId||'').trim();
       if(!fileId||fileId.length>200)return json({status:'error',code:'invalid_video'},400);

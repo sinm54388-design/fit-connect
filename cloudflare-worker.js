@@ -392,10 +392,31 @@ async function handleRecords(request,env) {
     return failed(error);
   }
 }
+// Same-origin bridge for the existing Apps Script POST API. Auth remains in Apps Script.
+async function handleAppsScriptPost(request) {
+  if(request.method!=='POST')return json({status:'error',message:'Method not allowed'},405);
+  const origin=request.headers.get('Origin');
+  if(origin && origin!==new URL(request.url).origin)return json({status:'error',message:'Origin denied'},403);
+  try {
+    const body=await request.text();
+    const input=JSON.parse(body);
+    if(!input || typeof input!=='object' || Array.isArray(input))return json({status:'error',message:'Invalid request'},400);
+    const upstream=await fetch(APPS_SCRIPT_URL,{
+      method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body,
+      redirect:'follow',signal:AbortSignal.timeout(60000)
+    });
+    if(!upstream.ok)return json({status:'error',message:'Apps Script HTTP '+upstream.status},502);
+    const result=await upstream.json();
+    return new Response(JSON.stringify(result),{headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
+  }catch(e){
+    return json({status:'error',message:'Apps Script response unavailable'},502);
+  }
+}
 export default {
   async fetch(request,env) {
     const path=new URL(request.url).pathname;
     if(path==='/api/records')return handleRecords(request,env);
+    if(path==='/api/apps-script')return handleAppsScriptPost(request);
     if(path.startsWith('/api/'))return json({status:'error',code:'not_found'},404);
     return env.ASSETS.fetch(request);
   }

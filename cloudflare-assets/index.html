@@ -540,7 +540,47 @@
     #memberView button.bg-slate-800:hover,#memberView button.hover\:bg-slate-700:hover{background:#e1ecff!important;border-color:#a9c8fb!important}
     #memberView .bg-slate-800.text-white{color:#294d92!important}
 
-  </style>
+  
+/* Production-readability pass: light surfaces and explicit semantic states. */
+#appHeader .header-sync-badge{display:none}
+#appHeader>div>div:first-child>div:first-child{background:linear-gradient(135deg,#6c63ff,#3b82f6)!important;box-shadow:0 5px 15px #6366f126}
+#appHeader>div>div:first-child>div:first-child i{color:white!important}
+#appHeader>div>div:last-child>div{background:#eef2fb!important;border:1px solid #d8e1f0!important;box-shadow:none!important;border-radius:13px!important}
+#appHeader #currentDateInput{background:transparent!important;color:#233655!important;color-scheme:light;padding:4px 0;border:0!important}
+#appHeader .fa-calendar{color:#6258dd!important}
+#appHeader #btnMemberMode{background:#6258df!important;color:white!important;box-shadow:0 3px 8px #6558df25}
+#appHeader #btnTrainerMode{background:transparent!important;color:#4b5c76!important}
+#memberView [class*="text-slate-100"],#memberView [class*="text-slate-200"],#memberView [class*="text-slate-300"]{color:#364964!important}
+#memberView [class*="bg-slate-800"],#memberView [class*="bg-slate-900"],#memberView [class*="bg-slate-950"]{background-color:#f4f7fc!important}
+#memberView [class*="border-slate-"]{border-color:#dce5f1!important}
+#memberView [class*="text-emerald-200"],#memberView [class*="text-emerald-300"],#memberView [class*="text-green-300"]{color:#137b60!important}
+#memberView [class*="bg-emerald-"],#memberView [class*="bg-green-"]{background-color:#e7f7f0!important}
+#memberView [class*="text-amber-"]{color:#a85424!important}
+#memberView [class*="bg-amber-"]{background-color:#fff5e8!important}
+#memberView [class*="text-indigo-"],#memberView [class*="text-purple-"]{color:#6250cb!important}
+#memberView [class*="text-slate-400"],#memberView [class*="text-slate-500"]{color:#61718b!important}
+#memberView input::placeholder,#memberView textarea::placeholder{color:#71819a!important}
+#memberView input[type=file]::file-selector-button{background:#edeaff;color:#5545bb;border:1px solid #d6cffb;border-radius:10px;padding:10px 12px;margin-right:10px;font-weight:650}
+#memberView [id^="meal-"] [class*="bg-slate-"],#memberView [id^="meal-"]{color:#344966}
+#memberView label{color:#405575}
+#habitCalendar button{background:#f0f4fb!important;color:#344966!important;border:1px solid #e0e8f4;font-weight:600;opacity:1}
+#habitCalendar button[class*="bg-emerald"]{background:#ddf5ec!important;color:#0d7053!important;border-color:#9cddc8}
+#habitCalendar button:hover{background:#e7e5ff!important;color:#5143b4!important}
+#habitCalendar [class*="text-slate"]{color:#62738e!important}
+#memberWeeklyReport,#memberMonthlyReport,#memberGoalSummary,#memberInbodyChart,#memberPtSummary{color:#31445f!important}
+#memberHomePage>div:first-child [class*="text-slate-"],#memberHomePage>div:first-child .text-white{color:white!important}
+#memberHomePage>div:first-child #memberNameBadge{background:#ffffff26!important;color:white!important;border-color:#ffffff55!important}
+#memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#6559e9,#367df0)!important;color:#fff!important}
+@media(max-width:639px){
+#appHeader{padding:10px 14px!important}
+#appHeader>div{gap:10px!important}
+#appHeader h1{font-size:17px}
+#appHeader .header-mode-button{min-height:34px;padding:7px 11px!important}
+#memberView .member-page-heading h2{font-size:24px!important}
+#memberView .rounded-2xl{box-shadow:0 5px 18px #354e7b08!important}
+}
+
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
 

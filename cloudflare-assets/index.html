@@ -383,7 +383,8 @@
 
     [data-member-page][hidden],#memberBottomNav[hidden]{display:none!important}
     body.member-tabs-active{--member-nav-height:76px;padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
-    #memberBottomNav{position:fixed;z-index:900;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:#101b2c;border-top:1px solid #334155;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px #0003}
+    #memberBottomNav{position:fixed;z-index:900;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:#101b2c;border-top:1px solid #334155;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px #0003;transition:transform .2s ease,opacity .2s ease}
+    #memberBottomNav.nav-hidden{transform:translateY(calc(100% + 10px));opacity:0;pointer-events:none}
     #memberBottomNav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:56px;border-radius:12px;color:#a6b5c8;font-size:12px;font-weight:700;background:transparent;border:1px solid transparent}
     #memberBottomNav button i{font-size:19px}
     #memberBottomNav button.selected{background:#24351f;color:#bef264;border-color:#365314}
@@ -398,7 +399,7 @@
     .member-home-tile small{display:block;font-size:11px;color:#a6b5c8;line-height:1.5;margin-top:5px}
     .member-home-tile .tile-arrow{margin-left:auto;font-size:12px;color:#94a3b8}
     body.member-tabs-active #toastNotification,body.member-tabs-active #saveStatusBar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
-    @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}}
+    @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}#memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 10px))}}
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1447,6 +1448,30 @@
         if (!document.hidden && !typing && updateAccessState()) loadDataFromCloud(true);
       }, REFRESH_MS);
     });
+
+    // Keep the date header visible. Only the member bottom menu changes on scroll.
+    function setupMemberBottomNavAutoHide() {
+      const nav=document.getElementById('memberBottomNav');
+      if(!nav)return;
+      const show=()=>nav.classList.remove('nav-hidden');
+      const hide=()=>nav.classList.add('nav-hidden');
+      let startY=null,lastY=window.scrollY;
+      document.addEventListener('touchstart',event=>{startY=event.touches[0]?.clientY??null;},{passive:true});
+      document.addEventListener('touchend',event=>{
+        const endY=event.changedTouches[0]?.clientY;
+        if(startY===null||!Number.isFinite(endY))return;
+        const moved=startY-endY;startY=null;
+        if(moved>18)hide();
+        else if(moved<-12)show();
+      },{passive:true});
+      window.addEventListener('scroll',()=>{
+        const y=window.scrollY;
+        if(y<60||y<lastY-12)show();
+        else if(y>lastY+20)hide();
+        lastY=y;
+      },{passive:true});
+      nav.addEventListener('focusin',show);
+    }
 
     function setupAutoHideHeader() {
       const header = document.getElementById('appHeader');

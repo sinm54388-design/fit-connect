@@ -1584,7 +1584,12 @@
         if(key==='diet'){
           const diet={};
           for(const meal of [...MEAL_KEYS,'water']){
-            if(JSON.stringify(before.diet?.[meal])!==JSON.stringify(after.diet?.[meal]))diet[meal]=after.diet[meal];
+            if(JSON.stringify(before.diet?.[meal])!==JSON.stringify(after.diet?.[meal])){
+              // Undefined is removed by JSON serialization, causing cleared meals
+              // to become no-ops on the fast patch route. Use the canonical save.
+              if(after.diet?.[meal]===undefined)return null;
+              diet[meal]=after.diet[meal];
+            }
           }
           if(!Object.keys(diet).length)return null;
           patch.diet=diet;
@@ -2458,7 +2463,7 @@
         }
 
         const badge = document.getElementById(`badge-${m}`);
-        if (item.desc || item.cal) {
+        if (hasSaved) {
           badge.className = "text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-semibold";
           badge.innerText = "작성완료";
         } else {

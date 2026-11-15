@@ -624,6 +624,11 @@
 #memberView #memberDietSection label:has(input[type=file]){display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;background:#eeeaff!important;border:1px solid #cfc5f6!important;color:#5944b4!important;font-size:13px!important;font-weight:650;padding:10px 14px!important}
 #memberView #memberMemoList>div{padding:14px!important;line-height:1.7}
 #memberView #memberMemoInput{min-height:80px;font-size:16px!important}
+
+/* Mode selection follows the existing mode state. */
+#appHeader #btnMemberMode,#appHeader #btnTrainerMode{background:transparent!important;color:#4b5c76!important;box-shadow:none!important}
+#appHeader #btnMemberMode.bg-brand-500,#appHeader #btnTrainerMode.bg-indigo-600{background:#6258df!important;color:#fff!important;box-shadow:0 3px 8px #6558df25!important}
+@media(prefers-reduced-motion:reduce){.home-record-card,.member-home-tile{transition:none!important;transform:none!important}}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">

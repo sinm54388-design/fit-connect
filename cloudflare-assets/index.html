@@ -502,6 +502,38 @@
       #memberBottomNav{left:10px!important;right:10px!important;border-radius:20px 20px 0 0!important}
     }
 
+  
+    /* Unified member pages: workout, diet, growth and feedback share the same light premium system. */
+    #memberView>section{margin-top:22px}
+    #memberView>section>div.bg-slate-900,#memberView>section.bg-slate-900,#memberView #memberInsightsSection>div{background:rgba(255,255,255,.96)!important;border:1px solid #dde8f5!important;border-radius:22px!important;box-shadow:0 10px 26px rgba(55,84,130,.075)!important}
+    #memberView #memberInsightsSection>div:first-child{background:linear-gradient(135deg,#f0edff,#eef6ff)!important;border-color:#d9d3ff!important}
+    #memberView #memberInsightsSection>div:first-child h3 i{color:#715bf6!important}
+    #memberView #memberRoutineList>*,#memberView #memberMemoList>*{border-radius:15px!important}
+    #memberView #memberRoutineList .bg-slate-950,#memberView #memberRoutineList .bg-slate-900{background:#f7faff!important;border-color:#deebf7!important}
+    #memberView details{background:#f7faff;border:1px solid #e0eaf6;border-radius:16px;padding:0 14px}
+    #memberView details[open]{background:#f4f8ff;border-color:#c7daf7}
+    #memberView details summary{padding:14px 0;font-weight:700;color:#213653}
+    #memberView #memberMemoList{scrollbar-color:#b7c9e3 transparent}
+    #memberView #memberMemoList>div{border:1px solid #e1eaf6!important;background:#f8fbff!important}
+    #memberView #memberExerciseVideos>*,#memberView #memberFormVideos>*{background:#f8fbff!important;border:1px solid #dfe9f7!important;border-radius:17px!important;box-shadow:none!important}
+    #memberView #memberVideoUploadStatus{background:#eef5ff!important;color:#346094!important;border:1px solid #cfe1fa}
+    #memberView #memberWeeklyReport>*,#memberView #memberMonthlyReport>*,#memberView #memberStrengthProgress>*,#memberView #memberInbodyChart>*,#memberView #memberPtSummary>*{border-radius:16px!important}
+    #memberView canvas{max-width:100%;border-radius:14px}
+    #memberView .meal-shortcuts-toggle{background:linear-gradient(135deg,#f2efff,#edf7ff)!important;border-color:#ded7ff!important;border-radius:18px!important}
+    #memberView .food-card{background:#fff!important;border:1px solid #dfe8f4!important;border-radius:16px!important;box-shadow:0 6px 16px rgba(48,83,138,.05)!important}
+    #memberView .food-card .bg-slate-950,#memberView .food-card .bg-slate-900{background:#f8fbff!important}
+    #memberView .member-set-check{border-radius:12px!important;background:#eef5ff!important;border-color:#d3e3fb!important}
+    #memberView .member-set-check:has(input:checked){background:#e5fbf3!important;border-color:#9ce1cc!important}
+    #memberView #previousWorkoutRecords>*,#memberView #memberRegistryList>*{background:#f8fbff!important;border:1px solid #dfe9f5!important;border-radius:14px!important}
+    #memberView .quick-feedback-btn{background:#eef3ff!important;border-color:#d5e2fb!important;color:#3867c8!important;border-radius:999px!important}
+    #memberView .quick-feedback-btn:hover{background:#e2edff!important;border-color:#9abdf9!important}
+    @media(max-width:639px){
+      #memberView>section{margin-top:16px}
+      #memberView>section>div.bg-slate-900,#memberView>section.bg-slate-900,#memberView #memberInsightsSection>div{border-radius:19px!important}
+      #memberView details{padding:0 12px}
+      #memberView .food-card{border-radius:14px!important}
+    }
+
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">

@@ -1406,6 +1406,7 @@
       arrangeMemberDashboard();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       setupAutoHideHeader();
+      setupMemberBottomNavAutoHide();
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
         setupMealEditor(m);
@@ -1476,6 +1477,27 @@
         });
       }, {passive:true});
       header.addEventListener('focusin', () => header.classList.remove('header-hidden'));
+    }
+
+    // Hide the fixed member menu while reading down and reveal it with a short upward scroll.
+    function setupMemberBottomNavAutoHide() {
+      const nav=document.getElementById('memberBottomNav');
+      if(!nav)return;
+      let lastY=Math.max(0,window.scrollY),direction=0,directionStart=lastY,pending=false;
+      const show=()=>document.body.classList.remove('member-nav-hidden');
+      window.addEventListener('scroll',()=>{
+        if(pending)return;
+        pending=true;
+        requestAnimationFrame(()=>{
+          const y=Math.max(0,window.scrollY),difference=y-lastY,nextDirection=Math.sign(difference);
+          if(nextDirection&&nextDirection!==direction){direction=nextDirection;directionStart=lastY;}
+          if(y<80||(direction<0&&directionStart-y>12))show();
+          else if(direction>0&&y-directionStart>28&&currentMode==='member'&&hasMemberAccess())
+            document.body.classList.add('member-nav-hidden');
+          lastY=y;pending=false;
+        });
+      },{passive:true});
+      nav.addEventListener('focusin',show);
     }
 
     function jumpTrainerSection(id) {

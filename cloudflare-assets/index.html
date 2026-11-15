@@ -629,6 +629,22 @@
 #appHeader #btnMemberMode,#appHeader #btnTrainerMode{background:transparent!important;color:#4b5c76!important;box-shadow:none!important}
 #appHeader #btnMemberMode.bg-brand-500,#appHeader #btnTrainerMode.bg-indigo-600{background:#6258df!important;color:#fff!important;box-shadow:0 3px 8px #6558df25!important}
 @media(prefers-reduced-motion:reduce){.home-record-card,.member-home-tile{transition:none!important;transform:none!important}}
+
+#memberView .growth-report-details{padding:0!important;border-radius:20px!important;background:white!important;border:1px solid #dce5f1!important}
+#memberView .growth-report-details>summary{padding:19px!important;font-size:15px!important;color:#354c70!important;min-height:56px}
+#memberView .growth-report-details>div{padding:0 16px 16px}
+#memberView .growth-report-details>div>div{padding:18px;background:#f6f8fd!important;border:1px solid #e1e8f3!important;border-radius:17px!important}
+#memberView .coach-conversation{background:#fff!important;border-radius:22px!important}
+#memberView #memberMemoList{min-height:100px;max-height:420px;padding:12px!important;background:#f5f7fc;border-radius:16px;margin-bottom:14px!important}
+#memberView #memberMemoList>[data-memo-role]{background:transparent!important;border:0!important;padding:7px 0!important}
+#memberView #memberMemoList [data-memo-role]>div{font-size:14px!important;line-height:1.7!important;padding:12px 15px!important;max-width:88%}
+#memberView #memberMemoList [data-memo-role=coach]>div{background:#fff!important;border:1px solid #dce4f1!important;border-radius:16px 16px 16px 4px!important;color:#243953!important}
+#memberView #memberMemoList [data-memo-role=member]>div{background:#edeaff!important;border:1px solid #d5ccf7!important;border-radius:16px 16px 4px 16px!important;color:#302554!important}
+#memberView #memberMemoList [data-memo-role]>div>div:first-child{font-size:11px!important;color:#61718b!important;margin-bottom:5px}
+#memberView .coach-video-upload form{padding:17px!important;border-radius:17px!important;background:#f5f7fc!important}
+#memberView .coach-video-upload form input,#memberView .coach-video-upload form textarea{min-height:46px}
+#memberView .coach-video-upload button[type=submit]{width:100%;min-height:46px;background:#6558df!important;color:white!important;border-radius:13px}
+@media(max-width:639px){#memberView #memberMemoList{max-height:340px}#memberView .growth-report-details>div{padding:0 12px 12px}}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1654,8 +1670,17 @@
       home.append(shortcuts);
       make('workout','memberExerciseSection','오늘의 운동','운동 루틴과 세트를 기록하고 움직임을 확인하세요.').append(workout,history,guide,reflection);
       make('diet','memberDietSection','오늘의 식단','끼니별 식사와 영양, 수분을 기록하세요.').append(diet);
-      make('growth','memberGrowthPage','나의 성장','꾸준히 쌓아온 운동과 신체 변화를 확인하세요.').append(calendar,growth);
-      make('feedback','memberFeedbackPage','트레이너 피드백','운동 영상을 보내고 코치님과 소통하세요.').append(feedback,videos,memo);
+      const growthPage=make('growth','memberGrowthPage','나의 성장','최근 변화를 먼저 보고, 꾸준히 쌓인 기록을 확인하세요.');
+      const bodyCard=document.getElementById('memberInbodyChart').parentElement;
+      const goalCard=document.getElementById('memberGoalSummary').parentElement;
+      const reportDetails=document.createElement('details');reportDetails.className='growth-report-details';
+      const reportSummary=document.createElement('summary');reportSummary.textContent='주간·월간 상세 리포트 보기';
+      const reportContent=document.createElement('div');reportContent.className='space-y-4';
+      ['memberWeeklyReport','memberMonthlyReport','memberStrengthProgress','memberPtSummary'].forEach(id=>reportContent.append(document.getElementById(id).parentElement));
+      reportDetails.append(reportSummary,reportContent);growth.replaceChildren(bodyCard,goalCard,calendar,reportDetails);growthPage.append(growth);
+      const feedbackPage=make('feedback','memberFeedbackPage','코치님과 소통','코치 답변을 확인하고, 메모와 운동 영상으로 질문하세요.');
+      memo.classList.add('coach-conversation');videos.classList.add('coach-video-upload');
+      feedbackPage.append(feedback,memo,videos);
       oldGrid.remove();oldNav.remove();
       const nav=document.createElement('nav');nav.id='memberBottomNav';nav.setAttribute('aria-label','회원 페이지 메뉴');nav.hidden=true;
       memberPages.forEach(([key,label,icon])=>{
@@ -2263,7 +2288,7 @@
         const nameColor = isTrainer ? 'text-brand-400' : 'text-indigo-300';
         const who = isTrainer ? '코치님' : `${esc(activeMemberName)} 회원님`;
         return `
-          <div class="flex ${isTrainer ? 'justify-start' : 'justify-end'}">
+          <div data-memo-role="${isTrainer ? 'coach' : 'member'}" class="flex ${isTrainer ? 'justify-start' : 'justify-end'}">
             <div class="max-w-[85%] rounded-xl px-3 py-2 text-xs text-slate-100 ${bubble}">
               <div class="text-[10px] font-semibold ${nameColor} mb-0.5">${who} · ${esc(m.time)}</div>
               <div class="whitespace-pre-wrap">${esc(m.text)}</div>

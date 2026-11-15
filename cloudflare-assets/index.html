@@ -427,6 +427,51 @@
     #memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#6ee7d2,#39c6b8)!important;color:#08201f!important;box-shadow:0 7px 18px rgba(57,198,184,.2)}
     @media(max-width:639px){#memberView .member-page-heading h2{font-size:24px}#memberView .member-home-tile{min-height:92px;padding:13px}#memberView .member-home-tile strong{font-size:15px}}
 
+  
+    /* Second visual direction: clean dashboard + energetic progress accents.
+       Presentation only — all existing IDs, callbacks and content remain unchanged. */
+    :root{--ink:#13233d;--ink-soft:#61718a;--paper:#ffffff;--canvas:#f3f7ff;--line:#dfe8f5;--blue:#2d7ff9;--violet:#7455ff;--mint:#2bc99c;--coral:#ff8a62}
+    body{background:radial-gradient(850px 560px at 100% 0%,rgba(122,84,255,.16),transparent 59%),radial-gradient(680px 500px at 0% 17%,rgba(49,151,255,.14),transparent 60%),var(--canvas)!important;color:var(--ink)!important}
+    #appHeader{background:rgba(255,255,255,.88)!important;border-color:#e4ebf5!important;box-shadow:0 6px 22px rgba(33,65,110,.09)!important;backdrop-filter:blur(18px)}
+    #appHeader .text-white,#appHeader .header-brand-title{color:#102647!important}
+    #appHeader .header-brand-desc{color:#6b7b93!important}
+    #appHeader .header-sync-badge{background:#e8fbf5!important;color:#139773!important;border-color:#c8f0e5!important}
+    #appHeader .header-mode-button{background:#f5f8fd!important;color:#29425f!important;border-color:#dce7f4!important}
+    #appHeader input{background:#f6f9fd!important;color:#1b2d48!important;border-color:#dce7f4!important}
+    #memberView{color:var(--ink)}
+    #memberView .member-page-heading h2{font-size:27px!important;line-height:1.18;color:#142746!important;font-weight:800;letter-spacing:-.065em}
+    #memberView .member-page-heading p{color:var(--ink-soft)!important;font-size:14px}
+    #memberHomePage>div:first-child{position:relative;overflow:hidden;background:linear-gradient(125deg,#316eee 0%,#7555f3 50%,#ec78a7 100%)!important;border:0!important;border-radius:24px!important;box-shadow:0 16px 34px rgba(73,84,196,.22)!important}
+    #memberHomePage>div:first-child:after{content:'';position:absolute;right:-64px;bottom:-104px;width:270px;height:270px;border:26px solid rgba(255,255,255,.18);border-radius:50%;pointer-events:none}
+    #memberHomePage>div:first-child .text-white{color:#fff!important}
+    #memberHomePage>div:first-child .text-slate-400,#memberHomePage>div:first-child .text-slate-300{color:rgba(255,255,255,.8)!important}
+    #memberHomePage>div:first-child .bg-slate-950\/50,#memberHomePage>div:first-child .bg-slate-950{background:rgba(11,29,81,.2)!important;border-color:rgba(255,255,255,.2)!important;backdrop-filter:blur(8px)}
+    #memberHomePage>div:first-child .bg-slate-800{background:rgba(255,255,255,.32)!important}
+    .member-home-shortcuts{gap:12px}
+    .member-home-tile{background:rgba(255,255,255,.94)!important;border:1px solid rgba(255,255,255,.88)!important;border-radius:20px!important;box-shadow:0 9px 22px rgba(46,70,123,.1)!important;min-height:98px}
+    .member-home-tile>i:first-child{color:#2f82f7!important;background:#e9f3ff!important;padding:11px;border-radius:13px}
+    .member-home-tile:nth-child(2)>i:first-child{color:#e76c48!important;background:#fff0e9!important}
+    .member-home-tile:nth-child(3)>i:first-child{color:#22ae84!important;background:#e7fbf4!important}
+    .member-home-tile:nth-child(4)>i:first-child{color:#8064f6!important;background:#f1edff!important}
+    .member-home-tile strong{color:#1a2b48!important;font-size:16px}.member-home-tile small{color:#7687a1!important;font-size:12px}
+    #memberView .rounded-2xl{background:var(--paper)!important;border-color:var(--line)!important;box-shadow:0 10px 28px rgba(45,72,118,.08)!important}
+    #memberView .bg-slate-900{background:#fff!important}
+    #memberView .bg-slate-950{background:#f7faff!important}
+    #memberView .bg-slate-800{background:#edf3fb!important}
+    #memberView .border-slate-800,#memberView .border-slate-700{border-color:#dfe8f5!important}
+    #memberView .text-white{color:#172a48!important}
+    #memberView .text-slate-400{color:#697a93!important}#memberView .text-slate-500{color:#8291a8!important}
+    #memberView h3,#memberView h4{color:#1b2e4d!important;font-weight:750;letter-spacing:-.045em}
+    #memberView .text-brand-400,#memberView .text-brand-500{color:#16a47b!important}
+    #memberView .bg-brand-500,#memberView .bg-brand-600,#memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#3b8eff,#7660f6)!important;color:#fff!important;border:0!important;box-shadow:0 10px 20px rgba(78,103,232,.2)!important}
+    #memberView input,#memberView textarea,#memberView select{background:#f9fbff!important;border-color:#dce7f4!important;color:#1d2e48!important}
+    #memberView input::placeholder,#memberView textarea::placeholder{color:#9aa9be!important}
+    #memberBottomNav{background:rgba(255,255,255,.94)!important;border-color:#dae6f4!important;box-shadow:0 -8px 25px rgba(45,71,112,.12)!important;backdrop-filter:blur(18px)}
+    #memberBottomNav button{color:#7c8ca3!important}
+    #memberBottomNav button.selected{background:linear-gradient(135deg,#e6f3ff,#f1ecff)!important;color:#3a63d9!important;border-color:#b8d8ff!important;box-shadow:none!important}
+    #memberBottomNav button.selected i{color:#3d7ffd!important}
+    @media(max-width:639px){#memberView .member-page-heading h2{font-size:25px!important}.member-home-tile{min-height:92px!important;padding:13px!important}#memberHomePage>div:first-child{border-radius:20px!important}}
+
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">

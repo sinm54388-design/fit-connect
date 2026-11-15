@@ -400,6 +400,33 @@
     .member-home-tile .tile-arrow{margin-left:auto;font-size:12px;color:#94a3b8}
     body.member-tabs-active #toastNotification,body.member-tabs-active #saveStatusBar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
     @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}#memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 10px))}}
+  
+    /* Visual refresh preview: presentation only, no behavior changes. */
+    :root{--ink:#edf4ff;--muted:#a9b8ce;--panel:#101b2d;--panel-2:#15233a;--line:#2b405d;--accent:#6ee7d2;--accent-deep:#16a896;--blue:#67a8ff}
+    body{background:radial-gradient(1200px 700px at 8% -12%,#17355a 0%,transparent 55%),#08111f;color:var(--ink);font-family:Inter,'Noto Sans KR',sans-serif;letter-spacing:-.015em}
+    #appHeader{background:rgba(8,17,31,.92)!important;border-color:#263d59!important;box-shadow:0 7px 28px rgba(0,0,0,.15)}
+    #appHeader .header-sync-badge{background:rgba(110,231,210,.12)!important;color:var(--accent)!important;border-color:rgba(110,231,210,.26)!important}
+    #appHeader input{color:#e6f3ff!important}
+    #memberView .member-page-heading h2{font-size:25px;color:#f6faff;letter-spacing:-.055em}
+    #memberView .member-page-heading p{color:var(--muted);font-size:14px}
+    #memberHomePage>div:first-child{background:linear-gradient(135deg,#18355a,#10243e 65%,#123a45)!important;border:1px solid #315474!important;box-shadow:0 14px 32px rgba(0,0,0,.18)}
+    .member-home-shortcuts{gap:10px}
+    .member-home-tile{min-height:96px;background:linear-gradient(145deg,#142640,#112037)!important;border-color:#2c496a!important;border-radius:18px;box-shadow:0 8px 18px rgba(0,0,0,.12);transition:transform .18s ease,border-color .18s ease}
+    .member-home-tile:hover{transform:translateY(-2px);border-color:#6ee7d2!important}
+    .member-home-tile>i:first-child{color:var(--accent)!important;background:rgba(110,231,210,.1);padding:10px;border-radius:12px}
+    .member-home-tile strong{font-size:16px;color:#f5f9ff}.member-home-tile small{color:#a9b8ce;font-size:12px}
+    #memberView .rounded-2xl{border-color:#2b4665!important;box-shadow:0 9px 24px rgba(0,0,0,.12)}
+    #memberView .bg-slate-900{background:#101d30!important}
+    #memberView .bg-slate-950{background:#0a1424!important}
+    #memberView .border-slate-800,#memberView .border-slate-700{border-color:#29415f!important}
+    #memberView .text-slate-400{color:#b0c0d5!important}#memberView .text-slate-500{color:#8ea1ba!important}
+    #memberView h3{font-size:17px;letter-spacing:-.04em}
+    #memberBottomNav{background:rgba(10,21,37,.97)!important;border-color:#2c496a!important;backdrop-filter:blur(18px);box-shadow:0 -8px 28px rgba(0,0,0,.28)}
+    #memberBottomNav button{color:#91a6c1!important}#memberBottomNav button.selected{background:linear-gradient(135deg,#155e68,#11475c)!important;color:#eafffb!important;border-color:#47c8be!important}
+    #memberBottomNav button.selected i{color:#7ff6df}
+    #memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#6ee7d2,#39c6b8)!important;color:#08201f!important;box-shadow:0 7px 18px rgba(57,198,184,.2)}
+    @media(max-width:639px){#memberView .member-page-heading h2{font-size:24px}#memberView .member-home-tile{min-height:92px;padding:13px}#memberView .member-home-tile strong{font-size:15px}}
+
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">

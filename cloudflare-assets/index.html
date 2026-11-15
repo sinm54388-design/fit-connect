@@ -2615,7 +2615,7 @@
         input.addEventListener('input', () => {dirtyMealDrafts.add(meal);updateMealDraftTotals(meal);});
         wrap.append(caption,input);grid.appendChild(wrap);
       });
-      return grid;
+      const details=document.createElement('details');details.className='food-nutrition-details';const summary=document.createElement('summary');summary.textContent='영양성분 확인 · 수정';details.append(summary,grid);return details;
     }
 
     function setupMainFoodNutrition(meal) {

@@ -380,6 +380,25 @@
       body.trainer-lime-theme #trainerView .trainer-workspace-section-title h3 {font-size:22px;}
     }
 
+
+    [data-member-page][hidden],#memberBottomNav[hidden]{display:none!important}
+    body.member-tabs-active{--member-nav-height:76px;padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+    #memberBottomNav{position:fixed;z-index:900;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:#101b2c;border-top:1px solid #334155;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px #0003}
+    #memberBottomNav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:56px;border-radius:12px;color:#a6b5c8;font-size:12px;font-weight:700;background:transparent;border:1px solid transparent}
+    #memberBottomNav button i{font-size:19px}
+    #memberBottomNav button.selected{background:#24351f;color:#bef264;border-color:#365314}
+    #memberBottomNav button:focus-visible,.member-home-tile:focus-visible{outline:2px solid #a3e635;outline-offset:2px}
+    .member-page-heading{padding:6px 2px 4px}
+    .member-page-heading h2{font-size:23px;font-weight:800;letter-spacing:-.04em;color:#f8fafc}
+    .member-page-heading p{font-size:13px;line-height:1.6;color:#a6b5c8;margin-top:4px}
+    .member-home-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .member-home-tile{display:flex;text-align:left;align-items:center;gap:10px;min-height:108px;padding:14px;border:1px solid #334155;border-radius:16px;background:#172438;color:#f1f5f9}
+    .member-home-tile>i:first-child{font-size:20px;color:#a3e635}
+    .member-home-tile strong{display:block;font-size:16px}
+    .member-home-tile small{display:block;font-size:11px;color:#a6b5c8;line-height:1.5;margin-top:5px}
+    .member-home-tile .tile-arrow{margin-left:auto;font-size:12px;color:#94a3b8}
+    body.member-tabs-active #toastNotification,body.member-tabs-active #saveStatusBar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+    @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}}
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -749,12 +768,13 @@
        </section>
        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
-         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 용량이 크면 휴대폰에서 자동으로 압축해 업로드해요.</p>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v13 · 페이지 메뉴)</p>
          <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
            <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
            <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
            <textarea id="memberVideoQuestion" maxlength="500" rows="2" placeholder="어떤 부분이 어려웠나요? (선택)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm"></textarea>
            <button type="submit" class="bg-sky-600 rounded-lg px-4 py-2 text-sm font-semibold">운동 영상 보내기</button>
+           <div id="memberVideoUploadStatus" role="status" aria-live="polite" class="hidden text-xs text-slate-300 whitespace-pre-line rounded-lg bg-slate-900 p-3"></div>
          </form>
          <div id="memberFormVideos" class="space-y-3"></div>
        </section>
@@ -1294,6 +1314,9 @@
     let historyData = { month: habitMonth, days: [], previous: {} };
     let exerciseVideos = [];
     let formVideos = [];
+    let formVideoListOwner='';
+    function videoListOwner(){return JSON.stringify([activeMemberName,currentMode,memberToken,currentMode==='trainer'?trainerPassword:'']);}
+    function clearForeignVideoLists(){if(formVideoListOwner===videoListOwner())return;formVideos=[];exerciseVideos=[];formVideoListOwner='';for(const id of ['memberFormVideos','trainerFormVideos','memberExerciseVideos','trainerExerciseVideos']){const el=document.getElementById(id);if(el)el.textContent='영상을 불러오는 중…';}}
     const VIDEO_LIMIT = 20 * 1024 * 1024;
     const VIDEO_INPUT_LIMIT = 200 * 1024 * 1024;
     const VIDEO_MAX_DURATION = 40;
@@ -1313,40 +1336,66 @@
       document.getElementById('memberView').classList.toggle('hidden', currentMode !== 'member' || blocked);
       document.getElementById('habitCalendarTop').classList.toggle('hidden', currentMode !== 'member' || blocked);
       if (blocked) document.getElementById('syncError').classList.add('hidden');
+      syncMemberNavigation();
       return !blocked;
     }
 
     // 기존 카드를 옮겨 이벤트/데이터 연동은 그대로 유지하고 표시 순서만 개선합니다.
-    function arrangeMemberDashboard() {
-      const view = document.getElementById('memberView');
-      const oldGrid = view.querySelector('.lg\\:grid-cols-12');
-      const workout = document.getElementById('memberRoutineList').parentElement;
-      const diet = document.getElementById('meal-breakfast-desc').closest('.rounded-2xl');
-      const memo = document.getElementById('memberMemoList').parentElement;
-      const reflection = document.getElementById('workoutReflectionForm').parentElement;
-      const history = document.getElementById('previousWorkoutRecords').closest('section');
-      const guide = document.getElementById('memberExerciseVideos').closest('section');
-      const videos = document.getElementById('memberFormVideos').closest('section');
-      const makeGroup = (title, note) => {
-        const section = document.createElement('section');
-        section.className = 'space-y-4';
-        section.innerHTML = `<div><h3 class="text-base font-bold text-white">${title}</h3><p class="text-xs text-slate-400 mt-1">${note}</p></div>`;
-        view.appendChild(section);
-        return section;
+    const memberPages=[['home','홈','fa-house'],['workout','운동','fa-dumbbell'],['diet','식단','fa-utensils'],['growth','성장','fa-chart-line'],['feedback','피드백','fa-comment-dots']];
+    let memberPage='home';
+    function navigateMemberPage(page,scroll=true){
+      if(!memberPages.some(x=>x[0]===page))return;
+      memberPage=page;
+      document.querySelectorAll('[data-member-page]').forEach(el=>{el.hidden=el.dataset.memberPage!==page;});
+      document.querySelectorAll('[data-member-tab]').forEach(el=>{
+        const selected=el.dataset.memberTab===page;
+        el.classList.toggle('selected',selected);
+        if(selected)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
+      });
+      if(scroll){document.getElementById('appHeader')?.classList.remove('header-hidden');window.scrollTo(0,0);}
+    }
+    function syncMemberNavigation(){
+      const active=currentMode==='member'&&hasMemberAccess();
+      document.body.classList.toggle('member-tabs-active',active);
+      const nav=document.getElementById('memberBottomNav');if(nav)nav.hidden=!active;
+    }
+    function arrangeMemberDashboard(){
+      const view=document.getElementById('memberView');
+      if(!view||document.getElementById('memberBottomNav'))return;
+      const oldGrid=view.querySelector('.lg\\:grid-cols-12'),oldNav=view.querySelector('nav');
+      const summary=view.firstElementChild,feedback=document.getElementById('trainerFeedbackCard');
+      const workout=document.getElementById('memberRoutineList').parentElement;
+      const diet=document.getElementById('meal-breakfast-desc').closest('.rounded-2xl');
+      const memo=document.getElementById('memberMemoList').parentElement;
+      const reflection=document.getElementById('workoutReflectionForm').parentElement;
+      const history=document.getElementById('previousWorkoutRecords').closest('section');
+      const guide=document.getElementById('memberExerciseVideos').closest('section');
+      const videos=document.getElementById('memberFormVideos').closest('section');
+      const growth=document.getElementById('memberInsightsSection'),calendar=document.getElementById('habitCalendarTop');
+      if([oldGrid,oldNav,summary,feedback,workout,diet,memo,reflection,history,guide,videos,growth,calendar].some(x=>!x))return;
+      const make=(key,id,title,note)=>{
+        const el=document.createElement('section');el.id=id;el.dataset.memberPage=key;el.className='member-page space-y-4';
+        if(title){const head=document.createElement('div');head.className='member-page-heading';head.innerHTML='<h2>'+title+'</h2><p>'+note+'</p>';el.append(head);}
+        view.append(el);return el;
       };
-      const exerciseGroup = makeGroup('01 · 오늘의 운동', '루틴 확인, 이전 중량 참고, 자세 영상');
-      exerciseGroup.id = 'memberExerciseSection';
-      exerciseGroup.classList.add('member-jump-target');
-      exerciseGroup.append(workout, guide, videos);
-      const dietGroup = makeGroup('02 · 오늘의 식단', '사진과 간단한 식사 기록');
-      dietGroup.id = 'memberDietSection';
-      dietGroup.classList.add('member-jump-target');
-      dietGroup.append(diet);
-      const checkGroup = makeGroup('03 · 운동 소감과 질문', '컨디션과 불편한 점을 코치님께 알려주세요');
-      checkGroup.append(reflection, memo);
-      const historyGroup = makeGroup('04 · 나의 성장 기록', '지난 운동 기록과 꾸준히 운동한 날짜');
-      historyGroup.append(history, document.getElementById('habitCalendarTop'), document.getElementById('memberInsightsSection'));
-      oldGrid.remove();
+      const home=make('home','memberHomePage','','');
+      home.append(summary);
+      const shortcuts=document.createElement('div');shortcuts.className='member-home-shortcuts';
+      const descriptions={workout:'루틴 · 세트 체크 · 운동 소감',diet:'끼니별 기록 · 영양 · 수분',growth:'운동 달력 · 인바디 · PT',feedback:'운동 영상 · 코치님과 소통'};
+      memberPages.slice(1).forEach(([key,label,icon])=>{
+        const btn=document.createElement('button');btn.type='button';btn.className='member-home-tile';btn.innerHTML='<i class="fa-solid '+icon+'" aria-hidden="true"></i><span><strong>'+label+'</strong><small>'+descriptions[key]+'</small></span><i class="fa-solid fa-angle-right tile-arrow" aria-hidden="true"></i>';btn.addEventListener('click',()=>navigateMemberPage(key));shortcuts.append(btn);
+      });
+      home.append(shortcuts);
+      make('workout','memberExerciseSection','오늘의 운동','운동 루틴과 세트를 기록하고 움직임을 확인하세요.').append(workout,history,guide,reflection);
+      make('diet','memberDietSection','오늘의 식단','끼니별 식사와 영양, 수분을 기록하세요.').append(diet);
+      make('growth','memberGrowthPage','나의 성장','꾸준히 쌓아온 운동과 신체 변화를 확인하세요.').append(calendar,growth);
+      make('feedback','memberFeedbackPage','트레이너 피드백','운동 영상을 보내고 코치님과 소통하세요.').append(feedback,videos,memo);
+      oldGrid.remove();oldNav.remove();
+      const nav=document.createElement('nav');nav.id='memberBottomNav';nav.setAttribute('aria-label','회원 페이지 메뉴');nav.hidden=true;
+      memberPages.forEach(([key,label,icon])=>{
+        const btn=document.createElement('button');btn.type='button';btn.dataset.memberTab=key;btn.innerHTML='<i class="fa-solid '+icon+'" aria-hidden="true"></i><span>'+label+'</span>';btn.addEventListener('click',()=>navigateMemberPage(key));nav.append(btn);
+      });
+      document.body.append(nav);navigateMemberPage('home',false);syncMemberNavigation();
     }
 
     document.addEventListener("DOMContentLoaded", async function () {
@@ -1438,6 +1487,7 @@
     function jumpMemberSection(id) {
       let target = document.getElementById(id);
       if (!target) return;
+      const page=target.closest('[data-member-page]');if(page&&currentMode==='member')navigateMemberPage(page.dataset.memberPage,false);
       if (id === 'trainerFeedbackCard' && target.classList.contains('hidden')) {
         showToast('아직 등록된 트레이너 피드백이 없어요.');
         return;
@@ -1534,7 +1584,12 @@
         if(key==='diet'){
           const diet={};
           for(const meal of [...MEAL_KEYS,'water']){
-            if(JSON.stringify(before.diet?.[meal])!==JSON.stringify(after.diet?.[meal]))diet[meal]=after.diet[meal];
+            if(JSON.stringify(before.diet?.[meal])!==JSON.stringify(after.diet?.[meal])){
+              // Undefined is removed by JSON serialization, causing cleared meals
+              // to become no-ops on the fast patch route. Use the canonical save.
+              if(after.diet?.[meal]===undefined)return null;
+              diet[meal]=after.diet[meal];
+            }
           }
           if(!Object.keys(diet).length)return null;
           patch.diet=diet;
@@ -1690,6 +1745,7 @@
 
     async function loadDataFromCloud(silent = false) {
       if (silent && queuedSaveCount > 0) return;
+      clearForeignVideoLists();
       if (!updateAccessState()) return;
       const request = ++latestLoadRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
@@ -2407,7 +2463,7 @@
         }
 
         const badge = document.getElementById(`badge-${m}`);
-        if (item.desc || item.cal) {
+        if (hasSaved) {
           badge.className = "text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-semibold";
           badge.innerText = "작성완료";
         } else {
@@ -2461,6 +2517,7 @@
 
     function getMealValues(m) {
       const foods=getFoodRows(m).map(readFood).filter(f=>f.name||FOOD_NUTRIENTS.some(({key})=>f[key]!==''));
+      if (!foods.length) return { desc: '', cal: '', carb: '', prot: '', fat: '', foods: [] };
       const totals={};
       FOOD_NUTRIENTS.forEach(({key})=>totals[key]=String(Math.round(foods.reduce((sum,f)=>sum+(Math.max(0,Number(f[key]))||0),0)*100)/100));
       return {
@@ -2472,7 +2529,10 @@
 
     async function saveSingleMeal(meal) {
       const values = getMealValues(meal);
-      const saved = await updateAndSave(d => { d.diet[meal] = { ...(d.diet[meal] || {}), ...values }; });
+      const saved = await updateAndSave(d => {
+        if (!values.foods.length) delete d.diet[meal];
+        else d.diet[meal] = { ...(d.diet[meal] || {}), ...values };
+      });
       if (saved) {
         dirtyMealDrafts.delete(meal);
         mealEditorOpen.delete(meal);
@@ -2484,7 +2544,10 @@
     function saveDietLog() {
       const values = {};
       MEAL_KEYS.forEach(m => { values[m] = getMealValues(m); });
-      updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = { ...(d.diet[m] || {}), ...values[m] }; }); }).then(saved => {
+      updateAndSave(d => { MEAL_KEYS.forEach(m => {
+        if (!values[m].foods.length) delete d.diet[m];
+        else d.diet[m] = { ...(d.diet[m] || {}), ...values[m] };
+      }); }).then(saved => {
         if (saved) { dirtyMealDrafts.clear();mealEditorOpen.clear();renderMemberDiet(appData.diet || {},2100);loadFoodShortcuts(); }
       });
     }
@@ -2509,6 +2572,7 @@
     async function switchMode(mode) {
       resetSaveStatus();
       currentMode = mode;
+      clearForeignVideoLists();
       document.body.classList.toggle('trainer-lime-theme', mode === 'trainer');
       latestLoadRequest++;
       resetRoutineForms();
@@ -3426,7 +3490,9 @@ try {
     async function loadExtras() {
       const request = ++extrasRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
+      clearForeignVideoLists();
       if (!member) return;
+      const owner=videoListOwner();
       const auth = {member, date, token:memberToken,
         ...(mode==='trainer'&&trainerPassword?{password:trainerPassword}:{})};
       const isCurrent = () => request===extrasRequest && member===activeMemberName && date===selectedDate && mode===currentMode;
@@ -3468,11 +3534,19 @@ try {
           renderExerciseVideos();
           if(currentMode==='member'&&appData)renderMemberRoutines(appData.routines||[]);
         }).catch(e=>console.warn('운동 영상 조회 오류',e));
-      const formRequest=cachedExtraRead({...auth,action:'listFormVideos'})
-        .then(videos=>{
+      const formRequest=Promise.allSettled([cachedExtraRead({...auth,action:'listFormVideos'}),directVideoRequest({...auth,action:'directVideoList'})])
+        .then(results=>{
+          const legacy=results[0].status==='fulfilled'&&results[0].value?.status==='success'?results[0].value:null;
+          const direct=results[1].status==='fulfilled'&&results[1].value?.status==='success'?results[1].value:null;
+          if(!isCurrent())return;
+          if(!legacy&&!direct)throw Error('영상 목록 조회 실패');
+          const previous=formVideoListOwner===owner?(formVideos||[]):[];
+          const combined=[...(direct?.videos||previous.filter(v=>String(v.id||'').startsWith('direct:'))),...(legacy?.videos||previous.filter(v=>!String(v.id||'').startsWith('direct:')))];
+          const videos={status:'success',videos:[...new Map(combined.map(v=>[String(v.id),v])).values()]};
           if(!isCurrent())return;
           if(videos.status!=='success')throw Error(videos.message||'자세 영상 조회 실패');
           formVideos=videos.videos||[];
+          formVideoListOwner=owner;
           renderFormVideos();
         }).catch(e=>console.warn('자세 영상 조회 오류',e));
       await Promise.allSettled([historyRequest,exerciseRequest,formRequest]);
@@ -3559,24 +3633,52 @@ try {
         target.addEventListener(errorName,onErr,{once:true});
       });
     }
-    async function compressPrivateVideo(file){
+    // Fast local transcoding; no member video is sent to a third-party encoder.
+    async function compressFastMemberVideo(file,meta,onProgress){
+      if(typeof VideoEncoder==='undefined'||typeof VideoDecoder==='undefined')throw Error('WebCodecs unsupported');
+      const mb=await import('/vendor/mediabunny.mjs');
+      const input=new mb.Input({formats:mb.ALL_FORMATS,source:new mb.BlobSource(file)});
+      let conversion;
+      try{
+        const scale=Math.min(1,1920/Math.max(meta.width,meta.height));
+        const width=Math.max(2,Math.floor(meta.width*scale/2)*2);
+        const height=Math.max(2,Math.floor(meta.height*scale/2)*2);
+        const output=new mb.Output({format:new mb.Mp4OutputFormat({fastStart:'in-memory'}),target:new mb.BufferTarget()});
+        conversion=await mb.Conversion.init({input,output,tracks:'primary',video:{codec:'avc',width,height,fit:'contain',bitrate:5000000,hardwareAcceleration:'prefer-hardware',forceTranscode:true},audio:{}});
+        const primaryVideo=await input.getPrimaryVideoTrack();
+        const primaryAudio=await input.getPrimaryAudioTrack();
+        const critical=conversion.discardedTracks.filter(x=>x.track===primaryVideo||x.track===primaryAudio||x.track.id===primaryVideo?.id||x.track.id===primaryAudio?.id);
+        if(!conversion.isValid||!primaryVideo||!conversion.utilizedTracks.some(t=>t.id===primaryVideo.id)||(primaryAudio&&!conversion.utilizedTracks.some(t=>t.id===primaryAudio.id))||critical.length){
+          const reason=conversion.discardedTracks.map(x=>String(x.track.type)+':'+String(x.reason)).join(', ');
+          throw Error('track compatibility: '+(reason||'primary track missing'));
+        }
+        conversion.onProgress=p=>onProgress(Math.min(99,Math.floor(p*100)));
+        await conversion.execute();
+        const result=new File([output.target.buffer],file.name.replace(/\.[^.]+$/,'')+'_fast.mp4',{type:'video/mp4'});
+        if(!result.size||result.size>50000000)throw Error('invalid encoded size');
+        const check=await getPrivateVideoMetadata(result);
+        if(!Number.isFinite(check.duration)||Math.abs(check.duration-meta.duration)>0.6||check.width<width-2||check.height<height-2)throw Error('encoded video validation failed');
+        return result;
+      }finally{input.dispose?.();}
+    }
+    async function compressPrivateVideo(file,onProgress){
       if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){
         throw new Error('현재 브라우저에서 자동 영상 압축을 지원하지 않아요. iPhone은 Safari, 갤럭시는 Chrome 최신 버전으로 다시 시도해주세요.');
       }
       const sourceUrl=URL.createObjectURL(file);
       const video=document.createElement('video');
       video.preload='auto';video.playsInline=true;video.setAttribute('playsinline','');
-      video.muted=false;video.volume=0;video.src=sourceUrl;
+      video.muted=true;video.defaultMuted=true;video.setAttribute('muted','');video.volume=0;video.src=sourceUrl;
       let sourceStream=null,canvasStream=null,recorder=null;
       try{
         await waitForMediaEvent(video,'loadedmetadata');
-        const scale=Math.min(1,1280/Math.max(video.videoWidth,video.videoHeight));
+        const scale=Math.min(1,1920/Math.max(video.videoWidth,video.videoHeight));
         const width=Math.max(2,Math.round(video.videoWidth*scale/2)*2);
         const height=Math.max(2,Math.round(video.videoHeight*scale/2)*2);
         const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext('2d',{alpha:false});
         if(!ctx)throw new Error('영상 압축 화면을 준비하지 못했어요.');
-        canvasStream=canvas.captureStream(24);
+        canvasStream=canvas.captureStream(30);
         if(typeof video.captureStream==='function')sourceStream=video.captureStream();
         else if(typeof video.webkitCaptureStream==='function')sourceStream=video.webkitCaptureStream();
         if(sourceStream){
@@ -3584,7 +3686,7 @@ try {
         }
         const mimeCandidates=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp8,opus','video/webm'];
         const mimeType=mimeCandidates.find(type=>MediaRecorder.isTypeSupported(type))||'';
-        const options={videoBitsPerSecond:1400000,audioBitsPerSecond:96000};
+        const options={videoBitsPerSecond:2800000,audioBitsPerSecond:96000};
         if(mimeType)options.mimeType=mimeType;
         const chunks=[];
         recorder=new MediaRecorder(canvasStream,options);
@@ -3594,7 +3696,7 @@ try {
           recorder.onerror=()=>reject(new Error('영상 압축에 실패했어요. 원본 영상을 다시 선택해주세요.'));
         });
         recorder.start(500);
-        await video.play();
+        try{await video.play();}catch(err){throw new Error('기본 압축 재생 실패 · '+(err.name||'media error')+' · Safari에서 직접 접속해 다시 시도해주세요.');}
         await new Promise((resolve,reject)=>{
           let raf=0,finished=false;
           const cleanup=()=>{cancelAnimationFrame(raf);video.removeEventListener('ended',onEnded);video.removeEventListener('error',onError);};
@@ -3604,6 +3706,7 @@ try {
           const draw=()=>{
             if(finished)return;
             try{ctx.drawImage(video,0,0,width,height);}catch(e){}
+            if(onProgress&&Number.isFinite(video.duration)&&video.duration>0)onProgress(Math.min(99,Math.floor(video.currentTime/video.duration*100)));
             if(video.ended||video.currentTime>=video.duration){finish();return;}
             raf=requestAnimationFrame(draw);
           };
@@ -3645,38 +3748,263 @@ try {
       const init=await apiPost({...creds,action:'beginVideoUpload',kind,name,question,tip,mime:uploadFile.type,size:uploadFile.size});
       if(init.status!=='success')throw Error(init.message||'업로드 준비 실패');
       const id=init.uploadId,parts=Math.ceil(uploadFile.size/VIDEO_CHUNK);
-      for(let i=0;i<parts;i++){
-        const chunk=new Uint8Array(await uploadFile.slice(i*VIDEO_CHUNK,Math.min(uploadFile.size,(i+1)*VIDEO_CHUNK)).arrayBuffer());
-        const r=await apiPost({...creds,action:'videoChunk',uploadId:id,index:i,total:parts,base64:bytesToBase64(chunk)});
-        if(r.status!=='success')throw Error(r.message||'영상 업로드 중 오류');
-        showToast(`영상 업로드 ${Math.round((i+1)/parts*100)}%`);
+      let nextPart=0,completed=0,uploadError=null;
+      // Limit parallel requests to avoid flooding Apps Script on mobile.
+      async function sendParts(){
+        while(!uploadError && nextPart<parts){
+          const i=nextPart++;
+          try{
+            const chunk=new Uint8Array(await uploadFile.slice(i*VIDEO_CHUNK,Math.min(uploadFile.size,(i+1)*VIDEO_CHUNK)).arrayBuffer());
+            const r=await apiPost({...creds,action:'videoChunk',uploadId:id,index:i,total:parts,base64:bytesToBase64(chunk)});
+            if(r.status!=='success')throw Error(r.message||'영상 전송 실패');
+            completed++;
+            showToast('영상 전송 '+Math.min(95,Math.round(completed/parts*95))+'%');
+          }catch(e){uploadError=e;}
+        }
       }
-      const done=await apiPost({...creds,action:'finishVideoUpload',uploadId:id});
-      if(done.status!=='success')throw Error(done.message||'영상 저장 실패');
+      await Promise.all([sendParts(),sendParts(),sendParts()]);
+      if(uploadError)throw uploadError;
+      showToast('영상 최종 저장 중 · 화면을 유지해주세요');
+      let finishError=null;
+      try{
+        const done=await apiPost({...creds,action:'finishVideoUpload',uploadId:id});
+        if(done.status!=='success')throw Error(done.message||'영상 저장 실패');
+      }catch(e){finishError=e;}
+      // Verify the original list, not a cached promise. Do not resend finish
+      // automatically: the upstream write could have succeeded despite a timeout.
+      extraReadCache.clear();
+      if(finishError)throw Error('최종 저장 결과를 확인하지 못했어요. 영상 목록을 새로고침해 확인해주세요. ('+finishError.message+')');
+      showToast('영상 저장 완료 · 목록 확인 중');
+      const action=kind==='member'?'listFormVideos':'listExerciseVideos';
+      const listed=await apiPost({...creds,action});
+      if(listed.status!=='success')throw Error('영상은 저장됐지만 목록 조회에 실패했어요. 새로고침해주세요.');
+      extraReadCache.clear();
+      if(activeMemberName===creds.member){
+        if(kind==='member'){formVideos=listed.videos||[];renderFormVideos();}
+        else{exerciseVideos=listed.videos||[];renderExerciseVideos();}
+      }
     }
     async function playPrivateVideo(id,button){
       if(button.dataset.loading==='1')return;
       const box=button.parentElement;
-      if(videoObjectUrls.has(id)){
-        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=videoObjectUrls.get(id);box.appendChild(video);button.remove();return;
+      const context=getSaveContext();
+      const cacheKey=JSON.stringify([context.mode,context.member,context.token,context.password,id]);
+      const playbackStarted=performance.now();
+      const attachVideo=(url,source)=>{
+        if(!button.isConnected||!isCurrentSaveContext(context))return;
+        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='auto';video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
+        const status=document.createElement('p');status.className='text-xs text-slate-400 mt-1';status.textContent=source+' · 재생 준비 중';box.appendChild(status);
+        video.addEventListener('playing',()=>{const ms=performance.now()-playbackStarted;status.textContent=source+' · '+(ms/1000).toFixed(2)+'초';perfMark('영상 재생 · '+source,ms,true);},{once:true});
+        video.addEventListener('error',()=>{status.textContent=source+' · 재생 오류';},{once:true});
+        video.autoplay=true;video.muted=true;video.play().catch(()=>{});
+      };
+      if(videoObjectUrls.has(cacheKey)){
+        attachVideo(videoObjectUrls.get(cacheKey),'브라우저 캐시');return;
       }
       button.dataset.loading='1';button.textContent='영상 불러오는 중...';
       try{
         const creds=apiCredentials();
+        if(id.startsWith('direct:')){const direct=await directVideoRequest({...creds,action:'directVideoPlay',id});attachVideo(direct.url,'Supabase 직접 스트리밍');return;}
+        let streamed=null,streamReason='network_error';
+        const signingStarted=performance.now();
+        try {
+          const response=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({...creds,action:'videoPlaybackUrl',fileId:id})});
+          streamed=await response.json();
+          streamReason=String(streamed.code||streamed.status||('HTTP '+response.status));
+          perfMark('영상 스트리밍 주소 · '+streamReason,performance.now()-signingStarted,response.ok&&streamed.status==='success');
+        }catch{}
+        if(streamed?.status==='success'&&streamed.url){
+          if(!button.isConnected||!isCurrentSaveContext(context))return;
+          attachVideo(streamed.url,'Supabase 스트리밍');
+          return;
+        }
         const result=await apiPost({...creds,action:'videoDownload',fileId:id});
         if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
         const bytes=base64ToBytes(result.base64);
-        const url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));videoObjectUrls.set(id,url);
-        const video=document.createElement('video');video.controls=true;video.playsInline=true;video.className='w-full mt-2 rounded-lg';video.src=url;box.appendChild(video);button.remove();
+        if(!button.isConnected||!isCurrentSaveContext(context))return;
+        const url=URL.createObjectURL(new Blob([bytes],{type:result.mime||'video/mp4'}));videoObjectUrls.set(cacheKey,url);
+        attachVideo(url,'Drive 대체 조회 ('+streamReason+')');
       }catch(e){alert(e.message);button.textContent='▶ 다시 재생 시도';button.dataset.loading='0';}
+    }
+    async function directVideoRequest(body){
+      const response=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+      const result=await response.json();
+      if(!response.ok||result.status!=='success')throw Error(result.code||result.message||'영상 서버 오류');
+      return result;
+    }
+    const directVideoUploads=new WeakMap();
+    let videoUploadActive=false, videoUploadOwner=null;
+    function setVideoUploadStatus(message,percent=null,state='active'){
+      if(videoUploadOwner&&(currentMode!=='member'||activeMemberName!==videoUploadOwner.member||memberToken!==videoUploadOwner.token))return;
+      const el=document.getElementById('memberVideoUploadStatus');if(el){el.textContent=message;el.classList.remove('hidden');}
+      let bar=document.getElementById('videoUploadFloating');
+      if(!bar){
+        bar=document.createElement('aside');bar.id='videoUploadFloating';bar.className='fixed left-3 right-3 mx-auto max-w-md rounded-xl border border-sky-500/40 bg-slate-900 shadow-xl p-3 text-xs text-white';
+        bar.style.cssText='position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom, 0px) + var(--member-nav-height,0px));z-index:1100;max-width:440px;margin:0 auto;background:#14243a;color:#fff;padding:12px;border:1px solid #38bdf8;border-radius:12px;box-shadow:0 4px 24px #0008;';
+        bar.innerHTML='<div class="flex items-start justify-between gap-3"><div class="font-semibold" id="videoUploadFloatingTitle"></div><button type="button" id="videoUploadDismiss" class="hidden px-2" aria-label="알림 닫기">×</button></div><div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700"><div id="videoUploadProgressBar" class="h-full bg-sky-400 transition-all" style="width:0%"></div></div><div id="videoUploadFloatingHint" class="mt-2 text-slate-400"></div>';
+        document.body.appendChild(bar);
+        document.getElementById('videoUploadDismiss').onclick=()=>{bar.classList.add('hidden');bar.style.display='none';};
+      }
+      bar.classList.remove('hidden');bar.style.display='block';
+      document.getElementById('videoUploadFloatingTitle').textContent=message;
+      document.getElementById('videoUploadProgressBar').style.width=(state==='done'?100:percent===null?5:Math.max(0,Math.min(100,percent)))+'%';
+      document.getElementById('videoUploadFloatingHint').textContent=state==='active'?'운동·식단 기록을 계속 작성할 수 있어요. 이 탭은 닫지 마세요.':state==='done'?'영상 목록에 등록됐어요.':'영상 화면에서 다시 보내기를 눌러주세요.';
+      document.getElementById('videoUploadDismiss').classList.toggle('hidden',state==='active');
+    }
+    window.addEventListener('beforeunload',e=>{if(videoUploadActive){e.preventDefault();e.returnValue='';}});
+    // Hide private upload messages immediately when switching member identity.
+    setInterval(()=>{if(videoUploadOwner&&(currentMode!=='member'||activeMemberName!==videoUploadOwner.member||memberToken!==videoUploadOwner.token)){const floating=document.getElementById('videoUploadFloating');if(floating){floating.classList.add('hidden');floating.style.display='none';}document.getElementById('memberVideoUploadStatus')?.classList.add('hidden');}},500);
+
+    // Resumable upload state is memory-only and tied to the current member/file.
+    async function sendResumableMemberVideo(job,init,onProgress,assertOwner){
+      const endpoint=new URL(init.tusEndpoint);
+      const version='1.0.0',chunkSize=6*1024*1024;
+      const common={'Tus-Resumable':version,'x-signature':init.uploadToken};
+      const encode=value=>bytesToBase64(new TextEncoder().encode(value));
+      const validUrl=value=>{
+        const url=new URL(value,endpoint);
+        if(url.origin!==endpoint.origin||!url.pathname.startsWith(endpoint.pathname+'/'))throw Error('이어 올리기 주소 오류');
+        return url.href;
+      };
+      const ensureOnline=async()=>{
+        for(let i=0;i<60&&!navigator.onLine;i++){
+          assertOwner();setVideoUploadStatus('연결 복구 대기 중 · 연결되면 자동 재개',job.offset/job.file.size*100);
+          await new Promise(r=>setTimeout(r,1000));
+        }
+        if(!navigator.onLine)throw Error('인터넷 연결을 확인해주세요');
+      };
+      const request=async(method,url,headers,body)=>{
+        assertOwner();
+        return fetch(url,{method,headers:{...common,...headers},body,cache:'no-store',signal:AbortSignal.timeout(45000)});
+      };
+      const head=async()=>{
+        const res=await request('HEAD',job.tusUrl,{});
+        if(res.status===404||res.status===410){job.tusUrl=null;job.offset=0;return false;}
+        if(!res.ok)throw Error('이어 올리기 확인 실패 · HTTP '+res.status);
+        const header=res.headers.get('Upload-Offset'),offset=Number(header);
+        if(header===null||!Number.isInteger(offset)||offset<0||offset>job.file.size)throw Error('전송 위치 확인 실패');
+        job.offset=offset;return true;
+      };
+      job.offset=job.offset||0;
+      if(job.tusUrl){job.tusUrl=validUrl(job.tusUrl);await ensureOnline();await head();}
+      if(!job.tusUrl){
+        await ensureOnline();
+        const meta={bucketName:'fit-direct-videos',objectName:init.objectName,contentType:job.file.type,cacheControl:'3600'};
+        const response=await request('POST',endpoint.href,{'Upload-Length':String(job.file.size),'Upload-Metadata':Object.entries(meta).map(([k,v])=>k+' '+encode(v)).join(',')});
+        if(!response.ok)throw Error('이어 올리기 준비 실패 · HTTP '+response.status);
+        const location=response.headers.get('Location');if(!location)throw Error('이어 올리기 주소 없음');
+        job.tusUrl=validUrl(location);
+        // A created session has no data until the first PATCH.
+        job.offset=0;
+      }
+      let failures=0;
+      while(job.offset<job.file.size){
+        await ensureOnline();assertOwner();
+        const start=job.offset,end=Math.min(start+chunkSize,job.file.size);
+        try{
+          const next=await new Promise((resolve,reject)=>{
+            const xhr=new XMLHttpRequest();xhr.open('PATCH',job.tusUrl);xhr.timeout=45000;
+            for(const [key,value] of Object.entries({...common,'Upload-Offset':String(start),'Content-Type':'application/offset+octet-stream'}))xhr.setRequestHeader(key,value);
+            xhr.upload.onprogress=e=>onProgress(Math.min(end,start+e.loaded),job.file.size);
+            xhr.onload=()=>{
+              const raw=xhr.getResponseHeader('Upload-Offset'),offset=Number(raw);
+              if(xhr.status===204&&raw!==null&&offset===end)resolve(offset);
+              else reject(Error('이어 올리기 전송 오류 · HTTP '+xhr.status));
+            };
+            xhr.onerror=()=>reject(Error('연결 끊김'));xhr.ontimeout=()=>reject(Error('전송 시간 초과'));
+            job.tusStarted=true;xhr.send(job.file.slice(start,end));
+          });
+          job.offset=next;failures=0;onProgress(next,job.file.size);
+        }catch(err){
+          if(++failures>4)throw err;
+          setVideoUploadStatus('연결 확인 중 · 중단된 위치부터 재개',job.offset/job.file.size*100);
+          await new Promise(r=>setTimeout(r,Math.min(4000,500*2**failures)));
+          await ensureOnline();
+          try{if(!await head())throw Error('업로드 세션 만료 · 다시 보내기를 눌러주세요');}catch(e){if(!job.tusUrl)throw e;continue;}
+          if(job.offset>start)failures=0;
+        }
+      }
+    }
+    async function uploadDirectMemberVideo(file,name,question){
+      const creds=apiCredentials(),context=getSaveContext();
+      const directLimit=50000000, started=performance.now();
+      let compressionMs=0,transferMs=0,compressionRoute='원본',compressionDiagnostic='';
+      if(!file||!['video/mp4','video/webm','video/quicktime'].includes(file.type))throw Error('MP4, WebM, MOV 영상만 등록할 수 있어요.');
+      if(!file.size||file.size>VIDEO_INPUT_LIMIT)throw Error('원본 영상은 200MB 이하만 선택해주세요.');
+      const meta=await getPrivateVideoMetadata(file);
+      if(!Number.isFinite(meta.duration)||meta.duration<=0||meta.duration>VIDEO_MAX_DURATION+0.25)throw Error('영상은 최대 40초까지 등록할 수 있어요.');
+      let job=directVideoUploads.get(file);
+      if(!job||job.member!==creds.member||job.token!==creds.token){
+        let output=file;
+        if(file.size>directLimit){const t=performance.now();setVideoUploadStatus('고화질 영상 압축 중…');showToast('50MB 초과 · 고화질 영상 압축 중');let lastProgress=-1;const report=(label,p)=>{if(p!==lastProgress){lastProgress=p;setVideoUploadStatus(label+' '+p+'%',p);}};try{output=await compressFastMemberVideo(file,meta,p=>report('고속 압축',p));compressionRoute='고속 압축';setVideoUploadStatus('고속 압축 완료',100);}catch(err){compressionRoute='기본 압축';compressionDiagnostic=String(err?.message||'unknown').replace(/https?:\/\/\S+/g,'[주소]').slice(0,180);lastProgress=-1;setVideoUploadStatus('기본 압축으로 전환',0);output=await compressPrivateVideo(file,p=>report('기본 압축',p));}compressionMs=performance.now()-t;}
+        if(output.size>directLimit)throw Error('압축 영상이 50MB를 초과했어요.');
+        job={member:creds.member,token:creds.token,id:crypto.randomUUID(),file:output,sent:false};
+        directVideoUploads.set(file,job);
+      }
+      if(currentMode!==context.mode||activeMemberName!==context.member||memberToken!==context.token)throw Error('회원 화면이 변경됐어요.');
+      if(!job.sent&&job.transferAttempted){
+        // Recover a completed upload whose final response was lost, without writing it again.
+        try{await directVideoRequest({...creds,action:'directVideoFinish',id:job.id});job.sent=true;}catch(e){if(!/upload_size_mismatch|direct_video_http_404|direct_video_http_400|video_not_found/.test(e.message))throw e;}
+      }
+      if(!job.sent){
+        const init=await directVideoRequest({...creds,action:'directVideoBegin',id:job.id,size:job.file.size,mime:job.file.type,name,question});
+        if(!init.alreadyReady){
+          const t=performance.now();job.transferAttempted=true;
+          showToast((compressionMs?'압축 완료':'원본 화질 유지')+' · 영상 직접 전송 시작');
+          const progress=(loaded,total)=>{const sec=(performance.now()-t)/1000;setVideoUploadStatus('영상 전송 '+Math.min(100,Math.round(loaded/total*100))+'% · '+(loaded/1000000).toFixed(1)+' / '+(total/1000000).toFixed(1)+' MB · '+sec.toFixed(1)+'초',loaded/total*100);};
+          const assertOwner=()=>{if(currentMode!==context.mode||activeMemberName!==context.member||memberToken!==context.token)throw Error('회원 화면이 변경됐어요.');};
+          if(job.file.size>6*1024*1024 && init.uploadToken && init.tusEndpoint && init.objectName){
+            try{await sendResumableMemberVideo(job,init,progress,assertOwner);}
+            catch(err){
+              // Never start a second transfer after any resumable bytes were sent.
+              if(job.tusUrl||job.offset||job.tusStarted)throw err;
+              assertOwner();
+              setVideoUploadStatus('기본 전송으로 전환',0);
+              await sendStandard();
+            }
+          }else await sendStandard();
+          async function sendStandard(){
+          await new Promise((resolve,reject)=>{
+            const xhr=new XMLHttpRequest();
+            xhr.open('PUT',init.url);
+            xhr.timeout=180000;
+            xhr.setRequestHeader('Content-Type',job.file.type);
+            xhr.upload.onprogress=e=>{if(e.lengthComputable){const mb=e.loaded/1000000,total=e.total/1000000,sec=(performance.now()-t)/1000;setVideoUploadStatus('영상 전송 '+Math.min(100,Math.round(e.loaded/e.total*100))+'% · '+mb.toFixed(1)+' / '+total.toFixed(1)+' MB · '+sec.toFixed(1)+'초',e.loaded/e.total*100);}};
+            xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(Error('영상 직접 전송 실패 · HTTP '+xhr.status));
+            xhr.onerror=()=>reject(Error('영상 전송 연결 오류'));
+            xhr.ontimeout=()=>reject(Error('영상 전송 시간 초과'));
+            xhr.send(job.file);
+          });
+          }
+          transferMs=performance.now()-t;
+        }
+        job.sent=true;
+      }
+      setVideoUploadStatus('전송 완료 · 영상 최종 등록 중',100);showToast('영상 최종 등록 중');
+      const finishStarted=performance.now();
+      const done=await directVideoRequest({...creds,action:'directVideoFinish',id:job.id});
+      const finishMs=performance.now()-finishStarted;
+      perfMark('영상 압축',compressionMs,true);perfMark('영상 직접 전송',transferMs,true);perfMark('영상 등록',finishMs,true);
+      done.timingLabel='업로드 완료 · 총 '+((performance.now()-started)/1000).toFixed(1)+'초 · 압축 '+(compressionMs/1000).toFixed(1)+'초 · 전송 '+(transferMs/1000).toFixed(1)+'초 · 등록 '+(finishMs/1000).toFixed(1)+'초';
+      if(currentMode===context.mode&&activeMemberName===context.member&&memberToken===context.token){
+        ++extrasRequest;
+        clearForeignVideoLists();formVideoListOwner=videoListOwner();
+        formVideos=[done.video,...(formVideos||[]).filter(v=>v.id!==done.video.id)];
+        renderFormVideos();
+      }
+      done.timingLabel+=' · '+compressionRoute+(compressionDiagnostic?' ('+compressionDiagnostic+')':'');
+      done.uploadBytes=job.file.size;
+      return done;
     }
     async function submitFormVideo(e){
       e.preventDefault();const name=document.getElementById('memberVideoName').value.trim();
       const file=document.getElementById('memberVideoFile').files[0];
       const question=document.getElementById('memberVideoQuestion').value.trim();
-      const member=activeMemberName;
-      try{await uploadPrivateVideo(file,'member',name,question,'');e.target.reset();showToast('영상 업로드 완료');if(member===activeMemberName)await loadExtras();}
-      catch(err){alert(err.message);}
+      const member=activeMemberName,ownerToken=memberToken;
+      const submit=e.target.querySelector('button[type=submit]');if(videoUploadActive||e.target.dataset.uploading==='1')return;videoUploadActive=true;videoUploadOwner={member,token:memberToken};e.target.dataset.uploading='1';if(submit)submit.disabled=true;setVideoUploadStatus('영상 업로드 준비 중…');
+      try{const uploaded=await uploadDirectMemberVideo(file,name,question);if(currentMode==='member'&&member===activeMemberName&&ownerToken===memberToken)e.target.reset();setVideoUploadStatus((uploaded.timingLabel||'영상 업로드 완료')+' · 전송 파일 '+(uploaded.uploadBytes/1000000).toFixed(1)+'MB',100,'done');showToast(uploaded.timingLabel||'영상 업로드 완료');if(currentMode==='member'&&member===activeMemberName&&ownerToken===memberToken)await loadExtras();}
+      catch(err){setVideoUploadStatus('업로드 오류 · '+err.message,0,'error');}
+      finally{videoUploadActive=false;e.target.dataset.uploading='0';if(submit)submit.disabled=false;}
     }
     async function saveExerciseVideo(e){
       e.preventDefault();const name=document.getElementById('videoExerciseName').value.trim();
@@ -3697,11 +4025,11 @@ try {
     }
     async function saveFormVideoFeedback(id){
       const feedback=document.getElementById('feedback-'+id).value;
-      try{const r=await apiPost({...apiCredentials(),action:'formVideoFeedback',id,feedback});if(r.status!=='success')throw Error(r.message||'저장 실패');showToast('피드백 저장 완료');await loadExtras();}catch(e){alert(e.message);}
+      try{const r=await (id.startsWith('direct:')?directVideoRequest:apiPost)({...apiCredentials(),action:id.startsWith('direct:')?'directVideoFeedback':'formVideoFeedback',id,feedback});if(r.status!=='success')throw Error(r.message||'저장 실패');showToast('피드백 저장 완료');await loadExtras();}catch(e){alert(e.message);}
     }
     async function markFormVideoRead(id){
       try{
-        const r=await apiPost({...apiCredentials(),action:'markFormVideoRead',id});
+        const r=await (id.startsWith('direct:')?directVideoRequest:apiPost)({...apiCredentials(),action:id.startsWith('direct:')?'directVideoRead':'markFormVideoRead',id});
         if(r.status!=='success')throw Error(r.message||'확인 저장 실패');
         showToast('피드백 확인 완료');
         await loadExtras();
@@ -3709,7 +4037,7 @@ try {
     }
     async function deleteFormVideo(id){
       if(!confirm('회원 영상과 피드백을 삭제할까요?'))return;
-      try{const r=await apiPost({...apiCredentials(),action:'deleteFormVideo',id});if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadExtras();}catch(e){alert(e.message);}
+      try{const r=await (id.startsWith('direct:')?directVideoRequest:apiPost)({...apiCredentials(),action:id.startsWith('direct:')?'directVideoDelete':'deleteFormVideo',id});if(r.status!=='success')throw Error(r.message||'삭제 실패');await loadExtras();}catch(e){alert(e.message);}
     }
     async function deleteExerciseVideo(id){
       if(!confirm('이 영상을 삭제할까요?'))return;

@@ -1320,7 +1320,12 @@
         if(key==='diet'){
           const diet={};
           for(const meal of [...MEAL_KEYS,'water']){
-            if(JSON.stringify(before.diet?.[meal])!==JSON.stringify(after.diet?.[meal]))diet[meal]=after.diet[meal];
+            if(JSON.stringify(before.diet?.[meal])!==JSON.stringify(after.diet?.[meal])){
+              // Undefined is removed by JSON serialization, causing cleared meals
+              // to become no-ops on the fast patch route. Use the canonical save.
+              if(after.diet?.[meal]===undefined)return null;
+              diet[meal]=after.diet[meal];
+            }
           }
           if(!Object.keys(diet).length)return null;
           patch.diet=diet;
@@ -2047,7 +2052,7 @@
         }
 
         const badge = document.getElementById(`badge-${m}`);
-        if (item.desc || item.cal) {
+        if (hasSaved) {
           badge.className = "text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-semibold";
           badge.innerText = "작성완료";
         } else {
@@ -2101,6 +2106,7 @@
 
     function getMealValues(m) {
       const foods=getFoodRows(m).map(readFood).filter(f=>f.name||FOOD_NUTRIENTS.some(({key})=>f[key]!==''));
+      if (!foods.length) return { desc: '', cal: '', carb: '', prot: '', fat: '', foods: [] };
       const totals={};
       FOOD_NUTRIENTS.forEach(({key})=>totals[key]=String(Math.round(foods.reduce((sum,f)=>sum+(Math.max(0,Number(f[key]))||0),0)*100)/100));
       return {
@@ -2112,7 +2118,10 @@
 
     async function saveSingleMeal(meal) {
       const values = getMealValues(meal);
-      const saved = await updateAndSave(d => { d.diet[meal] = { ...(d.diet[meal] || {}), ...values }; });
+      const saved = await updateAndSave(d => {
+        if (!values.foods.length) delete d.diet[meal];
+        else d.diet[meal] = { ...(d.diet[meal] || {}), ...values };
+      });
       if (saved) {
         dirtyMealDrafts.delete(meal);
         mealEditorOpen.delete(meal);
@@ -2124,7 +2133,10 @@
     function saveDietLog() {
       const values = {};
       MEAL_KEYS.forEach(m => { values[m] = getMealValues(m); });
-      updateAndSave(d => { MEAL_KEYS.forEach(m => { d.diet[m] = { ...(d.diet[m] || {}), ...values[m] }; }); }).then(saved => {
+      updateAndSave(d => { MEAL_KEYS.forEach(m => {
+        if (!values[m].foods.length) delete d.diet[m];
+        else d.diet[m] = { ...(d.diet[m] || {}), ...values[m] };
+      }); }).then(saved => {
         if (saved) { dirtyMealDrafts.clear();mealEditorOpen.clear();renderMemberDiet(appData.diet || {},2100);loadFoodShortcuts(); }
       });
     }

@@ -1449,35 +1449,26 @@
       }, REFRESH_MS);
     });
 
-    // Keep the date header visible. Only the member bottom menu changes on scroll.
-    // Deployment trigger: mobile menu behavior verified separately.
+    // Keep the date header visible. Hide only the bottom menu after the page leaves its top.
     function setupMemberBottomNavAutoHide() {
       const nav=document.getElementById('memberBottomNav');
-      if(!nav)return;
+      const main=document.querySelector('main');
+      if(!nav||!main)return;
       const show=()=>nav.classList.remove('nav-hidden');
       const hide=()=>nav.classList.add('nav-hidden');
-      let lastTouchY=null,lastY=window.scrollY;
-      const moveMenu=(y)=>{
-        if(lastTouchY===null){lastTouchY=y;return;}
-        const moved=lastTouchY-y;
-        if(moved>8)hide();
-        else if(moved<-8)show();
-        lastTouchY=y;
-      };
-      // touchmove works on both iPhone Safari and Android Chrome while the page moves.
-      document.addEventListener('touchstart',event=>{lastTouchY=event.touches[0]?.clientY??null;},{passive:true});
-      document.addEventListener('touchmove',event=>moveMenu(event.touches[0]?.clientY),{passive:true});
-      document.addEventListener('touchend',()=>{lastTouchY=null;},{passive:true});
-      // Pointer events are a fallback for browsers that do not report touch events.
-      document.addEventListener('pointerdown',event=>{if(event.pointerType==='touch')lastTouchY=event.clientY;},{passive:true});
-      document.addEventListener('pointermove',event=>{if(event.pointerType==='touch')moveMenu(event.clientY);},{passive:true});
-      document.addEventListener('pointerup',event=>{if(event.pointerType==='touch')lastTouchY=null;},{passive:true});
-      window.addEventListener('scroll',()=>{
-        const y=window.scrollY;
-        if(y<60||y<lastY-12)show();
-        else if(y>lastY+20)hide();
-        lastY=y;
-      },{passive:true});
+      const anchor=document.createElement('span');
+      anchor.setAttribute('aria-hidden','true');
+      anchor.style.cssText='display:block;height:1px;width:1px;pointer-events:none;';
+      main.prepend(anchor);
+      if('IntersectionObserver' in window){
+        new IntersectionObserver(([entry])=>{
+          if(entry.isIntersecting)show();else hide();
+        },{threshold:0}).observe(anchor);
+      }else{
+        window.addEventListener('scroll',()=>{
+          if(window.scrollY<60)show();else hide();
+        },{passive:true});
+      }
       nav.addEventListener('focusin',show);
     }
 

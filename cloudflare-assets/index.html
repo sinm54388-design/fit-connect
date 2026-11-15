@@ -1499,7 +1499,21 @@
       },{passive:true});
       nav.addEventListener('focusin',show);
     }
-
+      // Mobile browsers can keep the scroll inside their viewport. Detect the
+      // swipe itself as a reliable fallback for hiding/showing the fixed menu.
+      let touchY=null;
+      document.addEventListener('touchstart',event=>{
+        touchY=event.touches[0]?.clientY??null;
+      },{passive:true});
+      document.addEventListener('touchend',event=>{
+        const endY=event.changedTouches[0]?.clientY;
+        if(touchY===null||!Number.isFinite(endY))return;
+        const delta=touchY-endY;touchY=null;
+        if(delta>18&&currentMode==='member'&&hasMemberAccess())
+          document.body.classList.add('member-nav-hidden');
+        else if(delta<-12)show();
+      },{passive:true});
+    }
     function jumpTrainerSection(id) {
       const target=document.getElementById(id);
       if(!target)return;

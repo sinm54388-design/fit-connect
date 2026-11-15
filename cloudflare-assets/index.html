@@ -400,7 +400,236 @@
     .member-home-tile .tile-arrow{margin-left:auto;font-size:12px;color:#94a3b8}
     body.member-tabs-active #toastNotification,body.member-tabs-active #saveStatusBar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
     @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}#memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 10px))}}
-  </style>
+  
+    /* Visual refresh preview: presentation only, no behavior changes. */
+    :root{--ink:#edf4ff;--muted:#a9b8ce;--panel:#101b2d;--panel-2:#15233a;--line:#2b405d;--accent:#6ee7d2;--accent-deep:#16a896;--blue:#67a8ff}
+    body{background:radial-gradient(1200px 700px at 8% -12%,#17355a 0%,transparent 55%),#08111f;color:var(--ink);font-family:Inter,'Noto Sans KR',sans-serif;letter-spacing:-.015em}
+    #appHeader{background:rgba(8,17,31,.92)!important;border-color:#263d59!important;box-shadow:0 7px 28px rgba(0,0,0,.15)}
+    #appHeader .header-sync-badge{background:rgba(110,231,210,.12)!important;color:var(--accent)!important;border-color:rgba(110,231,210,.26)!important}
+    #appHeader input{color:#e6f3ff!important}
+    #memberView .member-page-heading h2{font-size:25px;color:#f6faff;letter-spacing:-.055em}
+    #memberView .member-page-heading p{color:var(--muted);font-size:14px}
+    #memberHomePage>div:first-child{background:linear-gradient(135deg,#18355a,#10243e 65%,#123a45)!important;border:1px solid #315474!important;box-shadow:0 14px 32px rgba(0,0,0,.18)}
+    .member-home-shortcuts{gap:10px}
+    .member-home-tile{min-height:96px;background:linear-gradient(145deg,#142640,#112037)!important;border-color:#2c496a!important;border-radius:18px;box-shadow:0 8px 18px rgba(0,0,0,.12);transition:transform .18s ease,border-color .18s ease}
+    .member-home-tile:hover{transform:translateY(-2px);border-color:#6ee7d2!important}
+    .member-home-tile>i:first-child{color:var(--accent)!important;background:rgba(110,231,210,.1);padding:10px;border-radius:12px}
+    .member-home-tile strong{font-size:16px;color:#f5f9ff}.member-home-tile small{color:#a9b8ce;font-size:12px}
+    #memberView .rounded-2xl{border-color:#2b4665!important;box-shadow:0 9px 24px rgba(0,0,0,.12)}
+    #memberView .bg-slate-900{background:#101d30!important}
+    #memberView .bg-slate-950{background:#0a1424!important}
+    #memberView .border-slate-800,#memberView .border-slate-700{border-color:#29415f!important}
+    #memberView .text-slate-400{color:#b0c0d5!important}#memberView .text-slate-500{color:#8ea1ba!important}
+    #memberView h3{font-size:17px;letter-spacing:-.04em}
+    #memberBottomNav{background:rgba(10,21,37,.97)!important;border-color:#2c496a!important;backdrop-filter:blur(18px);box-shadow:0 -8px 28px rgba(0,0,0,.28)}
+    #memberBottomNav button{color:#91a6c1!important}#memberBottomNav button.selected{background:linear-gradient(135deg,#155e68,#11475c)!important;color:#eafffb!important;border-color:#47c8be!important}
+    #memberBottomNav button.selected i{color:#7ff6df}
+    #memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#6ee7d2,#39c6b8)!important;color:#08201f!important;box-shadow:0 7px 18px rgba(57,198,184,.2)}
+    @media(max-width:639px){#memberView .member-page-heading h2{font-size:24px}#memberView .member-home-tile{min-height:92px;padding:13px}#memberView .member-home-tile strong{font-size:15px}}
+
+  
+    /* Second visual direction: clean dashboard + energetic progress accents.
+       Presentation only — all existing IDs, callbacks and content remain unchanged. */
+    :root{--ink:#13233d;--ink-soft:#61718a;--paper:#ffffff;--canvas:#f3f7ff;--line:#dfe8f5;--blue:#2d7ff9;--violet:#7455ff;--mint:#2bc99c;--coral:#ff8a62}
+    body{background:radial-gradient(850px 560px at 100% 0%,rgba(122,84,255,.16),transparent 59%),radial-gradient(680px 500px at 0% 17%,rgba(49,151,255,.14),transparent 60%),var(--canvas)!important;color:var(--ink)!important}
+    #appHeader{background:rgba(255,255,255,.88)!important;border-color:#e4ebf5!important;box-shadow:0 6px 22px rgba(33,65,110,.09)!important;backdrop-filter:blur(18px)}
+    #appHeader .text-white,#appHeader .header-brand-title{color:#102647!important}
+    #appHeader .header-brand-desc{color:#6b7b93!important}
+    #appHeader .header-sync-badge{background:#e8fbf5!important;color:#139773!important;border-color:#c8f0e5!important}
+    #appHeader .header-mode-button{background:#f5f8fd!important;color:#29425f!important;border-color:#dce7f4!important}
+    #appHeader input{background:#f6f9fd!important;color:#1b2d48!important;border-color:#dce7f4!important}
+    #memberView{color:var(--ink)}
+    #memberView .member-page-heading h2{font-size:27px!important;line-height:1.18;color:#142746!important;font-weight:800;letter-spacing:-.065em}
+    #memberView .member-page-heading p{color:var(--ink-soft)!important;font-size:14px}
+    #memberHomePage>div:first-child{position:relative;overflow:hidden;background:linear-gradient(125deg,#316eee 0%,#7555f3 50%,#ec78a7 100%)!important;border:0!important;border-radius:24px!important;box-shadow:0 16px 34px rgba(73,84,196,.22)!important}
+    #memberHomePage>div:first-child:after{content:'';position:absolute;right:-64px;bottom:-104px;width:270px;height:270px;border:26px solid rgba(255,255,255,.18);border-radius:50%;pointer-events:none}
+    #memberHomePage>div:first-child .text-white{color:#fff!important}
+    #memberHomePage>div:first-child .text-slate-400,#memberHomePage>div:first-child .text-slate-300{color:rgba(255,255,255,.8)!important}
+    #memberHomePage>div:first-child .bg-slate-950\/50,#memberHomePage>div:first-child .bg-slate-950{background:rgba(11,29,81,.2)!important;border-color:rgba(255,255,255,.2)!important;backdrop-filter:blur(8px)}
+    #memberHomePage>div:first-child .bg-slate-800{background:rgba(255,255,255,.32)!important}
+    .member-home-shortcuts{gap:12px}
+    .member-home-tile{background:rgba(255,255,255,.94)!important;border:1px solid rgba(255,255,255,.88)!important;border-radius:20px!important;box-shadow:0 9px 22px rgba(46,70,123,.1)!important;min-height:98px}
+    .member-home-tile>i:first-child{color:#2f82f7!important;background:#e9f3ff!important;padding:11px;border-radius:13px}
+    .member-home-tile:nth-child(2)>i:first-child{color:#e76c48!important;background:#fff0e9!important}
+    .member-home-tile:nth-child(3)>i:first-child{color:#22ae84!important;background:#e7fbf4!important}
+    .member-home-tile:nth-child(4)>i:first-child{color:#8064f6!important;background:#f1edff!important}
+    .member-home-tile strong{color:#1a2b48!important;font-size:16px}.member-home-tile small{color:#7687a1!important;font-size:12px}
+    #memberView .rounded-2xl{background:var(--paper)!important;border-color:var(--line)!important;box-shadow:0 10px 28px rgba(45,72,118,.08)!important}
+    #memberView .bg-slate-900{background:#fff!important}
+    #memberView .bg-slate-950{background:#f7faff!important}
+    #memberView .bg-slate-800{background:#edf3fb!important}
+    #memberView .border-slate-800,#memberView .border-slate-700{border-color:#dfe8f5!important}
+    #memberView .text-white{color:#172a48!important}
+    #memberView .text-slate-400{color:#697a93!important}#memberView .text-slate-500{color:#8291a8!important}
+    #memberView h3,#memberView h4{color:#1b2e4d!important;font-weight:750;letter-spacing:-.045em}
+    #memberView .text-brand-400,#memberView .text-brand-500{color:#16a47b!important}
+    #memberView .bg-brand-500,#memberView .bg-brand-600,#memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#3b8eff,#7660f6)!important;color:#fff!important;border:0!important;box-shadow:0 10px 20px rgba(78,103,232,.2)!important}
+    #memberView input,#memberView textarea,#memberView select{background:#f9fbff!important;border-color:#dce7f4!important;color:#1d2e48!important}
+    #memberView input::placeholder,#memberView textarea::placeholder{color:#9aa9be!important}
+    #memberBottomNav{background:rgba(255,255,255,.94)!important;border-color:#dae6f4!important;box-shadow:0 -8px 25px rgba(45,71,112,.12)!important;backdrop-filter:blur(18px)}
+    #memberBottomNav button{color:#7c8ca3!important}
+    #memberBottomNav button.selected{background:linear-gradient(135deg,#e6f3ff,#f1ecff)!important;color:#3a63d9!important;border-color:#b8d8ff!important;box-shadow:none!important}
+    #memberBottomNav button.selected i{color:#3d7ffd!important}
+    @media(max-width:639px){#memberView .member-page-heading h2{font-size:25px!important}.member-home-tile{min-height:92px!important;padding:13px!important}#memberHomePage>div:first-child{border-radius:20px!important}}
+
+  
+    /* Premium mobile dashboard refinement: visual treatment only, no data or callbacks changed. */
+    #memberView{max-width:1080px;margin-left:auto;margin-right:auto}
+    #memberView .member-page-heading{padding-top:6px}
+    #memberHomePage>div:first-child{min-height:142px;padding:25px!important}
+    #memberHomePage>div:first-child #customHeaderMessage{font-size:clamp(24px,3vw,32px)!important;max-width:540px}
+    #memberHomePage>div:first-child .rounded-2xl{border-radius:16px!important;box-shadow:none!important}
+    #memberHomePage>div:first-child [class*="text-3xl"]{font-variant-numeric:tabular-nums}
+    #memberView .member-home-tile{position:relative;overflow:hidden}
+    #memberView .member-home-tile:after{content:'›';position:absolute;right:16px;top:50%;transform:translateY(-50%);color:#94a7c1;font-size:28px;font-weight:300}
+    #memberView .member-home-tile:hover{transform:translateY(-2px);box-shadow:0 15px 28px rgba(54,87,150,.15)!important}
+    #memberView .member-home-tile strong{letter-spacing:-.04em}
+    #memberView .food-card,#memberView [class*="meal"] .rounded-xl{border-radius:18px!important}
+    #memberView .rounded-xl{border-radius:16px}
+    #memberView [class*="progress"]{border-radius:999px}
+    #memberView .text-amber-400,#memberView .text-amber-300{color:#eb7655!important}
+    #memberView .text-sky-400,#memberView .text-sky-300{color:#377ff3!important}
+    #memberView .bg-emerald-500,#memberView .bg-green-500{background:#28bf93!important}
+    #memberView button{font-weight:650}
+    #memberView button:focus-visible{outline:3px solid rgba(75,112,255,.22);outline-offset:2px}
+    @media(max-width:639px){
+      #memberView{padding-left:14px!important;padding-right:14px!important}
+      #memberHomePage>div:first-child{min-height:178px;padding:20px!important}
+      #memberHomePage>div:first-child #customHeaderMessage{font-size:24px!important}
+      #memberHomePage>div:first-child .grid{gap:9px!important}
+      #memberView .member-home-shortcuts{gap:10px!important}
+      #memberView .member-home-tile{border-radius:18px!important}
+      #memberBottomNav{left:10px!important;right:10px!important;border-radius:20px 20px 0 0!important}
+    }
+
+  
+    /* Unified member pages: workout, diet, growth and feedback share the same light premium system. */
+    #memberView>section{margin-top:22px}
+    #memberView>section>div.bg-slate-900,#memberView>section.bg-slate-900,#memberView #memberInsightsSection>div{background:rgba(255,255,255,.96)!important;border:1px solid #dde8f5!important;border-radius:22px!important;box-shadow:0 10px 26px rgba(55,84,130,.075)!important}
+    #memberView #memberInsightsSection>div:first-child{background:linear-gradient(135deg,#f0edff,#eef6ff)!important;border-color:#d9d3ff!important}
+    #memberView #memberInsightsSection>div:first-child h3 i{color:#715bf6!important}
+    #memberView #memberRoutineList>*,#memberView #memberMemoList>*{border-radius:15px!important}
+    #memberView #memberRoutineList .bg-slate-950,#memberView #memberRoutineList .bg-slate-900{background:#f7faff!important;border-color:#deebf7!important}
+    #memberView details{background:#f7faff;border:1px solid #e0eaf6;border-radius:16px;padding:0 14px}
+    #memberView details[open]{background:#f4f8ff;border-color:#c7daf7}
+    #memberView details summary{padding:14px 0;font-weight:700;color:#213653}
+    #memberView #memberMemoList{scrollbar-color:#b7c9e3 transparent}
+    #memberView #memberMemoList>div{border:1px solid #e1eaf6!important;background:#f8fbff!important}
+    #memberView #memberExerciseVideos>*,#memberView #memberFormVideos>*{background:#f8fbff!important;border:1px solid #dfe9f7!important;border-radius:17px!important;box-shadow:none!important}
+    #memberView #memberVideoUploadStatus{background:#eef5ff!important;color:#346094!important;border:1px solid #cfe1fa}
+    #memberView #memberWeeklyReport>*,#memberView #memberMonthlyReport>*,#memberView #memberStrengthProgress>*,#memberView #memberInbodyChart>*,#memberView #memberPtSummary>*{border-radius:16px!important}
+    #memberView canvas{max-width:100%;border-radius:14px}
+    #memberView .meal-shortcuts-toggle{background:linear-gradient(135deg,#f2efff,#edf7ff)!important;border-color:#ded7ff!important;border-radius:18px!important}
+    #memberView .food-card{background:#fff!important;border:1px solid #dfe8f4!important;border-radius:16px!important;box-shadow:0 6px 16px rgba(48,83,138,.05)!important}
+    #memberView .food-card .bg-slate-950,#memberView .food-card .bg-slate-900{background:#f8fbff!important}
+    #memberView .member-set-check{border-radius:12px!important;background:#eef5ff!important;border-color:#d3e3fb!important}
+    #memberView .member-set-check:has(input:checked){background:#e5fbf3!important;border-color:#9ce1cc!important}
+    #memberView #previousWorkoutRecords>*,#memberView #memberRegistryList>*{background:#f8fbff!important;border:1px solid #dfe9f5!important;border-radius:14px!important}
+    #memberView .quick-feedback-btn{background:#eef3ff!important;border-color:#d5e2fb!important;color:#3867c8!important;border-radius:999px!important}
+    #memberView .quick-feedback-btn:hover{background:#e2edff!important;border-color:#9abdf9!important}
+    @media(max-width:639px){
+      #memberView>section{margin-top:16px}
+      #memberView>section>div.bg-slate-900,#memberView>section.bg-slate-900,#memberView #memberInsightsSection>div{border-radius:19px!important}
+      #memberView details{padding:0 12px}
+      #memberView .food-card{border-radius:14px!important}
+    }
+
+  
+    /* Remove remaining dark legacy controls from the member experience. */
+    #memberView button.bg-slate-800,#memberView button.hover\:bg-slate-700{background:#eef4ff!important;color:#3562c7!important;border:1px solid #cedefa!important;box-shadow:none!important}
+    #memberView button.bg-slate-800:hover,#memberView button.hover\:bg-slate-700:hover{background:#e1ecff!important;border-color:#a9c8fb!important}
+    #memberView .bg-slate-800.text-white{color:#294d92!important}
+
+  
+/* Production-readability pass: light surfaces and explicit semantic states. */
+#appHeader .header-sync-badge{display:none}
+#appHeader>div>div:first-child>div:first-child{background:linear-gradient(135deg,#6c63ff,#3b82f6)!important;box-shadow:0 5px 15px #6366f126}
+#appHeader>div>div:first-child>div:first-child i{color:white!important}
+#appHeader>div>div:last-child>div{background:#eef2fb!important;border:1px solid #d8e1f0!important;box-shadow:none!important;border-radius:13px!important}
+#appHeader #currentDateInput{background:transparent!important;color:#233655!important;color-scheme:light;padding:4px 0;border:0!important}
+#appHeader .fa-calendar{color:#6258dd!important}
+#appHeader #btnMemberMode{background:#6258df!important;color:white!important;box-shadow:0 3px 8px #6558df25}
+#appHeader #btnTrainerMode{background:transparent!important;color:#4b5c76!important}
+#memberView [class*="text-slate-100"],#memberView [class*="text-slate-200"],#memberView [class*="text-slate-300"]{color:#364964!important}
+#memberView [class*="bg-slate-800"],#memberView [class*="bg-slate-900"],#memberView [class*="bg-slate-950"]{background-color:#f4f7fc!important}
+#memberView [class*="border-slate-"]{border-color:#dce5f1!important}
+#memberView [class*="text-emerald-200"],#memberView [class*="text-emerald-300"],#memberView [class*="text-green-300"]{color:#137b60!important}
+#memberView [class*="bg-emerald-"],#memberView [class*="bg-green-"]{background-color:#e7f7f0!important}
+#memberView [class*="text-amber-"]{color:#a85424!important}
+#memberView [class*="bg-amber-"]{background-color:#fff5e8!important}
+#memberView [class*="text-indigo-"],#memberView [class*="text-purple-"]{color:#6250cb!important}
+#memberView [class*="text-slate-400"],#memberView [class*="text-slate-500"]{color:#61718b!important}
+#memberView input::placeholder,#memberView textarea::placeholder{color:#71819a!important}
+#memberView input[type=file]::file-selector-button{background:#edeaff;color:#5545bb;border:1px solid #d6cffb;border-radius:10px;padding:10px 12px;margin-right:10px;font-weight:650}
+#memberView [id^="meal-"] [class*="bg-slate-"],#memberView [id^="meal-"]{color:#344966}
+#memberView label{color:#405575}
+#habitCalendar button{background:#f0f4fb!important;color:#344966!important;border:1px solid #e0e8f4;font-weight:600;opacity:1}
+#habitCalendar button[class*="bg-emerald"]{background:#ddf5ec!important;color:#0d7053!important;border-color:#9cddc8}
+#habitCalendar button:hover{background:#e7e5ff!important;color:#5143b4!important}
+#habitCalendar [class*="text-slate"]{color:#62738e!important}
+#memberWeeklyReport,#memberMonthlyReport,#memberGoalSummary,#memberInbodyChart,#memberPtSummary{color:#31445f!important}
+#memberHomePage>div:first-child [class*="text-slate-"],#memberHomePage>div:first-child .text-white{color:white!important}
+#memberHomePage>div:first-child #memberNameBadge{background:#ffffff26!important;color:white!important;border-color:#ffffff55!important}
+#memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#6559e9,#367df0)!important;color:#fff!important}
+@media(max-width:639px){
+#appHeader{padding:10px 14px!important}
+#appHeader>div{gap:10px!important}
+#appHeader h1{font-size:17px}
+#appHeader .header-mode-button{min-height:34px;padding:7px 11px!important}
+#memberView .member-page-heading h2{font-size:24px!important}
+#memberView .rounded-2xl{box-shadow:0 5px 18px #354e7b08!important}
+}
+
+#memberHomePage>div:first-child .rounded-2xl{background:rgba(21,32,95,.32)!important;color:white!important}#memberHomePage>div:first-child .rounded-2xl *{color:white!important}#memberView [class*="bg-slate-"][class*="text-slate-200"]{color:#344966!important}#memberView [class*="bg-slate-"] label{color:#405575!important}
+/* Explicit home card contract: independent of legacy utility colors. */
+#memberView #memberHomePage .member-goal-hero{background:linear-gradient(125deg,#5146c5,#2463c5)!important;border:0!important;color:#fff!important}
+#memberView #memberHomePage .member-goal-hero #customHeaderMessage{color:#fff!important;font-size:clamp(23px,3vw,30px)!important;line-height:1.4!important}
+#memberView #memberHomePage .member-goal-hero p,#memberView #memberHomePage .member-goal-hero #todayDateDisplay{color:#eef2ff!important}
+#memberView #memberHomePage .member-goal-hero .grid>div{background:#fff!important;border:1px solid #dce5f5!important;box-shadow:none!important;border-radius:16px!important}
+#memberView #memberHomePage .member-goal-hero .grid>div *{color:#344766!important}
+#memberView #memberHomePage .member-goal-hero #memberWorkoutProgressText,#memberView #memberHomePage .member-goal-hero #memberCalorieText{color:#172b4d!important;font-size:26px!important;line-height:1.25!important;font-weight:750!important}
+#memberView #memberHomePage .member-goal-hero .grid>div>.rounded-full{background:#e6ecf6!important}
+#memberView #memberHomePage .member-goal-hero #memberWorkoutProgressBar{background:#6656df!important}
+#memberView #memberHomePage .member-goal-hero #memberCalorieBar{background:#e87948!important}
+#memberView #memberHomePage .member-goal-hero #memberNameBadge{background:#ffffff26!important;color:#fff!important;border-color:#ffffff60!important}
+
+.home-record-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+#memberView .home-record-card{display:block;text-align:left;width:100%;padding:22px;background:#fff;border:1px solid #e0e7f2;border-radius:21px;box-shadow:0 6px 20px #263e6508;color:#233650;min-width:0}
+.home-record-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px;font-weight:750;margin-bottom:18px}
+.home-record-heading i{color:#6459db;margin-right:7px}.home-record-link{font-size:12px;color:#596d8c;font-weight:500;white-space:nowrap}
+.home-record-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #edf1f7;font-size:14px}.home-record-row span{color:#596d89}
+.home-record-note{font-size:13px;color:#62728b;line-height:1.65;margin-top:10px}
+.home-empty-icon{background:#eff0ff;color:#6558da;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:24px;margin-bottom:12px}
+.home-meal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.home-meal-grid>div{background:#f6f8fc;border:1px solid #e5ebf4;border-radius:15px;padding:17px 10px;display:flex;align-items:center;flex-direction:column;gap:8px}
+.home-meal-grid i{color:#b65b37;font-size:20px}.home-meal-grid strong{font-size:14px}.home-meal-grid span{font-size:12px;color:#61718b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.home-body-summary{white-space:pre-line;line-height:1.9;font-size:14px;color:#344963}.home-coach-message{font-size:15px;line-height:1.8;white-space:pre-line}
+#appHeader .header-brand-desc{display:none}
+@media(max-width:639px){.home-record-grid{grid-template-columns:1fr;gap:14px}#memberView .home-record-card{padding:19px}.home-record-heading{font-size:17px}#appHeader>div{align-items:stretch!important}#appHeader>div>div:first-child{justify-content:center}}
+
+.home-body-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.home-body-metric{display:flex;flex-direction:column;gap:9px;padding:16px 11px;background:#f5f7ff;border:1px solid #e5e8f6;border-radius:16px;min-width:0}.home-body-metric i{color:#6657d9;font-size:18px}.home-body-metric>span{font-size:12px;color:#52647e}.home-body-metric strong{font-size:23px;color:#1d3050;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.home-body-metric small{font-size:12px;margin-left:3px;font-weight:500}
+#memberView .home-record-card:hover{border-color:#bbcaf0;box-shadow:0 8px 22px #263e6510}.home-record-card:focus-visible{outline:3px solid #abbbf5;outline-offset:3px}
+@media(max-width:639px){#memberView .home-record-card{border-radius:20px}.home-body-metric strong{font-size:22px}.home-record-heading{margin-bottom:16px}.home-meal-grid>div{padding:19px 8px}}
+
+#memberView #memberRoutineList>div{padding:18px!important;border-radius:18px!important;margin-bottom:12px}
+#memberView .exercise-card-title{font-size:19px!important;line-height:1.45}
+#memberView .exercise-card-dose{display:block;font-size:15px!important;color:#50627d!important;font-weight:600!important;margin-top:5px}
+#memberView .member-set-check{min-height:52px!important;min-width:94px!important;padding:12px!important;background:#f2f5fc!important;border-color:#d6e1f0!important}
+#memberView .member-set-check:has(input:checked){background:#e4f6ee!important;border-color:#8ccfb5!important;box-shadow:inset 0 0 0 1px #8ccfb5}
+#memberView .member-set-check input{width:22px;height:22px;accent-color:#178765}
+#memberView .member-set-check:has(input:checked) span{color:#126b50!important;text-decoration:none!important}
+#memberView .food-nutrition-details{margin-top:12px;border-radius:12px;background:#f6f8fc;border-color:#e1e8f3;padding:0 12px}
+#memberView .food-nutrition-details summary{font-size:13px;color:#516480;padding:12px 0}
+#memberView .food-nutrition-details[open]{padding-bottom:12px}
+#memberView [id^="photos-"] img{border-radius:13px;aspect-ratio:1;object-fit:cover}
+#memberView #memberDietSection label:has(input[type=file]){display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;background:#eeeaff!important;border:1px solid #cfc5f6!important;color:#5944b4!important;font-size:13px!important;font-weight:650;padding:10px 14px!important}
+#memberView #memberMemoList>div{padding:14px!important;line-height:1.7}
+#memberView #memberMemoInput{min-height:80px;font-size:16px!important}
+
+/* Mode selection follows the existing mode state. */
+#appHeader #btnMemberMode,#appHeader #btnTrainerMode{background:transparent!important;color:#4b5c76!important;box-shadow:none!important}
+#appHeader #btnMemberMode.bg-brand-500,#appHeader #btnTrainerMode.bg-indigo-600{background:#6258df!important;color:#fff!important;box-shadow:0 3px 8px #6558df25!important}
+@media(prefers-reduced-motion:reduce){.home-record-card,.member-home-tile{transition:none!important;transform:none!important}}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
 
@@ -461,7 +690,7 @@
 
     <!-- MEMBER VIEW -->
     <div id="memberView" class="space-y-6">
-      <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+      <div class="member-goal-hero bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
@@ -1360,6 +1589,42 @@
       document.body.classList.toggle('member-tabs-active',active);
       const nav=document.getElementById('memberBottomNav');if(nav)nav.hidden=!active;
     }
+
+    function setupHomeRecordCards(){
+      const home=document.getElementById('memberHomePage');if(!home)return;
+      home.querySelector('.member-home-shortcuts')?.remove();
+      const cards=document.createElement('div');cards.className='home-record-grid';home.append(cards);
+      const create=(key,title,icon)=>{
+        const card=document.createElement('button');card.type='button';card.className='home-record-card';card.dataset.recordCard=key;
+        card.innerHTML='<div class="home-record-heading"><span><i class="fa-solid '+icon+'"></i> '+title+'</span><span class="home-record-link">자세히 ›</span></div><div class="home-record-content"></div>';
+        card.addEventListener('click',()=>navigateMemberPage(key));cards.append(card);return card.querySelector('.home-record-content');
+      };
+      const workout=create('workout','오늘의 운동','fa-dumbbell');
+      const diet=create('diet','오늘의 식단','fa-utensils');
+      const growth=create('growth','최근 신체 기록','fa-chart-line');
+      const feedback=create('feedback','코치 피드백','fa-comment-dots');
+      const put=(el,html)=>{if(el.innerHTML!==html)el.innerHTML=html;};
+      const render=()=>{
+        const data=appData||getDefaultData(),routines=data.routines||[];
+        put(workout,routines.length?routines.slice(0,3).map(r=>'<div class="home-record-row"><strong>'+esc(r.name||'운동')+'</strong><span>'+esc(String(r.weight||'맨몸'))+(r.weight?' kg':'')+' · '+esc(String(r.reps||'–'))+'회</span></div>').join('')+'<p class="home-record-note">전체 '+routines.length+'개 운동 · 눌러서 세트 기록</p>':'<div class="home-empty-icon">＋</div><strong>오늘의 첫 운동을 기록해요</strong><p class="home-record-note">루틴을 확인하거나 운동을 직접 추가하세요.</p>');
+        const meals=[['breakfast','아침'],['lunch','점심'],['dinner','저녁']];
+        put(diet,'<div class="home-meal-grid">'+meals.map(([key,label])=>{const meal=data.diet?.[key]||{};return '<div><i class="fa-solid '+(meal.desc?'fa-circle-check':'fa-camera')+'"></i><strong>'+label+'</strong><span>'+esc(meal.desc||'기록하기')+'</span></div>';}).join('')+'</div>');
+        const source=document.getElementById('memberInbodyChart');
+        const text=source?.innerText?.trim()||'';
+        const compact=text.replace(/\s+/g,' ');
+        const metrics=[['체중','kg','fa-weight-scale'],['골격근량','kg','fa-dumbbell'],['체지방률','%','fa-chart-pie']].map(([label,unit,icon])=>{
+          const match=compact.match(new RegExp(label+'\\s*([0-9]+(?:\\.[0-9]+)?)\\s*'+unit));
+          return '<div class="home-body-metric"><i class="fa-solid '+icon+'"></i><span>'+label+'</span><strong>'+(match?esc(match[1])+'<small>'+unit+'</small>':'—')+'</strong></div>';
+        }).join('');
+        put(growth,text&&!/불러오는 중/.test(text)?'<div class="home-body-metrics">'+metrics+'</div><p class="home-record-note">'+esc(compact.split('체중')[0])+'</p>':'<strong>신체 변화가 쌓이는 공간</strong><p class="home-record-note">성장 화면에서 인바디와 운동 리포트를 확인하세요.</p>');
+        const fb=data.feedback||{};put(feedback,fb.workout||fb.diet?'<p class="home-coach-message">'+esc(fb.workout||fb.diet)+'</p><p class="home-record-note">'+esc(fb.time||'코치님이 남긴 피드백')+'</p>':'<strong>코치님과 함께하는 변화</strong><p class="home-record-note">궁금한 점을 메모로 남기거나 운동 영상을 보내보세요.</p>');
+      };
+      let scheduled=false;
+      const observer=new MutationObserver(()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;render();});});
+      ['memberRoutineList','memberInbodyChart','memberCalorieText','feedbackWorkoutText','memberNameBadge'].forEach(id=>{const el=document.getElementById(id);if(el)observer.observe(el,{childList:true,subtree:true,characterData:true});});
+      render();
+    }
+
     function arrangeMemberDashboard(){
       const view=document.getElementById('memberView');
       if(!view||document.getElementById('memberBottomNav'))return;
@@ -1403,6 +1668,7 @@
       if(perfEnabled)document.getElementById('perfDiagnostic').style.display='block';
       arrangeMemberDashboard();
       setupMemberBottomNavAutoHide();
+      setupHomeRecordCards();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
@@ -2124,7 +2390,7 @@
         return `
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
             <div class="flex items-start justify-between gap-2">
-              <h4 class="font-bold text-white text-base mb-1">${esc(ex.name)} <span class="text-xs font-normal text-slate-400">(${ex.weight ? esc(ex.weight) + 'kg' : '맨몸'} × ${esc(ex.reps)}회)</span></h4>
+              <h4 class="exercise-card-title font-bold text-white text-base mb-1">${esc(ex.name)} <span class="exercise-card-dose text-xs font-normal text-slate-400">(${ex.weight ? esc(ex.weight) + 'kg' : '맨몸'} × ${esc(ex.reps)}회)</span></h4>
               <div class="flex gap-1 shrink-0">
                 <button onclick="startEditRoutine(${Number(ex.id)})" class="text-slate-400 hover:text-white w-10 h-10 flex items-center justify-center cursor-pointer" title="수정" aria-label="운동 수정"><i class="fa-solid fa-pen"></i></button>
                 <button onclick="removeExercise(${Number(ex.id)})" class="text-rose-400 hover:text-rose-300 w-10 h-10 flex items-center justify-center cursor-pointer" title="삭제" aria-label="운동 삭제"><i class="fa-solid fa-trash"></i></button>
@@ -2354,7 +2620,7 @@
         input.addEventListener('input', () => {dirtyMealDrafts.add(meal);updateMealDraftTotals(meal);});
         wrap.append(caption,input);grid.appendChild(wrap);
       });
-      return grid;
+      const details=document.createElement('details');details.className='food-nutrition-details';const summary=document.createElement('summary');summary.textContent='영양성분 확인 · 수정';details.append(summary,grid);return details;
     }
 
     function setupMainFoodNutrition(meal) {

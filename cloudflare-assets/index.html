@@ -1587,7 +1587,7 @@
         put(diet,'<div class="home-meal-grid">'+meals.map(([key,label])=>{const meal=data.diet?.[key]||{};return '<div><i class="fa-solid '+(meal.desc?'fa-circle-check':'fa-camera')+'"></i><strong>'+label+'</strong><span>'+esc(meal.desc||'기록하기')+'</span></div>';}).join('')+'</div>');
         const source=document.getElementById('memberInbodyChart');
         const text=source?.innerText?.trim()||'';
-        put(growth,text&&!/불러오는 중/.test(text)?'<p class="home-body-summary">'+esc(text.split('체중 변화')[0].slice(0,240))+'</p>':'<strong>신체 변화가 쌓이는 공간</strong><p class="home-record-note">성장 화면에서 인바디와 운동 리포트를 확인하세요.</p>');
+        put(growth,text&&!/불러오는 중/.test(text)?'<p class="home-body-summary">'+esc(text.split('체중 변화')[0].trim())+'</p>':'<strong>신체 변화가 쌓이는 공간</strong><p class="home-record-note">성장 화면에서 인바디와 운동 리포트를 확인하세요.</p>');
         const fb=data.feedback||{};put(feedback,fb.workout||fb.diet?'<p class="home-coach-message">'+esc(fb.workout||fb.diet)+'</p><p class="home-record-note">'+esc(fb.time||'코치님이 남긴 피드백')+'</p>':'<strong>코치님과 함께하는 변화</strong><p class="home-record-note">궁금한 점을 메모로 남기거나 운동 영상을 보내보세요.</p>');
       };
       let scheduled=false;

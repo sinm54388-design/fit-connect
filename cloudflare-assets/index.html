@@ -1402,6 +1402,7 @@
     document.addEventListener("DOMContentLoaded", async function () {
       if(perfEnabled)document.getElementById('perfDiagnostic').style.display='block';
       arrangeMemberDashboard();
+      setupMemberBottomNavAutoHide();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);

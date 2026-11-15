@@ -749,7 +749,7 @@
        </section>
        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
-         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v8 · 트랙 호환)</p>
+         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v9 · 이어 올리기)</p>
          <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
            <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
            <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
@@ -3786,6 +3786,76 @@ try {
     // Hide private upload messages immediately when switching member identity.
     setInterval(()=>{if(videoUploadOwner&&(currentMode!=='member'||activeMemberName!==videoUploadOwner.member||memberToken!==videoUploadOwner.token)){const floating=document.getElementById('videoUploadFloating');if(floating){floating.classList.add('hidden');floating.style.display='none';}document.getElementById('memberVideoUploadStatus')?.classList.add('hidden');}},500);
 
+    // Resumable upload state is memory-only and tied to the current member/file.
+    async function sendResumableMemberVideo(job,init,onProgress,assertOwner){
+      const endpoint=new URL(init.tusEndpoint);
+      const version='1.0.0',chunkSize=6*1024*1024;
+      const common={'Tus-Resumable':version,'x-signature':init.uploadToken};
+      const encode=value=>bytesToBase64(new TextEncoder().encode(value));
+      const validUrl=value=>{
+        const url=new URL(value,endpoint);
+        if(url.origin!==endpoint.origin||!url.pathname.startsWith(endpoint.pathname+'/'))throw Error('이어 올리기 주소 오류');
+        return url.href;
+      };
+      const ensureOnline=async()=>{
+        for(let i=0;i<60&&!navigator.onLine;i++){
+          assertOwner();setVideoUploadStatus('연결 복구 대기 중 · 연결되면 자동 재개',job.offset/job.file.size*100);
+          await new Promise(r=>setTimeout(r,1000));
+        }
+        if(!navigator.onLine)throw Error('인터넷 연결을 확인해주세요');
+      };
+      const request=async(method,url,headers,body)=>{
+        assertOwner();
+        return fetch(url,{method,headers:{...common,...headers},body,cache:'no-store',signal:AbortSignal.timeout(45000)});
+      };
+      const head=async()=>{
+        const res=await request('HEAD',job.tusUrl,{});
+        if(res.status===404||res.status===410){job.tusUrl=null;job.offset=0;return false;}
+        if(!res.ok)throw Error('이어 올리기 확인 실패 · HTTP '+res.status);
+        const header=res.headers.get('Upload-Offset'),offset=Number(header);
+        if(header===null||!Number.isInteger(offset)||offset<0||offset>job.file.size)throw Error('전송 위치 확인 실패');
+        job.offset=offset;return true;
+      };
+      job.offset=job.offset||0;
+      if(job.tusUrl){job.tusUrl=validUrl(job.tusUrl);await ensureOnline();await head();}
+      if(!job.tusUrl){
+        await ensureOnline();
+        const meta={bucketName:'fit-direct-videos',objectName:init.objectName,contentType:job.file.type,cacheControl:'3600'};
+        const response=await request('POST',endpoint.href,{'Upload-Length':String(job.file.size),'Upload-Metadata':Object.entries(meta).map(([k,v])=>k+' '+encode(v)).join(',')});
+        if(!response.ok)throw Error('이어 올리기 준비 실패 · HTTP '+response.status);
+        const location=response.headers.get('Location');if(!location)throw Error('이어 올리기 주소 없음');
+        job.tusUrl=validUrl(location);
+        // A created session has no data until the first PATCH.
+        job.offset=0;
+      }
+      let failures=0;
+      while(job.offset<job.file.size){
+        await ensureOnline();assertOwner();
+        const start=job.offset,end=Math.min(start+chunkSize,job.file.size);
+        try{
+          const next=await new Promise((resolve,reject)=>{
+            const xhr=new XMLHttpRequest();xhr.open('PATCH',job.tusUrl);xhr.timeout=45000;
+            for(const [key,value] of Object.entries({...common,'Upload-Offset':String(start),'Content-Type':'application/offset+octet-stream'}))xhr.setRequestHeader(key,value);
+            xhr.upload.onprogress=e=>onProgress(Math.min(end,start+e.loaded),job.file.size);
+            xhr.onload=()=>{
+              const raw=xhr.getResponseHeader('Upload-Offset'),offset=Number(raw);
+              if(xhr.status===204&&raw!==null&&offset===end)resolve(offset);
+              else reject(Error('이어 올리기 전송 오류 · HTTP '+xhr.status));
+            };
+            xhr.onerror=()=>reject(Error('연결 끊김'));xhr.ontimeout=()=>reject(Error('전송 시간 초과'));
+            xhr.send(job.file.slice(start,end));
+          });
+          job.offset=next;failures=0;onProgress(next,job.file.size);
+        }catch(err){
+          if(++failures>4)throw err;
+          setVideoUploadStatus('연결 확인 중 · 중단된 위치부터 재개',job.offset/job.file.size*100);
+          await new Promise(r=>setTimeout(r,Math.min(4000,500*2**failures)));
+          await ensureOnline();
+          try{if(!await head())throw Error('업로드 세션 만료 · 다시 보내기를 눌러주세요');}catch(e){if(!job.tusUrl)throw e;continue;}
+          if(job.offset>start)failures=0;
+        }
+      }
+    }
     async function uploadDirectMemberVideo(file,name,question){
       const creds=apiCredentials(),context=getSaveContext();
       const directLimit=50000000, started=performance.now();
@@ -3808,6 +3878,19 @@ try {
         if(!init.alreadyReady){
           const t=performance.now();
           showToast((compressionMs?'압축 완료':'원본 화질 유지')+' · 영상 직접 전송 시작');
+          const progress=(loaded,total)=>{const sec=(performance.now()-t)/1000;setVideoUploadStatus('영상 전송 '+Math.min(100,Math.round(loaded/total*100))+'% · '+(loaded/1000000).toFixed(1)+' / '+(total/1000000).toFixed(1)+' MB · '+sec.toFixed(1)+'초',loaded/total*100);};
+          const assertOwner=()=>{if(currentMode!==context.mode||activeMemberName!==context.member||memberToken!==context.token)throw Error('회원 화면이 변경됐어요.');};
+          if(job.file.size>6*1024*1024 && init.uploadToken && init.tusEndpoint && init.objectName){
+            try{await sendResumableMemberVideo(job,init,progress,assertOwner);}
+            catch(err){
+              // Never start a second transfer after any resumable bytes were sent.
+              if(job.tusUrl||job.offset)throw err;
+              assertOwner();
+              setVideoUploadStatus('기본 전송으로 전환',0);
+              await sendStandard();
+            }
+          }else await sendStandard();
+          async function sendStandard(){
           await new Promise((resolve,reject)=>{
             const xhr=new XMLHttpRequest();
             xhr.open('PUT',init.url);
@@ -3819,6 +3902,7 @@ try {
             xhr.ontimeout=()=>reject(Error('영상 전송 시간 초과'));
             xhr.send(job.file);
           });
+          }
           transferMs=performance.now()-t;
         }
         job.sent=true;

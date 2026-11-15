@@ -592,6 +592,19 @@
 #memberView #memberHomePage .member-goal-hero #memberWorkoutProgressBar{background:#6656df!important}
 #memberView #memberHomePage .member-goal-hero #memberCalorieBar{background:#e87948!important}
 #memberView #memberHomePage .member-goal-hero #memberNameBadge{background:#ffffff26!important;color:#fff!important;border-color:#ffffff60!important}
+
+.home-record-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+#memberView .home-record-card{display:block;text-align:left;width:100%;padding:22px;background:#fff;border:1px solid #e0e7f2;border-radius:21px;box-shadow:0 6px 20px #263e6508;color:#233650;min-width:0}
+.home-record-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px;font-weight:750;margin-bottom:18px}
+.home-record-heading i{color:#6459db;margin-right:7px}.home-record-link{font-size:12px;color:#596d8c;font-weight:500;white-space:nowrap}
+.home-record-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #edf1f7;font-size:14px}.home-record-row span{color:#596d89}
+.home-record-note{font-size:13px;color:#62728b;line-height:1.65;margin-top:10px}
+.home-empty-icon{background:#eff0ff;color:#6558da;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:24px;margin-bottom:12px}
+.home-meal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.home-meal-grid>div{background:#f6f8fc;border:1px solid #e5ebf4;border-radius:15px;padding:17px 10px;display:flex;align-items:center;flex-direction:column;gap:8px}
+.home-meal-grid i{color:#b65b37;font-size:20px}.home-meal-grid strong{font-size:14px}.home-meal-grid span{font-size:12px;color:#61718b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.home-body-summary{white-space:pre-line;line-height:1.9;font-size:14px;color:#344963}.home-coach-message{font-size:15px;line-height:1.8;white-space:pre-line}
+#appHeader .header-brand-desc{display:none}
+@media(max-width:639px){.home-record-grid{grid-template-columns:1fr;gap:14px}#memberView .home-record-card{padding:19px}.home-record-heading{font-size:17px}#appHeader>div{align-items:stretch!important}#appHeader>div>div:first-child{justify-content:center}}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1552,6 +1565,37 @@
       document.body.classList.toggle('member-tabs-active',active);
       const nav=document.getElementById('memberBottomNav');if(nav)nav.hidden=!active;
     }
+
+    function setupHomeRecordCards(){
+      const home=document.getElementById('memberHomePage');if(!home)return;
+      home.querySelector('.member-home-shortcuts')?.remove();
+      const cards=document.createElement('div');cards.className='home-record-grid';home.append(cards);
+      const create=(key,title,icon)=>{
+        const card=document.createElement('button');card.type='button';card.className='home-record-card';card.dataset.recordCard=key;
+        card.innerHTML='<div class="home-record-heading"><span><i class="fa-solid '+icon+'"></i> '+title+'</span><span class="home-record-link">자세히 ›</span></div><div class="home-record-content"></div>';
+        card.addEventListener('click',()=>navigateMemberPage(key));cards.append(card);return card.querySelector('.home-record-content');
+      };
+      const workout=create('workout','오늘의 운동','fa-dumbbell');
+      const diet=create('diet','오늘의 식단','fa-utensils');
+      const growth=create('growth','최근 신체 기록','fa-chart-line');
+      const feedback=create('feedback','코치 피드백','fa-comment-dots');
+      const put=(el,html)=>{if(el.innerHTML!==html)el.innerHTML=html;};
+      const render=()=>{
+        const data=appData||getDefaultData(),routines=data.routines||[];
+        put(workout,routines.length?routines.slice(0,3).map(r=>'<div class="home-record-row"><strong>'+esc(r.name||'운동')+'</strong><span>'+esc(String(r.weight||'맨몸'))+(r.weight?' kg':'')+' · '+esc(String(r.reps||'–'))+'회</span></div>').join('')+'<p class="home-record-note">전체 '+routines.length+'개 운동 · 눌러서 세트 기록</p>':'<div class="home-empty-icon">＋</div><strong>오늘의 첫 운동을 기록해요</strong><p class="home-record-note">루틴을 확인하거나 운동을 직접 추가하세요.</p>');
+        const meals=[['breakfast','아침'],['lunch','점심'],['dinner','저녁']];
+        put(diet,'<div class="home-meal-grid">'+meals.map(([key,label])=>{const meal=data.diet?.[key]||{};return '<div><i class="fa-solid '+(meal.desc?'fa-circle-check':'fa-camera')+'"></i><strong>'+label+'</strong><span>'+esc(meal.desc||'기록하기')+'</span></div>';}).join('')+'</div>');
+        const source=document.getElementById('memberInbodyChart');
+        const text=source?.innerText?.trim()||'';
+        put(growth,text&&!/불러오는 중/.test(text)?'<p class="home-body-summary">'+esc(text.split('체중 변화')[0].slice(0,240))+'</p>':'<strong>신체 변화가 쌓이는 공간</strong><p class="home-record-note">성장 화면에서 인바디와 운동 리포트를 확인하세요.</p>');
+        const fb=data.feedback||{};put(feedback,fb.workout||fb.diet?'<p class="home-coach-message">'+esc(fb.workout||fb.diet)+'</p><p class="home-record-note">'+esc(fb.time||'코치님이 남긴 피드백')+'</p>':'<strong>코치님과 함께하는 변화</strong><p class="home-record-note">궁금한 점을 메모로 남기거나 운동 영상을 보내보세요.</p>');
+      };
+      let scheduled=false;
+      const observer=new MutationObserver(()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;render();});});
+      ['memberRoutineList','memberInbodyChart','memberCalorieText','feedbackWorkoutText','memberNameBadge'].forEach(id=>{const el=document.getElementById(id);if(el)observer.observe(el,{childList:true,subtree:true,characterData:true});});
+      render();
+    }
+
     function arrangeMemberDashboard(){
       const view=document.getElementById('memberView');
       if(!view||document.getElementById('memberBottomNav'))return;
@@ -1595,6 +1639,7 @@
       if(perfEnabled)document.getElementById('perfDiagnostic').style.display='block';
       arrangeMemberDashboard();
       setupMemberBottomNavAutoHide();
+      setupHomeRecordCards();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);

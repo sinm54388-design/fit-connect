@@ -472,6 +472,36 @@
     #memberBottomNav button.selected i{color:#3d7ffd!important}
     @media(max-width:639px){#memberView .member-page-heading h2{font-size:25px!important}.member-home-tile{min-height:92px!important;padding:13px!important}#memberHomePage>div:first-child{border-radius:20px!important}}
 
+  
+    /* Premium mobile dashboard refinement: visual treatment only, no data or callbacks changed. */
+    #memberView{max-width:1080px;margin-left:auto;margin-right:auto}
+    #memberView .member-page-heading{padding-top:6px}
+    #memberHomePage>div:first-child{min-height:142px;padding:25px!important}
+    #memberHomePage>div:first-child #customHeaderMessage{font-size:clamp(24px,3vw,32px)!important;max-width:540px}
+    #memberHomePage>div:first-child .rounded-2xl{border-radius:16px!important;box-shadow:none!important}
+    #memberHomePage>div:first-child [class*="text-3xl"]{font-variant-numeric:tabular-nums}
+    #memberView .member-home-tile{position:relative;overflow:hidden}
+    #memberView .member-home-tile:after{content:'›';position:absolute;right:16px;top:50%;transform:translateY(-50%);color:#94a7c1;font-size:28px;font-weight:300}
+    #memberView .member-home-tile:hover{transform:translateY(-2px);box-shadow:0 15px 28px rgba(54,87,150,.15)!important}
+    #memberView .member-home-tile strong{letter-spacing:-.04em}
+    #memberView .food-card,#memberView [class*="meal"] .rounded-xl{border-radius:18px!important}
+    #memberView .rounded-xl{border-radius:16px}
+    #memberView [class*="progress"]{border-radius:999px}
+    #memberView .text-amber-400,#memberView .text-amber-300{color:#eb7655!important}
+    #memberView .text-sky-400,#memberView .text-sky-300{color:#377ff3!important}
+    #memberView .bg-emerald-500,#memberView .bg-green-500{background:#28bf93!important}
+    #memberView button{font-weight:650}
+    #memberView button:focus-visible{outline:3px solid rgba(75,112,255,.22);outline-offset:2px}
+    @media(max-width:639px){
+      #memberView{padding-left:14px!important;padding-right:14px!important}
+      #memberHomePage>div:first-child{min-height:178px;padding:20px!important}
+      #memberHomePage>div:first-child #customHeaderMessage{font-size:24px!important}
+      #memberHomePage>div:first-child .grid{gap:9px!important}
+      #memberView .member-home-shortcuts{gap:10px!important}
+      #memberView .member-home-tile{border-radius:18px!important}
+      #memberBottomNav{left:10px!important;right:10px!important;border-radius:20px 20px 0 0!important}
+    }
+
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">

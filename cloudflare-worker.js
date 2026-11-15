@@ -288,7 +288,7 @@ async function handleRecords(request,env) {
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
   // Member path: either exchange a member link for a session, or use a session.
   if((action==='videoPlaybackUrl'||directVideo)&&input.password===undefined){
-    if(!member||!input.token||!validDay(date))return json({status:'denied'},403);
+    if(!member||member.length>100||typeof input.token!=='string'||!input.token||input.token.length>200||!validDay(date))return json({status:'denied'},403);
     try{if(!await appsScriptAcceptsMember(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
   } else if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {
     if(sessionSecret.length<32)
@@ -377,7 +377,7 @@ async function handleRecords(request,env) {
       const bucket='/storage/v1/object';
       const send=async(path,method,body,extra={})=>{
         const res=await fetch(base+path,{method,headers:{...headers,...extra},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(12000)});
-        if(!res.ok)throw Error('direct_video_http_'+res.status);
+        if(!res.ok){const error=Error('direct_video_http_'+res.status);error.diagnostic='direct_video_http_'+res.status;throw error;}
         const raw=await res.text();return raw?JSON.parse(raw):null;
       };
       const format=row=>({id:'direct:'+row.id,fileId:'direct:'+row.id,name:row.name,question:row.question,feedback:row.feedback,readAt:row.read_at||'',createdAt:row.created_at});
@@ -416,6 +416,7 @@ async function handleRecords(request,env) {
       if(action==='directVideoFinish'){
         if(trainer)return json({status:'denied'},403);
         if(row.state==='ready')return json({status:'success',video:format(row)});
+        step='direct_finish_storage';
         const info=await send(bucket+'/info/fit-direct-videos/'+path,'GET');
         const bytes=Number(info.size??info.metadata?.size);
         if(bytes!==Number(row.size_bytes))return json({status:'error',code:'upload_size_mismatch'},409);

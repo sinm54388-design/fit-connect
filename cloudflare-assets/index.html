@@ -609,6 +609,21 @@
 .home-body-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.home-body-metric{display:flex;flex-direction:column;gap:9px;padding:16px 11px;background:#f5f7ff;border:1px solid #e5e8f6;border-radius:16px;min-width:0}.home-body-metric i{color:#6657d9;font-size:18px}.home-body-metric>span{font-size:12px;color:#52647e}.home-body-metric strong{font-size:23px;color:#1d3050;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.home-body-metric small{font-size:12px;margin-left:3px;font-weight:500}
 #memberView .home-record-card:hover{border-color:#bbcaf0;box-shadow:0 8px 22px #263e6510}.home-record-card:focus-visible{outline:3px solid #abbbf5;outline-offset:3px}
 @media(max-width:639px){#memberView .home-record-card{border-radius:20px}.home-body-metric strong{font-size:22px}.home-record-heading{margin-bottom:16px}.home-meal-grid>div{padding:19px 8px}}
+
+#memberView #memberRoutineList>div{padding:18px!important;border-radius:18px!important;margin-bottom:12px}
+#memberView .exercise-card-title{font-size:19px!important;line-height:1.45}
+#memberView .exercise-card-dose{display:block;font-size:15px!important;color:#50627d!important;font-weight:600!important;margin-top:5px}
+#memberView .member-set-check{min-height:52px!important;min-width:94px!important;padding:12px!important;background:#f2f5fc!important;border-color:#d6e1f0!important}
+#memberView .member-set-check:has(input:checked){background:#e4f6ee!important;border-color:#8ccfb5!important;box-shadow:inset 0 0 0 1px #8ccfb5}
+#memberView .member-set-check input{width:22px;height:22px;accent-color:#178765}
+#memberView .member-set-check:has(input:checked) span{color:#126b50!important;text-decoration:none!important}
+#memberView .food-nutrition-details{margin-top:12px;border-radius:12px;background:#f6f8fc;border-color:#e1e8f3;padding:0 12px}
+#memberView .food-nutrition-details summary{font-size:13px;color:#516480;padding:12px 0}
+#memberView .food-nutrition-details[open]{padding-bottom:12px}
+#memberView [id^="photos-"] img{border-radius:13px;aspect-ratio:1;object-fit:cover}
+#memberView #memberDietSection label:has(input[type=file]){display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;background:#eeeaff!important;border:1px solid #cfc5f6!important;color:#5944b4!important;font-size:13px!important;font-weight:650;padding:10px 14px!important}
+#memberView #memberMemoList>div{padding:14px!important;line-height:1.7}
+#memberView #memberMemoInput{min-height:80px;font-size:16px!important}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -2370,7 +2385,7 @@
         return `
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
             <div class="flex items-start justify-between gap-2">
-              <h4 class="font-bold text-white text-base mb-1">${esc(ex.name)} <span class="text-xs font-normal text-slate-400">(${ex.weight ? esc(ex.weight) + 'kg' : '맨몸'} × ${esc(ex.reps)}회)</span></h4>
+              <h4 class="exercise-card-title font-bold text-white text-base mb-1">${esc(ex.name)} <span class="exercise-card-dose text-xs font-normal text-slate-400">(${ex.weight ? esc(ex.weight) + 'kg' : '맨몸'} × ${esc(ex.reps)}회)</span></h4>
               <div class="flex gap-1 shrink-0">
                 <button onclick="startEditRoutine(${Number(ex.id)})" class="text-slate-400 hover:text-white w-10 h-10 flex items-center justify-center cursor-pointer" title="수정" aria-label="운동 수정"><i class="fa-solid fa-pen"></i></button>
                 <button onclick="removeExercise(${Number(ex.id)})" class="text-rose-400 hover:text-rose-300 w-10 h-10 flex items-center justify-center cursor-pointer" title="삭제" aria-label="운동 삭제"><i class="fa-solid fa-trash"></i></button>

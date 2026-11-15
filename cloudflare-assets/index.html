@@ -656,6 +656,18 @@
 #memberView button:disabled{opacity:.6;cursor:wait}
 #memberView textarea{resize:vertical}
 @media(max-width:639px){#memberView .coach-video-upload input:not([type=file]),#memberView .coach-video-upload textarea{font-size:16px!important}#memberView .member-field-label{font-size:14px}}
+
+#memberView .meal-quick-guide{background:#eef3ff;color:#3e557b!important;border:1px solid #d8e3f8;border-radius:14px;padding:13px 15px;font-size:13px;line-height:1.75;margin-top:13px}
+#memberView .meal-editor-caption{font-size:12px;font-weight:650;color:#536882;padding:8px 2px 2px}
+#memberView .saved-meal-summary{background:#f0faf6!important;border:1px solid #b5dfcf!important;border-radius:17px!important;margin:14px 0;padding:15px!important}
+#memberView .saved-meal-summary h5{color:#176e52!important}
+#memberView .meal-shortcuts-toggle{background:#f7f8fc!important;border-color:#dce4f1!important}
+#memberView .meal-shortcuts-toggle summary{font-size:13px;color:#475b7a;padding:9px 0}
+#memberView .meal-save-feedback{padding:12px 15px;border:1px solid #cddcf3;border-radius:13px;font-size:13px;line-height:1.5}
+#memberView .meal-save-feedback[data-state=saving]{background:#edf4ff;color:#355987}
+#memberView .meal-save-feedback[data-state=saved]{background:#eaf8f1;color:#176b50}
+#memberView .meal-save-feedback[data-state=error]{background:#fff0f1;color:#a32e43;border-color:#efb8c1}
+.meal-save-feedback[hidden]{display:none!important}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1652,6 +1664,25 @@
       render();
     }
 
+
+    function setupDietRecordGuidance(){
+      const diet=document.getElementById('memberDietSection');if(!diet)return;
+      const head=diet.querySelector('.member-page-heading');
+      const tip=document.createElement('p');tip.className='meal-quick-guide';
+      tip.textContent='사진만 올려도 기록돼요. 음식명만 적어도 괜찮아요. 영양성분은 필요할 때 펼쳐보세요.';
+      if(head)head.append(tip);
+      const status=document.createElement('div');status.className='meal-save-feedback';status.id='mealSaveFeedback';status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.hidden=true;
+      if(head)head.after(status);
+      const globalBar=document.getElementById('saveStatusBar');
+      const sync=()=>{const state=globalBar.dataset.state;status.hidden=!['saving','saved','error'].includes(state);status.dataset.state=state;status.textContent=document.getElementById('saveStatusText').textContent;};
+      if(globalBar)new MutationObserver(sync).observe(globalBar,{attributes:true,childList:true,subtree:true,characterData:true});
+      MEAL_KEYS.forEach(meal=>{
+        const editor=document.getElementById('meal-'+meal+'-editor');
+        if(editor){const note=document.createElement('p');note.className='meal-editor-caption';note.textContent='음식 입력 · 입력 후 끼니 저장을 눌러주세요';editor.prepend(note);}
+      });
+      sync();
+    }
+
     function arrangeMemberDashboard(){
       const view=document.getElementById('memberView');
       if(!view||document.getElementById('memberBottomNav'))return;
@@ -1714,6 +1745,7 @@
           document.getElementById(`meal-${m}-${f}`).addEventListener('input', () => dirtyMealDrafts.add(m));
         });
       });
+      setupDietRecordGuidance();
       updateAccessState();
       document.getElementById('currentDateInput').value = selectedDate;
       const copyDateInput=document.getElementById('routineCopySourceDate');
@@ -2493,12 +2525,12 @@
       panel.className='meal-shortcuts-toggle rounded-xl border border-slate-700/70 bg-slate-900/60 px-3 py-3';
       const summary=document.createElement('summary');
       summary.className='text-sm font-bold text-slate-200 py-1';
-      summary.textContent='⭐ 즐겨찾기 · 최근 음식 펼치기';
+      summary.textContent='최근 음식 · 즐겨찾기로 빠르게 입력';
       const content=document.createElement('div');
       content.id=`meal-${meal}-shortcuts-content`;
       content.className='space-y-3 pt-3';
       panel.append(summary,content);
-      editor.appendChild(panel);
+      editor.prepend(panel);
       renderMealShortcuts(meal);
     }
     function renderMealShortcuts(meal) {
@@ -2680,6 +2712,7 @@
       const editor=document.createElement('div');
       editor.id=`meal-${meal}-editor`;
       editor.className='space-y-2.5';
+      editor.setAttribute('aria-label',({breakfast:'아침',lunch:'점심',dinner:'저녁',snack:'간식'})[meal]+' 음식 입력');
       parent.insertBefore(editor,firstCard);
       let next=editor.nextSibling;
       while(next){const current=next;next=next.nextSibling;editor.appendChild(current);}
@@ -2754,9 +2787,9 @@
           <div class="text-[10px] text-slate-400">${label}</div>
           <div class="text-xs font-bold text-emerald-300 mt-0.5">${esc(String(item[key]||0))}${key==='cal'?' kcal':'g'}</div>
         </div>`).join('');
-      box.className='rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2';
+      box.className='saved-meal-summary rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2';
       box.innerHTML=`<div class="flex items-center justify-between gap-2">
-        <h5 class="text-xs font-bold text-emerald-400"><i class="fa-solid fa-circle-check"></i> 저장된 식단</h5>
+        <h5 class="text-xs font-bold text-emerald-400"><i class="fa-solid fa-circle-check"></i> 저장된 기록</h5>
         <div class="flex items-center gap-2"><span class="text-[11px] text-slate-400">음식 ${foods.filter(f=>String(f.name||'').trim()).length}개</span>
           <button type="button" onclick="openMealEditor('${meal}')" class="rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-bold text-emerald-300">수정하기</button></div>
         </div><div class="px-1">${rows||'<div class="text-xs text-slate-400">영양성분 기록</div>'}</div>
@@ -2795,7 +2828,7 @@
           badge.innerText = "작성완료";
         } else {
           badge.className = "text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded";
-          badge.innerText = "미작성";
+          badge.innerText = (item.photos||[]).length ? "사진 기록됨" : "미작성";
         }
         totalCal += Number(item.cal) || 0;
         totalCarb += Number(item.carb) || 0;

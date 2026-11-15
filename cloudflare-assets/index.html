@@ -580,7 +580,19 @@
 #memberView .rounded-2xl{box-shadow:0 5px 18px #354e7b08!important}
 }
 
-#memberHomePage>div:first-child .rounded-2xl{background:rgba(21,32,95,.32)!important;color:white!important}#memberHomePage>div:first-child .rounded-2xl *{color:white!important}#memberView [class*="bg-slate-"][class*="text-slate-200"]{color:#344966!important}#memberView [class*="bg-slate-"] label{color:#405575!important}</style>
+#memberHomePage>div:first-child .rounded-2xl{background:rgba(21,32,95,.32)!important;color:white!important}#memberHomePage>div:first-child .rounded-2xl *{color:white!important}#memberView [class*="bg-slate-"][class*="text-slate-200"]{color:#344966!important}#memberView [class*="bg-slate-"] label{color:#405575!important}
+/* Explicit home card contract: independent of legacy utility colors. */
+#memberView #memberHomePage .member-goal-hero{background:linear-gradient(125deg,#5146c5,#2463c5)!important;border:0!important;color:#fff!important}
+#memberView #memberHomePage .member-goal-hero #customHeaderMessage{color:#fff!important;font-size:clamp(23px,3vw,30px)!important;line-height:1.4!important}
+#memberView #memberHomePage .member-goal-hero p,#memberView #memberHomePage .member-goal-hero #todayDateDisplay{color:#eef2ff!important}
+#memberView #memberHomePage .member-goal-hero .grid>div{background:#fff!important;border:1px solid #dce5f5!important;box-shadow:none!important;border-radius:16px!important}
+#memberView #memberHomePage .member-goal-hero .grid>div *{color:#344766!important}
+#memberView #memberHomePage .member-goal-hero #memberWorkoutProgressText,#memberView #memberHomePage .member-goal-hero #memberCalorieText{color:#172b4d!important;font-size:26px!important;line-height:1.25!important;font-weight:750!important}
+#memberView #memberHomePage .member-goal-hero .grid>div>.rounded-full{background:#e6ecf6!important}
+#memberView #memberHomePage .member-goal-hero #memberWorkoutProgressBar{background:#6656df!important}
+#memberView #memberHomePage .member-goal-hero #memberCalorieBar{background:#e87948!important}
+#memberView #memberHomePage .member-goal-hero #memberNameBadge{background:#ffffff26!important;color:#fff!important;border-color:#ffffff60!important}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
 
@@ -641,7 +653,7 @@
 
     <!-- MEMBER VIEW -->
     <div id="memberView" class="space-y-6">
-      <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+      <div class="member-goal-hero bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div class="flex items-center gap-2 mb-1">

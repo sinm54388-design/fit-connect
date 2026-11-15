@@ -2512,6 +2512,7 @@
 
     function getMealValues(m) {
       const foods=getFoodRows(m).map(readFood).filter(f=>f.name||FOOD_NUTRIENTS.some(({key})=>f[key]!==''));
+      if (!foods.length) return { desc: '', cal: '', carb: '', prot: '', fat: '', foods: [] };
       const totals={};
       FOOD_NUTRIENTS.forEach(({key})=>totals[key]=String(Math.round(foods.reduce((sum,f)=>sum+(Math.max(0,Number(f[key]))||0),0)*100)/100));
       return {
@@ -2523,7 +2524,10 @@
 
     async function saveSingleMeal(meal) {
       const values = getMealValues(meal);
-      const saved = await updateAndSave(d => { d.diet[meal] = { ...(d.diet[meal] || {}), ...values }; });
+      const saved = await updateAndSave(d => {
+        if (!values.foods.length) delete d.diet[meal];
+        else d.diet[meal] = { ...(d.diet[meal] || {}), ...values };
+      });
       if (saved) {
         dirtyMealDrafts.delete(meal);
         mealEditorOpen.delete(meal);

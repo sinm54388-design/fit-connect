@@ -1456,15 +1456,22 @@
       if(!nav)return;
       const show=()=>nav.classList.remove('nav-hidden');
       const hide=()=>nav.classList.add('nav-hidden');
-      let startY=null,lastY=window.scrollY;
-      document.addEventListener('touchstart',event=>{startY=event.touches[0]?.clientY??null;},{passive:true});
-      document.addEventListener('touchend',event=>{
-        const endY=event.changedTouches[0]?.clientY;
-        if(startY===null||!Number.isFinite(endY))return;
-        const moved=startY-endY;startY=null;
-        if(moved>18)hide();
-        else if(moved<-12)show();
-      },{passive:true});
+      let lastTouchY=null,lastY=window.scrollY;
+      const moveMenu=(y)=>{
+        if(lastTouchY===null){lastTouchY=y;return;}
+        const moved=lastTouchY-y;
+        if(moved>8)hide();
+        else if(moved<-8)show();
+        lastTouchY=y;
+      };
+      // touchmove works on both iPhone Safari and Android Chrome while the page moves.
+      document.addEventListener('touchstart',event=>{lastTouchY=event.touches[0]?.clientY??null;},{passive:true});
+      document.addEventListener('touchmove',event=>moveMenu(event.touches[0]?.clientY),{passive:true});
+      document.addEventListener('touchend',()=>{lastTouchY=null;},{passive:true});
+      // Pointer events are a fallback for browsers that do not report touch events.
+      document.addEventListener('pointerdown',event=>{if(event.pointerType==='touch')lastTouchY=event.clientY;},{passive:true});
+      document.addEventListener('pointermove',event=>{if(event.pointerType==='touch')moveMenu(event.clientY);},{passive:true});
+      document.addEventListener('pointerup',event=>{if(event.pointerType==='touch')lastTouchY=null;},{passive:true});
       window.addEventListener('scroll',()=>{
         const y=window.scrollY;
         if(y<60||y<lastY-12)show();

@@ -383,7 +383,10 @@
 
     [data-member-page][hidden],#memberBottomNav[hidden]{display:none!important}
     body.member-tabs-active{--member-nav-height:76px;padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
-    #memberBottomNav{position:fixed;z-index:900;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:#101b2c;border-top:1px solid #334155;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px #0003}
+    #memberBottomNav{position:fixed;z-index:900;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:#101b2c;border-top:1px solid #334155;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px #0003;transition:transform .22s ease,opacity .22s ease}
+    #memberBottomNav.nav-hidden{transform:translateY(calc(100% + 12px));opacity:0;pointer-events:none}
+    body.member-tabs-active.member-nav-hidden{--member-nav-height:0px;padding-bottom:24px}
+    body.member-tabs-active.member-nav-hidden #toastNotification,body.member-tabs-active.member-nav-hidden #saveStatusBar{bottom:20px}
     #memberBottomNav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:56px;border-radius:12px;color:#a6b5c8;font-size:12px;font-weight:700;background:transparent;border:1px solid transparent}
     #memberBottomNav button i{font-size:19px}
     #memberBottomNav button.selected{background:#24351f;color:#bef264;border-color:#365314}
@@ -398,7 +401,7 @@
     .member-home-tile small{display:block;font-size:11px;color:#a6b5c8;line-height:1.5;margin-top:5px}
     .member-home-tile .tile-arrow{margin-left:auto;font-size:12px;color:#94a3b8}
     body.member-tabs-active #toastNotification,body.member-tabs-active #saveStatusBar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
-    @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}}
+    @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}#memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 12px))}}
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1403,6 +1406,7 @@
       arrangeMemberDashboard();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       setupAutoHideHeader();
+      setupMemberBottomNavAutoHide();
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
         setupMealEditor(m);
@@ -1473,6 +1477,27 @@
         });
       }, {passive:true});
       header.addEventListener('focusin', () => header.classList.remove('header-hidden'));
+    }
+
+    // Hide the fixed member menu while reading down and reveal it with a short upward scroll.
+    function setupMemberBottomNavAutoHide() {
+      const nav=document.getElementById('memberBottomNav');
+      if(!nav)return;
+      let lastY=Math.max(0,window.scrollY),direction=0,directionStart=lastY,pending=false;
+      const show=()=>document.body.classList.remove('member-nav-hidden');
+      window.addEventListener('scroll',()=>{
+        if(pending)return;
+        pending=true;
+        requestAnimationFrame(()=>{
+          const y=Math.max(0,window.scrollY),difference=y-lastY,nextDirection=Math.sign(difference);
+          if(nextDirection&&nextDirection!==direction){direction=nextDirection;directionStart=lastY;}
+          if(y<80||(direction<0&&directionStart-y>12))show();
+          else if(direction>0&&y-directionStart>28&&currentMode==='member'&&hasMemberAccess())
+            document.body.classList.add('member-nav-hidden');
+          lastY=y;pending=false;
+        });
+      },{passive:true});
+      nav.addEventListener('focusin',show);
     }
 
     function jumpTrainerSection(id) {

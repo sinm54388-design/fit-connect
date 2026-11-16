@@ -81,306 +81,6 @@
     }
     @media (prefers-reduced-motion: reduce) { #appHeader { transition: none; } }
 
-    body.trainer-lime-theme #trainerView .bg-slate-900,
-    body.trainer-lime-theme #trainerView .bg-slate-950 {
-      background-color:#121417;
-      border-color:#282c31;
-    }
-    body.trainer-lime-theme #trainerView .bg-slate-800 {
-      background-color:#202329;
-      border-color:#333840;
-    }
-    body.trainer-lime-theme #trainerView .border-slate-800,
-    body.trainer-lime-theme #trainerView .border-slate-700,
-    body.trainer-lime-theme #trainerView .border-indigo-500\\/30 {
-      border-color:#2a2d32;
-    }
-    body.trainer-lime-theme #trainerView .text-slate-400 { color:#a9adb6; }
-    body.trainer-lime-theme #trainerView .text-slate-500 { color:#9196a1; }
-    body.trainer-lime-theme #trainerView .text-white { color:#f3f5f7; }
-    body.trainer-lime-theme #trainerView .text-brand-500,
-    body.trainer-lime-theme #trainerView .text-brand-400,
-    body.trainer-lime-theme #trainerView .text-indigo-400,
-    body.trainer-lime-theme #trainerView .text-indigo-300,
-    body.trainer-lime-theme #trainerView .text-emerald-300,
-    body.trainer-lime-theme #trainerView .text-emerald-400 { color:#c0f638; }
-    body.trainer-lime-theme #trainerView .bg-brand-500,
-    body.trainer-lime-theme #trainerView .bg-brand-600,
-    body.trainer-lime-theme #trainerView button.bg-indigo-600 {
-      background:#bdF42e;
-      color:#11180a;
-      border-color:transparent;
-      box-shadow:none;
-    }
-    body.trainer-lime-theme #trainerView button.bg-brand-500:hover,
-    body.trainer-lime-theme #trainerView button.bg-brand-600:hover { background:#d5ff74; }
-    body.trainer-lime-theme #trainerView > .bg-gradient-to-r {
-      background:radial-gradient(circle at 90% 12%,rgba(188,244,46,.09),transparent 38%),
-                 linear-gradient(125deg,#191b20,#151719 65%,#1b1e1b) !important;
-      border:1px solid #2e332c !important;
-      box-shadow:none;
-      padding-top:28px;
-      padding-bottom:28px;
-    }
-    body.trainer-lime-theme #trainerView > .bg-gradient-to-r h2 {
-      font-size:clamp(23px,2.7vw,34px);
-      line-height:1.2;
-      font-weight:800;
-      letter-spacing:-.055em;
-    }
-    body.trainer-lime-theme #trainerView > .bg-gradient-to-r .bg-indigo-500\\/20 {
-      background:rgba(190,249,50,.07);
-      border-color:rgba(190,249,50,.20);
-      color:#d2ff72;
-    }
-    body.trainer-lime-theme #trainerView > .bg-gradient-to-r .text-indigo-400 { color:#d2ff72; }
-    body.trainer-lime-theme #trainerView .rounded-2xl {
-      border-radius:17px;
-      box-shadow:none;
-    }
-    body.trainer-lime-theme #trainerView .rounded-xl { border-radius:13px; }
-    body.trainer-lime-theme #trainerView h2,
-    body.trainer-lime-theme #trainerView h3,
-    body.trainer-lime-theme #trainerView h4 {
-      letter-spacing:-.04em;
-    }
-    body.trainer-lime-theme #trainerView .trainer-nav-btn {
-      background:#15171a;
-      border:1px solid #2b3035;
-      color:#e6e9ed;
-      box-shadow:none;
-    }
-    body.trainer-lime-theme #trainerView .trainer-nav-btn:hover,
-    body.trainer-lime-theme #trainerView .trainer-nav-btn:focus-visible {
-      border-color:#a6df22;
-      background:#20251b;
-    }
-    body.trainer-lime-theme #trainerView .quick-feedback-btn {
-      background:#1c2022;
-      border:1px solid #34383e;
-      color:#e6e9ed;
-    }
-    body.trainer-lime-theme #trainerView .quick-feedback-btn:hover {
-      background:#242b20;
-      border-color:#9ad329;
-    }
-    body.trainer-lime-theme #trainerView input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-    body.trainer-lime-theme #trainerView textarea,
-    body.trainer-lime-theme #trainerView select {
-      background:#0c0e11;
-      border:1px solid #30343b;
-      color:#f1f2f5;
-    }
-    body.trainer-lime-theme #trainerView input:focus-visible,
-    body.trainer-lime-theme #trainerView textarea:focus-visible,
-    body.trainer-lime-theme #trainerView select:focus-visible {
-      border-color:#b8ec39 !important;
-      box-shadow:0 0 0 3px rgba(193,248,48,.12);
-    }
-    body.trainer-lime-theme #trainerView input::placeholder,
-    body.trainer-lime-theme #trainerView textarea::placeholder { color:#858b95; }
-    body.trainer-lime-theme #trainerView #trainerDashboardSection {
-      background:#131519;
-      border:1px solid #2a2e33;
-    }
-    body.trainer-lime-theme #trainerView #trainerDashboardSection .bg-slate-950 {
-      background:#0e1013;
-      border:1px solid #272b31;
-    }
-    body.trainer-lime-theme #trainerView #trainerDashboardSection .text-amber-400,
-    body.trainer-lime-theme #trainerView #trainerDashboardSection .text-amber-300 { color:#e8e19a; }
-    body.trainer-lime-theme #trainerView #trainerDashboardSection .text-sky-400,
-    body.trainer-lime-theme #trainerView #trainerDashboardSection .text-sky-300 { color:#87c7ea; }
-    body.trainer-lime-theme #trainerView .trainer-jump-target.jump-highlight {
-      box-shadow:0 0 0 2px rgba(193,248,48,.52);
-    }
-    @media(max-width:639px) {
-      body.trainer-lime-theme #trainerView > .bg-gradient-to-r { padding:22px 18px; }
-      body.trainer-lime-theme #trainerView > .bg-gradient-to-r h2 { font-size:25px; }
-      body.trainer-lime-theme #trainerView .trainer-nav-btn { min-height:52px; }
-    }
-
-    /* Trainer workspace layout inspired by modern low-noise coaching SaaS.
-       Visual/structural changes only; overview IDs retain all existing callbacks. */
-    body.trainer-lime-theme #trainerView { max-width:1280px;margin-left:auto;margin-right:auto; }
-    body.trainer-lime-theme #trainerView .trainer-workspace-hero {
-      display:grid;grid-template-columns:minmax(0,1.5fr) minmax(240px,.8fr);
-      gap:34px;align-items:center;
-      background:radial-gradient(ellipse at 88% 8%,rgba(192,253,47,.065),transparent 42%),linear-gradient(130deg,#17191c,#17191b 65%,#1b1d1c);
-      padding:34px 38px;border:1px solid #292c2e;border-radius:22px;
-      box-shadow:none;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-eyebrow,
-    body.trainer-lime-theme #trainerView .trainer-workspace-kicker {
-      color:#baf038;font-size:10px;font-weight:750;letter-spacing:.095em;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-eyebrow {
-      display:inline-flex;align-items:center;gap:8px;
-      border:1px solid rgba(191,241,65,.20);border-radius:30px;
-      padding:5px 10px;background:rgba(190,247,47,.045);letter-spacing:.03em;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-status-dot {
-      display:inline-block;width:6px;height:6px;border-radius:50%;background:#c6fb33;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-hero h2 {
-      font-size:clamp(30px,3.5vw,46px);line-height:1.12;letter-spacing:-.065em;
-      max-width:560px;color:#f6f7f7;font-weight:850;margin:16px 0 12px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-hero h2 em {font-style:normal;color:#c4fb32;}
-    body.trainer-lime-theme #trainerView .trainer-workspace-hero-copy > p {
-      font-size:13px;line-height:1.8;color:#a5a9b2;max-width:450px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-actions {
-      display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:24px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-primary {
-      background:#c5fb31;color:#11130e;border:0;border-radius:10px;
-      padding:13px 19px;font-size:12px;font-weight:800;display:flex;align-items:center;gap:9px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-primary:hover {background:#d9ff74;}
-    body.trainer-lime-theme #trainerView .trainer-workspace-secondary {
-      color:#e0e2e5;font-size:12px;font-weight:600;display:flex;align-items:center;gap:10px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-member {
-      background:rgba(8,10,12,.43);border:1px solid #30343a;border-radius:15px;
-      padding:18px;min-width:0;position:relative;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-member > label:first-child {
-      display:block;color:#e3e5e8;font-size:12px;font-weight:700;margin-bottom:10px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-select-caption {
-      display:block;font-size:11px;color:#9398a2;margin:14px 0 6px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-member-link {
-      color:#b9ef4b;display:flex;align-items:center;gap:9px;margin-top:14px;
-      font-size:11px;font-weight:700;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-nav {
-      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-nav .trainer-nav-btn {
-      min-height:51px;justify-content:center;font-size:12px;gap:9px;
-      background:#141619;border:1px solid #25292d;border-radius:12px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-nav .trainer-nav-btn i {color:#bff13d;}
-    body.trainer-lime-theme #trainerView .trainer-workspace-dashboard {
-      border:0;background:transparent;padding:0;box-shadow:none;
-      display:flex;flex-direction:column;gap:18px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-section-title {
-      display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
-      padding:4px 0 0;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-section-title h3 {
-      font-size:24px;font-weight:800;color:#f7f7f8;margin-top:6px;letter-spacing:-.05em;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-section-title p {
-      color:#949aa4;font-size:12px;margin-top:3px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-refresh {
-      color:#c9cdd0;background:#1c1f23;border:1px solid #30343a;
-      border-radius:10px;padding:10px 13px;font-size:11px;white-space:nowrap;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-metrics {
-      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-metric {
-      display:grid;grid-template-columns:1fr auto;gap:6px 8px;
-      padding:18px 17px;background:#121416;border:1px solid #282b30;border-radius:14px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-metric > span {
-      font-size:11px;color:#a2a6ae;font-weight:600;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-metric > i {
-      font-size:14px;color:#c3f637;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-metric strong {
-      grid-column:1/-1;color:#f5f7f8;font-size:31px;line-height:1.15;
-      font-weight:820;letter-spacing:-.05em;font-variant-numeric:tabular-nums;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-metric small {
-      grid-column:1/-1;color:#828891;font-size:10px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-overview-status {
-      color:#8b919a;font-size:11px;min-height:15px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-main-grid {
-      display:grid;grid-template-columns:minmax(0,1.48fr) minmax(260px,.9fr);
-      gap:15px;align-items:start;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-side-panels {
-      display:grid;gap:15px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-activity,
-    body.trainer-lime-theme #trainerView .trainer-workspace-side-card,
-    body.trainer-lime-theme #trainerView .trainer-workspace-report-card {
-      padding:21px;background:#111315;border:1px solid #292c31;
-      border-radius:15px;min-width:0;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-activity {
-      min-height:350px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-list-heading {
-      display:flex;align-items:center;justify-content:space-between;gap:12px;
-      margin-bottom:16px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-list-heading h4 {
-      color:#f4f6f7;font-size:15px;font-weight:750;letter-spacing:-.035em;
-      margin-top:4px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-list-heading h4 i {
-      color:#bef236;margin-right:5px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-subtle {
-      color:#8d939d;font-size:11px;line-height:1.55;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-list {
-      display:flex;flex-direction:column;gap:7px;
-      max-height:290px;overflow:auto;scrollbar-width:thin;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-list > button {
-      padding:12px 13px;border:1px solid #292e32;border-radius:10px;
-      background:#191b1e;display:flex;align-items:center;gap:8px;
-      text-align:left;min-height:49px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-list > button:hover {
-      background:#242823;border-color:#606b3c;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-list > button span:first-child {
-      font-weight:650;color:#f0f1f2;font-size:12px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-list > button span:last-child {
-      color:#9aa0aa;font-size:10px;text-align:right;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-report-grid {
-      display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;
-    }
-    body.trainer-lime-theme #trainerView .trainer-workspace-report-card > p {
-      margin:-6px 0 12px;
-    }
-    @media(max-width:900px) {
-      body.trainer-lime-theme #trainerView .trainer-workspace-hero {
-        grid-template-columns:minmax(0,1fr);padding:26px;gap:20px;
-      }
-      body.trainer-lime-theme #trainerView .trainer-workspace-main-grid {grid-template-columns:1fr;}
-      body.trainer-lime-theme #trainerView .trainer-workspace-side-panels {grid-template-columns:repeat(2,minmax(0,1fr));}
-    }
-    @media(max-width:639px) {
-      body.trainer-lime-theme #trainerView .trainer-workspace-hero {padding:22px 18px;border-radius:18px;}
-      body.trainer-lime-theme #trainerView .trainer-workspace-hero h2 {font-size:30px;}
-      body.trainer-lime-theme #trainerView .trainer-workspace-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}
-      body.trainer-lime-theme #trainerView .trainer-workspace-metric {padding:15px 13px;}
-      body.trainer-lime-theme #trainerView .trainer-workspace-metric strong {font-size:27px;}
-      body.trainer-lime-theme #trainerView .trainer-workspace-side-panels,
-      body.trainer-lime-theme #trainerView .trainer-workspace-report-grid {grid-template-columns:1fr;}
-      body.trainer-lime-theme #trainerView .trainer-workspace-nav {grid-template-columns:repeat(2,minmax(0,1fr));}
-      body.trainer-lime-theme #trainerView .trainer-workspace-activity,
-      body.trainer-lime-theme #trainerView .trainer-workspace-side-card,
-      body.trainer-lime-theme #trainerView .trainer-workspace-report-card {padding:16px;}
-      body.trainer-lime-theme #trainerView .trainer-workspace-section-title h3 {font-size:22px;}
-    }
-
-
     [data-member-page][hidden],#memberBottomNav[hidden]{display:none!important}
     body.member-tabs-active{--member-nav-height:76px;padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
     #memberBottomNav{position:fixed;z-index:900;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:#101b2c;border-top:1px solid #334155;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px #0003;transition:transform .2s ease,opacity .2s ease}
@@ -668,6 +368,126 @@
 #memberView .meal-save-feedback[data-state=saved]{background:#eaf8f1;color:#176b50}
 #memberView .meal-save-feedback[data-state=error]{background:#fff0f1;color:#a32e43;border-color:#efb8c1}
 .meal-save-feedback[hidden]{display:none!important}
+/* Trainer shares the member canvas, typography and purple/blue accents. */
+body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
+#trainerView{--trainer-ink:#1c2d49;--trainer-muted:#5b6d87;--trainer-line:#dfe6f2;max-width:1100px;margin:auto;color:var(--trainer-ink);padding-bottom:24px}
+#trainerView h2,#trainerView h3,#trainerView h4{color:#1c2d49!important;letter-spacing:-.035em;line-height:1.5}
+#trainerView h3{font-size:18px}#trainerView h4{font-size:15px}
+#trainerView [class*="bg-slate-"]{background:#f6f8fc!important;border-color:var(--trainer-line)!important;color:#354966!important}
+#trainerView .rounded-2xl{background:#fff!important;border:1px solid var(--trainer-line)!important;border-radius:20px;box-shadow:0 5px 18px #263e6506!important}
+#trainerView [class*="border-slate-"],#trainerView [class*="border-indigo-"],#trainerView [class*="border-brand-"]{border-color:var(--trainer-line)!important}
+#trainerView [class*="text-slate-"],#trainerView .text-white{color:#354966!important}
+#trainerView [class*="text-slate-400"],#trainerView [class*="text-slate-500"]{color:var(--trainer-muted)!important}
+#trainerView [class*="text-brand-"],#trainerView [class*="text-indigo-"],#trainerView [class*="text-purple-"]{color:#6250cb!important}
+#trainerView [class*="text-emerald-"],#trainerView [class*="text-green-"]{color:#157557!important}
+#trainerView [class*="text-amber-"],#trainerView [class*="text-orange-"]{color:#9a561b!important}
+#trainerView [class*="text-sky-"],#trainerView [class*="text-blue-"]{color:#2464b4!important}
+#trainerView [class*="text-rose-"],#trainerView [class*="text-red-"]{color:#b43c55!important}
+#trainerView [class*="bg-emerald-"]{background:#eaf7f0!important;border-color:#bfdfcf!important}
+#trainerView [class*="bg-amber-"]{background:#fff5e7!important;border-color:#efd4a9!important}
+#trainerView input:not([type=checkbox]):not([type=radio]),#trainerView textarea,#trainerView select{background:#fff!important;color:#243953!important;border:1px solid #cdd8e8!important;border-radius:12px;min-height:44px;font-size:14px;max-width:100%;min-width:0;color-scheme:light}
+#trainerView input::placeholder,#trainerView textarea::placeholder{color:#6b7c95;opacity:1}
+#trainerView input[type=file]{padding:9px;font-size:13px;background:#f7f8fd!important}
+#trainerView input[type=file]::file-selector-button{background:#edeaff;color:#5545bb;border:0;border-radius:9px;padding:10px 12px;margin-right:8px;font-weight:650}
+#trainerView button,#trainerView summary{touch-action:manipulation}
+#trainerView button{min-height:42px;max-width:100%;font-size:13px;line-height:1.5}
+#trainerView button[class*="bg-indigo-"],#trainerView button[class*="bg-brand-"],#trainerView button[class*="bg-sky-"],#trainerView .trainer-workspace-primary{background:linear-gradient(135deg,#6559e9,#367df0)!important;color:#fff!important;border:0!important;box-shadow:none!important}
+#trainerView button[class*="bg-indigo-"] *,#trainerView button[class*="bg-brand-"] *,#trainerView button[class*="bg-sky-"] *{color:#fff!important}
+#trainerView button:hover{filter:brightness(.98)}
+#trainerView :is(button,input,textarea,select,summary):focus-visible{outline:3px solid #b6c5f4!important;outline-offset:3px}
+#trainerView textarea{resize:vertical;line-height:1.75}
+#trainerView .trainer-workspace-hero{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr);gap:30px;align-items:center;padding:26px 28px;background:#fff;border:1px solid var(--trainer-line);border-radius:22px}
+#trainerView .trainer-workspace-eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#6250cb}
+#trainerView .trainer-workspace-status-dot{width:7px;height:7px;background:#7565df;border-radius:50%}
+#trainerView .trainer-workspace-hero h2{font-size:28px;font-weight:800;margin:7px 0 6px}
+#trainerView .trainer-workspace-hero-copy>p{font-size:14px;line-height:1.75;color:var(--trainer-muted);max-width:330px}
+#trainerView .trainer-workspace-member{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;align-items:end;min-width:0}
+#trainerView .trainer-workspace-member>label{font-size:12px;font-weight:650;color:#536783}
+#trainerView .trainer-workspace-member>label:first-child{grid-column:1;grid-row:1}
+#trainerView .trainer-workspace-member>.relative{grid-column:1;grid-row:2;min-width:0}
+#trainerView .trainer-workspace-select-caption{grid-column:2;grid-row:1}
+#trainerView #trainerMemberSelect{grid-column:2;grid-row:2;width:100%}
+#trainerView .trainer-workspace-member-link{grid-column:1/-1;justify-self:end;color:#6250cb;font-size:12px;padding:4px 0;min-height:36px}
+#trainerView .trainer-workspace-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;padding:7px;background:#fff;border:1px solid var(--trainer-line);border-radius:17px}
+#trainerView .trainer-nav-btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border-radius:11px;color:#526780;background:transparent;font-weight:650}
+#trainerView .trainer-nav-btn i{color:#6c60d3;font-size:16px}
+#trainerView .trainer-nav-btn:hover,#trainerView .trainer-nav-btn:focus-visible{background:#efedff;color:#5242b5}
+#trainerView .trainer-workspace-dashboard{background:#fff;border:1px solid var(--trainer-line);border-radius:22px;padding:26px}
+#trainerView .trainer-workspace-section-title{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:20px}
+#trainerView .trainer-workspace-section-title h3{font-size:21px;font-weight:750}
+#trainerView .trainer-workspace-section-title p{font-size:13px;color:var(--trainer-muted);margin-top:5px}
+#trainerView .trainer-workspace-kicker{display:none}
+#trainerView .trainer-workspace-refresh{border:1px solid #dce4f0;border-radius:10px;padding:9px 12px;color:#526780;white-space:nowrap;background:#fff}
+#trainerView .trainer-workspace-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+#trainerView .trainer-workspace-metric{position:relative;padding:18px 16px;border:1px solid #e3e8f5;border-radius:16px;background:#f7f8fe;min-width:0}
+#trainerView .trainer-workspace-metric:nth-child(2){background:#f0f6ff}
+#trainerView .trainer-workspace-metric:nth-child(3){background:#f4f1ff}
+#trainerView .trainer-workspace-metric:nth-child(4){background:#edf8f6}
+#trainerView .trainer-workspace-metric>span{font-size:12px;color:#536783;font-weight:600;display:block;padding-right:22px}
+#trainerView .trainer-workspace-metric>i{position:absolute;right:15px;top:18px;color:#7565cd;font-size:15px}
+#trainerView .trainer-workspace-metric strong{display:block;font-size:28px;line-height:1.4;color:#213758;letter-spacing:-.04em;margin-top:10px}
+#trainerView .trainer-workspace-metric small{display:none}
+#trainerView .trainer-workspace-overview-status{font-size:12px;line-height:1.65;color:#60718a;margin:13px 0 22px}
+#trainerView .trainer-workspace-activity{border:1px solid #e1e7f2;border-radius:16px;padding:18px;background:#fff}
+#trainerView .trainer-workspace-list-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+#trainerView .trainer-workspace-list-heading h4{font-size:15px;font-weight:700}
+#trainerView .trainer-workspace-subtle{font-size:12px;line-height:1.7;color:#60718a}
+#trainerView .trainer-workspace-list{display:grid;gap:7px;min-width:0}
+#trainerView .trainer-workspace-list>button{padding:12px 13px;background:#f6f8fc!important;border:1px solid #e5eaf4!important;border-radius:12px}
+#trainerView .trainer-workspace-list>button:hover{background:#efedff!important;border-color:#d5cdf7!important}
+#trainerView .trainer-workspace-list>button span:first-child{color:#243953!important;font-size:14px;font-weight:650}
+#trainerView .trainer-workspace-list>button span:last-child{color:#60718a!important;font-size:12px}
+#trainerView .trainer-fold{background:#fff;border:1px solid var(--trainer-line);border-radius:20px;overflow:clip}
+#trainerView .trainer-fold>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:70px;padding:20px 22px;color:#243953;font-size:16px;font-weight:700;cursor:pointer;list-style:none}
+#trainerView .trainer-fold>summary::-webkit-details-marker{display:none}
+#trainerView .trainer-fold>summary:after{content:'＋';color:#6a5dcc;font-size:22px;font-weight:400;line-height:1}
+#trainerView .trainer-fold[open]>summary:after{content:'−'}
+#trainerView .trainer-fold>summary small{display:block;font-size:12px;font-weight:400;color:#60718a;margin-top:3px;line-height:1.65}
+#trainerView .trainer-fold-content{padding:0 20px 20px;min-width:0}
+#trainerView .trainer-fold-content>section{border:0!important;box-shadow:none!important;padding:0!important}
+#trainerView .trainer-fold-content>section>h3:first-child{display:none}
+#trainerView .trainer-fold-content .trainer-workspace-side-panels,#trainerView .trainer-workspace-report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+#trainerView .trainer-workspace-side-card,#trainerView .trainer-workspace-report-card{padding:16px;background:#f7f9fd;border:1px solid #e5eaf4;border-radius:15px}
+#trainerView .trainer-workspace-report-grid{margin-top:14px}
+#trainerView .trainer-dashboard-more{margin-top:15px;border:0;background:#f7f9fd;border-radius:14px}
+#trainerView .trainer-dashboard-more>summary{font-size:13px;min-height:50px;padding:14px 16px}
+#trainerView .trainer-dashboard-more .trainer-fold-content{padding:0 14px 14px}
+#trainerView .quick-feedback-btn{padding:9px 12px;background:#f1effd;color:#5f4fc0;border:1px solid #ded7f5;border-radius:10px;font-size:12px;font-weight:600}
+#trainerView #trainerQuickSummary>div{border:0!important;background:#f3f5fb!important;border-radius:14px;padding:14px}
+#trainerView #trainerQuickSummary>div>p:last-child{color:#243953!important;font-size:20px;letter-spacing:-.04em}
+#trainerView #trainerMealPhotos summary{min-height:44px;padding:10px;font-size:13px;color:#405575}
+#trainerView .trainer-jump-target{scroll-margin-top:155px}
+#trainerView .trainer-jump-target.jump-highlight{outline:2px solid #c8bcf5;outline-offset:4px}
+#trainerView .trainer-fold-content,#trainerView .trainer-fold-content>*{min-width:0}
+#trainerView #trainerMemoInput{font-size:16px!important;min-height:82px}
+#trainerView #trainerMemoList{padding:12px;background:#f6f8fc;border-radius:14px}
+#trainerView #memberRegistryList>div{padding:14px!important;gap:8px}
+#trainerView [class*="text-[10px]"],#trainerView [class*="text-[11px]"]{font-size:12px}
+@media(max-width:767px){
+ #trainerView .trainer-workspace-hero{grid-template-columns:1fr;gap:18px;padding:22px 20px}
+ #trainerView .trainer-workspace-hero h2{font-size:25px;margin:5px 0}
+ #trainerView .trainer-workspace-hero-copy>p{max-width:none}
+ #trainerView .trainer-workspace-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ #trainerView .trainer-workspace-nav{gap:2px;padding:5px}
+ #trainerView .trainer-nav-btn{flex-direction:column;gap:5px;font-size:12px;min-height:58px;padding:6px 2px}
+ #trainerView .trainer-workspace-dashboard{padding:19px 16px}
+ #trainerView .trainer-workspace-section-title h3{font-size:20px}
+ #trainerView .trainer-workspace-section-title p{font-size:12px;max-width:180px}
+ #trainerView .trainer-workspace-metric{padding:15px 13px}
+ #trainerView .trainer-workspace-metric>span{font-size:12px}
+ #trainerView .trainer-workspace-metric strong{font-size:26px;margin-top:8px}
+ #trainerView .trainer-workspace-metric>i{font-size:13px;right:12px;top:17px}
+ #trainerView .trainer-fold-content .trainer-workspace-side-panels,#trainerView .trainer-workspace-report-grid{grid-template-columns:1fr}
+ #trainerView .trainer-fold>summary{padding:18px;font-size:15px}
+ #trainerView .trainer-fold-content{padding:0 15px 16px}
+ #trainerView input:not([type=file]),#trainerView textarea,#trainerView select{font-size:16px}
+ #trainerView .rounded-2xl{padding:19px 16px}
+ #trainerView .trainer-workspace-list>button{align-items:flex-start;gap:10px}
+ #trainerView .trainer-workspace-list>button span:last-child{text-align:right}
+ #trainerView #trainerFeedbackPanel>div:first-child{align-items:flex-start;gap:12px}
+}
+@media(prefers-reduced-motion:reduce){#trainerView *{scroll-behavior:auto!important;transition:none!important}}
+
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1083,13 +903,10 @@
     <div id="trainerView" class="space-y-6 hidden">
       <section class="trainer-workspace-hero trainer-jump-target" aria-label="트레이너 워크스페이스">
         <div class="trainer-workspace-hero-copy">
-          <span class="trainer-workspace-eyebrow"><span class="trainer-workspace-status-dot"></span> FIT-CONNECT / TRAINER WORKSPACE</span>
-          <h2>오늘도 회원의 <em>변화</em>에 집중하세요.</h2>
-          <p>회원별 운동·식단 기록을 빠르게 살펴보고, 필요한 피드백부터 전달하세요.</p>
-          <div class="trainer-workspace-actions">
-            <button type="button" class="trainer-workspace-primary" onclick="jumpTrainerSection('trainerDashboardSection')"><i class="fa-solid fa-bolt"></i> 오늘의 현황 보기</button>
-            <button type="button" class="trainer-workspace-secondary" onclick="jumpTrainerSection('trainerQuickFeedbackMount')">피드백 작성 <i class="fa-solid fa-arrow-right"></i></button>
-          </div>
+          <span class="trainer-workspace-eyebrow"><span class="trainer-workspace-status-dot"></span> FIT-CONNECT · COACH</span>
+          <h2>트레이너 홈</h2>
+          <p>회원을 선택하고, 기록 확인부터 피드백까지.</p>
+
         </div>
         <div class="trainer-workspace-member">
           <label for="trainerMemberSearch"><i class="fa-solid fa-magnifying-glass"></i> 회원 빠른 검색</label>
@@ -1104,15 +921,16 @@
       </section>
 
       <nav aria-label="트레이너 주요 기능 바로가기" class="trainer-workspace-nav">
-        <button type="button" onclick="jumpTrainerSection('trainerDashboardSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-simple"></i><span>대시보드</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerDashboardSection')" class="trainer-nav-btn"><i class="fa-solid fa-chart-simple"></i><span>전체 현황</span></button>
         <button type="button" onclick="jumpTrainerSection('trainerQuickFeedbackMount')" class="trainer-nav-btn"><i class="fa-regular fa-comment-dots"></i><span>피드백</span></button>
-        <button type="button" onclick="jumpTrainerSection('trainerRoutineSection')" class="trainer-nav-btn"><i class="fa-solid fa-dumbbell"></i><span>운동 루틴</span></button>
-        <button type="button" onclick="jumpTrainerSection('trainerGrowthSection')" class="trainer-nav-btn"><i class="fa-solid fa-arrow-trend-up"></i><span>성장 기록</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerRoutineSection')" class="trainer-nav-btn"><i class="fa-solid fa-dumbbell"></i><span>루틴</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerGrowthSection')" class="trainer-nav-btn"><i class="fa-solid fa-arrow-trend-up"></i><span>성장</span></button>
+        <button type="button" onclick="jumpTrainerSection('trainerMembersSection')" class="trainer-nav-btn"><i class="fa-solid fa-user-group"></i><span>회원</span></button>
       </nav>
 
       <section id="trainerDashboardSection" class="trainer-workspace-dashboard trainer-jump-target" aria-label="통합 관리 대시보드">
         <div class="trainer-workspace-section-title">
-          <div><span class="trainer-workspace-kicker">AT A GLANCE</span><h3>Overview</h3><p>오늘의 기록과 피드백 현황을 한눈에 확인하세요.</p></div>
+          <div><span class="trainer-workspace-kicker">AT A GLANCE</span><h3>전체 현황</h3><p>오늘의 기록과 피드백 현황을 한눈에 확인하세요.</p></div>
           <button type="button" onclick="loadTrainerOverview()" class="trainer-workspace-refresh"><i class="fa-solid fa-rotate"></i> 새로고침</button>
         </div>
         <div class="trainer-workspace-metrics" aria-live="polite">
@@ -1157,7 +975,7 @@
       <div id="trainerQuickFeedbackMount" class="space-y-4 trainer-jump-target"></div>
 
        <!-- 회원 관리: 트레이너 전용 -->
-       <section class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4" aria-label="회원 관리">
+       <section id="trainerMembersSection" class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-lg space-y-4 trainer-jump-target" aria-label="회원 관리">
          <div class="flex flex-wrap items-center justify-between gap-2">
            <div><h3 class="font-bold text-white text-base"><i class="fa-solid fa-users text-indigo-400"></i> 회원 관리 <span id="memberRegistryCount" class="text-xs text-slate-400 font-normal"></span></h3><p class="text-xs text-slate-400 mt-1">새 회원을 등록하고 개인 전용 링크를 카카오톡으로 보내세요.</p></div>
            <button type="button" onclick="loadMemberRegistry()" class="text-xs px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">목록 새로고침</button>
@@ -1327,11 +1145,11 @@
               <h4 class="text-sm font-bold text-brand-400"><i class="fa-solid fa-paper-plane"></i> 피드백 작성 및 전송하기</h4>
               <div><label class="block text-sm font-semibold text-slate-200 mb-2">운동 코멘트</label>
                 <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('workout','오늘 운동 꾸준히 수행하신 점 좋습니다!')" class="quick-feedback-btn">꾸준한 수행 👏</button><button type="button" onclick="appendFeedbackTemplate('workout','무게보다 동작의 정확도와 호흡을 먼저 신경 써주세요.')" class="quick-feedback-btn">동작 정확도</button><button type="button" onclick="appendFeedbackTemplate('workout','불편한 동작은 무리하지 말고 다음 수업 때 함께 확인해요.')" class="quick-feedback-btn">불편함 확인</button></div>
-                <textarea id="inputFeedbackWorkout" rows="3" placeholder="운동 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
+                <textarea id="inputFeedbackWorkout" rows="3" aria-label="운동 피드백" placeholder="운동 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
               <div><label class="block text-sm font-semibold text-slate-200 mb-2">식단 코멘트</label>
                 <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('diet','식단을 빠짐없이 기록해주신 점 좋습니다!')" class="quick-feedback-btn">기록 칭찬</button><button type="button" onclick="appendFeedbackTemplate('diet','매 끼니 단백질 식품을 충분히 챙겨보세요.')" class="quick-feedback-btn">단백질</button><button type="button" onclick="appendFeedbackTemplate('diet','식사 구성과 양을 함께 점검해볼게요.')" class="quick-feedback-btn">식사 구성</button></div>
-                <textarea id="inputFeedbackDiet" rows="3" placeholder="식단 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
-              <div class="flex justify-end"><button onclick="sendTrainerFeedback()" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg cursor-pointer">피드백 구글 시트에 전송</button></div>
+                <textarea id="inputFeedbackDiet" rows="3" aria-label="식단 피드백" placeholder="식단 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
+              <div class="flex justify-end"><button onclick="sendTrainerFeedback()" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg cursor-pointer">피드백 보내기</button></div>
             </div>
           </div>
 
@@ -1731,12 +1549,58 @@
       document.body.append(nav);navigateMemberPage('home',false);syncMemberNavigation();
     }
 
+    // Organize presentation only: existing nodes, IDs, forms and handlers are retained.
+    function arrangeTrainerWorkspace() {
+      const root=document.getElementById('trainerView');
+      if(!root||root.dataset.organized)return;
+      root.dataset.organized='true';
+      const fold=(target,title,hint,extra='')=>{
+        const details=document.createElement('details');details.className='trainer-fold '+extra;
+        const summary=document.createElement('summary');
+        const label=document.createElement('span');label.textContent=title;
+        if(hint){const small=document.createElement('small');small.textContent=hint;label.append(small);}
+        summary.append(label);
+        const content=document.createElement('div');content.className='trainer-fold-content';
+        target.before(details);content.append(target);details.append(summary,content);
+        return details;
+      };
+      const dashboard=document.getElementById('trainerDashboardSection');
+      const side=dashboard.querySelector('.trainer-workspace-side-panels');
+      const reports=dashboard.querySelector('.trainer-workspace-report-grid');
+      const more=document.createElement('div');side.before(more);more.append(side,reports);
+      const dashboardMore=fold(more,'완료·미기록·주간 리포트','필요한 현황만 펼쳐 확인하세요.','trainer-dashboard-more');
+      dashboard.append(dashboardMore);
+      const feedback=document.getElementById('trainerQuickFeedbackMount');
+      const video=root.querySelector('[aria-label="운동 영상 피드백 관리"]');
+      const memo=document.getElementById('trainerMemoList').parentElement;
+      feedback.append(video,memo);
+      fold(video,'운동 영상 피드백','선택 회원이 보낸 자세 영상을 확인하세요.');
+      const oldGrid=root.querySelector('[class~="lg:grid-cols-12"]');
+      const routine=document.getElementById('trainerRoutineSection');
+      root.append(routine);
+      const growth=document.getElementById('trainerGrowthSection');root.append(growth);
+      fold(growth,'성장 기록 관리','인바디 · 목표 · 수업 정보 · 운동 리포트');
+      const members=document.getElementById('trainerMembersSection');root.append(members);
+      fold(members,'회원 관리','신규 회원 등록 · 전용 링크 관리');
+      const explanation=root.querySelector('[aria-label="운동 설명 영상 관리"]');root.append(explanation);
+      fold(explanation,'운동 설명 영상 관리','회원별 운동 가이드와 자세 팁을 등록하세요.');
+      const message=document.getElementById('inputCustomHeaderMsg').closest('.rounded-2xl');root.append(message);
+      fold(message,'회원 홈 메시지','회원에게 보여줄 오늘의 한마디');
+      if(oldGrid)oldGrid.remove();
+    }
+
+    function revealTrainerTarget(target) {
+      let ancestor=target;
+      while(ancestor){if(ancestor.tagName==='DETAILS')ancestor.open=true;ancestor=ancestor.parentElement;}
+    }
+
     document.addEventListener("DOMContentLoaded", async function () {
       if(perfEnabled)document.getElementById('perfDiagnostic').style.display='block';
       arrangeMemberDashboard();
       setupMemberBottomNavAutoHide();
       setupHomeRecordCards();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
+      arrangeTrainerWorkspace();
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
         setupMealEditor(m);
@@ -1837,6 +1701,7 @@
     function jumpTrainerSection(id) {
       const target=document.getElementById(id);
       if(!target)return;
+      revealTrainerTarget(target);
       target.scrollIntoView({behavior:'smooth',block:'start'});
       if(id==='trainerGrowthSection')loadMemberInsights().catch(e=>console.warn('성장 기록 조회 오류',e));
       target.classList.add('jump-highlight');
@@ -2933,7 +2798,7 @@
       resetSaveStatus();
       currentMode = mode;
       clearForeignVideoLists();
-      document.body.classList.toggle('trainer-lime-theme', mode === 'trainer');
+      document.body.classList.toggle('trainer-light-theme', mode === 'trainer');
       latestLoadRequest++;
       resetRoutineForms();
       updateAccessState();
@@ -3122,6 +2987,7 @@
         ? document.getElementById('trainerFormVideos').closest('section')
         : document.getElementById('reviewRefGood').closest('.rounded-2xl');
       if (target) {
+        revealTrainerTarget(target);
         target.scrollIntoView({behavior:'smooth',block:'start'});
         target.classList.add('ring-2','ring-brand-500');
         setTimeout(()=>target.classList.remove('ring-2','ring-brand-500'),2400);
@@ -4418,3 +4284,4 @@ try {
   </script>
 </body>
 </html>
+

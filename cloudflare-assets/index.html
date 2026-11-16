@@ -488,6 +488,71 @@ body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
 }
 @media(prefers-reduced-motion:reduce){#trainerView *{scroll-behavior:auto!important;transition:none!important}}
 
+/* One task per page, with the same navigation model as the member app. */
+[data-trainer-page][hidden],#trainerAppNav[hidden]{display:none!important}
+#trainerView{max-width:900px}
+#trainerView .trainer-workspace-hero{display:block;padding:16px 20px}
+#trainerView .trainer-workspace-hero-copy{display:none}
+#trainerView .trainer-workspace-member{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;align-items:center}
+#trainerView .trainer-workspace-select-caption{grid-column:1;grid-row:1;font-size:11px}
+#trainerView #trainerMemberSelect{grid-column:1;grid-row:2;min-height:48px;font-size:16px;font-weight:700;background:#f5f6fc!important;border-color:#e0e5f0!important}
+#trainerView .trainer-workspace-member-link{grid-column:1/-1;min-height:30px;font-size:11px;padding:2px 0}
+#trainerView .trainer-member-search{grid-column:2;grid-row:1/3;align-self:center}
+#trainerView .trainer-member-search>summary{display:flex;align-items:center;justify-content:center;gap:6px;min-height:48px;padding:10px 13px;list-style:none;border-radius:12px;background:#efedff;color:#5d4dc0;font-size:13px;font-weight:650;cursor:pointer}
+#trainerView .trainer-member-search>summary::-webkit-details-marker{display:none}
+#trainerView .trainer-member-search>label{display:block;font-size:12px;margin:12px 0 5px;color:#536783}
+#trainerView .trainer-member-search[open]{grid-column:1/-1;grid-row:3;display:block}
+#trainerView .trainer-member-search[open]>summary{width:max-content;margin-left:auto;min-height:36px}
+#trainerView .trainer-member-search #trainerMemberSearchResults{position:relative!important;top:auto!important;box-shadow:none!important;margin-top:8px}
+#trainerView .trainer-edit-fold{margin-top:12px;background:#f8f9fd;border-color:#e2e7f2;border-radius:14px}
+#trainerView .trainer-edit-fold>summary{padding:13px 15px;min-height:48px;font-size:13px}
+#trainerView .trainer-edit-fold>.trainer-fold-content{padding:0 13px 14px}
+#trainerView .trainer-edit-fold>.trainer-fold-content h4:first-child{display:none}
+#trainerView .trainer-app-page{min-width:0}
+#trainerView .trainer-app-page>section>h3{margin-bottom:10px}
+#trainerView .trainer-workspace-metrics{gap:10px}
+#trainerView .trainer-workspace-dashboard{padding:22px}
+#trainerView #trainerGrowthSection>div{margin-top:14px}
+#trainerView #trainerGrowthSection>h3{font-size:20px}
+#trainerView #trainerGrowthSection>p:first-of-type{display:none}
+#trainerView #trainerMembersSection>div:first-child p{display:none}
+#trainerView .trainer-edit-fold #trainerMealPhotos{margin-top:12px}
+#trainerView .trainer-workspace-nav{position:sticky;top:80px;z-index:30;margin-top:14px;background:#fff;border-color:#e0e6f0;box-shadow:0 4px 15px #263e6508}
+#trainerView .trainer-nav-btn{border:1px solid transparent!important;background:transparent;color:#64738d!important}
+#trainerView .trainer-nav-btn.selected{background:#efedff!important;color:#5d4dc0!important;border-color:#e1dafb!important}
+#trainerView .trainer-nav-btn.selected i{color:#6554d5}
+#trainerView .trainer-jump-target{scroll-margin-top:160px}
+body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBar{bottom:100px}
+@media(max-width:767px){
+ body.trainer-app-active{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+ #trainerView{margin-top:0;padding-bottom:10px}
+ #trainerView .trainer-workspace-hero{padding:12px 14px;border-radius:17px}
+ #trainerView .trainer-workspace-member-link{min-height:28px}
+ #trainerView .trainer-workspace-nav{position:fixed;top:auto;left:0;right:0;bottom:0;margin:0;border:0;border-top:1px solid #dfe5f1;border-radius:20px 20px 0 0;padding:7px 9px calc(7px + env(safe-area-inset-bottom,0px));z-index:850;gap:3px;box-shadow:0 -5px 22px #263e6510;background:rgba(255,255,255,.97);backdrop-filter:blur(15px)}
+ #trainerView .trainer-nav-btn{min-height:60px;border-radius:14px;font-size:11px;gap:5px;font-weight:650}
+ #trainerView .trainer-nav-btn i{font-size:19px;color:#8591ab}
+ #trainerView .trainer-nav-btn.selected i{color:#6554d5}
+ #trainerView .trainer-workspace-section-title p{display:none}
+ #trainerView .trainer-workspace-section-title{margin-bottom:15px}
+ #trainerView .trainer-workspace-dashboard{padding:18px 15px;border-radius:19px}
+ #trainerView .trainer-workspace-metric strong{font-size:27px}
+ #trainerView .trainer-workspace-overview-status{font-size:11px;margin:12px 0 18px}
+ #trainerView .trainer-workspace-activity{padding:14px 12px}
+ #trainerView .trainer-workspace-list-heading h4{font-size:14px}
+ #trainerView .trainer-workspace-list>button{min-height:52px}
+ #trainerView .trainer-workspace-list>button span:first-child{font-size:14px}
+ #trainerView .trainer-jump-target{scroll-margin-top:135px}
+ #trainerView #trainerFeedbackPanel{padding:18px 15px}
+ #trainerView #trainerFeedbackPanel h3{font-size:17px}
+ #trainerView #trainerQuickSummary{gap:8px}
+ #trainerView #trainerQuickSummary>div{padding:12px}
+ #trainerView #trainerQuickSummary>div>p:last-child{font-size:20px}
+ #trainerView #trainerMembersSection{padding:18px 14px}
+ #trainerView #memberRegistryList>div>span{flex-basis:100%}
+ #trainerView #memberRegistryList>div>button{flex:1;min-height:44px}
+ #trainerView #trainerMemoList{max-height:260px}
+}
+
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1424,6 +1489,7 @@ body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
       document.getElementById('habitCalendarTop').classList.toggle('hidden', currentMode !== 'member' || blocked);
       if (blocked) document.getElementById('syncError').classList.add('hidden');
       syncMemberNavigation();
+      syncTrainerNavigation();
       return !blocked;
     }
 
@@ -1589,7 +1655,75 @@ body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
       if(oldGrid)oldGrid.remove();
     }
 
+    let trainerPage='overview';
+    const trainerPageTargets={overview:'trainerDashboardSection',feedback:'trainerQuickFeedbackMount',routine:'trainerRoutineSection',growth:'trainerGrowthSection',members:'trainerMembersSection'};
+    function navigateTrainerPage(page,scroll=true){
+      if(!trainerPageTargets[page])return;
+      trainerPage=page;
+      document.querySelectorAll('[data-trainer-page]').forEach(el=>{el.hidden=el.dataset.trainerPage!==page;});
+      document.querySelectorAll('[data-trainer-tab]').forEach(el=>{
+        const active=el.dataset.trainerTab===page;
+        el.classList.toggle('selected',active);
+        if(active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
+      });
+      if(scroll){document.getElementById('appHeader')?.classList.remove('header-hidden');window.scrollTo({top:0,behavior:'auto'});}
+    }
+    function syncTrainerNavigation(){
+      const active=currentMode==='trainer'&&!!trainerPassword;
+      document.body.classList.toggle('trainer-app-active',active);
+      const nav=document.getElementById('trainerAppNav');if(nav)nav.hidden=!active;
+    }
+    function setupTrainerAppPages(){
+      const root=document.getElementById('trainerView');if(!root||root.dataset.appPages)return;
+      root.dataset.appPages='true';
+      const nav=root.querySelector('.trainer-workspace-nav');nav.id='trainerAppNav';nav.setAttribute('aria-label','트레이너 화면 메뉴');
+      const unwrap=id=>{const target=document.getElementById(id),fold=target.closest('.trainer-fold');if(fold)fold.replaceWith(target);return target;};
+      const fold=(target,title)=>{
+        const details=document.createElement('details');details.className='trainer-fold trainer-edit-fold';
+        const summary=document.createElement('summary');summary.textContent=title;
+        const body=document.createElement('div');body.className='trainer-fold-content';
+        target.before(details);body.append(target);details.append(summary,body);return details;
+      };
+      const containers={};
+      for(const [page,id] of Object.entries(trainerPageTargets)){
+        const target=page==='growth'||page==='members'?unwrap(id):document.getElementById(id);
+        const section=document.createElement('section');section.dataset.trainerPage=page;section.className='trainer-app-page space-y-4';section.setAttribute('aria-label',({overview:'전체 현황',feedback:'회원 피드백',routine:'운동 루틴',growth:'성장 기록',members:'회원 관리'})[page]);
+        section.append(target);root.append(section);containers[page]=section;
+      }
+      const explanation=root.querySelector('[aria-label="운동 설명 영상 관리"]');containers.routine.append(explanation.closest('.trainer-fold'));
+      const message=document.getElementById('inputCustomHeaderMsg').closest('.trainer-fold');containers.members.append(message);
+      const search=document.getElementById('trainerMemberSearch'),searchLabel=root.querySelector('label[for="trainerMemberSearch"]');
+      const searchFold=document.createElement('details');searchFold.className='trainer-member-search';
+      const searchSummary=document.createElement('summary');searchSummary.innerHTML='<i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>검색</span>';
+      searchLabel.before(searchFold);searchFold.append(searchSummary,searchLabel,search.parentElement);
+      const selectLabel=root.querySelector('label[for="trainerMemberSelect"]');selectLabel.textContent='선택 회원';
+      const growth=document.getElementById('trainerGrowthSection');
+      const inbody=document.getElementById('trainerInbodyChart').parentElement;
+      const inbodyForm=inbody.querySelector('form');inbodyForm.before(document.getElementById('trainerInbodyChart'));fold(inbodyForm,'인바디 수치 입력');
+      const goal=document.getElementById('trainerGoalSummary').parentElement;fold(goal.querySelector('form'),'목표 수정');
+      const pt=document.getElementById('trainerPtSummary').parentElement;fold(pt.querySelector('form'),'수업 정보 수정');
+      const oldGrid=inbody.parentElement;oldGrid.before(inbody,pt);oldGrid.remove();
+      growth.querySelector('h3').after(inbody,goal,pt);
+      for(const id of ['trainerWeeklyReport','trainerMonthlyReport','trainerStrengthProgress']){
+        const target=document.getElementById(id).parentElement;const heading=target.querySelector('h4');fold(target,heading.textContent.replace('선택 회원 ',''));
+      }
+      const members=document.getElementById('trainerMembersSection');
+      const addForm=members.querySelector('form');const addFold=fold(addForm,'＋ 새 회원 등록');
+      members.append(addFold);
+      const photos=document.getElementById('trainerMealPhotos').parentElement;fold(photos,'식단 사진 확인');
+      const copy=document.getElementById('routineCopySourceDate').closest('.mb-4');fold(copy,'지난 루틴 가져오기');
+      const buttons=Array.from(nav.children);
+      Object.keys(trainerPageTargets).forEach((page,i)=>{
+        buttons[i].dataset.trainerTab=page;
+        buttons[i].setAttribute('aria-label',({overview:'현황',feedback:'피드백',routine:'루틴',growth:'성장',members:'회원'})[page]);
+        if(page==='overview')buttons[i].querySelector('span').textContent='현황';
+      });
+      navigateTrainerPage('overview',false);syncTrainerNavigation();
+    }
+
     function revealTrainerTarget(target) {
+      const page=target.closest('[data-trainer-page]');
+      if(page&&currentMode==='trainer')navigateTrainerPage(page.dataset.trainerPage,false);
       let ancestor=target;
       while(ancestor){if(ancestor.tagName==='DETAILS')ancestor.open=true;ancestor=ancestor.parentElement;}
     }
@@ -1601,6 +1735,7 @@ body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
       setupHomeRecordCards();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
       arrangeTrainerWorkspace();
+      setupTrainerAppPages();
       MEAL_KEYS.forEach(m => {
         setupMainFoodNutrition(m);
         setupMealEditor(m);

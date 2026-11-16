@@ -2974,13 +2974,15 @@
       }
     }
 
-    // 회원 목록은 Apps Script의 MemberAccess 시트에서 불러옵니다.
+    // 회원 목록은 빠른 DB에서 조회하고, 실패하면 MemberAccess 시트로 전환합니다.
     async function loadMemberRegistry() {
       if (!trainerPassword) return;
       const status = document.getElementById('memberRegistryStatus');
       status.textContent = '회원 목록을 불러오는 중...';
       try {
-        const result = await apiPost({action:'listMembers',password:trainerPassword});
+        let result = await fastTrainerRequest({action:'listMembersFast',password:trainerPassword,date:selectedDate}, '회원 목록 · Supabase');
+        const fastRegistry = result?.status === 'success' && Array.isArray(result.members);
+        if (!fastRegistry) result = await apiPost({action:'listMembers',password:trainerPassword});
         if (result.status !== 'success' || !Array.isArray(result.members)) throw new Error(result.message || '목록 조회 실패');
         const previousMember = activeMemberName;
         registryMembers = [...new Set([...registryMembers,...result.members])];
@@ -3003,7 +3005,7 @@
           rotate.onclick=()=>rotateMemberLink(name);
           row.append(label,copy,rotate); list.append(row);
         });
-        status.textContent = `등록된 회원 ${registryMembers.length}명 · 회원별 기록은 기존대로 유지됩니다.`;
+        status.textContent = `등록된 회원 ${registryMembers.length}명` + (fastRegistry ? ' · 빠른 DB 조회 · 전용 링크 관리는 구글 연동' : ' · 구글 회원 목록 동기화 완료');
         // 회원 목록은 즉시 표시, 선택 회원 기록은 별도로 조회.
         if (activeMemberName && (previousMember !== activeMemberName || !appData))
           loadDataFromCloud().catch(e=>console.warn('선택 회원 기록 조회 오류',e));
@@ -3022,7 +3024,7 @@
       status.textContent = '회원 현황 불러오는 중...';
       // Preview fast path: show the Supabase summary first, then always replace it
       // with the canonical Apps Script overview (which also has video counts).
-      let canonicalShown=false;
+      let canonicalShown=false, fastShown=false, canonicalFailed=false;
       const renderOverview = (result, isFast) => {
         const items = result.members;
         // The overview already contains member names. Populate the selector
@@ -3075,7 +3077,7 @@
           ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
         makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
         status.textContent = isFast
-          ? `${date} 기준 · 빠른 현황 표시 중 · 영상 대기 건수 등 최신 내용 확인 중...`
+          ? (canonicalFailed ? `${date} 기준 · 운동·식단 현황 표시 · 영상 대기 건수는 구글 연결 복구 후 확인할 수 있습니다.` : `${date} 기준 · 빠른 현황 표시 중 · 영상 대기 건수 등 최신 내용 확인 중...`)
           : `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
       };
       const stillCurrent = () => request === overviewRequest && date === selectedDate && currentMode === 'trainer';
@@ -3084,6 +3086,7 @@
           .then(fast => {
             if (!fast || fast.status !== 'success' || !Array.isArray(fast.members)) return;
             if (canonicalShown || !stillCurrent()) return;
+            fastShown = true;
             renderOverview(fast, true);
           }).catch(e=>console.warn('빠른 현황 표시 오류',e));
       }
@@ -3095,8 +3098,10 @@
         renderOverview(result, false);
       } catch(e) {
         if(request !== overviewRequest)return;
-        canonicalShown = true;
-        status.textContent='현황을 불러오지 못했습니다: '+e.message;
+        canonicalFailed = true;
+        status.textContent=fastShown
+          ? `${date} 기준 · 운동·식단 현황 표시 · 영상 대기 건수는 구글 연결 복구 후 확인할 수 있습니다.`
+          : '현황을 불러오지 못했습니다: '+e.message;
       }
     }
     async function openOverviewMember(member, listId) {

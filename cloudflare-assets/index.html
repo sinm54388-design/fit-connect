@@ -1836,6 +1836,12 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     function jumpTrainerSection(id) {
       const target=document.getElementById(id);
       if(!target)return;
+      const page=target.closest('[data-trainer-page]');
+      if(page&&trainerPageTargets[page.dataset.trainerPage]===id){
+        navigateTrainerPage(page.dataset.trainerPage);
+        if(id==='trainerGrowthSection')loadMemberInsights().catch(e=>console.warn('성장 기록 조회 오류',e));
+        return;
+      }
       revealTrainerTarget(target);
       target.scrollIntoView({behavior:'smooth',block:'start'});
       if(id==='trainerGrowthSection')loadMemberInsights().catch(e=>console.warn('성장 기록 조회 오류',e));

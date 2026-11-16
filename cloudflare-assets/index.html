@@ -1575,7 +1575,7 @@ body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
       const memo=document.getElementById('trainerMemoList').parentElement;
       feedback.append(video,memo);
       fold(video,'운동 영상 피드백','선택 회원이 보낸 자세 영상을 확인하세요.');
-      const oldGrid=root.querySelector('.lg\:grid-cols-12');
+      const oldGrid=root.querySelector('[class~="lg:grid-cols-12"]');
       const routine=document.getElementById('trainerRoutineSection');
       root.append(routine);
       const growth=document.getElementById('trainerGrowthSection');root.append(growth);

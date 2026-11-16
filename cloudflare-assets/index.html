@@ -1681,8 +1681,9 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       const context=workflowContextKey();
       if(currentMode!=='trainer'||queuedSaveCount>0||nextFeedbackReadyKey!==context)return;
       stashWorkflowDraft();
+      if(nextFeedbackReadyKey!==context)return;
       await loadTrainerOverview();
-      if(workflowContextKey()!==context||currentMode!=='trainer')return;
+      if(workflowContextKey()!==context||currentMode!=='trainer'||nextFeedbackReadyKey!==context)return;
       const next=trainerPendingDate===selectedDate?trainerPendingQueue.find(m=>m.name!==activeMemberName):null;
       if(next)await openOverviewMember(next,'overviewNeedsAttention');else{updateNextPendingButton();showToast('현재 확인할 다음 회원이 없습니다.');}
     }

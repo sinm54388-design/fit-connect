@@ -553,6 +553,18 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
  #trainerView #trainerMemoList{max-height:260px}
 }
 
+
+/* Compact mobile body metrics: see all three values before the charts. */
+@media(max-width:767px){
+ #trainerView #trainerInbodyChart>div.grid:first-of-type{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+ #trainerView #trainerInbodyChart>div.grid:first-of-type>div{padding:12px 8px!important;background:#fff!important;border-radius:12px}
+ #trainerView #trainerInbodyChart>div.grid:first-of-type>div>p:first-child{font-size:11px!important;margin-bottom:9px;white-space:nowrap}
+ #trainerView #trainerInbodyChart>div.grid:first-of-type>div>p:nth-child(2){font-size:20px!important;color:#253b5c!important;white-space:nowrap}
+ #trainerView #trainerInbodyChart>div.grid:first-of-type>div>p:nth-child(2) span{font-size:11px!important}
+ #trainerView #trainerInbodyChart>div.grid:first-of-type>div>div{margin-top:9px;padding-top:8px;gap:0}
+ #trainerView #trainerInbodyChart>div.grid:first-of-type>div>div>span:first-child{display:none}
+ #trainerView #trainerInbodyChart>div.grid:first-of-type>div>div>span:last-child{padding:0!important;font-size:11px!important;color:#526783!important;background:transparent!important;border:0!important;white-space:nowrap}
+}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1699,6 +1711,8 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       const selectLabel=root.querySelector('label[for="trainerMemberSelect"]');selectLabel.textContent='선택 회원';
       const growth=document.getElementById('trainerGrowthSection');
       const inbody=document.getElementById('trainerInbodyChart').parentElement;
+      growth.querySelector('h3').textContent='성장 기록';
+      inbody.querySelector('h4').textContent='인바디 변화';
       const inbodyForm=inbody.querySelector('form');inbodyForm.before(document.getElementById('trainerInbodyChart'));fold(inbodyForm,'인바디 수치 입력');
       const goal=document.getElementById('trainerGoalSummary').parentElement;fold(goal.querySelector('form'),'목표 수정');
       const pt=document.getElementById('trainerPtSummary').parentElement;fold(pt.querySelector('form'),'수업 정보 수정');
@@ -3121,13 +3135,15 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       document.getElementById('todayDateDisplay').textContent = date;
       document.getElementById('trainerMemberSelect').value = member.name;
       resetRoutineForms();
+      navigateTrainerPage('feedback');
       await loadDataFromCloud(); // 해당 회원의 운동·식단·영상 자료를 함께 갱신
+      if(currentMode!=='trainer'||activeMemberName!==member.name||selectedDate!==date)return;
       if (!appData) { showToast('회원 기록을 불러오지 못했습니다.'); return; }
       const videoOnly = listId === 'overviewNeedsAttention' && member.pendingVideos && !member.pendingWorkout && !member.pendingDiet;
       const target = videoOnly
         ? document.getElementById('trainerFormVideos').closest('section')
         : document.getElementById('reviewRefGood').closest('.rounded-2xl');
-      if (target) {
+      if (target && trainerPage==='feedback') {
         revealTrainerTarget(target);
         target.scrollIntoView({behavior:'smooth',block:'start'});
         target.classList.add('ring-2','ring-brand-500');

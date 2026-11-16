@@ -1534,6 +1534,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     }
 
     const WORKFLOW_DRAFT_PREFIX='fitDraft:v1:';
+    const WORKFLOW_DRAFT_LAST='fitDraft:lastContext:v1';
     const WORKFLOW_DRAFT_TTL=6*60*60*1000;
     const WORKFLOW_FIELDS={member:['refGoodText','refBadText','memberMemoInput'],trainer:['inputFeedbackWorkout','inputFeedbackDiet','trainerMemoInput']};
     let workflowKey='',workflowReadyKey='',workflowDraft={fields:{},meals:{}},workflowApplying=false,workflowRestored=false;
@@ -1553,12 +1554,30 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       if(!workflowKey)return;
       try{
         const storageKey=WORKFLOW_DRAFT_PREFIX+encodeURIComponent(workflowKey);
-        if(!hasWorkflowDraft()){sessionStorage.removeItem(storageKey);return;}
+        if(!hasWorkflowDraft()){
+          sessionStorage.removeItem(storageKey);
+          if(JSON.parse(sessionStorage.getItem(WORKFLOW_DRAFT_LAST)||'null')?.key===workflowKey)sessionStorage.removeItem(WORKFLOW_DRAFT_LAST);
+          return;
+        }
         sessionStorage.setItem(storageKey,JSON.stringify({...workflowDraft,expires:Date.now()+WORKFLOW_DRAFT_TTL}));
+        sessionStorage.setItem(WORKFLOW_DRAFT_LAST,JSON.stringify({key:workflowKey,mode:currentMode,member:activeMemberName,date:selectedDate}));
         const keys=Object.keys(sessionStorage).filter(k=>k.startsWith(WORKFLOW_DRAFT_PREFIX));
         keys.forEach(k=>{try{if(Number(JSON.parse(sessionStorage.getItem(k)).expires)<Date.now())sessionStorage.removeItem(k);}catch{sessionStorage.removeItem(k);}});
         if(keys.length>20)keys.filter(k=>k!==storageKey).slice(0,keys.length-20).forEach(k=>sessionStorage.removeItem(k));
       }catch{/* Storage can be unavailable; in-memory drafts and unload warning remain. */}
+    }
+    function restoreWorkflowDraftContext(mode){
+      try{
+        const hint=JSON.parse(sessionStorage.getItem(WORKFLOW_DRAFT_LAST)||'null');
+        if(!hint||hint.mode!==mode||typeof hint.member!=='string'||hint.member.length>100||!/^\d{4}-\d{2}-\d{2}$/.test(hint.date))return;
+        if(mode==='member'&&hint.member!==activeMemberName)return;
+        const saved=JSON.parse(sessionStorage.getItem(WORKFLOW_DRAFT_PREFIX+encodeURIComponent(mode+'|'+hint.member+'|'+hint.date))||'null');
+        if(!saved||Number(saved.expires)<=Date.now()){sessionStorage.removeItem(WORKFLOW_DRAFT_LAST);return;}
+        if(mode==='trainer')activeMemberName=hint.member;
+        selectedDate=hint.date;
+        document.getElementById('currentDateInput').value=selectedDate;
+        document.getElementById('todayDateDisplay').innerText=selectedDate;
+      }catch{}
     }
     function switchWorkflowDraftContext(){
       const key=workflowContextKey();if(key===workflowKey)return;
@@ -1904,6 +1923,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       });
       setupDietRecordGuidance();
       setupWorkflowDraftProtection();
+      restoreWorkflowDraftContext('member');
       updateAccessState();
       document.getElementById('currentDateInput').value = selectedDate;
       const copyDateInput=document.getElementById('routineCopySourceDate');
@@ -3147,6 +3167,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
           result = await apiPost({ action: 'verify', password: input });
         if (result.status === 'success') {
           trainerPassword = input;
+          restoreWorkflowDraftContext('trainer');
           await Promise.allSettled([switchMode('trainer'),loadMemberRegistry(),loadTrainerOverview()]);
         } else {
           alert("비밀번호가 틀렸습니다.\n(Apps Script 코드에서 비밀번호를 바꿨는지도 확인해주세요)");

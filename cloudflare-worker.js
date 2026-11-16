@@ -282,7 +282,7 @@ async function handleRecords(request,env) {
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -346,6 +346,13 @@ async function handleRecords(request,env) {
   const failed=error=>json({status:'error',
     code:'supabase_read_failed:'+step+':'+(error?.diagnostic||clean(error?.name||'error'))},502);
   const start=performance.now();
+  if(action==='listMembersFast') {
+    try {
+      const rows=await supaGet('/rest/v1/fit_members?select=name&order=name.asc&limit=1000','members');
+      if(rows.length===1000)throw Error('member list pagination required');
+      return json({status:'success',source:'supabase',members:rows.map(row=>String(row.name||'').trim()).filter(Boolean)});
+    }catch(error){return failed(error);}
+  }
   if(action==='trainerOverview') {
     try {
       const overview=await buildOverview(supaGet,date);

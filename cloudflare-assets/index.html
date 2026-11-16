@@ -645,6 +645,29 @@
 #memberView .coach-video-upload form input,#memberView .coach-video-upload form textarea{min-height:46px}
 #memberView .coach-video-upload button[type=submit]{width:100%;min-height:46px;background:#6558df!important;color:white!important;border-radius:13px}
 @media(max-width:639px){#memberView #memberMemoList{max-height:340px}#memberView .growth-report-details>div{padding:0 12px 12px}}
+
+/* Member input clarity and keyboard accessibility; existing submit handlers unchanged. */
+#memberView .member-field-label{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:700;color:#263953!important;padding-top:10px}
+#memberView .member-field-label span{font-size:11px;font-weight:500;color:#64758c}
+#memberView .member-field-help{font-size:12px;line-height:1.7;color:#596d89!important;padding:5px 0}
+#memberView .coach-video-upload input[type=file]{background:white!important;border:1px dashed #aebfda!important;border-radius:13px;padding:11px;color:#354d70!important;max-width:100%;font-size:13px}
+#memberView .coach-video-upload input[type=file]::file-selector-button{min-height:40px;background:#ece8fb;color:#5344ac;border:0;border-radius:10px;padding:10px 13px;margin-right:10px;font-weight:650}
+#memberView input:focus-visible,#memberView textarea:focus-visible,#memberView select:focus-visible,#memberView summary:focus-visible{outline:3px solid #b6c8f0!important;outline-offset:2px;border-color:#6e7fcb!important}
+#memberView button:disabled{opacity:.6;cursor:wait}
+#memberView textarea{resize:vertical}
+@media(max-width:639px){#memberView .coach-video-upload input:not([type=file]),#memberView .coach-video-upload textarea{font-size:16px!important}#memberView .member-field-label{font-size:14px}}
+
+#memberView .meal-quick-guide{background:#eef3ff;color:#3e557b!important;border:1px solid #d8e3f8;border-radius:14px;padding:13px 15px;font-size:13px;line-height:1.75;margin-top:13px}
+#memberView .meal-editor-caption{font-size:12px;font-weight:650;color:#536882;padding:8px 2px 2px}
+#memberView .saved-meal-summary{background:#f0faf6!important;border:1px solid #b5dfcf!important;border-radius:17px!important;margin:14px 0;padding:15px!important}
+#memberView .saved-meal-summary h5{color:#176e52!important}
+#memberView .meal-shortcuts-toggle{background:#f7f8fc!important;border-color:#dce4f1!important}
+#memberView .meal-shortcuts-toggle summary{font-size:13px;color:#475b7a;padding:9px 0}
+#memberView .meal-save-feedback{padding:12px 15px;border:1px solid #cddcf3;border-radius:13px;font-size:13px;line-height:1.5}
+#memberView .meal-save-feedback[data-state=saving]{background:#edf4ff;color:#355987}
+#memberView .meal-save-feedback[data-state=saved]{background:#eaf8f1;color:#176b50}
+#memberView .meal-save-feedback[data-state=error]{background:#fff0f1;color:#a32e43;border-color:#efb8c1}
+.meal-save-feedback[hidden]{display:none!important}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -668,7 +691,7 @@
       <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end min-w-0">
         <div class="flex items-center bg-slate-800/80 border border-slate-700/60 rounded-lg px-2 sm:px-3 py-1.5 text-xs min-w-0">
           <i class="fa-regular fa-calendar text-brand-500 mr-2"></i>
-          <input type="date" id="currentDateInput" class="bg-transparent text-slate-200 outline-none cursor-pointer min-w-0 max-w-[117px] sm:max-w-none text-[11px] sm:text-xs">
+          <input type="date" aria-label="기록 날짜 선택" id="currentDateInput" class="bg-transparent text-slate-200 outline-none cursor-pointer min-w-0 max-w-[117px] sm:max-w-none text-[11px] sm:text-xs">
         </div>
         <div class="bg-slate-800 p-1 rounded-xl border border-slate-700/80 flex items-center shadow-inner shrink-0">
           <button id="btnMemberMode" onclick="switchMode('member')" class="header-mode-button whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 bg-brand-500 text-slate-950 font-bold">
@@ -829,7 +852,7 @@
             </div>
             <div id="memberMemoList" class="space-y-2 max-h-64 overflow-y-auto pr-1 mb-3"></div>
             <div class="flex gap-2">
-              <textarea id="memberMemoInput" rows="2" placeholder="메모를 입력하세요" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-sky-500"></textarea>
+              <textarea aria-label="코치님께 보낼 메모" id="memberMemoInput" rows="2" placeholder="메모를 입력하세요" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-sky-500"></textarea>
               <button onclick="sendMemo()" class="px-4 bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold rounded-xl text-xs shrink-0 cursor-pointer">보내기</button>
             </div>
           </div>
@@ -847,11 +870,11 @@
 
             <form id="workoutReflectionForm" onsubmit="saveWorkoutReflection(event)" class="space-y-4">
               <div>
-                <label class="block text-xs font-semibold text-emerald-400 mb-1.5">오늘 잘 진행되었거나 자극이 잘 온 운동/자세</label>
+                <label for="refGoodText" class="block text-xs font-semibold text-emerald-400 mb-1.5">오늘 잘 진행되었거나 자극이 잘 온 운동/자세</label>
                 <textarea id="refGoodText" rows="3" placeholder="예: 벤치프레스할 때 가슴 자극이 잘 왔습니다!" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-brand-500"></textarea>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-rose-400 mb-1.5">어려웠던 점, 관절 불편함, 질문사항</label>
+                <label for="refBadText" class="block text-xs font-semibold text-rose-400 mb-1.5">어려웠던 점, 관절 불편함, 질문사항</label>
                 <textarea id="refBadText" rows="3" placeholder="예: 스쿼트 시 오른쪽 무릎이 살짝 불편했습니다." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-rose-500"></textarea>
               </div>
               <div class="flex justify-end">
@@ -1014,12 +1037,12 @@
        </section>
        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
          <h3 class="font-bold text-white"><i class="fa-solid fa-video text-sky-400"></i> 내 운동 영상 · 자세 피드백</h3>
-         <p class="text-xs text-slate-400">운동 영상을 올리고 질문을 남기면 트레이너가 영상 아래에 답변해 드려요. 최대 40초 영상까지 첨부할 수 있어요. 50MB 이하 영상은 원본 그대로 전송하고, 더 큰 영상은 자동 압축해요. 업로드 중에도 이 화면에서 다른 기록을 작성할 수 있어요. (영상 개선 v13 · 페이지 메뉴)</p>
+         <p class="text-xs text-slate-400">동작이 잘 보이는 짧은 영상을 보내주세요. 코치님이 자세를 확인하고 답변해 드려요.</p>
          <form onsubmit="submitFormVideo(event)" class="space-y-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
-           <input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
-           <input id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
-           <textarea id="memberVideoQuestion" maxlength="500" rows="2" placeholder="어떤 부분이 어려웠나요? (선택)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm"></textarea>
-           <button type="submit" class="bg-sky-600 rounded-lg px-4 py-2 text-sm font-semibold">운동 영상 보내기</button>
+           <label for="memberVideoName" class="member-field-label">어떤 운동인가요? <span>필수</span></label><input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
+           <label for="memberVideoFile" class="member-field-label">운동 영상 <span>최대 40초 · 원본 200MB 이하</span></label><input aria-describedby="memberVideoHelp" id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
+           <label for="memberVideoQuestion" class="member-field-label">코치님께 궁금한 점 <span>선택</span></label><textarea id="memberVideoQuestion" maxlength="500" rows="2" placeholder="어떤 부분이 어려웠나요? (선택)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm"></textarea>
+           <p id="memberVideoHelp" class="member-field-help">MP4·MOV·WebM 지원 · 50MB 초과 시 자동 압축<br>전송 중에도 기록할 수 있어요. 완료될 때까지 이 창을 유지해주세요.</p><button type="submit" class="bg-sky-600 rounded-lg px-4 py-2 text-sm font-semibold">운동 영상 보내기</button>
            <div id="memberVideoUploadStatus" role="status" aria-live="polite" class="hidden text-xs text-slate-300 whitespace-pre-line rounded-lg bg-slate-900 p-3"></div>
          </form>
          <div id="memberFormVideos" class="space-y-3"></div>
@@ -1641,6 +1664,25 @@
       render();
     }
 
+
+    function setupDietRecordGuidance(){
+      const diet=document.getElementById('memberDietSection');if(!diet)return;
+      const head=diet.querySelector('.member-page-heading');
+      const tip=document.createElement('p');tip.className='meal-quick-guide';
+      tip.textContent='사진만 올려도 기록돼요. 음식명만 적어도 괜찮아요. 영양성분은 필요할 때 펼쳐보세요.';
+      if(head)head.append(tip);
+      const status=document.createElement('div');status.className='meal-save-feedback';status.id='mealSaveFeedback';status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.hidden=true;
+      if(head)head.after(status);
+      const globalBar=document.getElementById('saveStatusBar');
+      const sync=()=>{const state=globalBar.dataset.state;status.hidden=!['saving','saved','error'].includes(state);status.dataset.state=state;status.textContent=document.getElementById('saveStatusText').textContent;};
+      if(globalBar)new MutationObserver(sync).observe(globalBar,{attributes:true,childList:true,subtree:true,characterData:true});
+      MEAL_KEYS.forEach(meal=>{
+        const editor=document.getElementById('meal-'+meal+'-editor');
+        if(editor){const note=document.createElement('p');note.className='meal-editor-caption';note.textContent='음식 입력 · 입력 후 끼니 저장을 눌러주세요';editor.prepend(note);}
+      });
+      sync();
+    }
+
     function arrangeMemberDashboard(){
       const view=document.getElementById('memberView');
       if(!view||document.getElementById('memberBottomNav'))return;
@@ -1703,6 +1745,7 @@
           document.getElementById(`meal-${m}-${f}`).addEventListener('input', () => dirtyMealDrafts.add(m));
         });
       });
+      setupDietRecordGuidance();
       updateAccessState();
       document.getElementById('currentDateInput').value = selectedDate;
       const copyDateInput=document.getElementById('routineCopySourceDate');
@@ -2482,12 +2525,12 @@
       panel.className='meal-shortcuts-toggle rounded-xl border border-slate-700/70 bg-slate-900/60 px-3 py-3';
       const summary=document.createElement('summary');
       summary.className='text-sm font-bold text-slate-200 py-1';
-      summary.textContent='⭐ 즐겨찾기 · 최근 음식 펼치기';
+      summary.textContent='최근 음식 · 즐겨찾기로 빠르게 입력';
       const content=document.createElement('div');
       content.id=`meal-${meal}-shortcuts-content`;
       content.className='space-y-3 pt-3';
       panel.append(summary,content);
-      editor.appendChild(panel);
+      editor.prepend(panel);
       renderMealShortcuts(meal);
     }
     function renderMealShortcuts(meal) {
@@ -2669,6 +2712,7 @@
       const editor=document.createElement('div');
       editor.id=`meal-${meal}-editor`;
       editor.className='space-y-2.5';
+      editor.setAttribute('aria-label',({breakfast:'아침',lunch:'점심',dinner:'저녁',snack:'간식'})[meal]+' 음식 입력');
       parent.insertBefore(editor,firstCard);
       let next=editor.nextSibling;
       while(next){const current=next;next=next.nextSibling;editor.appendChild(current);}
@@ -2743,9 +2787,9 @@
           <div class="text-[10px] text-slate-400">${label}</div>
           <div class="text-xs font-bold text-emerald-300 mt-0.5">${esc(String(item[key]||0))}${key==='cal'?' kcal':'g'}</div>
         </div>`).join('');
-      box.className='rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2';
+      box.className='saved-meal-summary rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2';
       box.innerHTML=`<div class="flex items-center justify-between gap-2">
-        <h5 class="text-xs font-bold text-emerald-400"><i class="fa-solid fa-circle-check"></i> 저장된 식단</h5>
+        <h5 class="text-xs font-bold text-emerald-400"><i class="fa-solid fa-circle-check"></i> 저장된 기록</h5>
         <div class="flex items-center gap-2"><span class="text-[11px] text-slate-400">음식 ${foods.filter(f=>String(f.name||'').trim()).length}개</span>
           <button type="button" onclick="openMealEditor('${meal}')" class="rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-bold text-emerald-300">수정하기</button></div>
         </div><div class="px-1">${rows||'<div class="text-xs text-slate-400">영양성분 기록</div>'}</div>
@@ -2784,7 +2828,7 @@
           badge.innerText = "작성완료";
         } else {
           badge.className = "text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded";
-          badge.innerText = "미작성";
+          badge.innerText = (item.photos||[]).length ? "사진 기록됨" : "미작성";
         }
         totalCal += Number(item.cal) || 0;
         totalCarb += Number(item.carb) || 0;
@@ -2930,13 +2974,15 @@
       }
     }
 
-    // 회원 목록은 Apps Script의 MemberAccess 시트에서 불러옵니다.
+    // 회원 목록은 빠른 DB에서 조회하고, 실패하면 MemberAccess 시트로 전환합니다.
     async function loadMemberRegistry() {
       if (!trainerPassword) return;
       const status = document.getElementById('memberRegistryStatus');
       status.textContent = '회원 목록을 불러오는 중...';
       try {
-        const result = await apiPost({action:'listMembers',password:trainerPassword});
+        let result = await fastTrainerRequest({action:'listMembersFast',password:trainerPassword,date:selectedDate}, '회원 목록 · Supabase');
+        const fastRegistry = result?.status === 'success' && Array.isArray(result.members);
+        if (!fastRegistry) result = await apiPost({action:'listMembers',password:trainerPassword});
         if (result.status !== 'success' || !Array.isArray(result.members)) throw new Error(result.message || '목록 조회 실패');
         const previousMember = activeMemberName;
         registryMembers = [...new Set([...registryMembers,...result.members])];
@@ -2959,7 +3005,7 @@
           rotate.onclick=()=>rotateMemberLink(name);
           row.append(label,copy,rotate); list.append(row);
         });
-        status.textContent = `등록된 회원 ${registryMembers.length}명 · 회원별 기록은 기존대로 유지됩니다.`;
+        status.textContent = `등록된 회원 ${registryMembers.length}명` + (fastRegistry ? ' · 빠른 DB 조회 · 전용 링크 관리는 구글 연동' : ' · 구글 회원 목록 동기화 완료');
         // 회원 목록은 즉시 표시, 선택 회원 기록은 별도로 조회.
         if (activeMemberName && (previousMember !== activeMemberName || !appData))
           loadDataFromCloud().catch(e=>console.warn('선택 회원 기록 조회 오류',e));
@@ -2978,7 +3024,7 @@
       status.textContent = '회원 현황 불러오는 중...';
       // Preview fast path: show the Supabase summary first, then always replace it
       // with the canonical Apps Script overview (which also has video counts).
-      let canonicalShown=false;
+      let canonicalShown=false, fastShown=false, canonicalFailed=false;
       const renderOverview = (result, isFast) => {
         const items = result.members;
         // The overview already contains member names. Populate the selector
@@ -3031,7 +3077,7 @@
           ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
         makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
         status.textContent = isFast
-          ? `${date} 기준 · 빠른 현황 표시 중 · 영상 대기 건수 등 최신 내용 확인 중...`
+          ? (canonicalFailed ? `${date} 기준 · 운동·식단 현황 표시 · 영상 대기 건수는 구글 연결 복구 후 확인할 수 있습니다.` : `${date} 기준 · 빠른 현황 표시 중 · 영상 대기 건수 등 최신 내용 확인 중...`)
           : `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
       };
       const stillCurrent = () => request === overviewRequest && date === selectedDate && currentMode === 'trainer';
@@ -3040,6 +3086,7 @@
           .then(fast => {
             if (!fast || fast.status !== 'success' || !Array.isArray(fast.members)) return;
             if (canonicalShown || !stillCurrent()) return;
+            fastShown = true;
             renderOverview(fast, true);
           }).catch(e=>console.warn('빠른 현황 표시 오류',e));
       }
@@ -3051,8 +3098,10 @@
         renderOverview(result, false);
       } catch(e) {
         if(request !== overviewRequest)return;
-        canonicalShown = true;
-        status.textContent='현황을 불러오지 못했습니다: '+e.message;
+        canonicalFailed = true;
+        status.textContent=fastShown
+          ? `${date} 기준 · 운동·식단 현황 표시 · 영상 대기 건수는 구글 연결 복구 후 확인할 수 있습니다.`
+          : '현황을 불러오지 못했습니다: '+e.message;
       }
     }
     async function openOverviewMember(member, listId) {

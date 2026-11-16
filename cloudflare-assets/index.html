@@ -1486,7 +1486,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     let formVideos = [];
     let formVideoListOwner='';
     function videoListOwner(){return JSON.stringify([activeMemberName,currentMode,memberToken,currentMode==='trainer'?trainerPassword:'']);}
-    function clearForeignVideoLists(){if(formVideoListOwner===videoListOwner())return;formVideos=[];exerciseVideos=[];formVideoListOwner='';for(const id of ['memberFormVideos','trainerFormVideos','memberExerciseVideos','trainerExerciseVideos']){const el=document.getElementById(id);if(el)el.textContent='영상을 불러오는 중…';}}
+    function clearForeignVideoLists(){if(formVideoListOwner===videoListOwner())return;setFormVideoListStatus('영상을 불러오는 중…');formVideos=[];exerciseVideos=[];formVideoListOwner='';for(const id of ['memberFormVideos','trainerFormVideos','memberExerciseVideos','trainerExerciseVideos']){const el=document.getElementById(id);if(el)el.textContent='영상을 불러오는 중…';}}
     const VIDEO_LIMIT = 20 * 1024 * 1024;
     const VIDEO_INPUT_LIMIT = 200 * 1024 * 1024;
     const VIDEO_MAX_DURATION = 40;
@@ -3956,7 +3956,8 @@ try {
     // Short-lived private in-memory cache for video/history metadata; never persists across sessions.
     const extraReadCache=new Map();
     function cachedExtraRead(body) {
-      const key=[body.action,body.member,body.month||'',body.date||'',Boolean(body.password)].join('|');
+      const videoList=['listFormVideos','listExerciseVideos'].includes(body.action);
+      const key=JSON.stringify([body.action,body.member,body.month||'',videoList?'':body.date||'',body.password||'',body.token||'']);
       const hit=extraReadCache.get(key);
       if(hit && Date.now()-hit.at<45000)return hit.promise;
       const promise=apiPost(body).then(result=>{
@@ -4075,6 +4076,79 @@ try {
       if(fields.length)parts.push('같은 운동인데 다른 값: '+fields.join(', '));
       return parts.join(' · ')||'표시 내용 외 차이';
     }
+    const formVideoRootOwners=new WeakMap();
+    function setFormVideoListStatus(message,retry=false){
+      for(const id of ['memberFormVideos','trainerFormVideos']){
+        const root=document.getElementById(id);if(!root)continue;
+        let status=document.getElementById(id+'LoadStatus');
+        if(!status){status=document.createElement('p');status.id=id+'LoadStatus';status.className='text-xs text-slate-400 py-2';status.setAttribute('role','status');root.before(status);}
+        status.textContent=message;status.hidden=!message;
+        if(retry){const button=document.createElement('button');button.type='button';button.className='ml-2 rounded-lg px-3 py-2 text-indigo-400';button.textContent='영상 목록 다시 확인';button.onclick=()=>loadExtras();status.append(button);}
+      }
+    }
+    // Resolve each source independently: a slow legacy request must never hold a direct video.
+    async function loadFormVideoSources(auth,isCurrent,owner){
+      let settled=0,succeeded=0;
+      const failed=[];
+      const publish=()=>{
+        if(!isCurrent())return;
+        if(succeeded){
+          formVideoListOwner=owner;
+          if(formVideos.length||settled===2)renderFormVideos();
+          if(!formVideos.length&&failed.length)for(const id of ['memberFormVideos','trainerFormVideos']){const root=document.getElementById(id);if(root)root.textContent='영상 목록을 다시 확인해주세요.';}
+          setFormVideoListStatus(settled<2?(formVideos.length?'먼저 도착한 영상부터 볼 수 있어요 · 나머지 영상 확인 중…':'이전 영상 목록 확인 중…'):failed.length?'일부 영상 목록을 불러오지 못했어요. 표시된 영상은 재생할 수 있어요.':'',settled===2&&failed.length>0);
+        }else if(settled===2)setFormVideoListStatus('영상 목록을 불러오지 못했어요. 다시 확인해주세요.',true);
+      };
+      const receive=(source,result)=>{
+        if(!isCurrent())return;
+        settled++;
+        if(result?.status!=='success'||!Array.isArray(result.videos)){failed.push(source);publish();return;}
+        succeeded++;
+        const previous=formVideoListOwner===owner?(formVideos||[]):[];
+        const isDirect=v=>String(v.id||'').startsWith('direct:');
+        const next=source==='direct'
+          ? [...result.videos,...previous.filter(v=>!isDirect(v))]
+          : [...previous.filter(isDirect),...result.videos];
+        formVideos=[...new Map(next.map(v=>[String(v.id),v])).values()];
+        publish();
+      };
+      await Promise.allSettled([
+        cachedExtraRead({...auth,action:'listFormVideos'}).then(result=>receive('legacy',result),()=>receive('legacy',null)),
+        directVideoRequest({...auth,action:'directVideoList'}).then(result=>receive('direct',result),()=>receive('direct',null))
+      ]);
+    }
+    // Keep unchanged cards in place so late list results cannot destroy playback or typed feedback.
+    function reconcileFormVideoRoot(root,html){
+      const owner=videoListOwner(),template=document.createElement('template');template.innerHTML=html;
+      const nextNodes=Array.from(template.content.children);
+      if(formVideoRootOwners.get(root)!==owner){root.replaceChildren(...nextNodes);formVideoRootOwners.set(root,owner);return;}
+      const existing=new Map(Array.from(root.children).filter(el=>el.dataset.videoKey).map(el=>[el.dataset.videoKey,el]));
+      const retained=new Set();let cursor=root.firstElementChild;
+      for(const next of nextNodes){
+        const old=existing.get(next.dataset.videoKey);let node=next;
+        if(old&&old.dataset.videoVersion===next.dataset.videoVersion)node=old;
+        else if(old){
+          const children=Array.from(next.children);
+          for(let i=0;i<children.length;i++){
+            const current=old.children[i],fresh=children[i];
+            if(current?.hasAttribute('data-video-player')&&old.dataset.videoFile===next.dataset.videoFile&&(current.querySelector('video')||current.querySelector('[data-loading="1"]')))continue;
+            if(current?.tagName==='TEXTAREA'&&(current===document.activeElement||current.value!==current.defaultValue)){
+              if(current.value===fresh.defaultValue)current.defaultValue=fresh.defaultValue;
+              continue;
+            }
+            if(current&&current.outerHTML===fresh.outerHTML)continue;
+            if(current)old.replaceChild(fresh,current);else old.append(fresh);
+          }
+          while(old.children.length>children.length)old.lastElementChild.remove();
+          old.dataset.videoVersion=next.dataset.videoVersion;old.dataset.videoFile=next.dataset.videoFile;
+          node=old;
+        }
+        retained.add(node);
+        if(node===cursor)cursor=cursor.nextElementSibling;else root.insertBefore(node,cursor);
+      }
+      Array.from(root.children).filter(node=>!retained.has(node)).forEach(node=>node.remove());
+    }
+
     async function loadExtras() {
       const request = ++extrasRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
@@ -4122,21 +4196,7 @@ try {
           renderExerciseVideos();
           if(currentMode==='member'&&appData)renderMemberRoutines(appData.routines||[]);
         }).catch(e=>console.warn('운동 영상 조회 오류',e));
-      const formRequest=Promise.allSettled([cachedExtraRead({...auth,action:'listFormVideos'}),directVideoRequest({...auth,action:'directVideoList'})])
-        .then(results=>{
-          const legacy=results[0].status==='fulfilled'&&results[0].value?.status==='success'?results[0].value:null;
-          const direct=results[1].status==='fulfilled'&&results[1].value?.status==='success'?results[1].value:null;
-          if(!isCurrent())return;
-          if(!legacy&&!direct)throw Error('영상 목록 조회 실패');
-          const previous=formVideoListOwner===owner?(formVideos||[]):[];
-          const combined=[...(direct?.videos||previous.filter(v=>String(v.id||'').startsWith('direct:'))),...(legacy?.videos||previous.filter(v=>!String(v.id||'').startsWith('direct:')))];
-          const videos={status:'success',videos:[...new Map(combined.map(v=>[String(v.id),v])).values()]};
-          if(!isCurrent())return;
-          if(videos.status!=='success')throw Error(videos.message||'자세 영상 조회 실패');
-          formVideos=videos.videos||[];
-          formVideoListOwner=owner;
-          renderFormVideos();
-        }).catch(e=>console.warn('자세 영상 조회 오류',e));
+      const formRequest=loadFormVideoSources(auth,isCurrent,owner);
       await Promise.allSettled([historyRequest,exerciseRequest,formRequest]);
     }
     function moveHabitMonth(offset) {
@@ -4195,8 +4255,8 @@ try {
     function renderFormVideos(){
       const memberRoot=document.getElementById('memberFormVideos'), trainerRoot=document.getElementById('trainerFormVideos');
       const videos=formVideos||[];
-      if(memberRoot)memberRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">질문: ${esc(v.question||'없음')}</p><div class="bg-slate-900 rounded-lg p-2 text-xs whitespace-pre-wrap"><strong class="text-emerald-400">트레이너 피드백</strong><p class="mt-1">${esc(v.feedback||'아직 피드백을 기다리고 있어요.')}</p>${v.feedback?`<div class="mt-2 flex items-center justify-between gap-2"><span class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?'✓ 확인 완료':'확인 버튼을 눌러주세요'}</span>${v.readAt?'':`<button type="button" onclick="markFormVideoRead('${esc(v.id)}')" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">확인했어요</button>`}</div>`:''}</div></article>`).join(''):'<p class="text-xs text-slate-500">업로드한 운동 영상이 없어요.</p>';
-      if(trainerRoot)trainerRoot.innerHTML=videos.length?videos.map(v=>`<article class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">회원 질문: ${esc(v.question||'없음')}</p><div class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?`✓ 회원 확인 완료 · ${esc(v.readAt)}`:'○ 회원 확인 전'}</div><textarea id="feedback-${esc(v.id)}" maxlength="2000" rows="3" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래에 보여줄 자세 피드백">${esc(v.feedback||'')}</textarea><div class="flex gap-3"><button onclick="saveFormVideoFeedback('${esc(v.id)}')" class="text-xs text-sky-400">피드백 저장</button><button onclick="deleteFormVideo('${esc(v.id)}')" class="text-xs text-rose-400">영상 삭제</button></div></article>`).join(''):'<p class="text-xs text-slate-500">회원님이 올린 운동 영상이 없어요.</p>';
+      if(memberRoot)reconcileFormVideoRoot(memberRoot,videos.length?videos.map(v=>`<article data-video-key="${esc(v.id||v.fileId||'')}" data-video-version="${esc(JSON.stringify(v))}" data-video-file="${esc(v.fileId||v.url||'')}" class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div data-video-player>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">질문: ${esc(v.question||'없음')}</p><div class="bg-slate-900 rounded-lg p-2 text-xs whitespace-pre-wrap"><strong class="text-emerald-400">트레이너 피드백</strong><p class="mt-1">${esc(v.feedback||'아직 피드백을 기다리고 있어요.')}</p>${v.feedback?`<div class="mt-2 flex items-center justify-between gap-2"><span class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?'✓ 확인 완료':'확인 버튼을 눌러주세요'}</span>${v.readAt?'':`<button type="button" onclick="markFormVideoRead('${esc(v.id)}')" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">확인했어요</button>`}</div>`:''}</div></article>`).join(''):'<p class="text-xs text-slate-500">업로드한 운동 영상이 없어요.</p>');
+      if(trainerRoot)reconcileFormVideoRoot(trainerRoot,videos.length?videos.map(v=>`<article data-video-key="${esc(v.id||v.fileId||'')}" data-video-version="${esc(JSON.stringify(v))}" data-video-file="${esc(v.fileId||v.url||'')}" class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div data-video-player>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">회원 질문: ${esc(v.question||'없음')}</p><div class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?`✓ 회원 확인 완료 · ${esc(v.readAt)}`:'○ 회원 확인 전'}</div><textarea id="feedback-${esc(v.id)}" maxlength="2000" rows="3" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래에 보여줄 자세 피드백">${esc(v.feedback||'')}</textarea><div class="flex gap-3"><button onclick="saveFormVideoFeedback('${esc(v.id)}')" class="text-xs text-sky-400">피드백 저장</button><button onclick="deleteFormVideo('${esc(v.id)}')" class="text-xs text-rose-400">영상 삭제</button></div></article>`).join(''):'<p class="text-xs text-slate-500">회원님이 올린 운동 영상이 없어요.</p>');
     }
     function bytesToBase64(bytes){let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(s);}
     function base64ToBytes(b64){const s=atob(b64),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
@@ -4406,6 +4466,7 @@ try {
           attachVideo(streamed.url,'Supabase 스트리밍');
           return;
         }
+        button.textContent='이전 영상 원본을 받는 중…';
         const result=await apiPost({...creds,action:'videoDownload',fileId:id});
         if(result.status!=='success')throw Error(result.message||'영상 불러오기 실패');
         const bytes=base64ToBytes(result.base64);

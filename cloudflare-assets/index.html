@@ -565,6 +565,11 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
  #trainerView #trainerInbodyChart>div.grid:first-of-type>div>div>span:first-child{display:none}
  #trainerView #trainerInbodyChart>div.grid:first-of-type>div>div>span:last-child{padding:0!important;font-size:11px!important;color:#526783!important;background:transparent!important;border:0!important;white-space:nowrap}
 }
+#workflowDraftBanner{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border:1px solid #dbd4f7;border-radius:14px;background:#f2efff;color:#514575;padding:12px 15px;margin:12px 0;font-size:12px;line-height:1.65}
+#workflowDraftBanner[hidden],#nextPendingMemberButton[hidden]{display:none!important}
+#workflowDraftBanner button{min-height:40px;white-space:nowrap;padding:8px 12px;border:1px solid #d0c7ec;border-radius:10px;background:white;color:#5d4ea1;font-weight:650;font-size:12px}
+#nextPendingMemberButton{display:block;width:100%;margin-top:12px;min-height:48px;border:1px solid #d4cdf3;border-radius:13px;background:#efedff;color:#5948bb;font-size:14px;font-weight:700;padding:12px}
+
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -1227,6 +1232,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
                 <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('diet','식단을 빠짐없이 기록해주신 점 좋습니다!')" class="quick-feedback-btn">기록 칭찬</button><button type="button" onclick="appendFeedbackTemplate('diet','매 끼니 단백질 식품을 충분히 챙겨보세요.')" class="quick-feedback-btn">단백질</button><button type="button" onclick="appendFeedbackTemplate('diet','식사 구성과 양을 함께 점검해볼게요.')" class="quick-feedback-btn">식사 구성</button></div>
                 <textarea id="inputFeedbackDiet" rows="3" aria-label="식단 피드백" placeholder="식단 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
               <div class="flex justify-end"><button onclick="sendTrainerFeedback()" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg cursor-pointer">피드백 보내기</button></div>
+              <button id="nextPendingMemberButton" type="button" hidden onclick="openNextPendingMember()">다음 확인할 회원</button>
             </div>
           </div>
 
@@ -1502,6 +1508,8 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       if (blocked) document.getElementById('syncError').classList.add('hidden');
       syncMemberNavigation();
       syncTrainerNavigation();
+      updateWorkflowDraftBanner();
+      updateNextPendingButton();
       return !blocked;
     }
 
@@ -1525,6 +1533,142 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       const nav=document.getElementById('memberBottomNav');if(nav)nav.hidden=!active;
     }
 
+    const WORKFLOW_DRAFT_PREFIX='fitDraft:v1:';
+    const WORKFLOW_DRAFT_TTL=6*60*60*1000;
+    const WORKFLOW_FIELDS={member:['refGoodText','refBadText','memberMemoInput'],trainer:['inputFeedbackWorkout','inputFeedbackDiet','trainerMemoInput']};
+    let workflowKey='',workflowReadyKey='',workflowDraft={fields:{},meals:{}},workflowApplying=false,workflowRestored=false;
+    function workflowContextKey(){return currentMode+'|'+activeMemberName+'|'+selectedDate;}
+    function workflowFieldBaseline(id){
+      const source={refGoodText:appData?.reflection?.good,refBadText:appData?.reflection?.bad,inputFeedbackWorkout:appData?.feedback?.workout,inputFeedbackDiet:appData?.feedback?.diet};
+      return String(source[id]||'');
+    }
+    function workflowMealFoods(item){
+      return Array.isArray(item?.foods)?item.foods:String(item?.desc||'').split('\n').map((name,i)=>({name,cal:i===0?item?.cal:'',carb:i===0?item?.carb:'',prot:i===0?item?.prot:'',fat:i===0?item?.fat:''}));
+    }
+    function workflowFoodFingerprint(foods){
+      return JSON.stringify((foods||[]).map(f=>({name:String(f.name||'').trim(),cal:Number(f.cal)||0,carb:Number(f.carb)||0,prot:Number(f.prot)||0,fat:Number(f.fat)||0,foodKey:String(f.foodKey||''),grams:f.foodKey?Number(f.grams)||100:0})).filter(f=>f.name||f.cal||f.carb||f.prot||f.fat));
+    }
+    function hasWorkflowDraft(){return Object.keys(workflowDraft.fields).length>0||Object.keys(workflowDraft.meals).length>0;}
+    function persistWorkflowDraft(){
+      if(!workflowKey)return;
+      try{
+        const storageKey=WORKFLOW_DRAFT_PREFIX+encodeURIComponent(workflowKey);
+        if(!hasWorkflowDraft()){sessionStorage.removeItem(storageKey);return;}
+        sessionStorage.setItem(storageKey,JSON.stringify({...workflowDraft,expires:Date.now()+WORKFLOW_DRAFT_TTL}));
+        const keys=Object.keys(sessionStorage).filter(k=>k.startsWith(WORKFLOW_DRAFT_PREFIX));
+        keys.forEach(k=>{try{if(Number(JSON.parse(sessionStorage.getItem(k)).expires)<Date.now())sessionStorage.removeItem(k);}catch{sessionStorage.removeItem(k);}});
+        if(keys.length>20)keys.filter(k=>k!==storageKey).slice(0,keys.length-20).forEach(k=>sessionStorage.removeItem(k));
+      }catch{/* Storage can be unavailable; in-memory drafts and unload warning remain. */}
+    }
+    function switchWorkflowDraftContext(){
+      const key=workflowContextKey();if(key===workflowKey)return;
+      workflowKey=key;workflowReadyKey='';workflowDraft={fields:{},meals:{}};workflowRestored=false;
+      dirtyMealDrafts.clear();mealEditorOpen.clear();
+      ['memberMemoInput','trainerMemoInput'].forEach(id=>{document.getElementById(id).value='';});
+      try{
+        const storageKey=WORKFLOW_DRAFT_PREFIX+encodeURIComponent(key),raw=sessionStorage.getItem(storageKey);
+        if(raw){const saved=JSON.parse(raw);if(Number(saved.expires)>Date.now()){
+          for(const id of WORKFLOW_FIELDS[currentMode]||[])if(typeof saved.fields?.[id]==='string')workflowDraft.fields[id]=saved.fields[id].slice(0,10000);
+          if(currentMode==='member')for(const meal of MEAL_KEYS)if(Array.isArray(saved.meals?.[meal]))workflowDraft.meals[meal]=saved.meals[meal].filter(f=>f&&typeof f==='object').slice(0,40).map(f=>Object.fromEntries(['name','cal','carb','prot','fat','foodKey','grams'].map(k=>[k,String(f[k]??'').slice(0,1000)])));
+          workflowRestored=hasWorkflowDraft();
+        }else sessionStorage.removeItem(storageKey);}
+      }catch{}
+      updateWorkflowDraftBanner();
+    }
+    function stashWorkflowDraft(){
+      if(workflowApplying||!appData||workflowReadyKey!==workflowContextKey()||workflowKey!==workflowContextKey())return;
+      for(const id of WORKFLOW_FIELDS[currentMode]||[]){
+        const value=document.getElementById(id).value.slice(0,10000);
+        if(value===workflowFieldBaseline(id))delete workflowDraft.fields[id];else workflowDraft.fields[id]=value;
+      }
+      if(currentMode==='member')for(const meal of MEAL_KEYS){
+        if(!dirtyMealDrafts.has(meal))continue;
+        const foods=getMealValues(meal).foods;
+        if(workflowFoodFingerprint(foods)===workflowFoodFingerprint(workflowMealFoods(appData.diet?.[meal])))delete workflowDraft.meals[meal];else workflowDraft.meals[meal]=foods;
+      }
+      if(currentMode==='trainer'&&('inputFeedbackWorkout' in workflowDraft.fields||'inputFeedbackDiet' in workflowDraft.fields)){nextFeedbackReadyKey='';updateNextPendingButton();}
+      persistWorkflowDraft();updateWorkflowDraftBanner();
+    }
+    function applyWorkflowDraft(){
+      if(workflowApplying||!appData||workflowReadyKey!==workflowContextKey()||workflowKey!==workflowContextKey())return;
+      workflowApplying=true;
+      try{
+        for(const [id,value] of Object.entries(workflowDraft.fields)){
+          if(value===workflowFieldBaseline(id))delete workflowDraft.fields[id];else document.getElementById(id).value=value;
+        }
+        if(currentMode==='member')for(const [meal,foods] of Object.entries(workflowDraft.meals)){
+          if(workflowFoodFingerprint(foods)===workflowFoodFingerprint(workflowMealFoods(appData.diet?.[meal]))){delete workflowDraft.meals[meal];dirtyMealDrafts.delete(meal);continue;}
+          const copy=foods.map(f=>({...f}));writeFood(document.getElementById('meal-'+meal+'-desc').closest('.food-card'),copy.shift()||{});
+          document.getElementById('meal-'+meal+'-extra').replaceChildren();copy.forEach(food=>addMealFood(meal,food,false));
+          dirtyMealDrafts.add(meal);mealEditorOpen.add(meal);document.getElementById('meal-'+meal+'-editor').classList.remove('hidden');updateMealDraftTotals(meal);
+        }
+      }finally{workflowApplying=false;}
+      persistWorkflowDraft();updateWorkflowDraftBanner();
+    }
+    function updateWorkflowDraftBanner(){
+      const banner=document.getElementById('workflowDraftBanner');if(!banner)return;
+      banner.hidden=!hasWorkflowDraft()||workflowReadyKey!==workflowContextKey();
+      document.getElementById('workflowDraftText').textContent=(workflowRestored?'임시 작성 내용을 복구했어요. ':'작성 내용 임시 보관 중 · ')+activeMemberName+' · '+selectedDate+' · 아직 서버에 저장되지 않았어요.';
+    }
+    function discardWorkflowDraft(){
+      workflowDraft={fields:{},meals:{}};workflowRestored=false;dirtyMealDrafts.clear();mealEditorOpen.clear();
+      ['memberMemoInput','trainerMemoInput'].forEach(id=>{document.getElementById(id).value='';});persistWorkflowDraft();renderUI();updateWorkflowDraftBanner();
+    }
+    function clearSavedMemoDraft(context,id,value){
+      const contextKey=context.mode+'|'+context.member+'|'+context.date;
+      if(workflowKey===contextKey&&workflowDraft.fields[id]===value)delete workflowDraft.fields[id];
+      try{
+        const key=WORKFLOW_DRAFT_PREFIX+encodeURIComponent(contextKey),saved=JSON.parse(sessionStorage.getItem(key)||'null');
+        if(saved?.fields?.[id]===value){delete saved.fields[id];if(!Object.keys(saved.fields).length&&!Object.keys(saved.meals||{}).length)sessionStorage.removeItem(key);else sessionStorage.setItem(key,JSON.stringify(saved));}
+      }catch{}
+    }
+    function setupWorkflowDraftProtection(){
+      const banner=document.createElement('div');banner.id='workflowDraftBanner';banner.hidden=true;banner.setAttribute('role','status');
+      const text=document.createElement('span');text.id='workflowDraftText';
+      const discard=document.createElement('button');discard.type='button';discard.textContent='임시 내용 지우기';discard.onclick=discardWorkflowDraft;
+      banner.append(text,discard);document.getElementById('syncError').after(banner);
+      document.addEventListener('input',event=>{
+        if((WORKFLOW_FIELDS[currentMode]||[]).includes(event.target.id)||event.target.closest('[id^="meal-"][id$="-editor"]'))stashWorkflowDraft();
+      });
+      document.addEventListener('click',()=>setTimeout(stashWorkflowDraft,0));
+      window.addEventListener('pagehide',stashWorkflowDraft);
+      window.addEventListener('beforeunload',event=>{stashWorkflowDraft();if(hasWorkflowDraft()||queuedSaveCount>0||lastFailedSave){event.preventDefault();event.returnValue='';}});
+    }
+
+    function renderTrainerSupplemental(items,date){
+      const draw=(id,list,detail,empty)=>{
+        const root=document.getElementById(id);root.replaceChildren();
+        if(!list.length){const note=document.createElement('p');note.className='text-xs text-slate-500 py-2';note.textContent=empty;root.append(note);return;}
+        for(const member of list){
+          const row=document.createElement('button');row.type='button';row.className='w-full flex justify-between items-center gap-2 rounded-lg p-2 bg-slate-900 text-left';
+          const name=document.createElement('span');name.className='text-slate-100 font-semibold';name.textContent=member.name+' 회원님';
+          const info=document.createElement('span');info.className='text-slate-400 text-[11px]';info.textContent=detail(member);row.append(name,info);row.onclick=()=>openOverviewMember(member,id);root.append(row);
+        }
+      };
+      const hasToday=m=>typeof m.workoutToday==='boolean'&&typeof m.dietToday==='boolean';
+      draw('overviewMissingToday',items.filter(m=>!hasToday(m)||!m.workoutToday||!m.dietToday),m=>!hasToday(m)?'기록 여부 확인 중':[!m.workoutToday?'운동 미기록':'',!m.dietToday?'식단 미기록':''].filter(Boolean).join(' · '),'모든 회원의 운동·식단 기록이 있습니다.');
+      const count=(m,key)=>Number.isInteger(m[key])&&m[key]>=0&&m[key]<=7?m[key]+'일':'확인 중';
+      draw('overviewWeeklyReport',items,m=>'운동 '+count(m,'weeklyWorkoutDays')+' · 식단 '+count(m,'weeklyDietDays'),'등록된 회원이 없습니다.');
+      document.getElementById('overviewWeeklyRange').textContent=date+'까지 최근 7일 · 기록한 날짜 수';
+    }
+    let trainerPendingQueue=[],trainerPendingDate='',nextFeedbackReadyKey='';
+    function updateNextPendingButton(){
+      const button=document.getElementById('nextPendingMemberButton');if(!button)return;
+      const next=trainerPendingDate===selectedDate?trainerPendingQueue.find(m=>m.name!==activeMemberName):null;
+      button.hidden=currentMode!=='trainer'||nextFeedbackReadyKey!==workflowContextKey()||!next;
+      button.textContent=next?'다음 확인할 회원 · '+next.name+' →':'다음 확인할 회원';
+    }
+    async function openNextPendingMember(){
+      const context=workflowContextKey();
+      if(currentMode!=='trainer'||queuedSaveCount>0||nextFeedbackReadyKey!==context)return;
+      stashWorkflowDraft();
+      await loadTrainerOverview();
+      if(workflowContextKey()!==context||currentMode!=='trainer')return;
+      const next=trainerPendingDate===selectedDate?trainerPendingQueue.find(m=>m.name!==activeMemberName):null;
+      if(next)await openOverviewMember(next,'overviewNeedsAttention');else{updateNextPendingButton();showToast('현재 확인할 다음 회원이 없습니다.');}
+    }
+
+
     function setupHomeRecordCards(){
       const home=document.getElementById('memberHomePage');if(!home)return;
       home.querySelector('.member-home-shortcuts')?.remove();
@@ -1543,7 +1687,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         const data=appData||getDefaultData(),routines=data.routines||[];
         put(workout,routines.length?routines.slice(0,3).map(r=>'<div class="home-record-row"><strong>'+esc(r.name||'운동')+'</strong><span>'+esc(String(r.weight||'맨몸'))+(r.weight?' kg':'')+' · '+esc(String(r.reps||'–'))+'회</span></div>').join('')+'<p class="home-record-note">전체 '+routines.length+'개 운동 · 눌러서 세트 기록</p>':'<div class="home-empty-icon">＋</div><strong>오늘의 첫 운동을 기록해요</strong><p class="home-record-note">루틴을 확인하거나 운동을 직접 추가하세요.</p>');
         const meals=[['breakfast','아침'],['lunch','점심'],['dinner','저녁']];
-        put(diet,'<div class="home-meal-grid">'+meals.map(([key,label])=>{const meal=data.diet?.[key]||{};return '<div><i class="fa-solid '+(meal.desc?'fa-circle-check':'fa-camera')+'"></i><strong>'+label+'</strong><span>'+esc(meal.desc||'기록하기')+'</span></div>';}).join('')+'</div>');
+        put(diet,'<div class="home-meal-grid">'+meals.map(([key,label])=>{const meal=data.diet?.[key]||{},recorded=!!(String(meal.desc||'').trim()||(meal.photos||[]).length||(meal.foods||[]).length||['cal','carb','prot','fat'].some(k=>Number(meal[k])));return '<div><i class="fa-solid '+(recorded?'fa-circle-check':'fa-camera')+'"></i><strong>'+label+'</strong><span>'+esc(meal.desc||((meal.photos||[]).length?'사진 기록됨':recorded?'영양 기록됨':'기록하기'))+'</span></div>';}).join('')+'</div>');
         const source=document.getElementById('memberInbodyChart');
         const text=source?.innerText?.trim()||'';
         const compact=text.replace(/\s+/g,' ');
@@ -1759,6 +1903,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         });
       });
       setupDietRecordGuidance();
+      setupWorkflowDraftProtection();
       updateAccessState();
       document.getElementById('currentDateInput').value = selectedDate;
       const copyDateInput=document.getElementById('routineCopySourceDate');
@@ -1771,6 +1916,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       });
       document.getElementById('inbodyDate').value = selectedDate;
       document.getElementById('currentDateInput').addEventListener('change', async (e) => {
+        stashWorkflowDraft();
         resetSaveStatus();
         clearRoutineCopyPreview();
         dirtyMealDrafts.clear();
@@ -2124,6 +2270,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
 
     async function loadDataFromCloud(silent = false) {
       if (silent && queuedSaveCount > 0) return;
+      switchWorkflowDraftContext();
       clearForeignVideoLists();
       if (!updateAccessState()) return;
       const request = ++latestLoadRequest;
@@ -2134,6 +2281,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         const cached=viewedRecordCache.get(recordCacheKey(context));
         if(cached){
           appData=normalizeData(JSON.parse(JSON.stringify(cached)));
+          workflowReadyKey=workflowContextKey();
           renderUI();
           showToast('이전 기록 표시 중 · 최신 기록 확인 중...');
           shownCached=true;
@@ -2161,6 +2309,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         return;
       }
       updateAccessState();
+      workflowReadyKey=workflowContextKey();
       renderUI(silent);
       // 운동·식단 본문을 먼저 보여주고, 캘린더·영상 목록은 뒤에서 불러옵니다.
       if (!silent) loadExtras().catch(e=>console.warn('추가 자료 불러오기 오류',e));
@@ -2335,6 +2484,8 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         renderTrainerMealPhotos();
         renderMemos('trainerMemoList', appData.memos);
       }
+      applyWorkflowDraft();
+      updateNextPendingButton();
     }
 
     /* ---------- 메모 (코치 ↔ 회원) ---------- */
@@ -2365,7 +2516,10 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     }
 
     async function sendMemo() {
+      const context=getSaveContext();
+      stashWorkflowDraft();
       const inputEl = document.getElementById(currentMode === 'trainer' ? 'trainerMemoInput' : 'memberMemoInput');
+      const draftValue=inputEl.value;
       const text = inputEl.value.trim();
       if (!text) return;
       const memo = {
@@ -2375,7 +2529,11 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         time: nowTimeStr()
       };
       const ok = await updateAndSave(d => { d.memos.push(memo); });
-      if (ok) inputEl.value = '';
+      if (ok) {
+        clearSavedMemoDraft(context,inputEl.id,draftValue);
+        if(isCurrentSaveContext(context)&&inputEl.value===draftValue)inputEl.value='';
+        stashWorkflowDraft();
+      }
     }
 
     /* ---------- 루틴 추가/수정/삭제 (회원, 트레이너 공통) ---------- */
@@ -2908,12 +3066,14 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     }
 
     async function saveSingleMeal(meal) {
+      const context=getSaveContext();
+      stashWorkflowDraft();
       const values = getMealValues(meal);
       const saved = await updateAndSave(d => {
         if (!values.foods.length) delete d.diet[meal];
         else d.diet[meal] = { ...(d.diet[meal] || {}), ...values };
       });
-      if (saved) {
+      if (saved && isCurrentSaveContext(context)) {
         dirtyMealDrafts.delete(meal);
         mealEditorOpen.delete(meal);
         renderMemberDiet(appData.diet || {},2100);
@@ -2922,13 +3082,15 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     }
 
     function saveDietLog() {
+      const context=getSaveContext();
+      stashWorkflowDraft();
       const values = {};
       MEAL_KEYS.forEach(m => { values[m] = getMealValues(m); });
       updateAndSave(d => { MEAL_KEYS.forEach(m => {
         if (!values[m].foods.length) delete d.diet[m];
         else d.diet[m] = { ...(d.diet[m] || {}), ...values[m] };
       }); }).then(saved => {
-        if (saved) { dirtyMealDrafts.clear();mealEditorOpen.clear();renderMemberDiet(appData.diet || {},2100);loadFoodShortcuts(); }
+        if (saved && isCurrentSaveContext(context)) { dirtyMealDrafts.clear();mealEditorOpen.clear();renderMemberDiet(appData.diet || {},2100);loadFoodShortcuts(); }
       });
     }
 
@@ -2950,6 +3112,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
 
     /* ---------- 모드 전환 ---------- */
     async function switchMode(mode) {
+      stashWorkflowDraft();
       resetSaveStatus();
       currentMode = mode;
       clearForeignVideoLists();
@@ -3045,8 +3208,13 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       // Preview fast path: show the Supabase summary first, then always replace it
       // with the canonical Apps Script overview (which also has video counts).
       let canonicalShown=false, fastShown=false, canonicalFailed=false;
+      let supplementalFast=[],lastOverviewItems=[];
+      const supplement=items=>items.map(m=>({...supplementalFast.find(f=>f.name===m.name),...m}));
       const renderOverview = (result, isFast) => {
         const items = result.members;
+        lastOverviewItems=items;
+        if(isFast)supplementalFast=items;
+        renderTrainerSupplemental(supplement(items),date);
         // The overview already contains member names. Populate the selector
         // immediately instead of waiting on the slower/possibly stuck listMembers request.
         const overviewNames=items.map(item=>String(item.name||'').trim()).filter(Boolean);
@@ -3066,6 +3234,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
             loadDataFromCloud().catch(e=>console.warn('초기 회원 기록 조회 실패',e));
         }
         const pending = items.filter(m => m.pendingWorkout || m.pendingDiet || Number(m.pendingVideos)>0);
+        trainerPendingQueue=pending;trainerPendingDate=date;updateNextPendingButton();
         const inactive = items.filter(m => {
           if (!m.lastDate) return true;
           const elapsed = (Date.parse(date+'T00:00:00')-Date.parse(m.lastDate+'T00:00:00'))/86400000;
@@ -3074,7 +3243,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         document.getElementById('overviewTotal').textContent = items.length+'명';
         document.getElementById('overviewActive').textContent = items.filter(m => m.activeToday).length+'명';
         document.getElementById('overviewPending').textContent = items.filter(m=>m.pendingWorkout||m.pendingDiet).length+'명';
-        document.getElementById('overviewVideos').textContent = items.reduce((n,m)=>n+(Number(m.pendingVideos)||0),0)+'건';
+        document.getElementById('overviewVideos').textContent = isFast ? '확인 중' : items.reduce((n,m)=>n+(Number(m.pendingVideos)||0),0)+'건';
         const makeRows = (rootId, list, getDetail, empty) => {
           const root=document.getElementById(rootId);root.replaceChildren();
           if(!list.length){const p=document.createElement('p');p.className='text-slate-500 py-2';p.textContent=empty;root.appendChild(p);return;}
@@ -3105,7 +3274,9 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         fastTrainerRequest({action:'trainerOverview',password:trainerPassword,date}, '트레이너 현황 · Supabase')
           .then(fast => {
             if (!fast || fast.status !== 'success' || !Array.isArray(fast.members)) return;
-            if (canonicalShown || !stillCurrent()) return;
+            if(!stillCurrent())return;
+            supplementalFast=fast.members;
+            if(canonicalShown){renderTrainerSupplemental(supplement(lastOverviewItems),date);return;}
             fastShown = true;
             renderOverview(fast, true);
           }).catch(e=>console.warn('빠른 현황 표시 오류',e));
@@ -3125,6 +3296,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       }
     }
     async function openOverviewMember(member, listId) {
+      stashWorkflowDraft();
       resetSaveStatus();
       clearRoutineCopyPreview();
       clearTrainerMemberSearch();
@@ -3249,6 +3421,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     }
 
     async function onSelectMemberChange() {
+      stashWorkflowDraft();
       resetSaveStatus();
       clearTrainerMemberSearch();
       clearRoutineCopyPreview();
@@ -3424,12 +3597,17 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     }
 
     async function sendTrainerFeedback() {
+      const context=getSaveContext();
+      stashWorkflowDraft();
       const now = new Date();
       const workout = document.getElementById('inputFeedbackWorkout').value;
       const diet = document.getElementById('inputFeedbackDiet').value;
       const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const saved=await updateAndSave(d => { d.feedback = { workout, diet, time }; });
-      if(saved) await loadTrainerOverview();
+      if(saved) {
+        if(isCurrentSaveContext(context))nextFeedbackReadyKey=workflowContextKey();
+        await loadTrainerOverview();updateNextPendingButton();
+      }
     }
 
     async function apiPost(body) {

@@ -944,7 +944,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
            <label for="memberVideoName" class="member-field-label">어떤 운동인가요? <span>필수</span></label><input id="memberVideoName" required maxlength="80" placeholder="운동 이름 (예: 스쿼트)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
            <label for="memberVideoFile" class="member-field-label">운동 영상 <span>최대 40초 · 원본 200MB 이하</span></label><input aria-describedby="memberVideoHelp" id="memberVideoFile" required type="file" accept="video/mp4,video/webm,video/quicktime" class="w-full text-xs">
            <label for="memberVideoQuestion" class="member-field-label">코치님께 궁금한 점 <span>선택</span></label><textarea id="memberVideoQuestion" maxlength="500" rows="2" placeholder="어떤 부분이 어려웠나요? (선택)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm"></textarea>
-           <p id="memberVideoHelp" class="member-field-help">MP4·MOV·WebM 지원 · 50MB 초과 시 자동 압축<br>전송 중에도 기록할 수 있어요. 완료될 때까지 이 창을 유지해주세요.</p><button type="submit" class="bg-sky-600 rounded-lg px-4 py-2 text-sm font-semibold">운동 영상 보내기</button>
+           <p id="memberVideoHelp" class="member-field-help">MP4·MOV·WebM 지원 · 전송이 빨라지는 큰 영상은 자동 고화질 압축<br>전송 중에도 기록할 수 있어요. 완료될 때까지 이 창을 유지해주세요.</p><button type="submit" class="bg-sky-600 rounded-lg px-4 py-2 text-sm font-semibold">운동 영상 보내기</button>
            <div id="memberVideoUploadStatus" role="status" aria-live="polite" class="hidden text-xs text-slate-300 whitespace-pre-line rounded-lg bg-slate-900 p-3"></div>
          </form>
          <div id="memberFormVideos" class="space-y-3"></div>

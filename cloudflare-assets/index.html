@@ -2,11 +2,12 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>FIT-CONNECT | 구글 시트 실시간 연동 PT 시스템</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   
   <script>
     tailwind.config = {
@@ -101,273 +102,6 @@
     body.member-tabs-active #toastNotification,body.member-tabs-active #saveStatusBar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
     @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}#memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 10px))}}
   
-    /* Visual refresh preview: presentation only, no behavior changes. */
-    :root{--ink:#edf4ff;--muted:#a9b8ce;--panel:#101b2d;--panel-2:#15233a;--line:#2b405d;--accent:#6ee7d2;--accent-deep:#16a896;--blue:#67a8ff}
-    body{background:radial-gradient(1200px 700px at 8% -12%,#17355a 0%,transparent 55%),#08111f;color:var(--ink);font-family:Inter,'Noto Sans KR',sans-serif;letter-spacing:-.015em}
-    #appHeader{background:rgba(8,17,31,.92)!important;border-color:#263d59!important;box-shadow:0 7px 28px rgba(0,0,0,.15)}
-    #appHeader .header-sync-badge{background:rgba(110,231,210,.12)!important;color:var(--accent)!important;border-color:rgba(110,231,210,.26)!important}
-    #appHeader input{color:#e6f3ff!important}
-    #memberView .member-page-heading h2{font-size:25px;color:#f6faff;letter-spacing:-.055em}
-    #memberView .member-page-heading p{color:var(--muted);font-size:14px}
-    #memberHomePage>div:first-child{background:linear-gradient(135deg,#18355a,#10243e 65%,#123a45)!important;border:1px solid #315474!important;box-shadow:0 14px 32px rgba(0,0,0,.18)}
-    .member-home-shortcuts{gap:10px}
-    .member-home-tile{min-height:96px;background:linear-gradient(145deg,#142640,#112037)!important;border-color:#2c496a!important;border-radius:18px;box-shadow:0 8px 18px rgba(0,0,0,.12);transition:transform .18s ease,border-color .18s ease}
-    .member-home-tile:hover{transform:translateY(-2px);border-color:#6ee7d2!important}
-    .member-home-tile>i:first-child{color:var(--accent)!important;background:rgba(110,231,210,.1);padding:10px;border-radius:12px}
-    .member-home-tile strong{font-size:16px;color:#f5f9ff}.member-home-tile small{color:#a9b8ce;font-size:12px}
-    #memberView .rounded-2xl{border-color:#2b4665!important;box-shadow:0 9px 24px rgba(0,0,0,.12)}
-    #memberView .bg-slate-900{background:#101d30!important}
-    #memberView .bg-slate-950{background:#0a1424!important}
-    #memberView .border-slate-800,#memberView .border-slate-700{border-color:#29415f!important}
-    #memberView .text-slate-400{color:#b0c0d5!important}#memberView .text-slate-500{color:#8ea1ba!important}
-    #memberView h3{font-size:17px;letter-spacing:-.04em}
-    #memberBottomNav{background:rgba(10,21,37,.97)!important;border-color:#2c496a!important;backdrop-filter:blur(18px);box-shadow:0 -8px 28px rgba(0,0,0,.28)}
-    #memberBottomNav button{color:#91a6c1!important}#memberBottomNav button.selected{background:linear-gradient(135deg,#155e68,#11475c)!important;color:#eafffb!important;border-color:#47c8be!important}
-    #memberBottomNav button.selected i{color:#7ff6df}
-    #memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#6ee7d2,#39c6b8)!important;color:#08201f!important;box-shadow:0 7px 18px rgba(57,198,184,.2)}
-    @media(max-width:639px){#memberView .member-page-heading h2{font-size:24px}#memberView .member-home-tile{min-height:92px;padding:13px}#memberView .member-home-tile strong{font-size:15px}}
-
-  
-    /* Second visual direction: clean dashboard + energetic progress accents.
-       Presentation only — all existing IDs, callbacks and content remain unchanged. */
-    :root{--ink:#13233d;--ink-soft:#61718a;--paper:#ffffff;--canvas:#f3f7ff;--line:#dfe8f5;--blue:#2d7ff9;--violet:#7455ff;--mint:#2bc99c;--coral:#ff8a62}
-    body{background:radial-gradient(850px 560px at 100% 0%,rgba(122,84,255,.16),transparent 59%),radial-gradient(680px 500px at 0% 17%,rgba(49,151,255,.14),transparent 60%),var(--canvas)!important;color:var(--ink)!important}
-    #appHeader{background:rgba(255,255,255,.88)!important;border-color:#e4ebf5!important;box-shadow:0 6px 22px rgba(33,65,110,.09)!important;backdrop-filter:blur(18px)}
-    #appHeader .text-white,#appHeader .header-brand-title{color:#102647!important}
-    #appHeader .header-brand-desc{color:#6b7b93!important}
-    #appHeader .header-sync-badge{background:#e8fbf5!important;color:#139773!important;border-color:#c8f0e5!important}
-    #appHeader .header-mode-button{background:#f5f8fd!important;color:#29425f!important;border-color:#dce7f4!important}
-    #appHeader input{background:#f6f9fd!important;color:#1b2d48!important;border-color:#dce7f4!important}
-    #memberView{color:var(--ink)}
-    #memberView .member-page-heading h2{font-size:27px!important;line-height:1.18;color:#142746!important;font-weight:800;letter-spacing:-.065em}
-    #memberView .member-page-heading p{color:var(--ink-soft)!important;font-size:14px}
-    #memberHomePage>div:first-child{position:relative;overflow:hidden;background:linear-gradient(125deg,#316eee 0%,#7555f3 50%,#ec78a7 100%)!important;border:0!important;border-radius:24px!important;box-shadow:0 16px 34px rgba(73,84,196,.22)!important}
-    #memberHomePage>div:first-child:after{content:'';position:absolute;right:-64px;bottom:-104px;width:270px;height:270px;border:26px solid rgba(255,255,255,.18);border-radius:50%;pointer-events:none}
-    #memberHomePage>div:first-child .text-white{color:#fff!important}
-    #memberHomePage>div:first-child .text-slate-400,#memberHomePage>div:first-child .text-slate-300{color:rgba(255,255,255,.8)!important}
-    #memberHomePage>div:first-child .bg-slate-950\/50,#memberHomePage>div:first-child .bg-slate-950{background:rgba(11,29,81,.2)!important;border-color:rgba(255,255,255,.2)!important;backdrop-filter:blur(8px)}
-    #memberHomePage>div:first-child .bg-slate-800{background:rgba(255,255,255,.32)!important}
-    .member-home-shortcuts{gap:12px}
-    .member-home-tile{background:rgba(255,255,255,.94)!important;border:1px solid rgba(255,255,255,.88)!important;border-radius:20px!important;box-shadow:0 9px 22px rgba(46,70,123,.1)!important;min-height:98px}
-    .member-home-tile>i:first-child{color:#2f82f7!important;background:#e9f3ff!important;padding:11px;border-radius:13px}
-    .member-home-tile:nth-child(2)>i:first-child{color:#e76c48!important;background:#fff0e9!important}
-    .member-home-tile:nth-child(3)>i:first-child{color:#22ae84!important;background:#e7fbf4!important}
-    .member-home-tile:nth-child(4)>i:first-child{color:#8064f6!important;background:#f1edff!important}
-    .member-home-tile strong{color:#1a2b48!important;font-size:16px}.member-home-tile small{color:#7687a1!important;font-size:12px}
-    #memberView .rounded-2xl{background:var(--paper)!important;border-color:var(--line)!important;box-shadow:0 10px 28px rgba(45,72,118,.08)!important}
-    #memberView .bg-slate-900{background:#fff!important}
-    #memberView .bg-slate-950{background:#f7faff!important}
-    #memberView .bg-slate-800{background:#edf3fb!important}
-    #memberView .border-slate-800,#memberView .border-slate-700{border-color:#dfe8f5!important}
-    #memberView .text-white{color:#172a48!important}
-    #memberView .text-slate-400{color:#697a93!important}#memberView .text-slate-500{color:#8291a8!important}
-    #memberView h3,#memberView h4{color:#1b2e4d!important;font-weight:750;letter-spacing:-.045em}
-    #memberView .text-brand-400,#memberView .text-brand-500{color:#16a47b!important}
-    #memberView .bg-brand-500,#memberView .bg-brand-600,#memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#3b8eff,#7660f6)!important;color:#fff!important;border:0!important;box-shadow:0 10px 20px rgba(78,103,232,.2)!important}
-    #memberView input,#memberView textarea,#memberView select{background:#f9fbff!important;border-color:#dce7f4!important;color:#1d2e48!important}
-    #memberView input::placeholder,#memberView textarea::placeholder{color:#9aa9be!important}
-    #memberBottomNav{background:rgba(255,255,255,.94)!important;border-color:#dae6f4!important;box-shadow:0 -8px 25px rgba(45,71,112,.12)!important;backdrop-filter:blur(18px)}
-    #memberBottomNav button{color:#7c8ca3!important}
-    #memberBottomNav button.selected{background:linear-gradient(135deg,#e6f3ff,#f1ecff)!important;color:#3a63d9!important;border-color:#b8d8ff!important;box-shadow:none!important}
-    #memberBottomNav button.selected i{color:#3d7ffd!important}
-    @media(max-width:639px){#memberView .member-page-heading h2{font-size:25px!important}.member-home-tile{min-height:92px!important;padding:13px!important}#memberHomePage>div:first-child{border-radius:20px!important}}
-
-  
-    /* Premium mobile dashboard refinement: visual treatment only, no data or callbacks changed. */
-    #memberView{max-width:1080px;margin-left:auto;margin-right:auto}
-    #memberView .member-page-heading{padding-top:6px}
-    #memberHomePage>div:first-child{min-height:142px;padding:25px!important}
-    #memberHomePage>div:first-child #customHeaderMessage{font-size:clamp(24px,3vw,32px)!important;max-width:540px}
-    #memberHomePage>div:first-child .rounded-2xl{border-radius:16px!important;box-shadow:none!important}
-    #memberHomePage>div:first-child [class*="text-3xl"]{font-variant-numeric:tabular-nums}
-    #memberView .member-home-tile{position:relative;overflow:hidden}
-    #memberView .member-home-tile:after{content:'›';position:absolute;right:16px;top:50%;transform:translateY(-50%);color:#94a7c1;font-size:28px;font-weight:300}
-    #memberView .member-home-tile:hover{transform:translateY(-2px);box-shadow:0 15px 28px rgba(54,87,150,.15)!important}
-    #memberView .member-home-tile strong{letter-spacing:-.04em}
-    #memberView .food-card,#memberView [class*="meal"] .rounded-xl{border-radius:18px!important}
-    #memberView .rounded-xl{border-radius:16px}
-    #memberView [class*="progress"]{border-radius:999px}
-    #memberView .text-amber-400,#memberView .text-amber-300{color:#eb7655!important}
-    #memberView .text-sky-400,#memberView .text-sky-300{color:#377ff3!important}
-    #memberView .bg-emerald-500,#memberView .bg-green-500{background:#28bf93!important}
-    #memberView button{font-weight:650}
-    #memberView button:focus-visible{outline:3px solid rgba(75,112,255,.22);outline-offset:2px}
-    @media(max-width:639px){
-      #memberView{padding-left:14px!important;padding-right:14px!important}
-      #memberHomePage>div:first-child{min-height:178px;padding:20px!important}
-      #memberHomePage>div:first-child #customHeaderMessage{font-size:24px!important}
-      #memberHomePage>div:first-child .grid{gap:9px!important}
-      #memberView .member-home-shortcuts{gap:10px!important}
-      #memberView .member-home-tile{border-radius:18px!important}
-      #memberBottomNav{left:10px!important;right:10px!important;border-radius:20px 20px 0 0!important}
-    }
-
-  
-    /* Unified member pages: workout, diet, growth and feedback share the same light premium system. */
-    #memberView>section{margin-top:22px}
-    #memberView>section>div.bg-slate-900,#memberView>section.bg-slate-900,#memberView #memberInsightsSection>div{background:rgba(255,255,255,.96)!important;border:1px solid #dde8f5!important;border-radius:22px!important;box-shadow:0 10px 26px rgba(55,84,130,.075)!important}
-    #memberView #memberInsightsSection>div:first-child{background:linear-gradient(135deg,#f0edff,#eef6ff)!important;border-color:#d9d3ff!important}
-    #memberView #memberInsightsSection>div:first-child h3 i{color:#715bf6!important}
-    #memberView #memberRoutineList>*,#memberView #memberMemoList>*{border-radius:15px!important}
-    #memberView #memberRoutineList .bg-slate-950,#memberView #memberRoutineList .bg-slate-900{background:#f7faff!important;border-color:#deebf7!important}
-    #memberView details{background:#f7faff;border:1px solid #e0eaf6;border-radius:16px;padding:0 14px}
-    #memberView details[open]{background:#f4f8ff;border-color:#c7daf7}
-    #memberView details summary{padding:14px 0;font-weight:700;color:#213653}
-    #memberView #memberMemoList{scrollbar-color:#b7c9e3 transparent}
-    #memberView #memberMemoList>div{border:1px solid #e1eaf6!important;background:#f8fbff!important}
-    #memberView #memberExerciseVideos>*,#memberView #memberFormVideos>*{background:#f8fbff!important;border:1px solid #dfe9f7!important;border-radius:17px!important;box-shadow:none!important}
-    #memberView #memberVideoUploadStatus{background:#eef5ff!important;color:#346094!important;border:1px solid #cfe1fa}
-    #memberView #memberWeeklyReport>*,#memberView #memberMonthlyReport>*,#memberView #memberStrengthProgress>*,#memberView #memberInbodyChart>*,#memberView #memberPtSummary>*{border-radius:16px!important}
-    #memberView canvas{max-width:100%;border-radius:14px}
-    #memberView .meal-shortcuts-toggle{background:linear-gradient(135deg,#f2efff,#edf7ff)!important;border-color:#ded7ff!important;border-radius:18px!important}
-    #memberView .food-card{background:#fff!important;border:1px solid #dfe8f4!important;border-radius:16px!important;box-shadow:0 6px 16px rgba(48,83,138,.05)!important}
-    #memberView .food-card .bg-slate-950,#memberView .food-card .bg-slate-900{background:#f8fbff!important}
-    #memberView .member-set-check{border-radius:12px!important;background:#eef5ff!important;border-color:#d3e3fb!important}
-    #memberView .member-set-check:has(input:checked){background:#e5fbf3!important;border-color:#9ce1cc!important}
-    #memberView #previousWorkoutRecords>*,#memberView #memberRegistryList>*{background:#f8fbff!important;border:1px solid #dfe9f5!important;border-radius:14px!important}
-    #memberView .quick-feedback-btn{background:#eef3ff!important;border-color:#d5e2fb!important;color:#3867c8!important;border-radius:999px!important}
-    #memberView .quick-feedback-btn:hover{background:#e2edff!important;border-color:#9abdf9!important}
-    @media(max-width:639px){
-      #memberView>section{margin-top:16px}
-      #memberView>section>div.bg-slate-900,#memberView>section.bg-slate-900,#memberView #memberInsightsSection>div{border-radius:19px!important}
-      #memberView details{padding:0 12px}
-      #memberView .food-card{border-radius:14px!important}
-    }
-
-  
-    /* Remove remaining dark legacy controls from the member experience. */
-    #memberView button.bg-slate-800,#memberView button.hover\:bg-slate-700{background:#eef4ff!important;color:#3562c7!important;border:1px solid #cedefa!important;box-shadow:none!important}
-    #memberView button.bg-slate-800:hover,#memberView button.hover\:bg-slate-700:hover{background:#e1ecff!important;border-color:#a9c8fb!important}
-    #memberView .bg-slate-800.text-white{color:#294d92!important}
-
-  
-/* Production-readability pass: light surfaces and explicit semantic states. */
-#appHeader .header-sync-badge{display:none}
-#appHeader>div>div:first-child>div:first-child{background:linear-gradient(135deg,#6c63ff,#3b82f6)!important;box-shadow:0 5px 15px #6366f126}
-#appHeader>div>div:first-child>div:first-child i{color:white!important}
-#appHeader>div>div:last-child>div{background:#eef2fb!important;border:1px solid #d8e1f0!important;box-shadow:none!important;border-radius:13px!important}
-#appHeader #currentDateInput{background:transparent!important;color:#233655!important;color-scheme:light;padding:4px 0;border:0!important}
-#appHeader .fa-calendar{color:#6258dd!important}
-#appHeader #btnMemberMode{background:#6258df!important;color:white!important;box-shadow:0 3px 8px #6558df25}
-#appHeader #btnTrainerMode{background:transparent!important;color:#4b5c76!important}
-#memberView [class*="text-slate-100"],#memberView [class*="text-slate-200"],#memberView [class*="text-slate-300"]{color:#364964!important}
-#memberView [class*="bg-slate-800"],#memberView [class*="bg-slate-900"],#memberView [class*="bg-slate-950"]{background-color:#f4f7fc!important}
-#memberView [class*="border-slate-"]{border-color:#dce5f1!important}
-#memberView [class*="text-emerald-200"],#memberView [class*="text-emerald-300"],#memberView [class*="text-green-300"]{color:#137b60!important}
-#memberView [class*="bg-emerald-"],#memberView [class*="bg-green-"]{background-color:#e7f7f0!important}
-#memberView [class*="text-amber-"]{color:#a85424!important}
-#memberView [class*="bg-amber-"]{background-color:#fff5e8!important}
-#memberView [class*="text-indigo-"],#memberView [class*="text-purple-"]{color:#6250cb!important}
-#memberView [class*="text-slate-400"],#memberView [class*="text-slate-500"]{color:#61718b!important}
-#memberView input::placeholder,#memberView textarea::placeholder{color:#71819a!important}
-#memberView input[type=file]::file-selector-button{background:#edeaff;color:#5545bb;border:1px solid #d6cffb;border-radius:10px;padding:10px 12px;margin-right:10px;font-weight:650}
-#memberView [id^="meal-"] [class*="bg-slate-"],#memberView [id^="meal-"]{color:#344966}
-#memberView label{color:#405575}
-#habitCalendar button{background:#f0f4fb!important;color:#344966!important;border:1px solid #e0e8f4;font-weight:600;opacity:1}
-#habitCalendar button[class*="bg-emerald"]{background:#ddf5ec!important;color:#0d7053!important;border-color:#9cddc8}
-#habitCalendar button:hover{background:#e7e5ff!important;color:#5143b4!important}
-#habitCalendar [class*="text-slate"]{color:#62738e!important}
-#memberWeeklyReport,#memberMonthlyReport,#memberGoalSummary,#memberInbodyChart,#memberPtSummary{color:#31445f!important}
-#memberHomePage>div:first-child [class*="text-slate-"],#memberHomePage>div:first-child .text-white{color:white!important}
-#memberHomePage>div:first-child #memberNameBadge{background:#ffffff26!important;color:white!important;border-color:#ffffff55!important}
-#memberView button.bg-brand-500,#memberView button.bg-amber-500{background:linear-gradient(135deg,#6559e9,#367df0)!important;color:#fff!important}
-@media(max-width:639px){
-#appHeader{padding:10px 14px!important}
-#appHeader>div{gap:10px!important}
-#appHeader h1{font-size:17px}
-#appHeader .header-mode-button{min-height:34px;padding:7px 11px!important}
-#memberView .member-page-heading h2{font-size:24px!important}
-#memberView .rounded-2xl{box-shadow:0 5px 18px #354e7b08!important}
-}
-
-#memberHomePage>div:first-child .rounded-2xl{background:rgba(21,32,95,.32)!important;color:white!important}#memberHomePage>div:first-child .rounded-2xl *{color:white!important}#memberView [class*="bg-slate-"][class*="text-slate-200"]{color:#344966!important}#memberView [class*="bg-slate-"] label{color:#405575!important}
-/* Explicit home card contract: independent of legacy utility colors. */
-#memberView #memberHomePage .member-goal-hero{background:linear-gradient(125deg,#5146c5,#2463c5)!important;border:0!important;color:#fff!important}
-#memberView #memberHomePage .member-goal-hero #customHeaderMessage{color:#fff!important;font-size:clamp(23px,3vw,30px)!important;line-height:1.4!important}
-#memberView #memberHomePage .member-goal-hero p,#memberView #memberHomePage .member-goal-hero #todayDateDisplay{color:#eef2ff!important}
-#memberView #memberHomePage .member-goal-hero .grid>div{background:#fff!important;border:1px solid #dce5f5!important;box-shadow:none!important;border-radius:16px!important}
-#memberView #memberHomePage .member-goal-hero .grid>div *{color:#344766!important}
-#memberView #memberHomePage .member-goal-hero #memberWorkoutProgressText,#memberView #memberHomePage .member-goal-hero #memberCalorieText{color:#172b4d!important;font-size:26px!important;line-height:1.25!important;font-weight:750!important}
-#memberView #memberHomePage .member-goal-hero .grid>div>.rounded-full{background:#e6ecf6!important}
-#memberView #memberHomePage .member-goal-hero #memberWorkoutProgressBar{background:#6656df!important}
-#memberView #memberHomePage .member-goal-hero #memberCalorieBar{background:#e87948!important}
-#memberView #memberHomePage .member-goal-hero #memberNameBadge{background:#ffffff26!important;color:#fff!important;border-color:#ffffff60!important}
-
-.home-record-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-#memberView .home-record-card{display:block;text-align:left;width:100%;padding:22px;background:#fff;border:1px solid #e0e7f2;border-radius:21px;box-shadow:0 6px 20px #263e6508;color:#233650;min-width:0}
-.home-record-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px;font-weight:750;margin-bottom:18px}
-.home-record-heading i{color:#6459db;margin-right:7px}.home-record-link{font-size:12px;color:#596d8c;font-weight:500;white-space:nowrap}
-.home-record-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #edf1f7;font-size:14px}.home-record-row span{color:#596d89}
-.home-record-note{font-size:13px;color:#62728b;line-height:1.65;margin-top:10px}
-.home-empty-icon{background:#eff0ff;color:#6558da;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:24px;margin-bottom:12px}
-.home-meal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.home-meal-grid>div{background:#f6f8fc;border:1px solid #e5ebf4;border-radius:15px;padding:17px 10px;display:flex;align-items:center;flex-direction:column;gap:8px}
-.home-meal-grid i{color:#b65b37;font-size:20px}.home-meal-grid strong{font-size:14px}.home-meal-grid span{font-size:12px;color:#61718b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
-.home-body-summary{white-space:pre-line;line-height:1.9;font-size:14px;color:#344963}.home-coach-message{font-size:15px;line-height:1.8;white-space:pre-line}
-#appHeader .header-brand-desc{display:none}
-@media(max-width:639px){.home-record-grid{grid-template-columns:1fr;gap:14px}#memberView .home-record-card{padding:19px}.home-record-heading{font-size:17px}#appHeader>div{align-items:stretch!important}#appHeader>div>div:first-child{justify-content:center}}
-
-.home-body-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.home-body-metric{display:flex;flex-direction:column;gap:9px;padding:16px 11px;background:#f5f7ff;border:1px solid #e5e8f6;border-radius:16px;min-width:0}.home-body-metric i{color:#6657d9;font-size:18px}.home-body-metric>span{font-size:12px;color:#52647e}.home-body-metric strong{font-size:23px;color:#1d3050;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.home-body-metric small{font-size:12px;margin-left:3px;font-weight:500}
-#memberView .home-record-card:hover{border-color:#bbcaf0;box-shadow:0 8px 22px #263e6510}.home-record-card:focus-visible{outline:3px solid #abbbf5;outline-offset:3px}
-@media(max-width:639px){#memberView .home-record-card{border-radius:20px}.home-body-metric strong{font-size:22px}.home-record-heading{margin-bottom:16px}.home-meal-grid>div{padding:19px 8px}}
-
-#memberView #memberRoutineList>div{padding:18px!important;border-radius:18px!important;margin-bottom:12px}
-#memberView .exercise-card-title{font-size:19px!important;line-height:1.45}
-#memberView .exercise-card-dose{display:block;font-size:15px!important;color:#50627d!important;font-weight:600!important;margin-top:5px}
-#memberView .member-set-check{min-height:52px!important;min-width:94px!important;padding:12px!important;background:#f2f5fc!important;border-color:#d6e1f0!important}
-#memberView .member-set-check:has(input:checked){background:#e4f6ee!important;border-color:#8ccfb5!important;box-shadow:inset 0 0 0 1px #8ccfb5}
-#memberView .member-set-check input{width:22px;height:22px;accent-color:#178765}
-#memberView .member-set-check:has(input:checked) span{color:#126b50!important;text-decoration:none!important}
-#memberView .food-nutrition-details{margin-top:12px;border-radius:12px;background:#f6f8fc;border-color:#e1e8f3;padding:0 12px}
-#memberView .food-nutrition-details summary{font-size:13px;color:#516480;padding:12px 0}
-#memberView .food-nutrition-details[open]{padding-bottom:12px}
-#memberView [id^="photos-"] img{border-radius:13px;aspect-ratio:1;object-fit:cover}
-#memberView #memberDietSection label:has(input[type=file]){display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;background:#eeeaff!important;border:1px solid #cfc5f6!important;color:#5944b4!important;font-size:13px!important;font-weight:650;padding:10px 14px!important}
-#memberView #memberMemoList>div{padding:14px!important;line-height:1.7}
-#memberView #memberMemoInput{min-height:80px;font-size:16px!important}
-
-/* Mode selection follows the existing mode state. */
-#appHeader #btnMemberMode,#appHeader #btnTrainerMode{background:transparent!important;color:#4b5c76!important;box-shadow:none!important}
-#appHeader #btnMemberMode.bg-brand-500,#appHeader #btnTrainerMode.bg-indigo-600{background:#6258df!important;color:#fff!important;box-shadow:0 3px 8px #6558df25!important}
-@media(prefers-reduced-motion:reduce){.home-record-card,.member-home-tile{transition:none!important;transform:none!important}}
-
-#memberView .growth-report-details{padding:0!important;border-radius:20px!important;background:white!important;border:1px solid #dce5f1!important}
-#memberView .growth-report-details>summary{padding:19px!important;font-size:15px!important;color:#354c70!important;min-height:56px}
-#memberView .growth-report-details>div{padding:0 16px 16px}
-#memberView .growth-report-details>div>div{padding:18px;background:#f6f8fd!important;border:1px solid #e1e8f3!important;border-radius:17px!important}
-#memberView .coach-conversation{background:#fff!important;border-radius:22px!important}
-#memberView #memberMemoList{min-height:100px;max-height:420px;padding:12px!important;background:#f5f7fc;border-radius:16px;margin-bottom:14px!important}
-#memberView #memberMemoList>[data-memo-role]{background:transparent!important;border:0!important;padding:7px 0!important}
-#memberView #memberMemoList [data-memo-role]>div{font-size:14px!important;line-height:1.7!important;padding:12px 15px!important;max-width:88%}
-#memberView #memberMemoList [data-memo-role=coach]>div{background:#fff!important;border:1px solid #dce4f1!important;border-radius:16px 16px 16px 4px!important;color:#243953!important}
-#memberView #memberMemoList [data-memo-role=member]>div{background:#edeaff!important;border:1px solid #d5ccf7!important;border-radius:16px 16px 4px 16px!important;color:#302554!important}
-#memberView #memberMemoList [data-memo-role]>div>div:first-child{font-size:11px!important;color:#61718b!important;margin-bottom:5px}
-#memberView .coach-video-upload form{padding:17px!important;border-radius:17px!important;background:#f5f7fc!important}
-#memberView .coach-video-upload form input,#memberView .coach-video-upload form textarea{min-height:46px}
-#memberView .coach-video-upload button[type=submit]{width:100%;min-height:46px;background:#6558df!important;color:white!important;border-radius:13px}
-@media(max-width:639px){#memberView #memberMemoList{max-height:340px}#memberView .growth-report-details>div{padding:0 12px 12px}}
-
-/* Member input clarity and keyboard accessibility; existing submit handlers unchanged. */
-#memberView .member-field-label{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:700;color:#263953!important;padding-top:10px}
-#memberView .member-field-label span{font-size:11px;font-weight:500;color:#64758c}
-#memberView .member-field-help{font-size:12px;line-height:1.7;color:#596d89!important;padding:5px 0}
-#memberView .coach-video-upload input[type=file]{background:white!important;border:1px dashed #aebfda!important;border-radius:13px;padding:11px;color:#354d70!important;max-width:100%;font-size:13px}
-#memberView .coach-video-upload input[type=file]::file-selector-button{min-height:40px;background:#ece8fb;color:#5344ac;border:0;border-radius:10px;padding:10px 13px;margin-right:10px;font-weight:650}
-#memberView input:focus-visible,#memberView textarea:focus-visible,#memberView select:focus-visible,#memberView summary:focus-visible{outline:3px solid #b6c8f0!important;outline-offset:2px;border-color:#6e7fcb!important}
-#memberView button:disabled{opacity:.6;cursor:wait}
-#memberView textarea{resize:vertical}
-@media(max-width:639px){#memberView .coach-video-upload input:not([type=file]),#memberView .coach-video-upload textarea{font-size:16px!important}#memberView .member-field-label{font-size:14px}}
-
-#memberView .meal-quick-guide{background:#eef3ff;color:#3e557b!important;border:1px solid #d8e3f8;border-radius:14px;padding:13px 15px;font-size:13px;line-height:1.75;margin-top:13px}
-#memberView .meal-editor-caption{font-size:12px;font-weight:650;color:#536882;padding:8px 2px 2px}
-#memberView .saved-meal-summary{background:#f0faf6!important;border:1px solid #b5dfcf!important;border-radius:17px!important;margin:14px 0;padding:15px!important}
-#memberView .saved-meal-summary h5{color:#176e52!important}
-#memberView .meal-shortcuts-toggle{background:#f7f8fc!important;border-color:#dce4f1!important}
-#memberView .meal-shortcuts-toggle summary{font-size:13px;color:#475b7a;padding:9px 0}
-#memberView .meal-save-feedback{padding:12px 15px;border:1px solid #cddcf3;border-radius:13px;font-size:13px;line-height:1.5}
-#memberView .meal-save-feedback[data-state=saving]{background:#edf4ff;color:#355987}
-#memberView .meal-save-feedback[data-state=saved]{background:#eaf8f1;color:#176b50}
-#memberView .meal-save-feedback[data-state=error]{background:#fff0f1;color:#a32e43;border-color:#efb8c1}
-.meal-save-feedback[hidden]{display:none!important}
 /* Trainer shares the member canvas, typography and purple/blue accents. */
 body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
 #trainerView{--trainer-ink:#1c2d49;--trainer-muted:#5b6d87;--trainer-line:#dfe6f2;max-width:1100px;margin:auto;color:var(--trainer-ink);padding-bottom:24px}
@@ -569,6 +303,455 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
 #workflowDraftBanner[hidden],#nextPendingMemberButton[hidden]{display:none!important}
 #workflowDraftBanner button{min-height:40px;white-space:nowrap;padding:8px 12px;border:1px solid #d0c7ec;border-radius:10px;background:white;color:#5d4ea1;font-weight:650;font-size:12px}
 #nextPendingMemberButton{display:block;width:100%;margin-top:12px;min-height:48px;border:1px solid #d4cdf3;border-radius:13px;background:#efedff;color:#5948bb;font-size:14px;font-weight:700;padding:12px}
+
+</style>
+<style id="fc-premium-skin">
+/* =====================================================================
+   FIT-CONNECT · Premium Member Skin (v2)
+   - 표현(디자인)만 담당합니다. 기존 ID / onclick / 데이터 흐름은 그대로입니다.
+   - 회원 모드: 480px 모바일 앱 셸 + 다크 프리미엄 테마
+   - 트레이너 모드(body.trainer-light-theme): 기존 라이트 워크스페이스 유지
+   ===================================================================== */
+:root{
+  --fc-outer:#040507;
+  --fc-app:#0a0c11;
+  --fc-card:#12151c;
+  --fc-card-2:#181c25;
+  --fc-card-3:#1f2430;
+  --fc-line:rgba(255,255,255,.07);
+  --fc-line-2:rgba(255,255,255,.12);
+  --fc-text:#f5f7fb;
+  --fc-text-2:#c9cfdb;
+  --fc-muted:#8a93a6;
+  --fc-lime:#c8f560;
+  --fc-lime-2:#9fe03a;
+  --fc-lime-ink:#0d1400;
+  --fc-violet:#8b7bff;
+  --fc-orange:#ff9254;
+  --fc-orange-2:#ff6a3d;
+  --fc-sky:#5cc8ff;
+  --fc-rose:#ff6b8a;
+  --fc-radius:20px;
+  --fc-radius-sm:14px;
+  --fc-shadow:0 10px 30px rgba(0,0,0,.35),0 1px 0 rgba(255,255,255,.03) inset;
+  --fc-font:'Pretendard Variable',Pretendard,Inter,'Noto Sans KR',system-ui,sans-serif;
+}
+
+/* ---------- 1. 바깥 배경 + 480px 앱 셸 ---------- */
+html{background:var(--fc-outer)}
+body:not(.trainer-light-theme){
+  background:
+    radial-gradient(900px 600px at 15% -10%,rgba(139,123,255,.16),transparent 60%),
+    radial-gradient(700px 500px at 95% 20%,rgba(200,245,96,.08),transparent 60%),
+    radial-gradient(800px 700px at 50% 110%,rgba(92,200,255,.08),transparent 60%),
+    var(--fc-outer)!important;
+  background-attachment:fixed!important;
+  color:var(--fc-text)!important;
+  font-family:var(--fc-font)!important;
+  letter-spacing:-.02em;
+  -webkit-tap-highlight-color:transparent;
+}
+/* 앱 화면 판(셸) */
+body:not(.trainer-light-theme)::before{
+  content:'';position:fixed;top:0;bottom:0;left:50%;width:min(100%,480px);transform:translateX(-50%);
+  background:linear-gradient(180deg,#0d1016 0%,var(--fc-app) 40%);
+  box-shadow:0 0 0 1px rgba(255,255,255,.05),0 30px 120px rgba(0,0,0,.6);
+  z-index:-1;pointer-events:none;
+}
+body:not(.trainer-light-theme) main{max-width:480px!important;width:100%;margin:0 auto;padding:16px 16px 28px!important}
+
+/* ---------- 2. 헤더 (회원 모드) ---------- */
+#appHeader .header-sync-badge,#appHeader .header-brand-desc{display:none!important}
+body:not(.trainer-light-theme) #appHeader{
+  max-width:480px;width:100%;margin:0 auto;padding:12px 16px!important;
+  background:rgba(10,12,17,.78)!important;border:0!important;border-bottom:1px solid var(--fc-line)!important;
+  backdrop-filter:saturate(160%) blur(18px);-webkit-backdrop-filter:saturate(160%) blur(18px);box-shadow:none!important;
+}
+body:not(.trainer-light-theme) #appHeader>div{flex-direction:row!important;align-items:center!important;gap:10px!important}
+body:not(.trainer-light-theme) #appHeader>div>div:first-child{gap:9px!important}
+body:not(.trainer-light-theme) #appHeader>div>div:first-child>div:first-child{
+  width:34px!important;height:34px!important;border-radius:11px!important;
+  background:linear-gradient(135deg,var(--fc-lime),var(--fc-lime-2))!important;box-shadow:0 6px 18px rgba(200,245,96,.25)!important}
+body:not(.trainer-light-theme) #appHeader>div>div:first-child>div:first-child i{color:var(--fc-lime-ink)!important;font-size:15px!important}
+body:not(.trainer-light-theme) #appHeader h1{font-size:15px!important;font-weight:800!important;letter-spacing:.04em!important;color:var(--fc-text)!important}
+body:not(.trainer-light-theme) #appHeader>div>div:last-child{width:auto!important;gap:6px!important;justify-content:flex-end!important}
+body:not(.trainer-light-theme) #appHeader>div>div:last-child>div:first-child{
+  background:var(--fc-card-2)!important;border:1px solid var(--fc-line)!important;border-radius:999px!important;padding:6px 10px!important}
+body:not(.trainer-light-theme) #appHeader .fa-calendar{color:var(--fc-lime)!important;margin-right:6px!important}
+body:not(.trainer-light-theme) #appHeader #currentDateInput{color:var(--fc-text-2)!important;color-scheme:dark;font-size:12px!important;font-weight:600;max-width:104px!important}
+body:not(.trainer-light-theme) #appHeader>div>div:last-child>div:last-child{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}
+body:not(.trainer-light-theme) #appHeader #btnMemberMode{display:none!important}
+body:not(.trainer-light-theme) #appHeader #btnTrainerMode{
+  width:34px;height:34px;min-height:34px!important;padding:0!important;justify-content:center;border-radius:999px!important;
+  background:var(--fc-card-2)!important;border:1px solid var(--fc-line)!important;color:var(--fc-muted)!important;font-size:0!important}
+body:not(.trainer-light-theme) #appHeader #btnTrainerMode i{display:inline-block!important;font-size:13px!important}
+body:not(.trainer-light-theme) #appHeader #btnTrainerMode span{display:none!important}
+
+/* 트레이너 모드 헤더(기존 라이트 톤 유지) */
+body.trainer-light-theme #appHeader{background:rgba(255,255,255,.9)!important;border-color:#e4ebf5!important;box-shadow:0 6px 22px rgba(33,65,110,.08)!important;backdrop-filter:blur(18px)}
+body.trainer-light-theme #appHeader h1{color:#102647!important}
+body.trainer-light-theme #appHeader>div>div:first-child>div:first-child{background:linear-gradient(135deg,#6c63ff,#3b82f6)!important}
+body.trainer-light-theme #appHeader>div>div:first-child>div:first-child i{color:#fff!important}
+body.trainer-light-theme #appHeader>div>div:last-child>div{background:#eef2fb!important;border:1px solid #d8e1f0!important;box-shadow:none!important;border-radius:13px!important}
+body.trainer-light-theme #appHeader #currentDateInput{color:#233655!important;color-scheme:light}
+body.trainer-light-theme #appHeader #btnMemberMode,body.trainer-light-theme #appHeader #btnTrainerMode{background:transparent!important;color:#4b5c76!important;box-shadow:none!important}
+body.trainer-light-theme #appHeader #btnTrainerMode.bg-indigo-600{background:#6258df!important;color:#fff!important}
+
+/* ---------- 3. 공통 카드 / 타이포 ---------- */
+body:not(.trainer-light-theme) #memberView{max-width:none;color:var(--fc-text)}
+body:not(.trainer-light-theme) #memberView>section{margin-top:0}
+body:not(.trainer-light-theme) #memberView .member-page{gap:14px}
+body:not(.trainer-light-theme) #memberView .member-page>*+*{margin-top:14px}
+body:not(.trainer-light-theme) #memberView .member-page-heading{padding:8px 4px 2px}
+body:not(.trainer-light-theme) #memberView .member-page-heading h2{font-size:26px!important;font-weight:800!important;letter-spacing:-.045em!important;color:var(--fc-text)!important}
+body:not(.trainer-light-theme) #memberView .member-page-heading p{font-size:14px!important;color:var(--fc-muted)!important;margin-top:4px}
+
+body:not(.trainer-light-theme) #memberView .rounded-2xl,
+body:not(.trainer-light-theme) #memberView .growth-report-details,
+body:not(.trainer-light-theme) #accessNotice{
+  background:var(--fc-card)!important;border:1px solid var(--fc-line)!important;border-radius:var(--fc-radius)!important;box-shadow:var(--fc-shadow)!important}
+body:not(.trainer-light-theme) #memberView .rounded-xl{border-radius:var(--fc-radius-sm)!important}
+body:not(.trainer-light-theme) #memberView .rounded-lg{border-radius:12px!important}
+
+/* tailwind 다크 유틸리티 → 프리미엄 톤으로 통일 */
+body:not(.trainer-light-theme) #memberView [class*="bg-slate-950"]{background-color:var(--fc-card-2)!important}
+body:not(.trainer-light-theme) #memberView [class*="bg-slate-900"]{background-color:var(--fc-card-2)!important}
+body:not(.trainer-light-theme) #memberView .rounded-2xl[class*="bg-slate-900"]{background-color:var(--fc-card)!important}
+body:not(.trainer-light-theme) #memberView [class*="bg-slate-800"],body:not(.trainer-light-theme) #memberView [class*="bg-slate-700"]{background-color:var(--fc-card-3)!important}
+body:not(.trainer-light-theme) #memberView [class*="border-slate-"]{border-color:var(--fc-line)!important}
+body:not(.trainer-light-theme) #memberView .text-white,
+body:not(.trainer-light-theme) #memberView [class*="text-slate-100"],
+body:not(.trainer-light-theme) #memberView [class*="text-slate-200"]{color:var(--fc-text)!important}
+body:not(.trainer-light-theme) #memberView [class*="text-slate-300"]{color:var(--fc-text-2)!important}
+body:not(.trainer-light-theme) #memberView [class*="text-slate-400"],
+body:not(.trainer-light-theme) #memberView [class*="text-slate-500"],
+body:not(.trainer-light-theme) #memberView [class*="text-slate-600"]{color:var(--fc-muted)!important}
+body:not(.trainer-light-theme) #memberView [class*="text-brand-"],
+body:not(.trainer-light-theme) #memberView [class*="text-emerald-"]{color:var(--fc-lime)!important}
+body:not(.trainer-light-theme) #memberView [class*="text-amber-"]{color:var(--fc-orange)!important}
+body:not(.trainer-light-theme) #memberView [class*="text-sky-"]{color:var(--fc-sky)!important}
+body:not(.trainer-light-theme) #memberView [class*="text-indigo-"],body:not(.trainer-light-theme) #memberView [class*="text-violet-"]{color:var(--fc-violet)!important}
+body:not(.trainer-light-theme) #memberView [class*="text-rose-"]{color:var(--fc-rose)!important}
+body:not(.trainer-light-theme) #memberView h3,body:not(.trainer-light-theme) #memberView h4{color:var(--fc-text)!important;font-weight:750;letter-spacing:-.035em}
+body:not(.trainer-light-theme) #memberView h3{font-size:17px!important}
+body:not(.trainer-light-theme) #memberView h3>i,body:not(.trainer-light-theme) #memberView h3 i{margin-right:4px}
+body:not(.trainer-light-theme) #memberView label{color:var(--fc-text-2)}
+
+/* 섹션 헤더 아이콘 박스 */
+body:not(.trainer-light-theme) #memberView .w-8.h-8.rounded-lg{width:38px!important;height:38px!important;border-radius:12px!important;background:rgba(200,245,96,.1)!important;color:var(--fc-lime)!important}
+body:not(.trainer-light-theme) #memberView .w-8.h-8.rounded-lg i{color:inherit!important}
+
+/* ---------- 4. 입력창 · 버튼 (터치 최적화) ---------- */
+body:not(.trainer-light-theme) #memberView input:not([type=checkbox]):not([type=radio]):not([type=file]),
+body:not(.trainer-light-theme) #memberView textarea,
+body:not(.trainer-light-theme) #memberView select{
+  background:#0d1015!important;border:1px solid var(--fc-line-2)!important;color:var(--fc-text)!important;
+  border-radius:14px!important;min-height:52px;font-size:16px!important;padding:12px 14px!important;
+  transition:border-color .18s ease,box-shadow .18s ease;color-scheme:dark}
+body:not(.trainer-light-theme) #memberView textarea{line-height:1.6;resize:vertical}
+body:not(.trainer-light-theme) #memberView input::placeholder,body:not(.trainer-light-theme) #memberView textarea::placeholder{color:#5f6779!important;opacity:1}
+body:not(.trainer-light-theme) #memberView input:focus,body:not(.trainer-light-theme) #memberView textarea:focus,body:not(.trainer-light-theme) #memberView select:focus{
+  outline:none!important;border-color:var(--fc-lime)!important;box-shadow:0 0 0 4px rgba(200,245,96,.14)!important}
+body:not(.trainer-light-theme) #memberView input[readonly]{opacity:.75}
+body:not(.trainer-light-theme) #memberView input[type=file]{width:100%;font-size:13px;color:var(--fc-muted);background:#0d1015;border:1px dashed var(--fc-line-2);border-radius:14px;padding:10px}
+body:not(.trainer-light-theme) #memberView input[type=file]::file-selector-button{min-height:42px;background:var(--fc-card-3);color:var(--fc-text);border:0;border-radius:11px;padding:10px 14px;margin-right:10px;font-weight:700}
+
+body:not(.trainer-light-theme) #memberView button,body:not(.trainer-light-theme) #memberView summary,body:not(.trainer-light-theme) #memberView label:has(input[type=file]){
+  touch-action:manipulation;transition:transform .14s cubic-bezier(.3,.7,.4,1.4),background-color .18s ease,border-color .18s ease,box-shadow .18s ease,filter .18s ease}
+body:not(.trainer-light-theme) #memberView button:active:not(:disabled){transform:scale(.96)}
+body:not(.trainer-light-theme) #memberView button{min-height:44px;font-weight:700}
+body:not(.trainer-light-theme) #memberView button:disabled{opacity:.55;cursor:wait}
+body:not(.trainer-light-theme) #memberView button:focus-visible,body:not(.trainer-light-theme) #memberView summary:focus-visible{outline:3px solid rgba(200,245,96,.45)!important;outline-offset:2px}
+
+/* 주요 액션 버튼 = 라임 그라데이션 */
+body:not(.trainer-light-theme) #memberView button[class*="bg-brand-5"],
+body:not(.trainer-light-theme) #memberView button[class*="bg-amber-5"],
+body:not(.trainer-light-theme) #memberView button[class*="bg-sky-5"],
+body:not(.trainer-light-theme) #memberView button[class*="bg-sky-6"],
+body:not(.trainer-light-theme) #memberView button[type=submit]{
+  background:linear-gradient(135deg,var(--fc-lime),var(--fc-lime-2))!important;color:var(--fc-lime-ink)!important;border:0!important;
+  border-radius:14px!important;min-height:52px!important;font-size:15px!important;font-weight:800!important;
+  box-shadow:0 8px 22px rgba(160,224,58,.22)!important}
+body:not(.trainer-light-theme) #memberView button[class*="bg-brand-5"] *,
+body:not(.trainer-light-theme) #memberView button[class*="bg-amber-5"] *,
+body:not(.trainer-light-theme) #memberView button[type=submit] *{color:inherit!important}
+body:not(.trainer-light-theme) #memberView button[class*="bg-brand-5"]:hover,
+body:not(.trainer-light-theme) #memberView button[class*="bg-amber-5"]:hover,
+body:not(.trainer-light-theme) #memberView button[type=submit]:hover{filter:brightness(1.06)}
+/* 보조 버튼 */
+body:not(.trainer-light-theme) #memberView button[class*="bg-slate-8"],
+body:not(.trainer-light-theme) #memberView button[class*="border-amber-"],
+body:not(.trainer-light-theme) #memberView button[class*="border-emerald-"],
+body:not(.trainer-light-theme) #memberView button[class*="border-slate-7"]{
+  background:var(--fc-card-3)!important;color:var(--fc-text)!important;border:1px solid var(--fc-line-2)!important;border-radius:14px!important}
+/* 메모 '보내기' */
+body:not(.trainer-light-theme) #memberView .coach-conversation .flex.gap-2>button{min-width:76px}
+
+/* ---------- 5. 홈 히어로: 개인화 인사 + 대형 프로그레스 ---------- */
+body:not(.trainer-light-theme) #memberView .member-goal-hero{
+  position:relative;overflow:hidden;padding:24px 20px 20px!important;border-radius:26px!important;
+  background:
+    radial-gradient(420px 260px at 105% -10%,rgba(200,245,96,.22),transparent 60%),
+    radial-gradient(380px 260px at -20% 120%,rgba(139,123,255,.25),transparent 60%),
+    linear-gradient(160deg,#191d27 0%,#101319 100%)!important;
+  border:1px solid rgba(255,255,255,.08)!important;box-shadow:0 20px 50px rgba(0,0,0,.45)!important}
+body:not(.trainer-light-theme) #memberView .member-goal-hero>div{flex-direction:column!important;align-items:stretch!important;gap:20px!important}
+body:not(.trainer-light-theme) #memberView .member-goal-hero #memberNameBadge{display:none!important}
+body:not(.trainer-light-theme) #memberView .member-goal-hero #todayDateDisplay{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px!important;font-weight:700;color:var(--fc-text-2)!important;
+  background:rgba(255,255,255,.06);border:1px solid var(--fc-line);border-radius:999px;padding:5px 11px}
+body:not(.trainer-light-theme) #memberView .member-goal-hero #todayDateDisplay::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--fc-lime);box-shadow:0 0 10px var(--fc-lime)}
+.fc-greet{margin:14px 0 2px}
+.fc-greet-hello{font-size:14px;font-weight:600;color:var(--fc-muted)}
+.fc-greet-name{margin-top:6px;font-size:32px;line-height:1.18;font-weight:850;letter-spacing:-.055em;color:var(--fc-text)}
+.fc-greet-name em{font-style:normal;background:linear-gradient(120deg,var(--fc-lime),#e9ffa8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.fc-greet-sub{margin-top:8px;font-size:17px;line-height:1.5;font-weight:650;color:var(--fc-text-2)}
+body:not(.trainer-light-theme) #memberView .member-goal-hero #customHeaderMessage{
+  margin-top:14px!important;font-size:14px!important;line-height:1.55!important;font-weight:600!important;color:var(--fc-text-2)!important;
+  background:rgba(255,255,255,.05);border:1px solid var(--fc-line);border-left:3px solid var(--fc-lime);border-radius:12px;padding:10px 12px}
+body:not(.trainer-light-theme) #memberView .member-goal-hero #customHeaderMessage.fc-default{display:none}
+body:not(.trainer-light-theme) #memberView .member-goal-hero h2+p{display:none}
+
+/* 스탯 카드 2개 → 세로로 꽉 찬 프로그레스 */
+body:not(.trainer-light-theme) #memberView .member-goal-hero .grid{grid-template-columns:1fr!important;gap:10px!important;min-width:0!important}
+body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div{
+  background:rgba(8,10,14,.55)!important;border:1px solid var(--fc-line)!important;border-radius:18px!important;padding:16px!important;backdrop-filter:blur(6px)}
+body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div>div:first-child{font-size:13px!important;font-weight:700;color:var(--fc-text-2)!important;margin-bottom:6px!important}
+body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div>div:first-child i{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;font-size:13px}
+body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div:first-child>div:first-child i{background:rgba(200,245,96,.12);color:var(--fc-lime)!important}
+body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div:last-child>div:first-child i{background:rgba(255,146,84,.12);color:var(--fc-orange)!important}
+body:not(.trainer-light-theme) #memberView #memberWorkoutProgressText,
+body:not(.trainer-light-theme) #memberView #memberCalorieText{font-size:34px!important;line-height:1.1!important;font-weight:850!important;letter-spacing:-.05em;color:var(--fc-text)!important;font-variant-numeric:tabular-nums}
+body:not(.trainer-light-theme) #memberView #memberWorkoutProgressSub,
+body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div:last-child .flex.items-baseline>span:last-child{font-size:13px!important;font-weight:600;color:var(--fc-muted)!important;margin-left:4px}
+body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div>.rounded-full{
+  height:14px!important;margin-top:12px!important;background:rgba(255,255,255,.07)!important;border-radius:999px!important;overflow:hidden;position:relative}
+body:not(.trainer-light-theme) #memberView #memberWorkoutProgressBar,
+body:not(.trainer-light-theme) #memberView #memberCalorieBar{
+  position:relative;height:100%;border-radius:999px!important;transition:width .9s cubic-bezier(.22,1,.36,1)!important;min-width:0}
+body:not(.trainer-light-theme) #memberView #memberWorkoutProgressBar{background:linear-gradient(90deg,#8fd534,var(--fc-lime))!important;box-shadow:0 0 18px rgba(200,245,96,.45)}
+body:not(.trainer-light-theme) #memberView #memberCalorieBar{background:linear-gradient(90deg,var(--fc-orange-2),var(--fc-orange),#ffc078)!important;box-shadow:0 0 18px rgba(255,146,84,.4)}
+body:not(.trainer-light-theme) #memberView #memberWorkoutProgressBar::after,
+body:not(.trainer-light-theme) #memberView #memberCalorieBar::after{
+  content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);transform:translateX(-100%);animation:fc-shimmer 2.6s ease-in-out infinite}
+@keyframes fc-shimmer{0%{transform:translateX(-100%)}60%,100%{transform:translateX(100%)}}
+.fc-progress-hint{margin-top:9px;font-size:12px;font-weight:600;color:var(--fc-muted)}
+.fc-progress-hint b{color:var(--fc-text);font-weight:750}
+.member-goal-hero.fc-complete .grid>div:first-child{border-color:rgba(200,245,96,.45)!important;box-shadow:0 0 0 1px rgba(200,245,96,.25),0 0 30px rgba(200,245,96,.15)}
+
+/* ---------- 6. 코치의 메시지 카드 ---------- */
+.fc-coach{position:relative;overflow:hidden;width:100%;text-align:left;display:block;padding:20px;border-radius:24px;
+  background:
+    radial-gradient(300px 200px at 100% 0%,rgba(139,123,255,.35),transparent 65%),
+    linear-gradient(150deg,#1d1934 0%,#151425 55%,#111219 100%);
+  border:1px solid rgba(139,123,255,.35);box-shadow:0 16px 40px rgba(60,40,160,.25);color:var(--fc-text);
+  transition:transform .15s ease}
+.fc-coach:active{transform:scale(.985)}
+.fc-coach::after{content:'“';position:absolute;right:14px;top:-18px;font-size:120px;line-height:1;font-family:Georgia,serif;color:rgba(139,123,255,.18);pointer-events:none}
+.fc-coach-head{display:flex;align-items:center;gap:12px}
+.fc-coach-avatar{position:relative;width:46px;height:46px;flex:0 0 46px;border-radius:15px;display:grid;place-items:center;font-size:19px;color:#fff;
+  background:linear-gradient(135deg,var(--fc-violet),#5b47e0);box-shadow:0 8px 20px rgba(110,90,255,.4)}
+.fc-coach-avatar .fc-dot{position:absolute;right:-3px;top:-3px;width:12px;height:12px;border-radius:50%;background:var(--fc-lime);border:2px solid #17152a;display:none}
+.fc-coach.fc-unread .fc-dot{display:block;animation:fc-pulse 1.6s ease-out infinite}
+@keyframes fc-pulse{0%{box-shadow:0 0 0 0 rgba(200,245,96,.6)}100%{box-shadow:0 0 0 10px rgba(200,245,96,0)}}
+.fc-coach-eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:#b9afff;white-space:nowrap}
+.fc-coach-title{font-size:17px;font-weight:800;letter-spacing:-.03em;margin-top:2px}
+.fc-coach-time{margin-left:auto;font-size:11px;color:var(--fc-muted);white-space:nowrap;align-self:flex-start;padding-top:3px}
+.fc-coach-body{margin-top:14px;display:grid;gap:10px}
+.fc-coach-msg{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);border-radius:16px 16px 16px 6px;padding:12px 14px}
+.fc-coach-msg small{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;margin-bottom:4px}
+.fc-coach-msg small.w{color:var(--fc-lime)}.fc-coach-msg small.d{color:var(--fc-orange)}
+.fc-coach-msg p{font-size:15px;line-height:1.65;color:var(--fc-text);white-space:pre-line;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.fc-coach-empty{margin-top:12px;font-size:14px;line-height:1.6;color:var(--fc-text-2)}
+.fc-coach-cta{margin-top:14px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;color:#cfc8ff}
+
+/* ---------- 7. 데일리 체크인 · 다음 할 일 (기존 라이트 클래스 재정의) ---------- */
+body:not(.trainer-light-theme) #memberDailyCheckin{background:var(--fc-card)!important;border:1px solid var(--fc-line)!important;border-radius:var(--fc-radius)!important;box-shadow:var(--fc-shadow)!important}
+body:not(.trainer-light-theme) #memberDailyCheckin h3{color:var(--fc-text)!important}
+body:not(.trainer-light-theme) #memberDailyCheckin p,body:not(.trainer-light-theme) #memberDailyCheckin span{color:var(--fc-muted)!important}
+body:not(.trainer-light-theme) #memberDailyCheckin p[class*="tracking-"]{color:var(--fc-lime)!important}
+body:not(.trainer-light-theme) #memberDailyCheckin #dailyCheckinSummary{background:rgba(200,245,96,.1)!important;border-color:rgba(200,245,96,.3)!important;color:var(--fc-lime)!important;box-shadow:none!important}
+body:not(.trainer-light-theme) #memberDailyCheckin .bg-sky-100{background:rgba(255,255,255,.07)!important;height:8px!important}
+body:not(.trainer-light-theme) #dailyCheckinProgress{background:linear-gradient(90deg,#8fd534,var(--fc-lime))!important}
+body:not(.trainer-light-theme) #dailyCheckinButtons>div{grid-template-columns:60px 1fr!important}
+body:not(.trainer-light-theme) #dailyCheckinButtons>div>span{color:var(--fc-text-2)!important}
+body:not(.trainer-light-theme) #memberDailyCheckin [data-check-field]{
+  min-height:48px!important;padding:10px 14px!important;border-radius:14px!important;font-size:14px!important;
+  background:var(--fc-card-2)!important;border:1px solid var(--fc-line-2)!important;color:var(--fc-text-2)!important;box-shadow:none!important}
+body:not(.trainer-light-theme) #memberDailyCheckin [data-check-field].text-white{
+  background:linear-gradient(135deg,var(--fc-lime),var(--fc-lime-2))!important;border-color:transparent!important;color:var(--fc-lime-ink)!important;
+  box-shadow:0 6px 18px rgba(160,224,58,.3)!important;animation:fc-pop .35s cubic-bezier(.3,.7,.4,1.5)}
+body:not(.trainer-light-theme) #memberDailyCheckin [data-check-field].text-white::before{content:'✓ ';font-weight:900}
+body:not(.trainer-light-theme) #memberNewFeedbackAlert{background:rgba(139,123,255,.14)!important;border-color:rgba(139,123,255,.4)!important;color:#d6d0ff!important}
+body:not(.trainer-light-theme) #memberNewFeedbackAlert span{color:#d6d0ff!important}
+body:not(.trainer-light-theme) #memberNextStep{background:var(--fc-card)!important;border:1px solid var(--fc-line)!important;border-radius:18px!important;min-height:72px;box-shadow:var(--fc-shadow)!important}
+body:not(.trainer-light-theme) #memberNextStep>span:first-child{background:rgba(200,245,96,.12)!important;color:var(--fc-lime)!important}
+body:not(.trainer-light-theme) #memberNextStep strong{color:var(--fc-text)!important;font-size:15px!important}
+body:not(.trainer-light-theme) #memberNextStep span span{color:var(--fc-muted)!important}
+body:not(.trainer-light-theme) #memberNextStep span>span:first-child{color:var(--fc-lime)!important}
+
+/* ---------- 8. 홈 기록 카드 ---------- */
+.home-record-grid{display:grid;grid-template-columns:1fr;gap:12px}
+body:not(.trainer-light-theme) #memberView .home-record-card{display:block;width:100%;text-align:left;padding:18px;background:var(--fc-card);border:1px solid var(--fc-line);border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);color:var(--fc-text);min-width:0}
+body:not(.trainer-light-theme) #memberView .home-record-card:hover{border-color:var(--fc-line-2)}
+.home-record-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:16px;font-weight:800;margin-bottom:12px;color:var(--fc-text)}
+.home-record-heading i{color:var(--fc-lime);margin-right:7px}
+.home-record-link{font-size:12px;color:var(--fc-muted);font-weight:600;white-space:nowrap}
+.home-record-row{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--fc-line);font-size:14px}
+.home-record-row:last-of-type{border-bottom:0}
+.home-record-row span{color:var(--fc-muted)}
+.home-record-note{font-size:13px;color:var(--fc-muted);line-height:1.6;margin-top:8px}
+.home-empty-icon{background:rgba(200,245,96,.1);color:var(--fc-lime);width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:22px;margin-bottom:10px}
+.home-meal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.home-meal-grid>div{background:var(--fc-card-2);border:1px solid var(--fc-line);border-radius:15px;padding:14px 8px;display:flex;align-items:center;flex-direction:column;gap:6px;text-align:center}
+.home-meal-grid i{color:var(--fc-orange);font-size:18px}
+.home-meal-grid i.fa-circle-check{color:var(--fc-lime)}
+.home-meal-grid strong{font-size:14px}
+.home-meal-grid span{font-size:12px;color:var(--fc-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.home-body-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.home-body-metric{display:flex;flex-direction:column;gap:7px;padding:14px 10px;background:var(--fc-card-2);border:1px solid var(--fc-line);border-radius:15px;min-width:0}
+.home-body-metric i{color:var(--fc-violet);font-size:16px}
+.home-body-metric>span{font-size:12px;color:var(--fc-muted)}
+.home-body-metric strong{font-size:21px;color:var(--fc-text);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.home-body-metric small{font-size:12px;margin-left:2px;font-weight:500;color:var(--fc-muted)}
+.home-body-summary{white-space:pre-line;line-height:1.9;font-size:14px;color:var(--fc-text-2)}
+.home-coach-message{font-size:15px;line-height:1.7;white-space:pre-line;color:var(--fc-text)}
+/* 코치 피드백은 상단 카드로 올렸으므로 홈 그리드에서는 숨김 */
+body:not(.trainer-light-theme) #memberView .home-record-card[data-record-card="feedback"]{display:none}
+
+/* ---------- 9. 운동 루틴 · 세트 체크 ---------- */
+body:not(.trainer-light-theme) #memberView #memberRoutineList>div{
+  padding:18px!important;border-radius:18px!important;background:var(--fc-card-2)!important;border:1px solid var(--fc-line)!important;transition:border-color .3s ease,box-shadow .3s ease}
+body:not(.trainer-light-theme) #memberView #memberRoutineList>div.fc-ex-done{border-color:rgba(200,245,96,.45)!important;box-shadow:0 0 0 1px rgba(200,245,96,.18),0 10px 30px rgba(160,224,58,.12)}
+body:not(.trainer-light-theme) #memberView #memberRoutineList>div.fc-ex-done .exercise-card-title::after{content:' ✓ 완료';font-size:12px;font-weight:800;color:var(--fc-lime-ink);background:var(--fc-lime);border-radius:999px;padding:3px 8px;margin-left:6px;vertical-align:3px}
+body:not(.trainer-light-theme) #memberView .exercise-card-title{font-size:19px!important;line-height:1.4;color:var(--fc-text)!important}
+body:not(.trainer-light-theme) #memberView .exercise-card-dose{display:block;font-size:14px!important;color:var(--fc-muted)!important;font-weight:600!important;margin-top:4px}
+body:not(.trainer-light-theme) #memberView #memberRoutineList .flex.flex-wrap{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px!important;border-top:1px solid var(--fc-line)!important;margin-top:12px!important;padding-top:14px!important}
+body:not(.trainer-light-theme) #memberView .member-set-check{
+  position:relative;min-width:0!important;min-height:76px!important;padding:10px 6px!important;border-radius:16px!important;
+  flex-direction:column!important;justify-content:center!important;
+  background:#0d1015!important;border:1.5px solid var(--fc-line-2)!important;gap:6px!important;user-select:none;
+  transition:transform .15s ease,background-color .2s ease,border-color .2s ease}
+body:not(.trainer-light-theme) #memberView .member-set-check:active{transform:scale(.94)}
+body:not(.trainer-light-theme) #memberView .member-set-check input{
+  appearance:none;-webkit-appearance:none;width:24px!important;height:24px!important;border-radius:50%;margin:0;
+  border:2px solid #4a5263;background:transparent;display:grid;place-items:center;transition:all .2s ease;cursor:pointer}
+body:not(.trainer-light-theme) #memberView .member-set-check input::after{content:'';width:6px;height:11px;border:solid var(--fc-lime-ink);border-width:0 3px 3px 0;transform:rotate(45deg) scale(0);margin-top:-3px;transition:transform .2s cubic-bezier(.3,.7,.4,1.6)}
+body:not(.trainer-light-theme) #memberView .member-set-check input:checked{background:var(--fc-lime-ink);border-color:var(--fc-lime-ink)}
+body:not(.trainer-light-theme) #memberView .member-set-check input:checked::after{border-color:var(--fc-lime);transform:rotate(45deg) scale(1)}
+body:not(.trainer-light-theme) #memberView .member-set-check span{font-size:15px!important;font-weight:750!important;color:var(--fc-text-2)!important;text-decoration:none!important;white-space:nowrap}
+body:not(.trainer-light-theme) #memberView .member-set-check:has(input:checked){
+  background:linear-gradient(135deg,var(--fc-lime),var(--fc-lime-2))!important;border-color:transparent!important;box-shadow:0 6px 18px rgba(160,224,58,.28)}
+body:not(.trainer-light-theme) #memberView .member-set-check:has(input:checked) span{color:var(--fc-lime-ink)!important}
+body:not(.trainer-light-theme) #memberView .member-set-check.fc-just{animation:fc-pop .45s cubic-bezier(.3,.7,.4,1.5)}
+@keyframes fc-pop{0%{transform:scale(.88)}55%{transform:scale(1.08)}100%{transform:scale(1)}}
+body:not(.trainer-light-theme) #memberView #routineCountBadge{background:rgba(200,245,96,.1)!important;border-color:rgba(200,245,96,.25)!important;color:var(--fc-lime)!important;font-weight:700;white-space:nowrap;flex-shrink:0}
+body:not(.trainer-light-theme) #memberView #memberRoutineList button[aria-label]{min-height:40px;width:40px;border-radius:12px;background:rgba(255,255,255,.04)}
+
+/* details(접이식) */
+body:not(.trainer-light-theme) #memberView details{background:var(--fc-card-2);border:1px solid var(--fc-line);border-radius:16px}
+body:not(.trainer-light-theme) #memberView details>summary{min-height:52px;display:flex;align-items:center;padding:14px 16px!important;font-weight:700;color:var(--fc-text-2);list-style:none;cursor:pointer}
+body:not(.trainer-light-theme) #memberView details>summary::-webkit-details-marker{display:none}
+body:not(.trainer-light-theme) #memberView details.optional-fields>summary,body:not(.trainer-light-theme) #memberView details.food-nutrition-details>summary{min-height:44px;padding:10px 12px!important;font-size:13px}
+body:not(.trainer-light-theme) #memberView #memberRoutineEditor>summary{color:var(--fc-lime)!important}
+body:not(.trainer-light-theme) #memberView .growth-report-details{padding:0!important}
+body:not(.trainer-light-theme) #memberView .growth-report-details>div{padding:0 14px 14px}
+
+/* ---------- 10. 식단 ---------- */
+body:not(.trainer-light-theme) #memberView .food-card{background:var(--fc-card)!important;border:1px solid var(--fc-line)!important;border-radius:16px!important;padding:12px!important}
+body:not(.trainer-light-theme) #memberView .saved-meal-summary{background:rgba(200,245,96,.05)!important;border:1px solid rgba(200,245,96,.22)!important;border-radius:16px!important;padding:14px!important}
+body:not(.trainer-light-theme) #memberView [id^="badge-"]{border-radius:999px!important;padding:4px 10px!important;font-size:11px!important;font-weight:700}
+body:not(.trainer-light-theme) #memberView [id^="badge-"][class*="emerald"]{background:rgba(200,245,96,.14)!important;color:var(--fc-lime)!important}
+body:not(.trainer-light-theme) #memberView [id^="photos-"] img{border-radius:12px;aspect-ratio:1;object-fit:cover}
+body:not(.trainer-light-theme) #memberView label:has(input[type=file]){display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;padding:10px 14px!important;border-radius:12px!important;
+  background:rgba(255,146,84,.12)!important;border:1px solid rgba(255,146,84,.3)!important;color:var(--fc-orange)!important;font-size:13px!important;font-weight:700}
+body:not(.trainer-light-theme) #memberView #waterDisplay{font-size:15px;font-weight:800}
+body:not(.trainer-light-theme) #memberView button[onclick^="adjustWater"]{width:44px!important;height:44px!important;border-radius:12px!important;font-size:18px;background:var(--fc-card-3)!important;color:var(--fc-text)!important}
+body:not(.trainer-light-theme) #memberView #totalCaloriesBadge{color:var(--fc-orange)!important;font-size:14px}
+body:not(.trainer-light-theme) #memberView .meal-quick-guide{background:rgba(92,200,255,.08);color:var(--fc-text-2)!important;border:1px solid rgba(92,200,255,.2);border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.7;margin-top:12px}
+body:not(.trainer-light-theme) #memberView .meal-editor-caption{font-size:12px;font-weight:650;color:var(--fc-muted);padding:6px 2px 2px}
+body:not(.trainer-light-theme) #memberView .meal-save-feedback{padding:12px 14px;border:1px solid var(--fc-line-2);border-radius:13px;font-size:13px;line-height:1.5}
+body:not(.trainer-light-theme) #memberView .meal-save-feedback[data-state=saving]{background:rgba(92,200,255,.1);color:var(--fc-sky)}
+body:not(.trainer-light-theme) #memberView .meal-save-feedback[data-state=saved]{background:rgba(200,245,96,.1);color:var(--fc-lime)}
+body:not(.trainer-light-theme) #memberView .meal-save-feedback[data-state=error]{background:rgba(255,107,138,.1);color:var(--fc-rose)}
+.meal-save-feedback[hidden]{display:none!important}
+body:not(.trainer-light-theme) #memberView [class*="bg-emerald-500/"],body:not(.trainer-light-theme) #memberView [class*="bg-amber-500/"]{background-color:rgba(255,255,255,.04)!important}
+
+/* ---------- 11. 피드백 · 메모 · 영상 ---------- */
+body:not(.trainer-light-theme) #memberView #trainerFeedbackCard{border:1px solid rgba(139,123,255,.35)!important;background:linear-gradient(150deg,#1d1934,#13131d)!important}
+body:not(.trainer-light-theme) #memberView #trainerFeedbackCard h3{color:#cfc8ff!important}
+body:not(.trainer-light-theme) #memberView #trainerFeedbackCard .w-12{background:linear-gradient(135deg,var(--fc-violet),#5b47e0)!important;border:0!important;color:#fff!important}
+body:not(.trainer-light-theme) #memberView #trainerFeedbackCard .w-12 i{color:#fff!important}
+body:not(.trainer-light-theme) #memberView #trainerFeedbackCard p{font-size:15px!important;line-height:1.65}
+body:not(.trainer-light-theme) #memberView #memberMemoList{min-height:100px;max-height:380px;padding:12px!important;background:#0d1015;border-radius:16px;margin-bottom:12px!important}
+body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role]>div{font-size:14px!important;line-height:1.65!important;padding:11px 14px!important;max-width:86%}
+body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role=coach]>div{background:var(--fc-card-3)!important;border:1px solid var(--fc-line)!important;border-radius:18px 18px 18px 6px!important;color:var(--fc-text)!important}
+body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role=member]>div{background:linear-gradient(135deg,var(--fc-lime),var(--fc-lime-2))!important;border:0!important;border-radius:18px 18px 6px 18px!important;color:var(--fc-lime-ink)!important}
+body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role=member]>div *{color:var(--fc-lime-ink)!important}
+body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role]>div>div:first-child{font-size:11px!important;opacity:.75;margin-bottom:3px}
+body:not(.trainer-light-theme) #memberView .member-field-label{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:700;color:var(--fc-text)!important;padding-top:10px}
+body:not(.trainer-light-theme) #memberView .member-field-label span{font-size:11px;font-weight:500;color:var(--fc-muted)}
+body:not(.trainer-light-theme) #memberView .member-field-help{font-size:12px;line-height:1.7;color:var(--fc-muted)!important;padding:5px 0}
+body:not(.trainer-light-theme) #memberView .coach-video-upload form{padding:16px!important;border-radius:16px!important}
+body:not(.trainer-light-theme) #memberView .coach-video-upload button[type=submit]{width:100%}
+body:not(.trainer-light-theme) #memberView #memberExerciseVideos>*,body:not(.trainer-light-theme) #memberView #memberFormVideos>*,body:not(.trainer-light-theme) #memberView #previousWorkoutRecords>*{background:var(--fc-card-2)!important;border:1px solid var(--fc-line)!important;border-radius:16px!important}
+body:not(.trainer-light-theme) #memberView canvas{max-width:100%;border-radius:14px}
+
+/* 캘린더 */
+body:not(.trainer-light-theme) #habitCalendar{gap:6px!important}
+body:not(.trainer-light-theme) #habitCalendar button{min-height:42px;border-radius:12px!important;background:var(--fc-card-2)!important;color:var(--fc-text-2)!important;border:1px solid var(--fc-line)!important;font-weight:650}
+body:not(.trainer-light-theme) #habitCalendar button[class*="bg-emerald"],body:not(.trainer-light-theme) #habitCalendar button[class*="bg-brand"]{background:linear-gradient(135deg,var(--fc-lime),var(--fc-lime-2))!important;color:var(--fc-lime-ink)!important;border-color:transparent!important}
+body:not(.trainer-light-theme) #habitCalendarTop button[onclick^="moveHabitMonth"]{width:44px;height:44px;border-radius:12px;font-size:20px}
+
+/* 접근 안내(잠금) */
+body:not(.trainer-light-theme) #accessNotice{text-align:center;padding:36px 24px!important;margin-top:24px}
+body:not(.trainer-light-theme) #accessNotice h2{font-size:20px!important;color:var(--fc-text)!important}
+body:not(.trainer-light-theme) #accessNotice h2 i{display:block;font-size:28px;margin:0 auto 14px;color:var(--fc-lime)!important}
+body:not(.trainer-light-theme) #accessNotice p{color:var(--fc-muted)!important;line-height:1.7}
+body:not(.trainer-light-theme) #syncError{border-radius:16px!important}
+
+/* ---------- 12. 하단 탭바 · 토스트 (셸 폭 고정) ---------- */
+body:not(.trainer-light-theme) #memberBottomNav{
+  left:50%!important;right:auto!important;width:min(100%,480px)!important;max-width:480px!important;transform:translateX(-50%)!important;
+  background:rgba(12,14,19,.86)!important;border:0!important;border-top:1px solid var(--fc-line)!important;border-radius:22px 22px 0 0!important;
+  backdrop-filter:saturate(160%) blur(20px);-webkit-backdrop-filter:saturate(160%) blur(20px);box-shadow:0 -10px 40px rgba(0,0,0,.45)!important;
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px))!important}
+body:not(.trainer-light-theme) #memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 10px))!important}
+body:not(.trainer-light-theme) #memberBottomNav button{min-height:58px;color:#6f7789!important;border:0!important;border-radius:16px!important;font-size:11px!important;gap:5px!important;transition:color .2s ease,background-color .2s ease,transform .14s ease}
+body:not(.trainer-light-theme) #memberBottomNav button:active{transform:scale(.92)}
+body:not(.trainer-light-theme) #memberBottomNav button i{font-size:19px}
+body:not(.trainer-light-theme) #memberBottomNav button.selected{background:rgba(200,245,96,.1)!important;color:var(--fc-lime)!important;box-shadow:none!important}
+body:not(.trainer-light-theme) #memberBottomNav button.selected i{color:var(--fc-lime)!important;filter:drop-shadow(0 0 8px rgba(200,245,96,.5))}
+
+#toastNotification{left:50%!important;right:auto!important;--tw-translate-x:-50%;max-width:calc(min(100vw,480px) - 32px);text-align:center}
+body:not(.trainer-light-theme) #toastNotification{background:rgba(24,28,37,.96)!important;border:1px solid rgba(200,245,96,.35)!important;color:var(--fc-text)!important;border-radius:999px!important;padding:12px 20px!important;font-size:14px!important;font-weight:700!important;box-shadow:0 12px 30px rgba(0,0,0,.5)!important}
+body:not(.trainer-light-theme) #saveStatusBar{left:50%!important;right:auto!important;width:min(448px,calc(100% - 32px));transform:translateX(-50%);border-radius:16px!important}
+#saveStatusBar[data-state="saving"]{border-color:#38bdf8;background:#082f49}
+#saveStatusBar[data-state="saved"]{border-color:#9fe03a;background:#17230a}
+#saveStatusBar[data-state="error"]{border-color:#fb7185;background:#4c0519}
+
+/* ---------- 13. 축하 효과 ---------- */
+.fc-burst{position:fixed;pointer-events:none;z-index:9999;width:0;height:0}
+.fc-burst i{position:absolute;left:0;top:0;width:7px;height:7px;border-radius:2px;animation:fc-fly .7s cubic-bezier(.2,.8,.3,1) forwards}
+@keyframes fc-fly{to{transform:translate(var(--dx),var(--dy)) rotate(var(--r));opacity:0}}
+.fc-confetti{position:fixed;inset:0;pointer-events:none;z-index:9998;overflow:hidden}
+.fc-confetti i{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;animation:fc-fall var(--t) cubic-bezier(.25,.6,.4,1) forwards}
+@keyframes fc-fall{to{transform:translate(var(--dx),110vh) rotate(var(--r));opacity:.9}}
+.fc-celebrate{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%) scale(.8);z-index:9999;pointer-events:none;text-align:center;opacity:0;
+  background:rgba(14,16,22,.92);border:1px solid rgba(200,245,96,.4);border-radius:24px;padding:22px 28px;box-shadow:0 30px 80px rgba(0,0,0,.6);
+  animation:fc-cele 2.4s cubic-bezier(.3,.7,.4,1.2) forwards}
+.fc-celebrate b{display:block;font-size:40px;line-height:1}
+.fc-celebrate strong{display:block;margin-top:10px;font-size:19px;font-weight:850;color:var(--fc-text)}
+.fc-celebrate span{display:block;margin-top:4px;font-size:13px;color:var(--fc-muted)}
+@keyframes fc-cele{0%{opacity:0;transform:translate(-50%,-50%) scale(.8)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.03)}20%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-56%) scale(1)}}
+
+/* 페이지 전환 페이드 */
+body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-page .32s ease both}
+@keyframes fc-page{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+@media (prefers-reduced-motion:reduce){
+  body:not(.trainer-light-theme) *{animation:none!important;transition:none!important}
+}
 
 </style>
 </head>
@@ -4830,6 +5013,208 @@ try {
       toast.classList.remove('translate-y-20', 'opacity-0');
       setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 2500);
     }
+  </script>
+  <script id="fc-premium-experience">
+/* =====================================================================
+   FIT-CONNECT · Premium Member Experience (표현 전용 레이어)
+   - 기존 함수/데이터 흐름을 바꾸지 않고 DOM을 '관찰'해서 화면만 꾸밉니다.
+   - 기존 스크립트의 DOMContentLoaded 이후에 실행됩니다.
+   ===================================================================== */
+(function(){
+  'use strict';
+  const DEFAULT_HEADER='오늘의 운동과 식단을 완수해볼까요? 💪';
+  const reduceMotion=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $=id=>document.getElementById(id);
+  const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const memberName=()=>{try{if(typeof activeMemberName!=='undefined'&&activeMemberName)return activeMemberName;}catch(e){}return(new URLSearchParams(location.search).get('name')||'').trim();};
+  const haptic=ms=>{try{navigator.vibrate&&navigator.vibrate(ms);}catch(e){}};
+  const go=page=>{try{navigateMemberPage(page);}catch(e){}};
+  let lastSetCheckAt=0;
+
+  /* ---------- 1. 히어로: 회원 이름 + 환영 문구 ---------- */
+  function timeGreeting(){
+    const h=new Date().getHours();
+    if(h<5)return'늦은 밤까지 수고 많았어요 🌙';
+    if(h<11)return'좋은 아침이에요 ☀️';
+    if(h<17)return'좋은 오후예요 👋';
+    return'오늘 하루도 고생 많았어요 🌆';
+  }
+  function setupHero(){
+    const hero=document.querySelector('#memberView .member-goal-hero');if(!hero||$('fcGreet'))return;
+    const title=$('customHeaderMessage');if(!title)return;
+    const greet=document.createElement('div');greet.id='fcGreet';greet.className='fc-greet';
+    title.parentElement.insertBefore(greet,title);
+    const render=()=>{
+      const name=memberName()||'회원';
+      greet.innerHTML='<p class="fc-greet-hello">'+timeGreeting()+'</p>'+
+        '<p class="fc-greet-name"><em>'+safe(name)+'</em> 회원님,</p>'+
+        '<p class="fc-greet-sub">오늘도 멋지게 달성해볼까요? 🔥</p>';
+    };
+    render();
+    // 트레이너가 설정한 상단 메시지는 '오늘의 한마디'로만 노출(기본 문구면 숨김)
+    const syncHeader=()=>{const t=(title.innerText||'').trim();title.classList.toggle('fc-default',!t||t===DEFAULT_HEADER);};
+    syncHeader();
+    new MutationObserver(()=>{syncHeader();render();}).observe(title,{childList:true,characterData:true,subtree:true});
+    const badge=$('memberNameBadge');if(badge)new MutationObserver(render).observe(badge,{childList:true,characterData:true,subtree:true});
+
+    // 프로그레스 하단 안내 문구
+    const wBar=$('memberWorkoutProgressBar'),cBar=$('memberCalorieBar');
+    const wHint=document.createElement('p');wHint.className='fc-progress-hint';wBar?.parentElement?.after(wHint);
+    const cHint=document.createElement('p');cHint.className='fc-progress-hint';cBar?.parentElement?.after(cHint);
+    let lastPct=null;
+    const renderHints=()=>{
+      const pct=parseInt(($('memberWorkoutProgressText')?.innerText||'0'),10)||0;
+      const m=($('memberWorkoutProgressSub')?.innerText||'').match(/(\d+)\s*\/\s*(\d+)/);
+      const done=m?+m[1]:0,total=m?+m[2]:0;
+      if(!total)wHint.innerHTML='코치님 루틴이 등록되면 여기서 진행률을 볼 수 있어요.';
+      else if(done>=total)wHint.innerHTML='<b>오늘 운동 완주!</b> 정말 멋져요 🏆';
+      else if(pct>=50)wHint.innerHTML='절반 넘었어요! 남은 <b>'+(total-done)+'세트</b>만 더 💪';
+      else wHint.innerHTML='총 '+total+'세트 중 <b>'+(total-done)+'세트</b> 남았어요';
+      hero.classList.toggle('fc-complete',!!total&&done>=total);
+      if(lastPct!==null&&total&&done>=total&&lastPct<100&&Date.now()-lastSetCheckAt<4000)celebrate('오늘 운동 완주!','모든 세트를 끝냈어요. 최고예요!');
+      lastPct=total?pct:null;
+      const cal=parseInt(($('memberCalorieText')?.innerText||'0').replace(/,/g,''),10)||0;
+      const target=parseInt(($('memberTargetCalorieText')?.innerText||'0').replace(/,/g,''),10)||0;
+      if(!target)cHint.textContent='';
+      else if(!cal)cHint.innerHTML='식단을 기록하면 칼로리가 채워져요 🍽️';
+      else if(cal>target)cHint.innerHTML='목표보다 <b>'+(cal-target).toLocaleString()+' kcal</b> 더 드셨어요';
+      else cHint.innerHTML='목표까지 <b>'+(target-cal).toLocaleString()+' kcal</b> 남았어요';
+    };
+    renderHints();
+    ['memberWorkoutProgressSub','memberCalorieText','memberTargetCalorieText'].forEach(id=>{const el=$(id);if(el)new MutationObserver(renderHints).observe(el,{childList:true,characterData:true,subtree:true});});
+  }
+
+  /* ---------- 2. 코치의 메시지 카드 (홈 상단) ---------- */
+  function setupCoachCard(){
+    const hero=document.querySelector('#memberView .member-goal-hero');if(!hero||$('fcCoachCard'))return;
+    const card=document.createElement('button');card.type='button';card.id='fcCoachCard';card.className='fc-coach';
+    card.setAttribute('aria-label','코치의 메시지 자세히 보기');
+    hero.after(card);
+    card.addEventListener('click',()=>go('feedback'));
+    const src={card:$('trainerFeedbackCard'),w:$('feedbackWorkoutText'),d:$('feedbackDietText'),t:$('feedbackTimeDisplay')};
+    const EMPTY='작성된 코멘트가 없습니다.';
+    const render=()=>{
+      const visible=src.card&&!src.card.classList.contains('hidden');
+      const w=visible?(src.w?.innerText||'').trim():'',d=visible?(src.d?.innerText||'').trim():'';
+      const time=(src.t?.innerText||'').replace('전송시간:','').trim();
+      let unread=false;try{unread=typeof hasUnreadFeedback==='function'&&hasUnreadFeedback();}catch(e){}
+      card.classList.toggle('fc-unread',unread);
+      const head='<div class="fc-coach-head"><span class="fc-coach-avatar"><i class="fa-solid fa-user-ninja"></i><span class="fc-dot"></span></span>'+
+        '<span><span class="fc-coach-eyebrow block">FROM COACH'+(unread?' · NEW':'')+'</span><span class="fc-coach-title" style="display:block">코치의 메시지</span></span>'+
+        (time&&(w||d)?'<span class="fc-coach-time">'+safe(time)+'</span>':'')+'</div>';
+      let body='';
+      if(w&&w!==EMPTY)body+='<div class="fc-coach-msg"><small class="w"><i class="fa-solid fa-dumbbell"></i> 운동 코멘트</small><p>'+safe(w)+'</p></div>';
+      if(d&&d!==EMPTY)body+='<div class="fc-coach-msg"><small class="d"><i class="fa-solid fa-apple-whole"></i> 식단 피드백</small><p>'+safe(d)+'</p></div>';
+      card.innerHTML=head+(body?'<div class="fc-coach-body">'+body+'</div>':'<p class="fc-coach-empty">오늘 기록을 남기면 코치님이 확인하고 피드백을 보내드려요. 도착하면 여기에 가장 먼저 보여드릴게요 ✉️</p>')+
+        '<div class="fc-coach-cta"><span>'+(body?'답장하기 · 메모 남기기':'코치님께 메모 남기기')+'</span><i class="fa-solid fa-arrow-right"></i></div>';
+    };
+    render();
+    const mo=new MutationObserver(render);
+    if(src.card)mo.observe(src.card,{attributes:true,attributeFilter:['class']});
+    [src.w,src.d,src.t].forEach(el=>el&&mo.observe(el,{childList:true,characterData:true,subtree:true}));
+    // '읽음' 상태가 바뀌는 시점(피드백 탭 진입) 반영
+    document.addEventListener('click',e=>{if(e.target.closest('[data-member-tab]'))setTimeout(render,50);});
+  }
+
+  /* ---------- 3. 세트 체크 인터랙션 ---------- */
+  const COLORS=['#c8f560','#9fe03a','#8b7bff','#5cc8ff','#ff9254','#ffffff'];
+  function burst(x,y){
+    if(reduceMotion)return;
+    const b=document.createElement('div');b.className='fc-burst';b.style.left=x+'px';b.style.top=y+'px';
+    for(let i=0;i<14;i++){
+      const p=document.createElement('i');const a=Math.PI*2*i/14+Math.random()*.4,r=34+Math.random()*30;
+      p.style.setProperty('--dx',Math.cos(a)*r+'px');p.style.setProperty('--dy',Math.sin(a)*r+'px');p.style.setProperty('--r',(Math.random()*360)+'deg');
+      p.style.background=COLORS[i%COLORS.length];b.append(p);
+    }
+    document.body.append(b);setTimeout(()=>b.remove(),800);
+  }
+  function confetti(){
+    if(reduceMotion)return;
+    const box=document.createElement('div');box.className='fc-confetti';
+    const shell=Math.min(window.innerWidth,480),left=(window.innerWidth-shell)/2;
+    for(let i=0;i<60;i++){
+      const p=document.createElement('i');
+      p.style.left=(left+Math.random()*shell)+'px';
+      p.style.background=COLORS[i%COLORS.length];
+      p.style.setProperty('--dx',(Math.random()*120-60)+'px');
+      p.style.setProperty('--r',(Math.random()*900-450)+'deg');
+      p.style.setProperty('--t',(1.6+Math.random()*1.4)+'s');
+      p.style.animationDelay=(Math.random()*.35)+'s';
+      box.append(p);
+    }
+    document.body.append(box);setTimeout(()=>box.remove(),3600);
+  }
+  function celebrate(title,sub){
+    haptic([20,40,30]);confetti();
+    const el=document.createElement('div');el.className='fc-celebrate';el.setAttribute('role','status');
+    el.innerHTML='<b>🏆</b><strong>'+safe(title)+'</strong><span>'+safe(sub)+'</span>';
+    document.body.append(el);setTimeout(()=>el.remove(),2500);
+  }
+  const CHEERS=['좋아요! 💪','나이스! 🔥','한 세트 끝! 👏','계속 가봐요! ⚡','훌륭해요! 🙌'];
+  function setupSetInteractions(){
+    const list=$('memberRoutineList');if(!list)return;
+    const markDone=()=>{
+      list.querySelectorAll(':scope > div').forEach(card=>{
+        const boxes=card.querySelectorAll('.member-set-check input');
+        card.classList.toggle('fc-ex-done',boxes.length>0&&[...boxes].every(b=>b.checked));
+      });
+    };
+    // 체크 직전(캡처 단계)에 위치/상태를 기록 → 기존 onchange가 목록을 다시 그린 뒤 효과 적용
+    document.addEventListener('change',e=>{
+      const input=e.target;
+      if(!(input instanceof HTMLInputElement)||!input.closest('#memberRoutineList .member-set-check'))return;
+      const m=(input.getAttribute('onchange')||'').match(/toggleSetDone\((\d+),\s*(\d+)/);if(!m)return;
+      const exIdx=+m[1],setIdx=+m[2],checked=input.checked;
+      if(checked)lastSetCheckAt=Date.now();
+      const rect=input.closest('label').getBoundingClientRect();
+      const wasDone=input.closest('#memberRoutineList > div')?.classList.contains('fc-ex-done');
+      requestAnimationFrame(()=>{
+        const card=list.querySelectorAll(':scope > div')[exIdx];
+        const label=card?.querySelectorAll('.member-set-check')[setIdx];
+        markDone();
+        if(!checked){haptic(8);return;}
+        haptic(18);
+        if(label){label.classList.add('fc-just');}
+        burst(rect.left+rect.width/2,rect.top+rect.height/2);
+        const nowDone=card?.classList.contains('fc-ex-done');
+        const name=(card?.querySelector('.exercise-card-title')?.childNodes[0]?.textContent||'운동').trim();
+        try{
+          if(nowDone&&!wasDone)showToast('🎉 '+name+' 완료! 다음 운동으로 가볼까요?');
+          else showToast(CHEERS[Math.floor(Math.random()*CHEERS.length)]);
+        }catch(err){}
+      });
+    },true);
+    new MutationObserver(markDone).observe(list,{childList:true});
+    markDone();
+  }
+
+  /* ---------- 4. 데일리 체크인 버튼 햅틱 ---------- */
+  function setupCheckinHaptics(){
+    document.addEventListener('click',e=>{
+      if(e.target.closest('#memberDailyCheckin [data-check-field],#memberBottomNav button,button[onclick^="adjustWater"]'))haptic(10);
+    },true);
+  }
+
+  /* ---------- 5. 홈 카드 순서: 히어로 → 코치 메시지 → 체크인 → 다음 할 일 → 기록 ---------- */
+  function orderHome(){
+    const home=$('memberHomePage');if(!home)return;
+    const hero=home.querySelector('.member-goal-hero'),coach=$('fcCoachCard');
+    if(hero&&home.firstElementChild!==hero)home.prepend(hero);
+    if(hero&&coach)hero.after(coach);
+  }
+
+  function init(){
+    try{setupHero();}catch(e){console.warn('[premium] hero',e);}
+    try{setupCoachCard();}catch(e){console.warn('[premium] coach',e);}
+    try{orderHome();}catch(e){console.warn('[premium] order',e);}
+    try{setupSetInteractions();}catch(e){console.warn('[premium] sets',e);}
+    try{setupCheckinHaptics();}catch(e){console.warn('[premium] haptics',e);}
+    const meta=document.querySelector('meta[name="theme-color"]')||Object.assign(document.createElement('meta'),{name:'theme-color'});
+    meta.content='#0a0c11';document.head.append(meta);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+
   </script>
 </body>
 </html>

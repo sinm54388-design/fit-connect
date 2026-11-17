@@ -12,7 +12,7 @@
 // MEMBER_SESSION_HOURS.
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
 const MEMBER_SESSION_HOURS=8;
-const MEMBER_ACTIONS=['read','workoutHistory','memberInsights'];
+const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead'];
 const b64url={
   encode:bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
   decode:text=>{
@@ -287,7 +287,7 @@ async function handleRecords(request,env) {
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
   // Member path: either exchange a member link for a session, or use a session.
-  if((action==='videoPlaybackUrl'||directVideo)&&input.password===undefined){
+  if((action==='videoPlaybackUrl'||directVideo)&&input.password===undefined&&input.session===undefined){
     if(!member||member.length>100||typeof input.token!=='string'||!input.token||input.token.length>200||!validDay(date))return json({status:'denied'},403);
     try{if(!await appsScriptAcceptsMember(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
   } else if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {

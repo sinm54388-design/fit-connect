@@ -1,3 +1,4 @@
+const APPROVED_VIDEO_COPY={"member": "김윤지", "fileId": "163H14Nzkyky0LgAURwQ3wK1hJrlrm4ZE", "name": "ㅇㅇ", "sourceId": "a4feb824-8d87-4cac-9afc-9bff7cbc2093", "size": 12709733, "mime": "video/mp4", "sha256": "ece5c2712f647d911bdae1d78d8d7ce198aba3e8d363228ce1f34e99c4b691cd"};
 // FIT-CONNECT Cloudflare preview: read-only Supabase endpoint
 // (daily record read, trainer password check, trainer dashboard summary,
 // workout history calendar).
@@ -274,6 +275,94 @@ function buildMemberInsights(rows,date) {
       previous:monthlyStat(monthly.previous),inbodyChange:null},
     progress:exercises};
 }
+// One approved original file only. No source deletion, feedback edits, or general import route.
+function copyBytesFromBase64(value){
+  const raw=atob(String(value||'').replace(/\s/g,''));
+  const bytes=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  return bytes;
+}
+async function approvedVideoDigest(bytes){
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function handleApprovedVideoCopy(action,input,env,memberId,supaGet,base,key){
+  const job=APPROVED_VIDEO_COPY;
+  const copyError=code=>Object.assign(Error(code),{diagnostic:code});
+  if(String(input.member||'').trim()!==job.member)return json({status:'denied',code:'copy_scope_denied'},403);
+  const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'};
+  const path='copies-20261117/'+String(memberId)+'/'+job.sha256+'.mp4';
+  const encoded=path.split('/').map(encodeURIComponent).join('/');
+  const send=async(route,method,body,extra={})=>{
+    const response=await fetch(base+route,{method,headers:{...headers,...extra},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(30000)});
+    if(!response.ok)throw copyError('copy_storage_http_'+response.status);
+    const raw=await response.text();return raw?JSON.parse(raw):null;
+  };
+  const scope='/rest/v1/fit_video_metadata?select=id,source_id,file_id,storage_path&member_id=eq.'+encodeURIComponent(memberId)+'&kind=eq.form&source_id=eq.'+encodeURIComponent(job.sourceId)+'&limit=2';
+  let rows=await supaGet(scope,'copy_existing');
+  if(rows.length>1||(rows[0]&&(rows[0].file_id!==job.fileId||(rows[0].storage_path&&rows[0].storage_path!==path))))return json({status:'error',code:'copy_existing_link_conflict'},409);
+  const signRead=async()=>{
+    const signed=await send('/storage/v1/object/sign/fit-private-videos/'+encoded,'POST',{expiresIn:300});
+    const partial=String(signed?.signedURL||signed?.signedUrl||'');if(!partial)throw copyError('copy_read_signature_missing');
+    const url=new URL(partial.startsWith('/object/')?'/storage/v1'+partial:partial,base);
+    if(url.origin!==base)throw copyError('copy_read_origin_invalid');return url.toString();
+  };
+  const confirmSource=async()=>{
+    const upstream=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},redirect:'follow',body:JSON.stringify({action:'listFormVideos',member:job.member,date:input.date,password:env.TRAINER_PASSWORD}),signal:AbortSignal.timeout(60000)});
+    if(!upstream.ok)throw copyError('copy_source_http_'+upstream.status);
+    const source=await upstream.json();
+    if(source?.status!=='success'||!Array.isArray(source.videos)||!source.videos.some(v=>String(v.id)===job.sourceId&&String(v.fileId)===job.fileId))return false;
+    return true;
+  };
+  const verifyAndLink=async()=>{
+    const playbackUrl=await signRead();
+    const uploaded=await fetch(playbackUrl,{signal:AbortSignal.timeout(30000)});
+    if(!uploaded.ok)throw copyError('copy_verify_http_'+uploaded.status);
+    const declared=Number(uploaded.headers.get('Content-Length')||0);
+    if(declared&&declared!==job.size)return json({status:'error',code:'copy_size_mismatch'},409);
+    const bytes=new Uint8Array(await uploaded.arrayBuffer());
+    if(bytes.byteLength!==job.size)return json({status:'error',code:'copy_size_mismatch'},409);
+    const digest=await approvedVideoDigest(bytes);
+    if(digest!==job.sha256)return json({status:'error',code:'copy_hash_mismatch'},409);
+    if(!rows[0]){
+      await send('/rest/v1/fit_video_metadata?on_conflict=member_id,kind,source_id','POST',{member_id:memberId,kind:'form',source_id:job.sourceId,file_id:job.fileId,storage_path:path},{Prefer:'resolution=ignore-duplicates,return=minimal'});
+    }else if(!rows[0].storage_path){
+      await send('/rest/v1/fit_video_metadata?id=eq.'+encodeURIComponent(rows[0].id)+'&member_id=eq.'+encodeURIComponent(memberId)+'&storage_path=is.null','PATCH',{storage_path:path},{Prefer:'return=minimal'});
+    }
+    const final=await supaGet(scope,'copy_confirm');
+    if(final.length!==1||final[0].file_id!==job.fileId||final[0].storage_path!==path)return json({status:'error',code:'copy_link_conflict'},409);
+    return json({status:'success',verified:true,bytes:job.size,sha256:digest,url:playbackUrl});
+  };
+  if(action==='approvedVideoCopyBegin'){
+    if(!await confirmSource())return json({status:'denied',code:'copy_source_not_confirmed'},403);
+    if(rows[0]?.storage_path===path)return json({status:'success',alreadyLinked:true,expected:{size:job.size,mime:job.mime,sha256:job.sha256}});
+    const signed=await send('/storage/v1/object/upload/sign/fit-private-videos/'+encoded,'POST',{});
+    const partial=String(signed?.url||signed?.signedURL||'');if(!partial)throw copyError('copy_upload_signature_missing');
+    const url=new URL(partial.startsWith('/object/')?'/storage/v1'+partial:partial,base);
+    if(url.origin!==base)throw copyError('copy_upload_origin_invalid');
+    return json({status:'success',uploadUrl:url.toString(),expected:{size:job.size,mime:job.mime,sha256:job.sha256}});
+  }
+  if(action==='approvedVideoCopyServer'){
+    if(!await confirmSource())return json({status:'denied',code:'copy_source_not_confirmed'},403);
+    if(!rows[0]?.storage_path){
+      const source=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},redirect:'follow',body:JSON.stringify({action:'videoDownload',member:job.member,date:input.date,password:env.TRAINER_PASSWORD,fileId:job.fileId}),signal:AbortSignal.timeout(60000)});
+      if(!source.ok)throw copyError('copy_download_http_'+source.status);
+      const payload=await source.json();
+      if(payload?.status!=='success'||String(payload.mime||'')!==job.mime)return json({status:'error',code:'copy_download_invalid'},502);
+      const bytes=copyBytesFromBase64(payload.base64);
+      if(bytes.byteLength!==job.size)return json({status:'error',code:'copy_source_size_mismatch'},409);
+      if(await approvedVideoDigest(bytes)!==job.sha256)return json({status:'error',code:'copy_source_hash_mismatch'},409);
+      const signed=await send('/storage/v1/object/upload/sign/fit-private-videos/'+encoded,'POST',{});
+      const partial=String(signed?.url||signed?.signedURL||'');if(!partial)throw copyError('copy_upload_signature_missing');
+      const url=new URL(partial.startsWith('/object/')?'/storage/v1'+partial:partial,base);
+      if(url.origin!==base)throw copyError('copy_upload_origin_invalid');
+      const write=await fetch(url.toString(),{method:'PUT',headers:{'Content-Type':job.mime},body:bytes,signal:AbortSignal.timeout(60000)});
+      if(!write.ok&&write.status!==409)throw copyError('copy_upload_http_'+write.status);
+    }
+    return verifyAndLink();
+  }
+  return verifyAndLink();
+}
+
 async function handleRecords(request,env) {
   if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
   if(Number(request.headers.get('content-length')||0)>16384)
@@ -281,8 +370,9 @@ async function handleRecords(request,env) {
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
+  const approvedCopy=['approvedVideoCopyBegin','approvedVideoCopyFinish','approvedVideoCopyServer'].includes(action);
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action)&&!directVideo&&!approvedCopy)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -314,7 +404,7 @@ async function handleRecords(request,env) {
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify')return json({status:'success'});
   }
-  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl';
+  const needsMember=approvedCopy||directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -376,6 +466,7 @@ async function handleRecords(request,env) {
       rememberMember(member,memberId);
     }
     const lookupMs=performance.now()-start;
+    if(approvedCopy)return await handleApprovedVideoCopy(action,input,env,memberId,supaGet,base,key);
     if(directVideo){
       const trainer=input.password!==undefined;
       const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'};
@@ -528,3 +619,4 @@ export default {
     return env.ASSETS.fetch(request);
   }
 };
+

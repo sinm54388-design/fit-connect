@@ -12,7 +12,7 @@
 // MEMBER_SESSION_HOURS.
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
 const MEMBER_SESSION_HOURS=8;
-const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead'];
+const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','dailyCheckin'];
 const b64url={
   encode:bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
   decode:text=>{
@@ -282,7 +282,7 @@ async function handleRecords(request,env) {
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -314,7 +314,7 @@ async function handleRecords(request,env) {
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify')return json({status:'success'});
   }
-  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl';
+  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -376,6 +376,29 @@ async function handleRecords(request,env) {
       rememberMember(member,memberId);
     }
     const lookupMs=performance.now()-start;
+    if(action==='dailyCheckin'){
+      const raw=input.checkin;
+      if(!raw||typeof raw!=='object'||Array.isArray(raw))return json({status:'error',code:'invalid_checkin'},400);
+      const workout=['done','rest'].includes(raw.workout)?raw.workout:undefined;
+      const diet=['done','partial'].includes(raw.diet)?raw.diet:undefined;
+      const mood=['good','normal','tired'].includes(raw.mood)?raw.mood:undefined;
+      if(!workout&&!diet&&!mood)return json({status:'error',code:'invalid_checkin'},400);
+      const checkin={...(workout?{workout}:{}),...(diet?{diet}:{}),...(mood?{mood}:{}),updatedAt:new Date().toISOString()};
+      const rows=await supaGet('/rest/v1/fit_daily_records?select=id,data&member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=2','daily_checkin_read');
+      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
+      let saved;
+      if(rows.length){
+        const data={...(rows[0].data||{}),dailyCheckin:checkin};
+        const response=await fetch(base+'/rest/v1/fit_daily_records?id=eq.'+encodeURIComponent(rows[0].id),{method:'PATCH',headers,body:JSON.stringify({data,updated_at:new Date().toISOString()}),signal:AbortSignal.timeout(8000)});
+        if(!response.ok)throw Error('daily_checkin_write_'+response.status);
+        saved=(await response.json())[0]?.data||data;
+      }else{
+        const response=await fetch(base+'/rest/v1/fit_daily_records',{method:'POST',headers,body:JSON.stringify({member_id:memberId,record_date:date,data:{dailyCheckin:checkin}}),signal:AbortSignal.timeout(8000)});
+        if(!response.ok)throw Error('daily_checkin_insert_'+response.status);
+        saved=(await response.json())[0]?.data||{dailyCheckin:checkin};
+      }
+      return json({status:'success',data:saved});
+    }
     if(directVideo){
       const trainer=input.password!==undefined;
       const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'};

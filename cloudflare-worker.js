@@ -363,6 +363,70 @@ async function handleApprovedVideoCopy(action,input,env,memberId,supaGet,base,ke
   return verifyAndLink();
 }
 
+// Trainer-authorized legacy form-video migration. Each request copies exactly
+// one canonical Apps Script video, validates bytes + SHA-256, then creates a
+// private Storage mapping. No Drive source, feedback or daily record is edited.
+async function handleLegacyFormVideoCopy(input,env,memberId,supaGet,base,key){
+  const copyError=code=>Object.assign(Error(code),{diagnostic:code});
+  const member=String(input.member||'').trim();
+  const sourceId=String(input.sourceId||'').trim();
+  const fileId=String(input.fileId||'').trim();
+  if(!member||member.length>100||!sourceId||sourceId.length>200||!fileId||fileId.length>200)
+    return json({status:'error',code:'legacy_copy_invalid_target'},400);
+  const upstream=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},redirect:'follow',
+    body:JSON.stringify({action:'listFormVideos',member,date:input.date,password:env.TRAINER_PASSWORD}),signal:AbortSignal.timeout(60000)});
+  if(!upstream.ok)throw copyError('legacy_copy_list_http_'+upstream.status);
+  const listed=await upstream.json();
+  const canonical=listed?.status==='success'&&Array.isArray(listed.videos)
+    ?listed.videos.find(v=>String(v?.id)===sourceId&&String(v?.fileId)===fileId):null;
+  if(!canonical)return json({status:'denied',code:'legacy_copy_source_not_confirmed'},403);
+  const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'};
+  const send=async(route,method,body,extra={})=>{
+    const response=await fetch(base+route,{method,headers:{...headers,...extra},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(60000)});
+    if(!response.ok)throw copyError('legacy_copy_storage_http_'+response.status);
+    const raw=await response.text();return raw?JSON.parse(raw):null;
+  };
+  const scope='/rest/v1/fit_video_metadata?select=id,file_id,storage_path&member_id=eq.'+encodeURIComponent(memberId)+'&kind=eq.form&source_id=eq.'+encodeURIComponent(sourceId)+'&limit=2';
+  const rows=await supaGet(scope,'legacy_copy_existing');
+  if(rows.length>1||(rows[0]&&String(rows[0].file_id)!==fileId))return json({status:'error',code:'legacy_copy_existing_link_conflict'},409);
+  const signRead=async path=>{
+    const signed=await send('/storage/v1/object/sign/fit-private-videos/'+path.split('/').map(encodeURIComponent).join('/'),'POST',{expiresIn:300});
+    const partial=String(signed?.signedURL||signed?.signedUrl||'');if(!partial)throw copyError('legacy_copy_read_signature_missing');
+    const url=new URL(partial.startsWith('/object/')?'/storage/v1'+partial:partial,base);
+    if(url.origin!==base)throw copyError('legacy_copy_read_origin_invalid');return url.toString();
+  };
+  if(rows[0]?.storage_path)return json({status:'success',alreadyLinked:true,sourceId,fileId,url:await signRead(String(rows[0].storage_path))});
+  const source=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},redirect:'follow',
+    body:JSON.stringify({action:'videoDownload',member,date:input.date,password:env.TRAINER_PASSWORD,fileId}),signal:AbortSignal.timeout(60000)});
+  if(!source.ok)throw copyError('legacy_copy_download_http_'+source.status);
+  const payload=await source.json();
+  const mime=String(payload?.mime||'');
+  if(payload?.status!=='success'||!['video/mp4','video/webm','video/quicktime'].includes(mime))return json({status:'error',code:'legacy_copy_download_invalid'},502);
+  const bytes=copyBytesFromBase64(payload.base64);
+  if(bytes.byteLength<1||bytes.byteLength>50000000)return json({status:'error',code:'legacy_copy_size_rejected'},413);
+  const digest=await approvedVideoDigest(bytes);
+  const ext={ 'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}[mime];
+  const path='legacy-20261118/'+String(memberId)+'/'+digest+'.'+ext;
+  const signed=await send('/storage/v1/object/upload/sign/fit-private-videos/'+path.split('/').map(encodeURIComponent).join('/'),'POST',{});
+  const partial=String(signed?.url||signed?.signedURL||'');if(!partial)throw copyError('legacy_copy_upload_signature_missing');
+  const url=new URL(partial.startsWith('/object/')?'/storage/v1'+partial:partial,base);
+  if(url.origin!==base)throw copyError('legacy_copy_upload_origin_invalid');
+  const write=await fetch(url.toString(),{method:'PUT',headers:{'Content-Type':mime},body:bytes,signal:AbortSignal.timeout(60000)});
+  if(!write.ok&&write.status!==409)throw copyError('legacy_copy_upload_http_'+write.status);
+  const copied=await fetch(await signRead(path),{signal:AbortSignal.timeout(30000)});
+  if(!copied.ok)throw copyError('legacy_copy_verify_http_'+copied.status);
+  const copiedBytes=new Uint8Array(await copied.arrayBuffer());
+  if(copiedBytes.byteLength!==bytes.byteLength||await approvedVideoDigest(copiedBytes)!==digest)return json({status:'error',code:'legacy_copy_hash_mismatch'},409);
+  if(!rows[0]){
+    await send('/rest/v1/fit_video_metadata?on_conflict=member_id,kind,source_id','POST',{member_id:memberId,kind:'form',source_id:sourceId,file_id:fileId,storage_path:path},{Prefer:'resolution=ignore-duplicates,return=minimal'});
+  }else{
+    await send('/rest/v1/fit_video_metadata?id=eq.'+encodeURIComponent(rows[0].id)+'&member_id=eq.'+encodeURIComponent(memberId)+'&storage_path=is.null','PATCH',{storage_path:path},{Prefer:'return=minimal'});
+  }
+  const final=await supaGet(scope,'legacy_copy_confirm');
+  if(final.length!==1||String(final[0].file_id)!==fileId||String(final[0].storage_path)!==path)return json({status:'error',code:'legacy_copy_link_conflict'},409);
+  return json({status:'success',verified:true,sourceId,fileId,bytes:bytes.byteLength,sha256:digest,url:await signRead(path)});
+}
+
 async function handleRecords(request,env) {
   if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
   if(Number(request.headers.get('content-length')||0)>16384)
@@ -371,8 +435,9 @@ async function handleRecords(request,env) {
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
   const approvedCopy=['approvedVideoCopyBegin','approvedVideoCopyFinish','approvedVideoCopyServer'].includes(action);
+  const legacyCopy=action==='legacyFormVideoCopy';
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action)&&!directVideo&&!approvedCopy)
+  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl'].includes(action)&&!directVideo&&!approvedCopy&&!legacyCopy)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -404,7 +469,7 @@ async function handleRecords(request,env) {
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify')return json({status:'success'});
   }
-  const needsMember=approvedCopy||directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl';
+  const needsMember=approvedCopy||legacyCopy||directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -467,6 +532,7 @@ async function handleRecords(request,env) {
     }
     const lookupMs=performance.now()-start;
     if(approvedCopy)return await handleApprovedVideoCopy(action,input,env,memberId,supaGet,base,key);
+    if(legacyCopy)return await handleLegacyFormVideoCopy(input,env,memberId,supaGet,base,key);
     if(directVideo){
       const trainer=input.password!==undefined;
       const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'};

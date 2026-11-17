@@ -2184,9 +2184,14 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       try{localStorage.removeItem(MEMBER_SESSION_STORE+member);}catch{}
     }
     let memberSessionRequest=null;
+    // A member link is checked once, then the Worker issues a short-lived session.
+    // Video upload uses the same session so a large-file transfer never waits for
+    // Apps Script at every begin/finish/list/play step.
     function ensureMemberSession(context) {
-      if(!fastDbPilot||context.mode!=='member'||!context.member||!context.token)return;
-      if(memberSessionRequest||storedMemberSession(context.member))return;
+      if(context.mode!=='member'||!context.member||!context.token)return Promise.resolve('');
+      const saved=storedMemberSession(context.member);
+      if(saved)return Promise.resolve(saved);
+      if(memberSessionRequest)return memberSessionRequest;
       const started=performance.now();
       memberSessionRequest=fetch('/api/records',{method:'POST',cache:'no-store',
         headers:{'Content-Type':'application/json'},
@@ -2199,10 +2204,13 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
           if(ok){
             try{localStorage.setItem(MEMBER_SESSION_STORE+context.member,
               JSON.stringify({session:result.session,exp:Number(result.exp)}));}catch{}
+            return result.session;
           }
+          return '';
         })
-        .catch(()=>perfMark('회원 출입증 발급 실패 · 네트워크',performance.now()-started,false))
+        .catch(()=>{perfMark('회원 출입증 발급 실패 · 네트워크',performance.now()-started,false);return '';})
         .finally(()=>{memberSessionRequest=null;});
+      return memberSessionRequest;
     }
     // Credentials for the preview server: trainer password, or a member session.
     function fastReadAuth(context) {
@@ -4475,9 +4483,21 @@ try {
         attachVideo(url,'Drive 대체 조회 ('+streamReason+')');
       }catch(e){alert(e.message);button.textContent='▶ 다시 재생 시도';button.dataset.loading='0';}
     }
-    async function directVideoRequest(body){
-      const response=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+    async function directVideoRequest(body,retried=false){
+      let payload=body;
+      // Keep the member token only for exchanging a session; subsequent video
+      // calls avoid an Apps Script round trip and remain scoped to this member.
+      if(currentMode==='member'&&body?.password===undefined&&body?.member&&body?.token){
+        const session=await ensureMemberSession({mode:'member',member:body.member,token:body.token,date:body.date});
+        if(session){payload={...body,session};delete payload.token;}
+      }
+      const response=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'});
       const result=await response.json();
+      // If a saved session has just expired, renew it once and retry safely.
+      if(!retried&&payload.session&&result?.code==='session_invalid'){
+        forgetMemberSession(String(body.member||''));
+        return directVideoRequest(body,true);
+      }
       if(!response.ok||result.status!=='success')throw Error(result.code||result.message||'영상 서버 오류');
       return result;
     }
@@ -4585,7 +4605,28 @@ try {
       let job=directVideoUploads.get(file);
       if(!job||job.member!==creds.member||job.token!==creds.token){
         let output=file;
-        if(file.size>directLimit){const t=performance.now();setVideoUploadStatus('고화질 영상 압축 중…');showToast('50MB 초과 · 고화질 영상 압축 중');let lastProgress=-1;const report=(label,p)=>{if(p!==lastProgress){lastProgress=p;setVideoUploadStatus(label+' '+p+'%',p);}};try{output=await compressFastMemberVideo(file,meta,p=>report('고속 압축',p));compressionRoute='고속 압축';setVideoUploadStatus('고속 압축 완료',100);}catch(err){compressionRoute='기본 압축';compressionDiagnostic=String(err?.message||'unknown').replace(/https?:\/\/\S+/g,'[주소]').slice(0,180);lastProgress=-1;setVideoUploadStatus('기본 압축으로 전환',0);output=await compressPrivateVideo(file,p=>report('기본 압축',p));}compressionMs=performance.now()-t;}
+        // A file just under 50MB used to bypass compression completely. On mobile
+        // uplinks that is the slowest case. Compress only when the 5Mbps high-quality
+        // result is estimated to save at least 18%, and only on fast WebCodecs.
+        const estimatedFastBytes=Math.ceil(meta.duration*5128000/8*1.12);
+        const canFastCompress=typeof VideoEncoder!=='undefined'&&typeof VideoDecoder!=='undefined';
+        const shouldFastCompress=canFastCompress&&file.size>20000000&&estimatedFastBytes<file.size*0.82;
+        if(file.size>directLimit||shouldFastCompress){
+          const t=performance.now();setVideoUploadStatus('고화질 영상 압축 중…');
+          showToast(file.size>directLimit?'50MB 초과 · 고화질 영상 압축 중':'더 빠른 전송을 위해 고화질 압축 중');
+          let lastProgress=-1;const report=(label,p)=>{if(p!==lastProgress){lastProgress=p;setVideoUploadStatus(label+' '+p+'%',p);}};
+          try{
+            output=await compressFastMemberVideo(file,meta,p=>report('고속 압축',p));
+            compressionRoute='고속 압축';setVideoUploadStatus('고속 압축 완료',100);
+            // Do not replace a smaller source with a larger or near-identical file.
+            if(file.size<=directLimit&&output.size>=file.size*0.94){output=file;compressionRoute='원본 유지';}
+          }catch(err){
+            compressionDiagnostic=String(err?.message||'unknown').replace(/https?:\/\/\S+/g,'[주소]').slice(0,180);
+            if(file.size<=directLimit){output=file;compressionRoute='원본 유지';}
+            else {compressionRoute='기본 압축';lastProgress=-1;setVideoUploadStatus('기본 압축으로 전환',0);output=await compressPrivateVideo(file,p=>report('기본 압축',p));}
+          }
+          compressionMs=performance.now()-t;
+        }
         if(output.size>directLimit)throw Error('압축 영상이 50MB를 초과했어요.');
         job={member:creds.member,token:creds.token,id:crypto.randomUUID(),file:output,sent:false};
         directVideoUploads.set(file,job);

@@ -1885,25 +1885,26 @@ body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-pag
     function feedbackSeenStorageKey(){return FEEDBACK_SEEN_STORE+encodeURIComponent(activeMemberName||'');}
     function hasUnreadFeedback(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return false;try{return localStorage.getItem(feedbackSeenStorageKey())!==fingerprint;}catch{return true;}}
     function markCurrentFeedbackSeen(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return;try{localStorage.setItem(feedbackSeenStorageKey(),fingerprint);}catch{}renderMemberHomeSignals();renderMemberNextStep();}
+    // 오늘 체크는 트레이너 화면이 읽는 구글 시트(정본)에 메모 형태로 저장하고,
+    // 빠른 조회용 Supabase에도 함께 기록합니다. (예전에는 Supabase에만 저장되어
+    // 트레이너 화면이 시트에서 읽을 때 체크가 보이지 않았습니다.)
     async function saveDailyCheckin(field,value){
       if(currentMode!=='member'||!appData)return;
-      const context=getSaveContext(),checkin={...readDailyCheckin(appData),[field]:value};
-      setSaveStatus('saving','오늘 체크 저장 중...');
-      try{
-        const session=await ensureMemberSession(context);
-        if(!session)throw Error('session_unavailable');
-        const response=await fetch('/api/records',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dailyCheckin',member:context.member,date:context.date,session,checkin})});
-        const result=await response.json();
-        if(!response.ok||result?.status!=='success'||!result.data)throw Error(result?.code||'save_failed');
-        if(isCurrentSaveContext(context)){
-          appData=normalizeData(result.data);
-          rememberRecord(context,appData);renderUI();
-          setSaveStatus('saved','저장 완료 ✓ · 오늘 체크가 반영됐어요');showToast('오늘 체크 저장 완료 ✓');
-        }
-      }catch(error){
-        console.error('오늘 체크 저장 실패',error);
-        if(isCurrentSaveContext(context))setSaveStatus('error','오늘 체크 저장 실패 · 연결을 확인하고 다시 시도해주세요');
-      }
+      const context=getSaveContext();
+      const checkin={...readDailyCheckin(appData),[field]:value,updatedAt:new Date().toISOString()};
+      const memo={id:'checkin-'+context.date,from:'member',text:DAILY_CHECKIN_PREFIX+JSON.stringify(checkin),time:nowTimeStr()};
+      const apply=d=>{d.memos=(Array.isArray(d.memos)?d.memos:[]).filter(m=>!isDailyCheckinMemo(m));d.memos.push(memo);};
+      const saving=updateAndSave(apply);
+      // 누르는 즉시 선택 상태를 보여줍니다(저장 결과가 오면 다시 그려짐).
+      document.querySelectorAll('#memberDailyCheckin [data-check-field="'+field+'"]').forEach(btn=>btn.classList.toggle('text-white',btn.dataset.checkValue===value));
+      // 빠른 조회용 사본(실패해도 시트 저장에는 영향 없음)
+      ensureMemberSession(context).then(session=>{
+        if(!session)return;
+        const {updatedAt,...fastCheckin}=checkin;
+        return fetch('/api/records',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dailyCheckin',member:context.member,date:context.date,session,checkin:fastCheckin})});
+      }).catch(e=>console.warn('오늘 체크 빠른 조회 사본 저장 실패',e));
+      const ok=await saving;
+      if(ok&&isCurrentSaveContext(context))showToast('오늘 체크 저장 완료 ✓ · 코치님께 전달됐어요');
     }
     function setupMemberHomeSignals(){
       const home=document.getElementById('memberHomePage');if(!home||document.getElementById('memberDailyCheckin'))return;
@@ -4146,54 +4147,96 @@ body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-pag
         showToast('회원 목표 저장 완료');await loadMemberInsights(true);
       }catch(err){alert('목표 저장 실패: '+err.message);}
     }
+    // 식단 사진: 업로드 크기를 줄이고(최대 1080px, 약 300KB 내외),
+    // 올리는 즉시 미리보기를 보여주며, 한 번 받은 사진은 다시 내려받지 않습니다.
+    const PHOTO_MAX_SIDE=1080, PHOTO_TARGET_BYTES=450000, PHOTO_HARD_LIMIT=1400000;
+    const photoCache=new Map();            // fileId -> Promise<dataURL>
+    const pendingMealPhotos={};            // meal -> [{id,url}]
+    function cachePhoto(fileId,promise){
+      photoCache.delete(fileId);photoCache.set(fileId,promise);
+      if(photoCache.size>80)photoCache.delete(photoCache.keys().next().value);
+      promise.catch(()=>{if(photoCache.get(fileId)===promise)photoCache.delete(fileId);});
+      return promise;
+    }
     async function compressPhoto(file) {
       if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 첨부할 수 있어요.');
-      const bitmap=await createImageBitmap(file);
-      const scale=Math.min(1,1200/Math.max(bitmap.width,bitmap.height));
+      let bitmap;
+      try{bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});}catch{bitmap=await createImageBitmap(file);}
+      const scale=Math.min(1,PHOTO_MAX_SIDE/Math.max(bitmap.width,bitmap.height));
       const canvas=document.createElement('canvas');
       canvas.width=Math.round(bitmap.width*scale); canvas.height=Math.round(bitmap.height*scale);
-      canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
-      bitmap.close();
-      let quality=.82, blob;
-      do {blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));quality-=.12;}
-      while(blob&&blob.size>1400000&&quality>.25);
-      if(!blob||blob.size>1400000) throw new Error('사진을 압축할 수 없어요.');
-      return await new Promise((resolve,reject)=>{
-        const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(blob);
+      const ctx=canvas.getContext('2d');ctx.imageSmoothingQuality='high';
+      ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+      bitmap.close&&bitmap.close();
+      let quality=.74, blob;
+      do {blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));quality-=.1;}
+      while(blob&&blob.size>PHOTO_TARGET_BYTES&&quality>.4);
+      if(!blob||blob.size>PHOTO_HARD_LIMIT) throw new Error('사진을 압축할 수 없어요.');
+      const dataUrl=await new Promise((resolve,reject)=>{
+        const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(blob);
       });
+      return {dataUrl,base64:dataUrl.split(',')[1]};
     }
     async function uploadMealPhoto(meal,input) {
       const file=input.files?.[0];if(!file)return;
+      input.value='';
+      const context=getSaveContext();
+      const pending={id:Date.now()+'-'+Math.random().toString(36).slice(2,6),url:''};
       try {
-        showToast('사진을 압축하고 업로드하는 중...');
-        const base64=await compressPhoto(file);
+        try{pending.url=URL.createObjectURL(file);}catch{}
+        (pendingMealPhotos[meal]=pendingMealPhotos[meal]||[]).push(pending);
+        renderMealPhotos();
+        showToast('사진 올리는 중... 다른 기록을 계속해도 돼요');
+        const {dataUrl,base64}=await compressPhoto(file);
+        const before=new Set((appData?.diet?.[meal]?.photos||[]).map(p=>p.fileId));
         const result=await apiPost({...apiCredentials(),action:'uploadPhoto',meal,mime:'image/jpeg',base64});
         if(result.status!=='success')throw new Error(result.message||'업로드 실패');
-        
-showToast('사진 업로드 완료!');
-try {
-  await loadDataFromCloud();
-} catch (refreshError) {
-  console.error('사진 업로드 후 새로고침 오류:', refreshError);
-  alert('사진은 저장됐지만 화면 새로고침에 실패했습니다: ' + refreshError.message);
-}
-
-      }catch(e){console.error(e);alert('사진 업로드 실패: '+e.message);}
-      finally{input.value='';}
+        const newId=result.fileId||result.photo?.fileId||result.data?.fileId;
+        if(newId)cachePhoto(newId,Promise.resolve(dataUrl));
+        if(isCurrentSaveContext(context)){
+          try{
+            const latest=await fetchLatest(context,true);
+            if(isCurrentSaveContext(context)){
+              (latest.diet?.[meal]?.photos||[]).filter(p=>!before.has(p.fileId)&&!photoCache.has(p.fileId)).forEach(p=>cachePhoto(p.fileId,Promise.resolve(dataUrl)));
+              appData=latest;rememberRecord(context,latest);
+              pendingMealPhotos[meal]=(pendingMealPhotos[meal]||[]).filter(p=>p!==pending);
+              renderUI();
+            }
+          }catch(refreshError){console.warn('사진 업로드 후 새로고침 오류:',refreshError);}
+        }
+        showToast('사진 업로드 완료 ✓');
+      }catch(e){console.error(e);showToast('사진 업로드 실패: '+(e.message||'다시 시도해주세요'));}
+      finally{
+        pendingMealPhotos[meal]=(pendingMealPhotos[meal]||[]).filter(p=>p!==pending);
+        if(pending.url)setTimeout(()=>URL.revokeObjectURL(pending.url),5000);
+        if(appData&&currentMode==='member')renderMealPhotos();
+      }
     }
-    async function photoData(fileId,meal) {
-      const r=await apiPost({...apiCredentials(),action:'photo',fileId,meal});
-      if(r.status!=='success')throw new Error(r.message||'사진 불러오기 실패');
-      return `data:${r.mime};base64,${r.base64}`;
+    function photoData(fileId,meal) {
+      if(photoCache.has(fileId))return photoCache.get(fileId);
+      return cachePhoto(fileId,apiPost({...apiCredentials(),action:'photo',fileId,meal}).then(r=>{
+        if(r.status!=='success')throw new Error(r.message||'사진 불러오기 실패');
+        return `data:${r.mime};base64,${r.base64}`;
+      }));
     }
     function renderMealPhotos() {
       MEAL_KEYS.forEach(meal=>{
         const item=appData.diet?.[meal]||{};
-        const box=document.getElementById('photos-'+meal);box.innerHTML='';
+        const box=document.getElementById('photos-'+meal);
         const feedback=document.getElementById('photo-feedback-'+meal);
         feedback.textContent=item.photoFeedback?'코치 피드백: '+item.photoFeedback:'';
         feedback.classList.toggle('hidden',!item.photoFeedback);
-        (item.photos||[]).forEach(p=>appendPrivatePhoto(box,p,meal));
+        const photos=item.photos||[], pend=pendingMealPhotos[meal]||[];
+        const signature=photos.map(p=>p.fileId).join(',')+'|'+pend.map(p=>p.id).join(',');
+        if(box.dataset.photoSig===signature&&box.childElementCount)return; // 같은 사진이면 다시 그리지 않음
+        box.dataset.photoSig=signature;box.innerHTML='';
+        photos.forEach(p=>appendPrivatePhoto(box,p,meal));
+        pend.forEach(p=>{
+          const holder=document.createElement('div');holder.className='relative aspect-square rounded-lg bg-slate-800 overflow-hidden flex items-center justify-center text-[10px] text-slate-400';
+          if(p.url){const img=document.createElement('img');img.src=p.url;img.alt='업로드 중인 사진';img.className='w-full h-full object-cover opacity-60';holder.appendChild(img);}
+          const tag=document.createElement('span');tag.className='absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-bold text-center py-1';tag.textContent='올리는 중…';holder.appendChild(tag);
+          box.appendChild(holder);
+        });
       });
     }
     function appendPrivatePhoto(box,photo,meal) {

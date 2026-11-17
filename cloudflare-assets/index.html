@@ -3594,12 +3594,15 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         return !!(String(m.desc||'').trim()||(m.photos||[]).length);
       }).length;
       const photoCount=MEAL_KEYS.reduce((n,k)=>n+(data.diet?.[k]?.photos||[]).length,0);
-      const glance=[
-        ['운동 완료',`${done}/${total}세트`,'text-brand-400'],
-        ['식단 기록',`${meals}/4끼`,'text-amber-300'],
-        ['식단 사진',`${photoCount}장`,'text-sky-300'],
-        ['운동 소감',data.reflection?.good||data.reflection?.bad?'작성됨':'미작성','text-indigo-300']
-      ];
+      const checkin=data.dailyCheckin||{};
+    const moodLabel={good:'좋음',normal:'보통',tired:'피곤함'}[checkin.mood]||'미체크';
+    const glance=[
+      ['운동 완료',`${done}/${total}세트`,'text-brand-400'],
+      ['식단 기록',`${meals}/4끼`,'text-amber-300'],
+      ['식단 사진',`${photoCount}장`,'text-sky-300'],
+      ['오늘 컨디션',moodLabel,'text-violet-300'],
+      ['운동 소감',data.reflection?.good||data.reflection?.bad?'작성됨':'미작성','text-indigo-300']
+    ];
       const glanceRoot=document.getElementById('trainerQuickSummary');glanceRoot.replaceChildren();
       glance.forEach(([label,value,color])=>{
         const card=document.createElement('div');card.className='rounded-xl border border-slate-700/60 bg-slate-950 p-3';

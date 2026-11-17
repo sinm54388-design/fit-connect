@@ -1525,6 +1525,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         el.classList.toggle('selected',selected);
         if(selected)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
       });
+      if(page==='feedback')markCurrentFeedbackSeen();
       if(scroll){document.getElementById('appHeader')?.classList.remove('header-hidden');window.scrollTo(0,0);}
     }
     function syncMemberNavigation(){
@@ -1689,7 +1690,30 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     }
 
 
+    const FEEDBACK_SEEN_STORE='fitFeedbackSeen:v1:';
+    function feedbackFingerprint(feedback){const fb=feedback||{};const text=[fb.time,fb.workout,fb.diet].map(x=>String(x||'').trim()).join('|');return (fb.workout||fb.diet)?text:'';}
+    function feedbackSeenStorageKey(){return FEEDBACK_SEEN_STORE+encodeURIComponent(activeMemberName||'');}
+    function hasUnreadFeedback(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return false;try{return localStorage.getItem(feedbackSeenStorageKey())!==fingerprint;}catch{return true;}}
+    function markCurrentFeedbackSeen(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return;try{localStorage.setItem(feedbackSeenStorageKey(),fingerprint);}catch{}renderMemberHomeSignals();}
+    async function saveDailyCheckin(field,value){if(currentMode!=='member'||!appData)return;const ok=await updateAndSave(data=>{const next={...(data.dailyCheckin||{})};next[field]=value;next.updatedAt=nowTimeStr();data.dailyCheckin=next;});if(ok)showToast('오늘 체크 저장 완료 ✓');}
+    function setupMemberHomeSignals(){
+      const home=document.getElementById('memberHomePage');if(!home||document.getElementById('memberDailyCheckin'))return;
+      const card=document.createElement('section');card.id='memberDailyCheckin';card.className='rounded-2xl border border-sky-200 bg-white p-4 shadow-sm';
+      const alert=document.createElement('button');alert.type='button';alert.id='memberNewFeedbackAlert';alert.className='hidden w-full mb-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-left text-sm font-bold text-violet-700';alert.innerHTML='<i class="fa-solid fa-bell mr-2"></i>새 피드백이 도착했어요 <span class="float-right">확인하기 ›</span>';alert.onclick=()=>navigateMemberPage('feedback');
+      card.innerHTML='<div class="flex items-center justify-between gap-3 mb-3"><div><h3 class="font-bold text-slate-800">오늘 10초 체크</h3><p class="text-xs text-slate-500 mt-0.5">운동·식단·컨디션만 가볍게 남겨주세요.</p></div><span id="dailyCheckinSummary" class="text-xs font-semibold text-sky-600"></span></div><div id="dailyCheckinButtons" class="space-y-2"></div>';card.prepend(alert);
+      const shortcuts=home.querySelector('.member-home-shortcuts');home.insertBefore(card,shortcuts||null);
+    }
+    function renderMemberHomeSignals(){
+      const root=document.getElementById('memberDailyCheckin');if(!root)return;const state=appData?.dailyCheckin||{},selected=(field,value)=>state[field]===value;
+      const button=(field,value,label,activeClass)=>'<button type="button" data-check-field="'+field+'" data-check-value="'+value+'" class="rounded-full border px-3 py-2 text-xs font-bold transition '+(selected(field,value)?activeClass:'border-slate-200 bg-slate-50 text-slate-600 hover:border-sky-300')+'">'+label+'</button>';
+      const rows=[['운동',button('workout','done','운동 했어요','border-emerald-300 bg-emerald-50 text-emerald-700'),button('workout','rest','오늘은 회복','border-slate-300 bg-slate-100 text-slate-700')],['식단',button('diet','done','식단 지켰어요','border-sky-300 bg-sky-50 text-sky-700'),button('diet','partial','조절 중','border-amber-300 bg-amber-50 text-amber-700')],['컨디션',button('mood','good','좋음','border-violet-300 bg-violet-50 text-violet-700'),button('mood','normal','보통','border-indigo-300 bg-indigo-50 text-indigo-700'),button('mood','tired','피곤함','border-rose-300 bg-rose-50 text-rose-700')]];
+      document.getElementById('dailyCheckinButtons').innerHTML=rows.map(([label,...buttons])=>'<div class="flex items-center gap-2 flex-wrap"><span class="w-10 text-xs font-bold text-slate-500">'+label+'</span>'+buttons.join('')+'</div>').join('');root.querySelectorAll('[data-check-field]').forEach(btn=>btn.onclick=()=>saveDailyCheckin(btn.dataset.checkField,btn.dataset.checkValue));
+      const completed=['workout','diet','mood'].filter(key=>!!state[key]).length;document.getElementById('dailyCheckinSummary').textContent=completed?completed+'/3 완료':'아직 미완료';
+      const unread=hasUnreadFeedback(),alert=document.getElementById('memberNewFeedbackAlert');if(alert)alert.classList.toggle('hidden',!unread);const feedbackCard=document.querySelector('[data-record-card="feedback"]');if(feedbackCard){let badge=feedbackCard.querySelector('[data-feedback-badge]');if(unread&&!badge){badge=document.createElement('span');badge.dataset.feedbackBadge='1';badge.className='ml-1 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white';badge.textContent='NEW';feedbackCard.querySelector('.home-record-heading span')?.append(badge);}if(!unread&&badge)badge.remove();}
+    }
+
     function setupHomeRecordCards(){
+      setupMemberHomeSignals();
       const home=document.getElementById('memberHomePage');if(!home)return;
       home.querySelector('.member-home-shortcuts')?.remove();
       const cards=document.createElement('div');cards.className='home-record-grid';home.append(cards);
@@ -2500,6 +2524,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       if (currentMode === 'member') {
         renderMemberRoutines(appData.routines || []);
         renderMemberFeedback(appData.feedback || {});
+        renderMemberHomeSignals();
         renderMealPhotos();
         renderMemos('memberMemoList', appData.memos);
         if (!silent) {

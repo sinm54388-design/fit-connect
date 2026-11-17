@@ -1281,7 +1281,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     function stableRecordSignature(value) {
       if(Array.isArray(value))return '['+value.map(stableRecordSignature).join(',')+']';
       if(value && typeof value==='object')
-        return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+stableRecordSignature(value[k])).join(',')+'}';
+        return '{'+Object.keys(value).filter(k=>k!=='dailyCheckin').sort().map(k=>JSON.stringify(k)+':'+stableRecordSignature(value[k])).join(',')+'}';
       return JSON.stringify(value);
     }
     async function compareReadBackends() {
@@ -1702,7 +1702,26 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     function feedbackSeenStorageKey(){return FEEDBACK_SEEN_STORE+encodeURIComponent(activeMemberName||'');}
     function hasUnreadFeedback(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return false;try{return localStorage.getItem(feedbackSeenStorageKey())!==fingerprint;}catch{return true;}}
     function markCurrentFeedbackSeen(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return;try{localStorage.setItem(feedbackSeenStorageKey(),fingerprint);}catch{}renderMemberHomeSignals();}
-    async function saveDailyCheckin(field,value){if(currentMode!=='member'||!appData)return;let checkin=null;const ok=await updateAndSave(data=>{checkin={...readDailyCheckin(data),[field]:value,updatedAt:nowTimeStr()};data.memos=(data.memos||[]).filter(m=>!isDailyCheckinMemo(m));data.memos.push({from:'member',text:DAILY_CHECKIN_PREFIX+JSON.stringify(checkin),time:checkin.updatedAt});});if(ok&&checkin){appData.memos=(appData.memos||[]).filter(m=>!isDailyCheckinMemo(m));appData.memos.push({from:'member',text:DAILY_CHECKIN_PREFIX+JSON.stringify(checkin),time:checkin.updatedAt});appData.dailyCheckin=checkin;rememberRecord(getSaveContext(),appData);renderUI();showToast('오늘 체크 저장 완료 ✓');}}
+    async function saveDailyCheckin(field,value){
+      if(currentMode!=='member'||!appData)return;
+      const context=getSaveContext(),checkin={...readDailyCheckin(appData),[field]:value};
+      setSaveStatus('saving','오늘 체크 저장 중...');
+      try{
+        const session=await ensureMemberSession(context);
+        if(!session)throw Error('session_unavailable');
+        const response=await fetch('/api/records',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dailyCheckin',member:context.member,date:context.date,session,checkin})});
+        const result=await response.json();
+        if(!response.ok||result?.status!=='success'||!result.data)throw Error(result?.code||'save_failed');
+        if(isCurrentSaveContext(context)){
+          appData=normalizeData(result.data);
+          rememberRecord(context,appData);renderUI();
+          setSaveStatus('saved','저장 완료 ✓ · 오늘 체크가 반영됐어요');showToast('오늘 체크 저장 완료 ✓');
+        }
+      }catch(error){
+        console.error('오늘 체크 저장 실패',error);
+        if(isCurrentSaveContext(context))setSaveStatus('error','오늘 체크 저장 실패 · 연결을 확인하고 다시 시도해주세요');
+      }
+    }
     function setupMemberHomeSignals(){
       const home=document.getElementById('memberHomePage');if(!home||document.getElementById('memberDailyCheckin'))return;
       const card=document.createElement('section');card.id='memberDailyCheckin';card.className='rounded-2xl border border-sky-200 bg-white p-4 shadow-sm';

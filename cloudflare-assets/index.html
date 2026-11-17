@@ -1701,7 +1701,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
     function feedbackFingerprint(feedback){const fb=feedback||{};const text=[fb.time,fb.workout,fb.diet].map(x=>String(x||'').trim()).join('|');return (fb.workout||fb.diet)?text:'';}
     function feedbackSeenStorageKey(){return FEEDBACK_SEEN_STORE+encodeURIComponent(activeMemberName||'');}
     function hasUnreadFeedback(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return false;try{return localStorage.getItem(feedbackSeenStorageKey())!==fingerprint;}catch{return true;}}
-    function markCurrentFeedbackSeen(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return;try{localStorage.setItem(feedbackSeenStorageKey(),fingerprint);}catch{}renderMemberHomeSignals();}
+    function markCurrentFeedbackSeen(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return;try{localStorage.setItem(feedbackSeenStorageKey(),fingerprint);}catch{}renderMemberHomeSignals();renderMemberNextStep();}
     async function saveDailyCheckin(field,value){
       if(currentMode!=='member'||!appData)return;
       const context=getSaveContext(),checkin={...readDailyCheckin(appData),[field]:value};
@@ -1747,8 +1747,28 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
       const feedbackCard=document.querySelector('[data-record-card="feedback"]');if(feedbackCard){let badge=feedbackCard.querySelector('[data-feedback-badge]');if(unread&&!badge){badge=document.createElement('span');badge.dataset.feedbackBadge='1';badge.className='ml-1 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white';badge.textContent='NEW';feedbackCard.querySelector('.home-record-heading span')?.append(badge);}if(!unread&&badge)badge.remove();}
     }
 
+    function setupMemberNextStep(){
+      const home=document.getElementById('memberHomePage');if(!home||document.getElementById('memberNextStep'))return;
+      const card=document.createElement('button');card.type='button';card.id='memberNextStep';card.className='group mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md active:translate-y-0';
+      const checkin=document.getElementById('memberDailyCheckin');if(checkin)checkin.insertAdjacentElement('afterend',card);else home.prepend(card);
+    }
+    function renderMemberNextStep(){
+      const card=document.getElementById('memberNextStep');if(!card)return;
+      const data=appData||getDefaultData(),checkin=readDailyCheckin(data);
+      const meals=MEAL_KEYS.filter(key=>{const meal=data.diet?.[key]||{};return !!(String(meal.desc||'').trim()||(meal.photos||[]).length||(meal.foods||[]).length);}).length;
+      const routines=data.routines||[],sets=routines.reduce((sum,r)=>sum+(r.completedSets||[]).filter(Boolean).length,0);
+      let icon='fa-clipboard-check',eyebrow='TODAY',title='오늘 기록을 잘 챙겼어요',detail='운동과 식단 기록을 이어가면 변화가 더 선명해져요.',action=()=>navigateMemberPage('growth');
+      if(hasUnreadFeedback()){icon='fa-bell',eyebrow='NEW FEEDBACK',title='코치님 피드백이 도착했어요',detail='지금 확인하고 다음 운동에 바로 적용해보세요.',action=()=>navigateMemberPage('feedback');}
+      else if(['workout','diet','mood'].some(key=>!checkin[key])){icon='fa-bolt',eyebrow='QUICK START',title='오늘 상태를 먼저 체크해요',detail='운동·식단·컨디션, 누르는 데 10초면 충분해요.',action=()=>document.getElementById('memberDailyCheckin')?.scrollIntoView({behavior:'smooth',block:'center'});}
+      else if(!routines.length||sets===0){icon='fa-dumbbell',eyebrow='WORKOUT',title='오늘 운동을 기록해볼까요?',detail=routines.length?'완료한 세트를 체크하면 코치님이 진행 상황을 바로 봐요.':'루틴을 확인하거나 오늘 한 운동을 간단히 추가해요.',action=()=>navigateMemberPage('workout');}
+      else if(meals===0){icon='fa-camera',eyebrow='MEAL',title='첫 식단 기록을 남겨볼까요?',detail='사진 한 장 또는 음식 이름만 남겨도 충분해요.',action=()=>navigateMemberPage('diet');}
+      card.innerHTML='<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-600"><i class="fa-solid '+icon+'"></i></span><span class="min-w-0 flex-1"><span class="block text-[10px] font-extrabold tracking-[0.14em] text-sky-600">'+eyebrow+'</span><strong class="mt-0.5 block text-sm font-extrabold text-slate-900">'+title+'</strong><span class="mt-0.5 block truncate text-xs font-medium text-slate-500">'+detail+'</span></span><i class="fa-solid fa-chevron-right text-xs text-slate-400 transition group-hover:translate-x-0.5"></i>';
+      card.onclick=action;
+    }
+
     function setupHomeRecordCards(){
       setupMemberHomeSignals();
+      setupMemberNextStep();
       const home=document.getElementById('memberHomePage');if(!home)return;
       home.querySelector('.member-home-shortcuts')?.remove();
       const cards=document.createElement('div');cards.className='home-record-grid';home.append(cards);
@@ -2561,6 +2581,7 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
         renderMemberRoutines(appData.routines || []);
         renderMemberFeedback(appData.feedback || {});
         renderMemberHomeSignals();
+        renderMemberNextStep();
         renderMealPhotos();
         renderMemos('memberMemoList', appData.memos);
         if (!silent) {

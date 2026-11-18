@@ -948,6 +948,12 @@ html body .fc-weekly-sheet :is(p,.fc-weekly-author,.fc-column-editor label,.fc-c
 html body :is(.fc-weekly-meta,.fc-weekly-kicker,.fc-care-retry,.fc-workout-status strong,.fc-column-panel-top span) {color:#087760!important;}
 html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#17263d!important;}
 </style>
+<style id="fc-member-safety-style">
+#fcDateChips[hidden],#habitCalendarTop[hidden]{display:none!important}
+.fc-video-ready-hint{margin-top:9px;padding:10px 12px;border-radius:12px;font-size:12px;font-weight:650;line-height:1.55;background:#f3f6fc;border:1px solid #cbd8eb;color:#425674}
+.fc-video-ready-hint[data-state="checking"]{color:#0b6fa4;border-color:#91d5f4;background:#eefaff}.fc-video-ready-hint[data-state="ready"]{color:#087760;border-color:#9bd5bf;background:#eefbf5}.fc-video-ready-hint[data-state="error"]{color:#b23a4f;border-color:#f3b4bf;background:#fff2f4}
+.fc-video-question-chips{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:9px}.fc-video-question-chips>span{font-size:11px;font-weight:700;color:#546780}.fc-video-question-chips button{min-height:32px!important;padding:5px 9px!important;border:1px solid #cbd8eb!important;border-radius:999px!important;background:#eef3ff!important;color:#4637a9!important;font-size:11px!important;font-weight:700!important}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
@@ -5589,6 +5595,24 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
     window.switchMode=function(mode){const out=originalSwitchMode.apply(this,arguments);setTimeout(syncTrainerDateStrip,0);return out;};
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',syncTrainerDateStrip);else syncTrainerDateStrip();
+})();
+
+/* Member upload guardrails: validates a chosen video before it is sent and
+   keeps the trainer calendar strip out of the trainer workspace. */
+(function(){
+  const $=id=>document.getElementById(id);
+  const button=()=>document.querySelector('form[onsubmit*="submitFormVideo"] button[type="submit"]');
+  function setupVideo(){
+    const file=$('memberVideoFile');if(!file||$('fcVideoReadyHint'))return;
+    const hint=document.createElement('p');hint.id='fcVideoReadyHint';hint.hidden=true;hint.className='fc-video-ready-hint';hint.setAttribute('role','status');file.insertAdjacentElement('afterend',hint);
+    const question=$('memberVideoQuestion');
+    if(question){const chips=document.createElement('div');chips.className='fc-video-question-chips';chips.innerHTML='<span>빠른 질문</span><button type="button">자세 봐주세요</button><button type="button">통증이 있어요</button><button type="button">무게가 적당한가요?</button>';question.insertAdjacentElement('afterend',chips);chips.querySelectorAll('button').forEach(b=>b.onclick=()=>{question.value=question.value.trim()?question.value.trim()+' · '+b.textContent:b.textContent;question.dispatchEvent(new Event('input',{bubbles:true}));});}
+    const show=(message,state)=>{hint.hidden=!message;hint.dataset.state=state||'';hint.textContent=message||'';};let request=0;
+    file.addEventListener('change',async()=>{const id=++request,chosen=file.files?.[0],submit=button();if(!chosen){if(submit)submit.disabled=false;show('');return;}if(!['video/mp4','video/webm','video/quicktime'].includes(chosen.type)){if(submit)submit.disabled=true;show('MP4 · MOV · WebM 영상만 올릴 수 있어요.','error');return;}if(chosen.size>VIDEO_INPUT_LIMIT){if(submit)submit.disabled=true;show('원본 영상은 200MB 이하로 선택해주세요.','error');return;}if(submit)submit.disabled=true;show('영상 길이를 확인하고 있어요…','checking');try{const meta=await getPrivateVideoMetadata(chosen);if(id!==request)return;if(!Number.isFinite(meta.duration)||meta.duration<=0)throw Error('영상 정보를 읽을 수 없어요.');if(meta.duration>VIDEO_MAX_DURATION+.25){show('영상은 40초 이하로 잘라서 올려주세요. 현재 '+Math.ceil(meta.duration)+'초예요.','error');return;}show('준비 완료 · '+(chosen.size/1000000).toFixed(1)+'MB · '+Math.ceil(meta.duration)+'초 · '+(chosen.size>50000000?'고화질 압축 후 전송':'원본 화질로 바로 전송'),'ready');if(submit)submit.disabled=false;}catch(error){if(id===request)show(error.message||'영상 정보를 읽지 못했어요.','error');}});
+  }
+  function protectUpload(){const input=$('currentDateInput');if(!input||input.dataset.uploadGuard)return;input.dataset.uploadGuard='1';let prior=input.value;input.addEventListener('focus',()=>prior=input.value);input.addEventListener('change',e=>{if(!videoUploadActive){prior=input.value;return;}e.stopImmediatePropagation();input.value=prior;setVideoUploadStatus('영상 전송 중에는 날짜를 바꿀 수 없어요. 완료 후 바꿔주세요.');showToast('영상 전송이 끝난 뒤 날짜를 바꿔주세요.');},true);}
+  function hideTrainerCalendar(){const sync=()=>{const trainer=document.body.classList.contains('trainer-light-theme');['fcDateChips','habitCalendarTop'].forEach(id=>$(id)?.toggleAttribute('hidden',trainer));};new MutationObserver(sync).observe(document.body,{attributes:true,attributeFilter:['class']});sync();}
+  const boot=()=>{setupVideo();protectUpload();hideTrainerCalendar();};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
 
 

@@ -908,6 +908,8 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
 .fc-video-question-chips{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:9px}.fc-video-question-chips>span{font-size:11px;font-weight:700;color:#546780}.fc-video-question-chips button{min-height:32px!important;padding:5px 9px!important;border:1px solid #cbd8eb!important;border-radius:999px!important;background:#eef3ff!important;color:#4637a9!important;font-size:11px!important;font-weight:700!important}
 </style>
 <link rel="stylesheet" href="/fit-dark.css">
+<link rel="stylesheet" href="/member-report.css">
+<script defer src="/member-report.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
@@ -1951,6 +1953,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     }
     function switchWorkflowDraftContext(){
       const key=workflowContextKey();if(key===workflowKey)return;
+      window.fitMemberReport?.closeMeal();
       workflowKey=key;workflowReadyKey='';workflowDraft={fields:{},meals:{}};workflowRestored=false;
       dirtyMealDrafts.clear();mealEditorOpen.clear();
       ['memberMemoInput','trainerMemoInput'].forEach(id=>{document.getElementById(id).value='';});
@@ -2135,22 +2138,34 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     // 빠른 조회용 Supabase에도 함께 기록합니다. (예전에는 Supabase에만 저장되어
     // 트레이너 화면이 시트에서 읽을 때 체크가 보이지 않았습니다.)
     async function saveDailyCheckin(field,value){
-      if(currentMode!=='member'||!appData)return;
+      if(currentMode!=='member'||!appData||workflowReadyKey!==workflowContextKey())return false;
       const context=getSaveContext();
-      const checkin={...readDailyCheckin(appData),[field]:value,updatedAt:new Date().toISOString()};
-      const memo={id:'checkin-'+context.date,from:'member',text:DAILY_CHECKIN_PREFIX+JSON.stringify(checkin),time:nowTimeStr()};
-      const apply=d=>{d.memos=(Array.isArray(d.memos)?d.memos:[]).filter(m=>!isDailyCheckinMemo(m));d.memos.push(memo);};
+      let checkin;
+      const apply=d=>{
+        checkin={...readDailyCheckin(d),[field]:value,updatedAt:new Date().toISOString()};
+        const memo={id:'checkin-'+context.date,from:'member',text:DAILY_CHECKIN_PREFIX+JSON.stringify(checkin),time:nowTimeStr()};
+        d.memos=(Array.isArray(d.memos)?d.memos:[]).filter(m=>!isDailyCheckinMemo(m));
+        d.memos.push(memo);
+      };
+      const clearPreview=window.fitMemberReport?.previewCheck(field,value);
+      renderMemberHomeSignals();
+      window.fitMemberReport?.refresh(appData);
       const saving=updateAndSave(apply);
-      // 누르는 즉시 선택 상태를 보여줍니다(저장 결과가 오면 다시 그려짐).
-      document.querySelectorAll('#memberDailyCheckin [data-check-field="'+field+'"]').forEach(btn=>btn.classList.toggle('text-white',btn.dataset.checkValue===value));
+      const ok=await saving;
+      clearPreview?.();
+      if(isCurrentSaveContext(context)){
+        renderMemberHomeSignals();
+        window.fitMemberReport?.refresh(appData);
+        if(ok)showToast('상태 체크를 저장했어요.');
+      }
       // 빠른 조회용 사본(실패해도 시트 저장에는 영향 없음)
-      ensureMemberSession(context).then(session=>{
+      if(ok) window.fitMemberReport?.mirrorCheck(async ()=>{
+        const session=await ensureMemberSession(context);
         if(!session)return;
         const {updatedAt,...fastCheckin}=checkin;
         return fetch('/api/records',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dailyCheckin',member:context.member,date:context.date,session,checkin:fastCheckin})});
-      }).catch(e=>console.warn('오늘 체크 빠른 조회 사본 저장 실패',e));
-      const ok=await saving;
-      if(ok&&isCurrentSaveContext(context))showToast('오늘 체크 저장 완료 ✓ · 코치님께 전달됐어요');
+      });
+      return ok;
     }
     function setupMemberHomeSignals(){
       const home=document.getElementById('memberHomePage');if(!home||document.getElementById('memberDailyCheckin'))return;
@@ -2161,7 +2176,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     }
     function renderMemberHomeSignals(){
       const root=document.getElementById('memberDailyCheckin');if(!root)return;
-      const state=readDailyCheckin(appData),selected=(field,value)=>state[field]===value;
+      const state={...readDailyCheckin(appData),...window.fitMemberReport?.pendingChecks()},selected=(field,value)=>state[field]===value;
       const button=(field,value,label,activeClass)=>'<button type="button" data-check-field="'+field+'" data-check-value="'+value+'" class="min-h-11 rounded-xl border px-3 py-2.5 text-sm font-extrabold transition active:scale-[0.98] '+(selected(field,value)?activeClass:'border-slate-200 bg-white/80 text-slate-600 shadow-sm hover:border-sky-300 hover:text-sky-700')+'">'+label+'</button>';
       const rows=[
         ['운동',button('workout','done','운동 했어요','border-emerald-300 bg-emerald-500 text-white shadow-md shadow-emerald-200'),button('workout','rest','오늘은 회복','border-slate-300 bg-slate-600 text-white shadow-md shadow-slate-200')],
@@ -2221,7 +2236,10 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       const diet=create('diet','끼니별 식단','fa-utensils');
       diet.addEventListener('click', event => {
         const meal = event.target.closest('button[data-meal]')?.dataset.meal;
-        if (meal) openMemberSection('diet', document.getElementById('meal-section-'+meal));
+        if (meal) {
+          if (window.fitMemberReport) window.fitMemberReport.openMeal(meal);
+          else openMemberSection('diet', document.getElementById('meal-section-'+meal));
+        }
       });
       const growth=create('growth','최근 신체 기록','fa-chart-line');
       const feedback=create('feedback','코치 피드백','fa-comment-dots');
@@ -2328,6 +2346,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     }
 
     function renderMemberBalance(data) {
+      window.fitMemberReport?.refresh(data);
       const score = document.getElementById('fitMemberScore');
       const chart = document.getElementById('fitMemberBalance');
       if (!score || !chart) return;
@@ -2363,7 +2382,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       const actions=document.createElement('section');actions.id='fcHomeRecordActions';actions.className='fc-home-actions';actions.setAttribute('aria-label','자주 쓰는 기능');
       const shortcuts = [
         ['fa-dumbbell','운동 기록',() => navigateMemberPage('workout')],
-        ['fa-utensils','식단 기록',() => navigateMemberPage('diet')],
+        ['fa-utensils','식단 기록',() => window.fitMemberReport ? window.fitMemberReport.quickMeal() : navigateMemberPage('diet')],
         ['fa-comment-dots','코치 질문',openCoachQuestion]
       ];
       shortcuts.forEach(([icon,label,action]) => {
@@ -3318,7 +3337,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       const container = document.getElementById('memberRoutineList');
       document.getElementById('routineCountBadge').innerText = `${routines.length}개 운동`;
       if (!routines || routines.length === 0) {
-        container.innerHTML = `<div class="text-center py-8 text-slate-500 text-sm"><i class="fa-solid fa-dumbbell text-3xl mb-2 block text-slate-600"></i>배정된 루틴이 없습니다.</div>`;
+        container.innerHTML = `<div class="text-center py-8 text-slate-500 text-sm"><i class="fa-solid fa-dumbbell text-3xl mb-2 block text-slate-600"></i>선택한 날짜에 코치가 등록한 루틴이 아직 없어요. 직접 한 운동은 아래에서 추가할 수 있어요.</div>`;
         updateWorkoutProgress(0, 0);
         return;
       }
@@ -3363,6 +3382,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       if(!Array.isArray(ex.completedSets))ex.completedSets=[];
       ex.completedSets[setIdx]=checked;
       renderMemberRoutines(appData.routines);
+      window.fitMemberReport?.refresh(appData);
       if(pendingSetBatch && (pendingSetBatch.context.member!==context.member ||
           pendingSetBatch.context.date!==context.date || pendingSetBatch.context.mode!==context.mode))
         flushPendingSetBatch();
@@ -3600,9 +3620,15 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       parent.insertBefore(editor,firstCard);
       let next=editor.nextSibling;
       while(next){const current=next;next=next.nextSibling;editor.appendChild(current);}
+      const trigger=document.createElement('button');
+      trigger.type='button';trigger.className='report-meal-open';
+      trigger.textContent='식단 기록 열기';
+      trigger.onclick=()=>openMealEditor(meal);
+      parent.insertBefore(trigger,editor);
     }
 
     function openMealEditor(meal) {
+      if(window.fitMemberReport) return window.fitMemberReport.openMeal(meal);
       mealEditorOpen.add(meal);
       const editor=document.getElementById(`meal-${meal}-editor`);
       editor.classList.remove('hidden');
@@ -3775,6 +3801,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       const context=getSaveContext();
       stashWorkflowDraft();
       const values = getMealValues(meal);
+      window.fitMemberReport?.mealStatus(meal,'식단을 저장하고 있어요…');
       const saved = await updateAndSave(d => {
         if (!values.foods.length) delete d.diet[meal];
         else d.diet[meal] = { ...(d.diet[meal] || {}), ...values };
@@ -3783,7 +3810,10 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         dirtyMealDrafts.delete(meal);
         mealEditorOpen.delete(meal);
         renderMemberDiet(appData.diet || {},2100);
+        window.fitMemberReport?.closeMeal(meal);
         loadFoodShortcuts();
+      } else if (isCurrentSaveContext(context)) {
+        window.fitMemberReport?.mealStatus(meal,'저장하지 못했어요. 연결을 확인하고 다시 저장해 주세요.');
       }
     }
 
@@ -3823,6 +3853,8 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       currentMode = mode;
       clearForeignVideoLists();
       document.body.classList.toggle('trainer-light-theme', mode === 'trainer');
+      const themeMeta=document.querySelector('meta[name="theme-color"]');
+      if(themeMeta)themeMeta.content=mode==='member'&&window.fitMemberReport ? '#f4f6f9' : '#0b1120';
       latestLoadRequest++;
       resetRoutineForms();
       updateAccessState();

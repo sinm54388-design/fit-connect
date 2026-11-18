@@ -1,0 +1,237 @@
+html body.member-report-enabled:not(.trainer-light-theme) {
+  --fc-app: #f4f6f9;
+  --fc-card: #fff;
+  --fc-card-2: #f3f7fd;
+  --fc-card-3: #eaf1fb;
+  --fc-text: #0f172a;
+  --fc-text-2: #334461;
+  --fc-muted: #51617a;
+  --fc-line: #e0e8f3;
+  --fc-line-2: #c7d6eb;
+  --fc-lime: #0f766e;
+  --fc-lime-2: #bfdbfe;
+  --fc-lime-ink: #10255b;
+  --fc-violet: #1d4ed8;
+  --fc-orange: #0f766e;
+  --fc-shadow: 0 6px 24px #213d6410;
+  background: #f4f6f9 !important;
+  color: #0f172a !important;
+  color-scheme: light;
+  font-variant-numeric: tabular-nums;
+}
+html body.member-report-enabled:not(.trainer-light-theme)::before {
+  background: #f4f6f9 !important;
+  box-shadow: 0 0 0 1px #dae2ee, 0 14px 60px #172b5120 !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme)::after { display: none; }
+html body.member-report-enabled:not(.trainer-light-theme) :is(#appHeader,#fcDateChips,#memberBottomNav) {
+  background: #fafdfff2 !important;
+  color: #0f172a !important;
+  border-color: #e0e8f3 !important;
+  box-shadow: 0 5px 18px #182e5010 !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #appHeader :is(h1,#btnTrainerMode,#currentDateInput) {
+  color: #1e3a8a !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #appHeader #currentDateInput,
+html body.member-report-enabled:not(.trainer-light-theme) #appHeader > div > div:last-child > div:first-child {
+  background: #eff4fd !important;
+  color-scheme: light;
+  border-color: #d9e4f5 !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #fcDateChips .fc-date-chip {
+  background: #eef3fb !important;
+  color: #3e5171 !important;
+  border-color: #dae5f4 !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-selected {
+  background: #2563eb !important;
+  color: white !important;
+  border-color: #2563eb !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberBottomNav button { color: #536480 !important; }
+html body.member-report-enabled:not(.trainer-light-theme) #memberBottomNav button.selected {
+  background: #ebf2ff !important;
+  color: #1d4ed8 !important;
+}
+
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(
+  .rounded-2xl,.rounded-3xl,.home-record-card,.fc-focus-card,.fc-focus-fold,.report-card,#memberDailyCheckin
+) {
+  background: #fff !important;
+  color: #0f172a !important;
+  border-color: #e0e8f3 !important;
+  border-radius: 24px !important;
+  box-shadow: var(--fc-shadow) !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(h2,h3,h4,.text-white,.text-slate-100,.text-slate-200,.fc-focus-fold summary) {
+  color: #0f172a !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(.text-slate-300,.text-slate-400,.text-slate-500) {
+  color: #51617a !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(
+  .bg-slate-950,.bg-slate-900,.bg-slate-800,.bg-slate-900\/60,.bg-white
+) { background-color: #f3f7fd !important; border-color: #e0e8f3 !important; }
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(input:not([type=checkbox]):not([type=radio]),textarea,select) {
+  background: #f4f7fc !important;
+  color: #0f172a !important;
+  border-color: #cfdaeb !important;
+  color-scheme: light;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(input,textarea)::placeholder { color: #5b6d87; }
+html body.member-report-enabled:not(.trainer-light-theme) #memberView input[type=checkbox] { accent-color: #2563eb; }
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(
+  button[type=submit],button[onclick^="saveSingleMeal"],button[onclick^="saveDietLog"],
+  button[onclick="sendMemo()"],.fit-feedback-actions button:last-child
+) {
+  background: #1d4ed8 !important;
+  color: white !important;
+  box-shadow: 0 5px 15px #2563eb25 !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(.fit-feedback-actions button:first-child,.report-meal-open,#fcHomeRecordActions button) {
+  background: #edf4ff !important;
+  border: 1px solid #cfdef8 !important;
+  color: #1e40af !important;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberView input[type=file]::file-selector-button { background: #dceaff; color: #19377a; }
+html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(button,summary,input,textarea,select):focus-visible { outline: 2px solid #0d9488 !important; }
+
+html body.member-report-enabled:not(.trainer-light-theme) #memberHomePage .member-goal-hero {
+  padding: 19px !important;
+  background: linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%) !important;
+  color: white !important;
+  box-shadow: 0 13px 30px #1e3a8a33 !important;
+  border: 0 !important;
+  overflow: hidden;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberHomePage .fit-hero-content {
+  grid-template-columns: minmax(0,1fr) clamp(98px,28vw,126px);
+  align-items: center !important;
+  gap: 8px !important;
+}
+.member-report-enabled #memberHomePage .fit-score[hidden] { display: none; }
+html body.member-report-enabled:not(.trainer-light-theme) #memberHomePage .member-goal-hero :is(h2,h2 span,#customHeaderMessage) {
+  color: white !important;
+  -webkit-text-fill-color: currentColor;
+  background-image: none;
+}
+html body.member-report-enabled:not(.trainer-light-theme) #memberHomePage #todayDateDisplay {
+  background: #ffffff24 !important;
+  color: #e6efff !important;
+  border-color: #ffffff24 !important;
+}
+.member-report-enabled #todayDateDisplay::before { display: none; }
+.member-report-enabled #memberHomePage .fc-greet-name { font-size: clamp(19px,5.5vw,25px) !important; letter-spacing: -.045em; }
+.member-report-enabled #memberHomePage .fc-greet-sub { color: #dce9ff !important; font-size: 13px !important; }
+#reportRingLegend { display: flex; gap: 5px 9px; flex-wrap: wrap; margin-top: 10px; font-size: 11px; font-weight: 750; color: white; }
+#reportRingLegend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+#reportRingLegend span::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #60a5fa; }
+#reportRingLegend span:nth-child(2)::before { background: #5eead4; }
+#reportRingLegend span:nth-child(3)::before { background: #fff; }
+#reportActivityRings { aspect-ratio: 1; position: relative; display: grid; place-items: center; color: white; border-radius: 50%; }
+#reportActivityRings svg { width: 100%; display: block; transform: rotate(-90deg); }
+#reportActivityRings circle { fill: none; stroke-width: 8; }
+.report-ring-track { stroke: #ffffff28; }
+.report-ring-progress { stroke: #60a5fa; stroke-dasharray: 100; stroke-dashoffset: 100; stroke-linecap: round; transition: stroke-dashoffset .35s ease; }
+.report-ring-progress[data-ring="1"] { stroke: #5eead4; }
+.report-ring-progress[data-ring="2"] { stroke: #fff; }
+#reportRingScore { position: absolute; font-size: 21px; font-weight: 850; }
+html body.member-report-enabled:not(.trainer-light-theme) #memberView #memberHomePage #fcCoachCard {
+  margin: 14px 0 0 !important;
+  padding: 12px !important;
+  background: #ffffff20 !important;
+  border: 1px solid #ffffff36 !important;
+  color: #fff !important;
+}
+.member-report-enabled #fcCoachCard :is(.fc-coach-empty,.fc-coach-msg p,.fc-coach-time,.fc-coach-cta,.fc-coach-eyebrow,.fc-coach-msg small) { color: #e8f0ff !important; }
+.member-report-enabled #fcCoachCard .fc-coach-avatar { background: #ffffff30 !important; color: #fff !important; width: 35px; height: 35px; }
+.member-report-enabled #fcCoachCard .fc-coach-title { font-size: 14px; }
+.member-report-enabled #fcCoachCard .fc-coach-cta { margin-top: 7px; }
+#reportVerify {
+  display: flex; justify-content: center; gap: 8px; align-items: center; width: 100%;
+  min-height: 48px; margin-top: 12px; border-radius: 15px;
+  background: white; color: #1e3a8a; font-weight: 850; font-size: 15px;
+}
+#reportVerify.is-complete { background: #ccfbf1; color: #115e59; }
+#reportVerify:disabled:not(.is-complete) { opacity: .63; }
+
+#reportSummaries { order: 2; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+#reportSummaries button {
+  display: grid; gap: 6px; min-width: 0; padding: 16px 14px; text-align: left;
+  color: white; border: 0; border-radius: 22px; text-shadow: 0 1px 3px #082c5580;
+}
+.report-workout-card { background: linear-gradient(135deg,#1d4ed8,#3b82f6); box-shadow: 0 8px 18px #2563eb2c; }
+.report-calorie-card { background: linear-gradient(135deg,#0f766e,#14b8a6); box-shadow: 0 8px 18px #0f766e26; }
+#reportSummaries :is(span,small) { font-size: 12px; line-height: 1.35; font-weight: 700; overflow-wrap: anywhere; }
+#reportSummaries strong { font-size: clamp(22px,7vw,30px); font-weight: 850; line-height: 1.15; }
+.report-summary-track { height: 6px; border-radius: 999px; background: #ffffff43; overflow: hidden; margin: 3px 0; }
+.report-summary-track i { display: block; height: 100%; width: 0; border-radius: inherit; background: white; transition: width .35s ease; }
+#reportRhythm { order: 3; padding: 18px; }
+#reportRhythm > header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+#reportRhythm > header h2 { font-size: 17px; font-weight: 850; }
+#reportRhythm > header span { background: #ebf3ff; color: #1e40af; border-radius: 999px; padding: 4px 8px; font-size: 12px; font-weight: 800; }
+#reportRhythm svg { width: 100%; height: auto; margin-top: 10px; }
+.report-curve-grid { fill: none; stroke: #dfebfa; stroke-width: 1; stroke-dasharray: 3 4; }
+.report-week-values { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); text-align: center; font-size: 12px; font-weight: 700; color: #334461; }
+.report-week-values small { display: block; color: #526989; }
+.report-week-caption { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; margin-top: 15px; font-size: 12px; color: #344668; }
+.report-week-caption span { font-size: 11px; text-align: right; }
+.report-week-stack { display: flex; min-height: 8px; border-radius: 999px; overflow: hidden; margin: 7px 0; background: #eaf0f8; }
+.report-week-stack [data-group="0"] { background: #1d4ed8; }
+.report-week-stack [data-group="1"] { background: #60a5fa; }
+.report-week-stack [data-group="2"] { background: #14b8a6; }
+.report-week-legend { font-size: 12px; color: #52617a; }
+#reportMission {
+  width: 100%; margin-top: 14px; min-height: 56px; border-radius: 16px;
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  background: #eaf3ff; color: #1e3a8a; text-align: left;
+}
+#reportMission span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#reportMission small { display: block; font-size: 12px; }
+#reportMission:disabled { opacity: .7; }
+
+html body.member-report-enabled #memberHomePage #fcHomeRecordActions { order: 6; }
+.member-report-enabled #memberHomePage #memberDailyCheckin { order: 4; padding: 16px !important; }
+.member-report-enabled #memberHomePage [data-record-card="workout"],
+.member-report-enabled #memberHomePage #fcCheckinFold,
+.member-report-enabled #memberHomePage #fcDailyMetricsFold { display: none !important; }
+html body.member-report-enabled #memberHomePage [data-record-card="diet"] { order: 5; }
+html body.member-report-enabled #memberHomePage [data-record-card="diet"] .home-meal-grid > button { background: #f1f6ff; border-color: #dae7fa; }
+html body.member-report-enabled #memberHomePage :is(#fcCareSummary,#fitMemberBalanceFold) { order: 7; }
+html body.member-report-enabled #memberHomePage #fcMagazineShortcut { background: #fff !important; color: #1e3a8a !important; }
+html body.member-report-enabled #memberView #memberDailyCheckin [data-check-field] { background: #edf3fd !important; color: #233e68 !important; }
+html body.member-report-enabled #memberView #memberDailyCheckin [data-check-field].text-white { background: #dbeafe !important; color: #163c96 !important; border-color: #8fb6ff !important; }
+html body.member-report-enabled #fitMemberReplyNotice button:not([hidden]) { background: #e9f2ff; color: #1e3a8a; border-color: #cbdffb; }
+html body.member-report-enabled #fitMemberReplyNotice button > i { color: #0f766e; }
+.member-report-enabled .fit-balance-list strong { color: #162c52; }
+.member-report-enabled .fit-balance-grid { stroke: #779bd06b; }
+.member-report-enabled .fit-balance-scale { fill: #405775; }
+
+.report-meal-open { display: none; }
+.member-report-enabled #memberDietSection .report-meal-open { display: block; width: 100%; min-height: 44px; border-radius: 12px; font-weight: 750; }
+.member-report-enabled #memberDietSection [id$="-editor"] { display: none; }
+#fitMealSheet {
+  box-sizing: border-box; position: fixed; inset: 0; width: 100%; height: 100%;
+  max-width: none; max-height: none; padding: 0; border: 0; margin: 0;
+  background: transparent; color: #0f172a; color-scheme: light;
+}
+#fitMealSheet[open] { display: grid; justify-items: center; align-items: end; }
+#fitMealSheet::backdrop { background: #0a162d85; backdrop-filter: blur(2px); }
+.report-sheet-panel {
+  width: min(100%,480px); max-height: min(88dvh,760px); overflow-y: auto;
+  overscroll-behavior: contain; background: #fff; color: #0f172a;
+  border-radius: 28px 28px 0 0; padding: 12px 16px calc(18px + env(safe-area-inset-bottom,0px));
+  box-shadow: 0 -10px 30px #10244930;
+}
+.report-sheet-handle { width: 38px; height: 4px; border-radius: 4px; background: #cedbeb; margin: 0 auto 8px; }
+.report-sheet-panel header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.report-sheet-panel header h2 { font-size: 18px; font-weight: 850; }
+.report-sheet-panel header button { width: 44px; height: 44px; border-radius: 999px; background: #eff4fb; color: #1e3a8a; font-size: 23px; }
+.report-sheet-panel .report-meal-open { display: none; }
+#fitMealSheetStatus { color: #1e40af; font-size: 13px; font-weight: 700; margin: 5px 0; }
+#fitMealSheetStatus:empty { display: none; }
+#fitMealSheet [data-sheet-body] .food-card { background: white; border-color: #dce6f5; }
+@media (prefers-reduced-motion: reduce) {
+  .report-ring-progress,.report-summary-track i { transition: none; }
+}

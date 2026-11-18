@@ -340,10 +340,10 @@ html body:not(.trainer-light-theme) #appHeader>div{padding:12px 16px!important}
 html body:not(.trainer-light-theme) #appHeader h1{color:#111827!important;white-space:nowrap;font-size:16px!important}
 html body:not(.trainer-light-theme) #appHeader>div>div:first-child>div:first-child{background:linear-gradient(135deg,#4F46E5,#7C3AED)!important;box-shadow:0 4px 10px rgba(79,70,229,.25)!important}
 html body:not(.trainer-light-theme) #appHeader>div>div:last-child>div:first-child{background:#fff!important;border:0!important;box-shadow:0 2px 8px rgba(79,70,229,.08)!important;padding:4px 10px!important}
-html body:not(.trainer-light-theme) #appHeader #currentDateInput{background:transparent!important;color:#374151!important;color-scheme:light!important;border:0!important;padding:4px 0!important;min-height:0!important;max-width:112px!important}
+html body:not(.trainer-light-theme) #appHeader #currentDateInput{background:transparent!important;color:#374151!important;color-scheme:light!important;border:0!important;padding:4px 0!important;min-height:0!important;width:108px!important;min-width:108px!important;max-width:none!important}
 html body:not(.trainer-light-theme) #appHeader :is(#btnTrainerMode){background:#111827!important;color:#fff!important;min-height:32px!important}
 html body:not(.trainer-light-theme) #appHeader #btnTrainerMode *{color:#fff!important}
-html body:not(.trainer-light-theme) #fcDateChips{background:rgba(243,245,249,.92)!important;border:0!important;box-shadow:none!important;padding:2px 14px 10px!important;max-width:480px}
+html body:not(.trainer-light-theme) #fcDateChips{background:rgba(243,245,249,.92)!important;border:0!important;box-shadow:none!important;padding:2px 14px 10px!important;width:100%!important;max-width:480px!important;align-self:center!important;box-sizing:border-box!important}
 html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip{background:transparent!important;border:0!important;color:#9CA3AF!important;box-shadow:none!important;border-radius:16px!important;font-weight:600!important}
 html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip b{color:#374151}
 html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip:hover{background:rgba(255,255,255,.8)!important}
@@ -351,6 +351,9 @@ html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-today{backgrou
 html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-today b{color:#4F46E5}
 html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-selected{background:#111827!important;background-image:none!important;color:#C7CCD6!important;box-shadow:0 4px 12px rgba(17,24,39,.18)!important}
 html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-selected b{color:#fff}
+html body:not(.trainer-light-theme) #memberView :is([class*="bg-slate-950"],[class*="bg-slate-900"],[class*="bg-slate-800"],[class*="bg-slate-700"]){background-image:none!important}
+html body:not(.trainer-light-theme) #memberView :is([class*="bg-slate-950"],[class*="bg-slate-900"],[class*="bg-slate-800"],[class*="bg-slate-700"]):not(.rounded-2xl):not(.rounded-3xl){box-shadow:none!important}
+html body:not(.trainer-light-theme) #habitCalendarTop .bg-slate-900{background:#fff!important;border:0!important;box-shadow:0 4px 20px rgba(15,23,42,.05)!important}
 html body:not(.trainer-light-theme) #memberView :is(.rounded-2xl,.rounded-3xl,.home-record-card,.fc-focus-fold,.fc-focus-card){background:#fff!important;border:0!important;color:#111827!important;box-shadow:0 4px 20px rgba(15,23,42,.05)!important;backdrop-filter:none!important;border-radius:24px!important}
 html body:not(.trainer-light-theme) #memberView :is(h2,h3,h4,.fc-focus-fold summary){color:#111827!important}
 html body:not(.trainer-light-theme) #memberView :is(.text-slate-400,.text-slate-500,.text-slate-600){color:#6B7280!important}
@@ -389,6 +392,7 @@ html body:not(.trainer-light-theme) #memberHomePage .fc-workout-status strong{co
 html body:not(.trainer-light-theme) #memberHomePage [data-record-card="diet"] .home-meal-grid>button{background:#F1F4F9!important;border:0!important;color:#111827!important;border-radius:18px!important}
 html body:not(.trainer-light-theme) #memberHomePage [data-record-card="diet"] .home-meal-grid>button:has(.fa-circle-check){background:#FFF7ED!important}
 html body:not(.trainer-light-theme) #memberHomePage .home-meal-grid :is(i,svg){color:#F97316!important}
+html body:not(.trainer-light-theme) #memberHomePage .home-meal-grid :is(i.fa-circle-check,svg.fa-circle-check){color:#fff!important}
 html body:not(.trainer-light-theme) #memberHomePage .home-meal-grid span{color:#6B7280!important}
 html body:not(.trainer-light-theme) #memberHomePage .home-record-link{color:#4F46E5!important}
 html body:not(.trainer-light-theme) #memberView #memberHomePage #fcCoachCard.fc-coach,
@@ -420,6 +424,8 @@ html body:not(.trainer-light-theme) #memberView #memberDailyCheckin [data-check-
 html body:not(.trainer-light-theme) #memberView #memberDailyCheckin [data-check-field="diet"].text-white{background:#F97316!important}
 html body:not(.trainer-light-theme) #memberView #memberDailyCheckin [data-check-field="mood"].text-white{background:#14B8A6!important}
 html body:not(.trainer-light-theme) #memberView #memberDailyCheckin :is([data-check-value="rest"],[data-check-value="partial"],[data-check-value="normal"]).text-white{background:#111827!important}
+html body:not(.trainer-light-theme) #memberView .member-set-check input[type=checkbox]{appearance:none!important;-webkit-appearance:none!important;width:24px!important;height:24px!important;min-height:0!important;min-width:0!important;padding:0!important;margin:0!important;border-radius:50%!important;border:2px solid #CBD2DE!important;background:#fff!important;box-shadow:none!important;flex:0 0 24px}
+html body:not(.trainer-light-theme) #memberView .member-set-check input[type=checkbox]:checked{border-color:#fff!important;background:#fff!important;animation:none!important}
 html body:not(.trainer-light-theme) .fc-gauge{background:conic-gradient(#4F46E5 var(--p),#E6E9F2 0)!important;box-shadow:none!important}
 html body:not(.trainer-light-theme) .fc-metric-enhanced.fc-calorie .fc-gauge{background:conic-gradient(#F97316 var(--p),#E6E9F2 0)!important}
 html body:not(.trainer-light-theme) .fc-gauge::before{background:#fff!important;box-shadow:none!important}

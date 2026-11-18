@@ -783,6 +783,20 @@ html,body{min-height:100dvh}body.fc-keyboard-open #memberBottomNav,body.fc-keybo
 /* fc-trainer-date-strip-fix */
 #fcDateChips[hidden],body.trainer-light-theme #fcDateChips{display:none!important}
 
+
+/* fc-magazine-v1 */
+#fcMagazineShortcut{width:100%;display:flex;align-items:center;gap:14px;padding:18px;border:1px solid rgba(170,255,48,.26);border-radius:24px;background:linear-gradient(135deg,rgba(166,255,43,.15),rgba(90,97,255,.13));box-shadow:0 18px 38px rgba(3,8,18,.22);color:#f7f9ff;text-align:left;cursor:pointer;min-height:88px;margin:16px 0}
+#fcMagazineShortcut:active{transform:scale(.985)}
+.fc-magazine-mark{width:48px;height:48px;display:grid;place-items:center;border-radius:16px;background:linear-gradient(135deg,#b6ff48,#65dd8a);color:#071017;font-size:22px;box-shadow:0 10px 22px rgba(166,255,43,.2)}
+.fc-magazine-shortcopy{min-width:0;flex:1}.fc-magazine-kicker{font-size:10px;letter-spacing:.12em;font-weight:800;color:#b6ff48}.fc-magazine-shorttitle{font-size:16px;font-weight:800;line-height:1.35;margin-top:3px}.fc-magazine-arrow{font-size:21px;color:#dce7fa}
+#fcMagazineModal{position:fixed;inset:0;z-index:1800;display:flex;justify-content:center;background:rgba(3,7,14,.7);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+#fcMagazineModal[hidden]{display:none!important}.fc-magazine-sheet{width:min(100%,480px);min-height:100dvh;background:radial-gradient(circle at 85% 0%,rgba(119,102,255,.16),transparent 31%),#0a101c;color:#edf3ff;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) 18px calc(env(safe-area-inset-bottom,0px) + 34px);box-sizing:border-box;scroll-behavior:smooth}
+.fc-magazine-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:6px 0 20px}.fc-magazine-eyebrow{font-size:11px;letter-spacing:.14em;font-weight:800;color:#b6ff48}.fc-magazine-head h2{font-size:31px;line-height:1.1;letter-spacing:-.055em;margin:5px 0 7px}.fc-magazine-head p{margin:0;color:#9eabc0;font-size:13px}.fc-magazine-close,.fc-magazine-back{display:grid;place-items:center;min-width:48px;height:48px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(255,255,255,.07);color:#fff;font-size:20px;cursor:pointer}
+.fc-magazine-filters{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0 18px}.fc-magazine-filters::-webkit-scrollbar{display:none}.fc-magazine-filter{flex:0 0 auto;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:#121b2b;color:#b9c4d7;font-weight:700;font-size:12px;cursor:pointer}.fc-magazine-filter.is-active{color:#091007;background:#b6ff48;border-color:#c6ff76;box-shadow:0 8px 18px rgba(166,255,43,.18)}
+.fc-magazine-list{display:grid;gap:13px}.fc-article-card{width:100%;border:1px solid rgba(255,255,255,.1);border-radius:22px;background:linear-gradient(145deg,rgba(28,39,59,.92),rgba(13,21,35,.95));padding:19px;text-align:left;color:inherit;box-shadow:0 16px 35px rgba(0,0,0,.19);cursor:pointer}.fc-article-card:active{transform:scale(.987)}.fc-article-tag{display:block;color:#b6ff48;font-weight:800;font-size:10px;letter-spacing:.09em;margin-bottom:10px}.fc-article-card h3{font-size:20px;line-height:1.28;letter-spacing:-.035em;margin:0 0 9px}.fc-article-summary{margin:0;color:#aeb9ca;font-size:13px;line-height:1.62;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.fc-article-meta{display:block;margin-top:15px;color:#75839b;font-size:11px;font-weight:700}
+.fc-magazine-detail{padding-bottom:8px}.fc-magazine-detail-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px}.fc-magazine-detail .fc-article-tag{margin:0;max-width:210px;line-height:1.45}.fc-magazine-detail h2{font-size:32px;line-height:1.17;letter-spacing:-.065em;margin:0 0 13px}.fc-magazine-detail .fc-article-meta{margin:0 0 28px}.fc-magazine-lead{font-size:17px!important;color:#d7e1ef!important;font-weight:650;line-height:1.7!important}.fc-magazine-copy p{font-size:15px;line-height:1.88;color:#bac6d6;margin:0 0 20px;word-break:keep-all}.fc-magazine-question{margin:34px 0 18px;padding:22px;border-radius:23px;background:linear-gradient(135deg,rgba(182,255,72,.18),rgba(96,99,255,.17));border:1px solid rgba(182,255,72,.2)}.fc-magazine-question strong{font-size:17px;display:block;margin-bottom:14px}.fc-magazine-actions{display:flex;gap:9px}.fc-magazine-like,.fc-magazine-ask{flex:1;min-height:50px;border-radius:16px;border:0;font-weight:800;cursor:pointer;font-size:13px}.fc-magazine-like{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.14)}.fc-magazine-like.is-liked{background:#b6ff48;color:#0b1412}.fc-magazine-ask{background:linear-gradient(135deg,#7067ff,#4e7dff);color:#fff;box-shadow:0 10px 22px rgba(87,101,255,.25)}
+@media (min-width:481px){.fc-magazine-sheet{box-shadow:0 0 0 1px rgba(255,255,255,.08),0 30px 80px rgba(0,0,0,.45)}}
+
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -5371,6 +5385,53 @@ html,body{min-height:100dvh}body.fc-keyboard-open #memberBottomNav,body.fc-keybo
     window.switchMode=function(mode){const out=originalSwitchMode.apply(this,arguments);setTimeout(syncTrainerDateStrip,0);return out;};
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',syncTrainerDateStrip);else syncTrainerDateStrip();
+})();
+
+
+/* fc-magazine-v1 */
+(function(){
+  const articles=[
+    {id:'calorie',category:'영양/식단',tag:'RESEARCH REVIEW · 영양/식단 · ISSUE 08',title:'같은 칼로리, 다른 결과',summary:'같은 칼로리를 먹어도 포만감, 운동 퍼포먼스, 다음 끼니의 선택은 달라집니다. 숫자만 보지 않는 식단의 기준을 정리했습니다.',meta:'2026.05.08 · 15분 분량',lead:'칼로리는 출발점입니다. 하지만 내 몸이 그 에너지를 어떻게 받아들이는지는 식품의 구성과 생활 리듬에 따라 달라집니다.',body:['체중 감량에서 칼로리는 분명 중요한 기준입니다. 다만 같은 500kcal이라도 단백질과 식이섬유가 충분한 한 끼, 당이 빠르게 흡수되는 한 끼는 포만감과 이후의 식사 선택을 다르게 만듭니다.','완벽한 식단을 한 번에 만들 필요는 없습니다. 매 끼니에 단백질 한 가지를 먼저 정하고, 채소나 과일을 더한 뒤, 운동량에 맞춰 탄수화물 양을 조절해 보세요.','기록은 평가표가 아니라 내 패턴을 발견하는 도구입니다. 배고픔이 심했던 날, 운동이 유난히 힘들었던 날을 함께 적어두면 나에게 맞는 식사 리듬이 보입니다.']},
+    {id:'collagen',category:'회복/보충제',tag:'SUPPLEMENT CHECK · 회복/보충제 · ISSUE 09',title:'콜라겐 보충제는 마법인가',summary:'콜라겐 한 포가 모든 것을 해결해 주지는 않습니다. 기대할 수 있는 부분과 먼저 챙겨야 할 생활 습관을 현실적으로 짚어봅니다.',meta:'2026.05.15 · 8분 분량',lead:'보충제는 기본을 대신하지 않습니다. 콜라겐을 선택하기 전, 수면·단백질·훈련 회복부터 점검해 보세요.',body:['콜라겐은 편리한 보조 수단이 될 수 있지만, 식사와 회복을 건너뛰게 하는 해결책은 아닙니다. 특히 운동을 시작한 초반에는 전체 단백질 섭취와 규칙적인 수면이 우선입니다.','보충제를 고를 때는 광고 문구보다 꾸준히 먹을 수 있는지, 내 식사에서 부족한 부분을 보완하는지부터 확인하는 편이 좋습니다. 새로운 제품은 한 번에 여러 개보다 하나씩 반응을 확인하며 시작하세요.','몸의 변화는 작은 습관의 합입니다. 물, 단백질, 채소, 훈련 후 회복 루틴이 정리된 다음에 보충제를 더하면 훨씬 현명한 선택이 됩니다.']},
+    {id:'damage',category:'트레이닝',tag:'TRAINING NOTE · 트레이닝 · ISSUE 10',title:'근손상은 정말 필요한가',summary:'다음 날의 심한 근육통이 좋은 운동의 증거는 아닙니다. 더 오래 성장하기 위한 자극과 회복의 균형을 살펴봅니다.',meta:'2026.05.22 · 11분 분량',lead:'운동의 목표는 매번 지치는 것이 아니라, 다음 훈련도 잘 해낼 수 있게 조금씩 강해지는 것입니다.',body:['근육통은 새로운 동작이나 강도 변화 뒤에 나타날 수 있는 자연스러운 반응입니다. 하지만 통증의 강도만으로 운동의 질을 판단할 수는 없습니다.','좋은 훈련은 자세를 유지한 채 충분한 자극을 만들고, 회복 가능한 범위에서 반복됩니다. 오늘의 기록을 바탕으로 다음 주에 무게·반복·동작의 질 중 하나를 조금만 올려도 충분한 발전입니다.','운동 뒤 회복은 휴식만을 뜻하지 않습니다. 가벼운 걷기, 수분과 식사, 충분한 수면까지 포함해 다음 세션을 준비하는 과정으로 생각해 보세요.']}
+  ];
+  const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const getLikes=()=>{try{return JSON.parse(localStorage.getItem('fitConnectColumnLikes')||'{}')}catch(e){return {}}};
+  const setLikes=v=>{try{localStorage.setItem('fitConnectColumnLikes',JSON.stringify(v))}catch(e){}};
+  function createModal(){
+    if(document.getElementById('fcMagazineModal'))return document.getElementById('fcMagazineModal');
+    const modal=document.createElement('div');modal.id='fcMagazineModal';modal.hidden=true;
+    modal.innerHTML='<div class="fc-magazine-sheet" role="dialog" aria-modal="true" aria-label="FIT-CONNECT 칼럼"><div id="fcMagazineContent"></div></div>';
+    document.body.append(modal);return modal;
+  }
+  function renderList(category='전체'){
+    const root=document.getElementById('fcMagazineContent');if(!root)return;
+    const list=articles.filter(a=>category==='전체'||a.category===category);
+    root.innerHTML='<div class="fc-magazine-head"><div><span class="fc-magazine-eyebrow">FIT-CONNECT MAGAZINE</span><h2>칼럼</h2><p>현장에서 검증된 트레이너 인사이트.</p></div><button class="fc-magazine-close" type="button" aria-label="닫기">×</button></div><div class="fc-magazine-filters">'+['전체','영양/식단','트레이닝','회복/보충제'].map(c=>'<button type="button" class="fc-magazine-filter '+(c===category?'is-active':'')+'" data-category="'+c+'">'+c+'</button>').join('')+'</div><div class="fc-magazine-list">'+list.map(a=>'<button class="fc-article-card" type="button" data-article="'+a.id+'"><span class="fc-article-tag">'+esc(a.tag)+'</span><h3>'+esc(a.title)+'</h3><p class="fc-article-summary">'+esc(a.summary)+'</p><span class="fc-article-meta">'+esc(a.meta)+'</span></button>').join('')+'</div>';
+    root.querySelector('.fc-magazine-close').onclick=closeMagazine;
+    root.querySelectorAll('.fc-magazine-filter').forEach(b=>b.onclick=()=>renderList(b.dataset.category));
+    root.querySelectorAll('[data-article]').forEach(b=>b.onclick=()=>renderDetail(articles.find(a=>a.id===b.dataset.article)));
+  }
+  function renderDetail(article){
+    const root=document.getElementById('fcMagazineContent');if(!root||!article)return;
+    const liked=!!getLikes()[article.id];
+    root.innerHTML='<article class="fc-magazine-detail"><div class="fc-magazine-detail-top"><button class="fc-magazine-back" type="button" aria-label="칼럼 목록으로">‹</button><span class="fc-article-tag">'+esc(article.tag)+'</span></div><h2>'+esc(article.title)+'</h2><span class="fc-article-meta">'+esc(article.meta)+'</span><div class="fc-magazine-copy"><p class="fc-magazine-lead">'+esc(article.lead)+'</p>'+article.body.map(p=>'<p>'+esc(p)+'</p>').join('')+'</div><div class="fc-magazine-question"><strong>이 글이 도움 되셨나요? 🔥</strong><div class="fc-magazine-actions"><button class="fc-magazine-like '+(liked?'is-liked':'')+'" type="button">'+(liked?'공감했어요 ♥':'공감하기 ♡')+'</button><button class="fc-magazine-ask" type="button">담당 코치에게 질문하기</button></div></div></article>';
+    root.querySelector('.fc-magazine-back').onclick=()=>renderList();
+    root.querySelector('.fc-magazine-like').onclick=function(){const likes=getLikes();likes[article.id]=!likes[article.id];setLikes(likes);renderDetail(article);};
+    root.querySelector('.fc-magazine-ask').onclick=()=>{closeMagazine();const feedback=document.querySelector('#memberBottomNav [data-member-tab="feedback"]');if(feedback)feedback.click();setTimeout(()=>document.querySelector('#memberView textarea, #memberView input[type="text"]')?.focus(),180);};
+  }
+  function openMagazine(){const modal=createModal();modal.hidden=false;document.body.style.overflow='hidden';renderList();modal.querySelector('.fc-magazine-sheet').scrollTop=0;}
+  function closeMagazine(){const modal=document.getElementById('fcMagazineModal');if(modal)modal.hidden=true;document.body.style.overflow='';}
+  function addShortcut(){
+    const home=document.getElementById('memberHomePage');
+    if(!home||document.getElementById('fcMagazineShortcut'))return;
+    const button=document.createElement('button');button.type='button';button.id='fcMagazineShortcut';button.innerHTML='<span class="fc-magazine-mark">✦</span><span class="fc-magazine-shortcopy"><span class="fc-magazine-kicker">FIT-CONNECT MAGAZINE</span><span class="fc-magazine-shorttitle">운동이 더 쉬워지는<br>코치의 한 줄 인사이트</span></span><span class="fc-magazine-arrow">›</span>';
+    button.onclick=openMagazine;
+    const coach=document.getElementById('fcCoachCard');if(coach&&coach.parentNode)coach.parentNode.insertBefore(button,coach.nextSibling);else home.append(button);
+  }
+  function boot(){addShortcut();createModal();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{boot();setTimeout(boot,500)});else{boot();setTimeout(boot,500);}
+  new MutationObserver(()=>addShortcut()).observe(document.documentElement,{childList:true,subtree:true});
 })();
 
 </script>

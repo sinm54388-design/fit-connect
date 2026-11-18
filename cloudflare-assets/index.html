@@ -85,7 +85,6 @@
     [data-member-page][hidden],#memberBottomNav[hidden]{display:none!important}
     body.member-tabs-active{--member-nav-height:76px;padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
     #memberBottomNav{position:fixed;z-index:900;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:#101b2c;border-top:1px solid #334155;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px #0003;transition:transform .2s ease,opacity .2s ease}
-    #memberBottomNav.nav-hidden{transform:translateY(calc(100% + 10px));opacity:0;pointer-events:none}
     #memberBottomNav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:56px;border-radius:12px;color:#a6b5c8;font-size:12px;font-weight:700;background:transparent;border:1px solid transparent}
     #memberBottomNav button i{font-size:19px}
     #memberBottomNav button.selected{background:#24351f;color:#bef264;border-color:#365314}
@@ -100,7 +99,7 @@
     .member-home-tile small{display:block;font-size:11px;color:#a6b5c8;line-height:1.5;margin-top:5px}
     .member-home-tile .tile-arrow{margin-left:auto;font-size:12px;color:#94a3b8}
     body.member-tabs-active #toastNotification,body.member-tabs-active #saveStatusBar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
-    @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}#memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 10px))}}
+    @media(min-width:768px){#memberBottomNav{max-width:620px;left:50%;right:auto;width:100%;transform:translateX(-50%);border:1px solid #334155;border-radius:18px 18px 0 0}}
   
 /* Trainer shares the member canvas, typography and purple/blue accents. */
 body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
@@ -727,7 +726,6 @@ body:not(.trainer-light-theme) #memberBottomNav{
   background:rgba(12,14,19,.86)!important;border:0!important;border-top:1px solid var(--fc-line)!important;border-radius:22px 22px 0 0!important;
   backdrop-filter:saturate(160%) blur(20px);-webkit-backdrop-filter:saturate(160%) blur(20px);box-shadow:0 -10px 40px rgba(0,0,0,.45)!important;
   padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px))!important}
-body:not(.trainer-light-theme) #memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 10px))!important}
 body:not(.trainer-light-theme) #memberBottomNav button{min-height:58px;color:#6f7789!important;border:0!important;border-radius:16px!important;font-size:11px!important;gap:5px!important;transition:color .2s ease,background-color .2s ease,transform .14s ease}
 body:not(.trainer-light-theme) #memberBottomNav button:active{transform:scale(.92)}
 body:not(.trainer-light-theme) #memberBottomNav button i{font-size:19px}
@@ -1923,7 +1921,10 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
         if(selected)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
       });
       if(page==='feedback')markCurrentFeedbackSeen();
-      if(scroll){document.getElementById('appHeader')?.classList.remove('header-hidden');window.scrollTo(0,0);}
+      if (scroll) {
+        document.getElementById('appHeader')?.classList.remove('header-hidden');
+        window.scrollTo({top:0, left:0, behavior:'instant'});
+      }
     }
 
     function openMemberSection(page, target) {
@@ -2468,7 +2469,6 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
     document.addEventListener("DOMContentLoaded", async function () {
       if(perfEnabled)document.getElementById('perfDiagnostic').style.display='block';
       arrangeMemberDashboard();
-      setupMemberBottomNavAutoHide();
       setupHomeRecordCards();
       setupFocusedMemberHome();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));
@@ -2524,29 +2524,6 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
         if (!document.hidden && !typing && updateAccessState()) loadDataFromCloud(true);
       }, REFRESH_MS);
     });
-
-    // Keep the date header visible. Hide only the bottom menu after the page leaves its top.
-    function setupMemberBottomNavAutoHide() {
-      const nav=document.getElementById('memberBottomNav');
-      const main=document.querySelector('main');
-      if(!nav||!main)return;
-      const show=()=>nav.classList.remove('nav-hidden');
-      const hide=()=>nav.classList.add('nav-hidden');
-      const anchor=document.createElement('span');
-      anchor.setAttribute('aria-hidden','true');
-      anchor.style.cssText='display:block;height:1px;width:1px;pointer-events:none;';
-      main.prepend(anchor);
-      if('IntersectionObserver' in window){
-        new IntersectionObserver(([entry])=>{
-          if(entry.isIntersecting)show();else hide();
-        },{threshold:0}).observe(anchor);
-      }else{
-        window.addEventListener('scroll',()=>{
-          if(window.scrollY<60)show();else hide();
-        },{passive:true});
-      }
-      nav.addEventListener('focusin',show);
-    }
 
     function setupAutoHideHeader() {
       const header = document.getElementById('appHeader');

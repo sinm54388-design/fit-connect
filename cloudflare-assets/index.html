@@ -304,6 +304,19 @@ body.trainer-app-active #toastNotification,body.trainer-app-active #saveStatusBa
 #workflowDraftBanner button{min-height:40px;white-space:nowrap;padding:8px 12px;border:1px solid #d0c7ec;border-radius:10px;background:white;color:#5d4ea1;font-weight:650;font-size:12px}
 #nextPendingMemberButton{display:block;width:100%;margin-top:12px;min-height:48px;border:1px solid #d4cdf3;border-radius:13px;background:#efedff;color:#5948bb;font-size:14px;font-weight:700;padding:12px}
 
+
+/* premium-mobile-app-v1 */
+:root{--fit-bg:#080d1b;--fit-card:rgba(18,27,48,.92);--fit-line:rgba(255,255,255,.10);--fit-blue:#4ea4ff;--fit-cyan:#5eead4;--fit-text:#f8fbff;--fit-sub:#a9b7cc}
+html{background:#080d1b;scroll-behavior:smooth}body{background:radial-gradient(circle at 50% -20%,#1b3870 0,#080d1b 52%,#030712 100%)!important;color:var(--fit-text)!important;min-height:100vh}body:before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(135deg,rgba(78,164,255,.10),transparent 35%,rgba(94,234,212,.04));z-index:-1}
+#appHeader,main{width:100%;max-width:480px!important;margin-inline:auto}#appHeader{position:sticky;top:0;z-index:60;border:0!important;background:rgba(8,13,27,.84)!important;backdrop-filter:blur(18px);box-shadow:0 10px 30px rgba(0,0,0,.22)}#appHeader>div{padding:15px 20px!important}main{padding:18px 16px 104px!important}.header-brand-desc,.header-sync-badge{display:none!important}
+#memberView,.member-home-page,#trainerView{gap:16px!important}.member-goal-hero,#memberView .bg-slate-900,#trainerView .bg-slate-900,#habitCalendarTop .bg-slate-900,#memberView .rounded-2xl,#trainerView .rounded-2xl{background:linear-gradient(145deg,rgba(26,40,69,.96),rgba(13,20,38,.96))!important;border:1px solid var(--fit-line)!important;border-radius:24px!important;box-shadow:0 14px 34px rgba(0,0,0,.22)!important}
+.member-goal-hero{overflow:hidden;position:relative;padding:24px!important}.member-goal-hero:before{content:"";position:absolute;inset:auto -16% 42% 36%;height:160px;background:radial-gradient(circle,rgba(78,164,255,.32),transparent 68%);pointer-events:none}.member-goal-hero>*{position:relative}.member-goal-hero h2{letter-spacing:-.05em!important;line-height:1.2!important}.member-goal-hero p{color:var(--fit-sub)!important}
+#memberWorkoutProgressBar,#memberCalorieBar{height:12px!important;border-radius:999px!important;background:linear-gradient(90deg,var(--fit-blue),var(--fit-cyan))!important;box-shadow:0 0 18px rgba(78,164,255,.45);transition:width .45s cubic-bezier(.2,.8,.2,1)}
+#trainerFeedbackCard{position:relative;overflow:hidden;background:linear-gradient(135deg,#143e77,#17285c 58%,#111d3d)!important;border:1px solid rgba(120,196,255,.48)!important;border-radius:24px!important;box-shadow:0 16px 38px rgba(10,53,112,.28)!important}#trainerFeedbackCard:before{content:"COACH MESSAGE";display:block;color:#93c5fd;font-size:10px;letter-spacing:.16em;font-weight:900;margin-bottom:10px}
+#memberBottomNav{left:50%!important;transform:translateX(-50%)!important;width:min(100%,480px)!important;border:1px solid var(--fit-line)!important;border-bottom:0!important;border-radius:20px 20px 0 0!important;background:rgba(8,13,27,.94)!important;backdrop-filter:blur(18px)}#memberBottomNav a,#memberBottomNav button{min-height:58px!important}
+button,input,select,textarea,.member-set-check{min-height:48px!important}input,select,textarea{border:1px solid rgba(148,163,184,.35)!important;border-radius:14px!important;background:rgba(6,12,27,.72)!important;color:#f8fbff!important;padding:12px 14px!important}button:not(.member-bottom-nav-item){border-radius:14px!important;transition:transform .18s ease,filter .18s ease,box-shadow .18s ease!important}button:active,.member-set-check:active{transform:scale(.97)}.member-set-check{border-radius:17px!important;transition:transform .18s ease,background .22s ease,box-shadow .22s ease!important}.member-set-check:has(input:checked){background:rgba(26,125,232,.22)!important;border-color:rgba(94,234,212,.6)!important;box-shadow:0 0 0 1px rgba(94,234,212,.18),0 10px 22px rgba(40,125,220,.17)!important}.member-set-check input:checked{animation:fit-pop .28s ease both}@keyframes fit-pop{50%{transform:scale(1.24)}}
+@media(min-width:481px){body{padding-inline:18px}#appHeader,main{box-shadow:0 0 0 1px rgba(255,255,255,.06)}}@media(max-width:380px){main{padding-inline:12px!important}.member-goal-hero{padding:20px!important}}
+
 </style>
 <style id="fc-premium-skin">
 /* =====================================================================
@@ -821,7 +834,8 @@ body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-pag
               <span id="memberNameBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-brand-500/20 text-brand-500 font-semibold border border-brand-500/30">회원님</span>
               <span id="todayDateDisplay" class="text-xs text-slate-400"></span>
             </div>
-            <h2 id="customHeaderMessage" class="text-xl sm:text-2xl font-bold text-white">오늘의 운동과 식단을 완수해볼까요? 💪</h2>
+            <p id="memberGreeting" class="text-sm font-extrabold text-white/90">오늘도 멋지게 달성해볼까요? 🔥</p>
+            <h2 id="customHeaderMessage" class="mt-1 text-2xl sm:text-3xl font-extrabold text-white">오늘의 운동과 식단을 완수해볼까요? 💪</h2>
             <p class="text-xs sm:text-sm text-slate-400 mt-1">트레이너 코치님이 준비한 루틴을 확인하고 느낀점을 자유롭게 기록하세요.</p>
           </div>
           
@@ -2758,6 +2772,8 @@ body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-pag
     function renderUI(silent = false) {
       if (!appData) appData = getDefaultData();
       document.getElementById('memberNameBadge').innerText = `${activeMemberName} 회원님`;
+        const memberGreeting = document.getElementById('memberGreeting');
+        if (memberGreeting) memberGreeting.innerText = `${activeMemberName} 회원님, 오늘도 멋지게 달성해볼까요? 🔥`;
       document.querySelectorAll('.selectedMemberNameText').forEach(el => el.innerText = activeMemberName);
       document.getElementById('customHeaderMessage').innerText = appData.headerMessage || '오늘의 운동과 식단을 완수해볼까요? 💪';
 

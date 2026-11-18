@@ -948,62 +948,6 @@ html body .fc-weekly-sheet :is(p,.fc-weekly-author,.fc-column-editor label,.fc-c
 html body :is(.fc-weekly-meta,.fc-weekly-kicker,.fc-care-retry,.fc-workout-status strong,.fc-column-panel-top span) {color:#087760!important;}
 html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#17263d!important;}
 </style>
-<style id="fc-report-refresh">
-body.member-tabs-active{--report-bg:#f4f6f8;--report-ink:#191f28;--report-sub:#4e5968;--report-green:#00a86b;--fc-text:var(--report-ink);--fc-muted:var(--report-sub);--fc-card-2:#f8fafc;--fc-lime:#007a50;font-family:"Pretendard Variable",Pretendard,sans-serif;font-variant-numeric:tabular-nums;background:var(--report-bg)!important;padding-bottom:75px!important}
-html body.member-tabs-active:not(.trainer-light-theme)::before{background:#f4f6f8!important;box-shadow:none!important}
-body.member-tabs-active #appHeader>div{flex-direction:row!important;flex-wrap:nowrap!important}
-body.member-tabs-active #appHeader :is(.header-sync-badge,#currentDateInput,#btnMemberMode){display:none!important}
-body.member-tabs-active #appHeader>div>div:last-child{display:flex!important;align-items:center;gap:6px}
-body.member-tabs-active #appHeader>div>div:last-child>div:has(#currentDateInput){display:none!important}
-body.member-tabs-active #fcHeaderQuestion{padding:0 12px;border-radius:99px;background:#eefbf5;color:#006344;font-size:13px;font-weight:700;white-space:nowrap}
-body.member-tabs-active #fcQuickActions{display:none!important}
-body.member-tabs-active #memberBottomNav{background:#fffffff0!important;backdrop-filter:blur(18px);border-radius:0!important;box-shadow:0 -2px 12px #0f172a08!important}
-body.member-tabs-active #memberBottomNav button{min-height:50px!important}
-html body.member-tabs-active:not(.trainer-light-theme) #memberBottomNav button.selected{background:#eefbf5!important;color:#00764d!important}
-html body.member-tabs-active #fcDateChips .fc-date-chip.fc-selected{background:#00a86b!important;border-color:transparent!important;color:#071f17!important}
-html body.member-tabs-active:not(.trainer-light-theme) #memberView #memberHomePage> :is(.fc-report-card,.home-record-card,#fcCareSummary,#fcMagazineShortcut),
-html body.member-tabs-active:not(.trainer-light-theme) #memberView #fcReportMetrics>div{background:#fff!important;color:#191f28!important;border:0!important;border-radius:22px!important;box-shadow:0 2px 12px rgba(15,23,42,.035)!important}
-.fc-report-card{padding:17px;min-width:0}.fc-report-card h2{font-size:17px;font-weight:780;letter-spacing:-.025em}
-#fcReportHero{order:0}.fc-report-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}
-.fc-report-heading h2{font-size:clamp(20px,5vw,26px);line-height:1.28;overflow-wrap:anywhere}
-.fc-report-ring{--ring:#00a86b;display:grid;place-items:center;flex:none;width:90px;aspect-ratio:1;border-radius:50%;background:conic-gradient(var(--ring) var(--progress,0%),#eaf1ee 0);font-size:19px;font-weight:800}
-.fc-report-ring>span{display:grid;place-items:center;background:white;border-radius:50%;width:79%;height:79%;line-height:1.1}
-.fc-report-ring small{font-size:10px;color:#4e5968;font-weight:650}
-.fc-report-brief,.fc-report-detail{background:#f8fafc;border-radius:16px;padding:13px;margin-top:13px;font-size:13px;color:#4e5968;line-height:1.6;overflow-wrap:anywhere}
-.fc-report-brief p{white-space:pre-line}.fc-report-brief button{color:#00764d;font-weight:750}
-#fcWorkoutProof{width:100%;border-radius:15px;background:#00a86b;color:#071f17;font-weight:800;margin-top:12px}
-#fcReportMetrics{order:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-#fcReportMetrics>div{padding:14px;display:grid;justify-items:center;gap:9px;text-align:center;font-size:13px;font-weight:750}
-#fcReportMetrics .fc-report-ring{width:70px;font-size:14px}
-#fcBalanceReport{order:2}#fcBalancePlot{height:205px;position:relative}.fc-report-segments{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:#f2f4f6;border-radius:14px;padding:3px;gap:2px}
-.fc-report-segments button{min-width:0;font-size:clamp(10px,2.8vw,13px);border-radius:11px;color:#4e5968;font-weight:700}
-.fc-report-segments button[aria-pressed=true]{background:white;color:#00764d;box-shadow:0 1px 4px #0f172a14}
-#fcReportCheckin{order:3}
-html body.member-tabs-active:not(.trainer-light-theme) #memberView #fcReportCheckin #memberDailyCheckin{background:white!important;border:0!important;box-shadow:none!important;padding:0!important}
-#fcReportCheckin #memberNewFeedbackAlert,#fcReportCheckin #memberDailyCheckin>div:first-of-type p:first-child{display:none!important}
-html body.member-tabs-active #dailyCheckinButtons button{border-radius:20px!important;background:#f2f4f6!important;color:#354256!important;border:0!important;box-shadow:none!important}
-html body.member-tabs-active #dailyCheckinButtons button[aria-pressed=true]{background:#def8ec!important;color:#006344!important}
-html body.member-tabs-active #memberHomePage [data-record-card=diet]{order:4}
-html body.member-tabs-active #memberHomePage [data-record-card=growth]{order:5}
-html body.member-tabs-active #memberHomePage #fcCareSummary{order:6}
-body.member-tabs-active #memberHomePage :is(.member-goal-hero,#fcCoachCard,#fcHomeRecordActions,#fcDailyMetricsFold,[data-record-card=workout]){display:none!important}
-html body.member-tabs-active #memberView :is(.home-meal-grid>div,.home-body-metric,.member-set-check,[class~="bg-slate-950/70"]){background:#f8fafc!important;border-color:transparent!important;color:#191f28!important}
-html body.member-tabs-active #memberView .member-set-check:has(input:checked){background:#eefbf5!important}
-body.member-tabs-active button:active{scale:.98}
-body.member-tabs-active #toastNotification{top:calc(env(safe-area-inset-top,0px) + 12px)!important;bottom:auto!important;z-index:3000!important}
-.fc-entry-sheet{position:fixed;inset:auto 0 0;margin:0 auto;width:min(100%,480px);max-width:none;max-height:85dvh;overflow:auto;background:#fff;color:#191f28;border:0;border-radius:24px 24px 0 0;padding:16px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -8px 34px #0f172a20}
-.fc-entry-sheet::backdrop{background:#191f2860}.fc-entry-sheet header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;font-weight:800}.fc-entry-sheet header button{padding:0 12px;background:#f2f4f6;border-radius:14px}
-.fc-entry-sheet :is(input,textarea,select){background:#f8fafc!important;color:#191f28!important;border-color:#dce4eb!important}
-.fc-entry-sheet :is(.bg-slate-950,.bg-slate-900,.bg-slate-800){background:#f8fafc!important;color:#191f28!important}
-.fc-entry-sheet :is(.text-white,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500){color:#4e5968!important}
-@media(prefers-reduced-motion:reduce){body.member-tabs-active button:active{scale:none}}
-body.member-tabs-active #appHeader #btnTrainerMode>span{display:none!important}
-body.member-tabs-active #appHeader #btnTrainerMode{width:44px;justify-content:center;border-radius:50%;padding:0;background:#f2f4f6!important}
-body.member-tabs-active #memberDietSection [id^="meal-"][id$="-editor"]{display:none!important}
-.fc-meal-launch,.fc-inbody-launch{padding:0 14px;border-radius:14px;background:#eefbf5;color:#006344;font-weight:750;font-size:13px;margin-block:6px}
-#fcScoreBasis{display:block;margin-top:8px;color:#4e5968;font-size:11px}
-#fcReportCheckin .text-slate-500{color:#4e5968!important}
-</style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
@@ -2175,7 +2119,7 @@ body.member-tabs-active #memberDietSection [id^="meal-"][id$="-editor"]{display:
     function renderMemberHomeSignals(){
       const root=document.getElementById('memberDailyCheckin');if(!root)return;
       const state=readDailyCheckin(appData),selected=(field,value)=>state[field]===value;
-      const button=(field,value,label,activeClass)=>'<button type="button" data-check-field="'+field+'" data-check-value="'+value+'" aria-pressed="'+selected(field,value)+'" class="min-h-11 rounded-xl border px-3 py-2.5 text-sm font-extrabold transition active:scale-[0.98] '+(selected(field,value)?activeClass:'border-slate-200 bg-white/80 text-slate-600 shadow-sm hover:border-sky-300 hover:text-sky-700')+'">'+label+'</button>';
+      const button=(field,value,label,activeClass)=>'<button type="button" data-check-field="'+field+'" data-check-value="'+value+'" class="min-h-11 rounded-xl border px-3 py-2.5 text-sm font-extrabold transition active:scale-[0.98] '+(selected(field,value)?activeClass:'border-slate-200 bg-white/80 text-slate-600 shadow-sm hover:border-sky-300 hover:text-sky-700')+'">'+label+'</button>';
       const rows=[
         ['운동',button('workout','done','운동 했어요','border-emerald-300 bg-emerald-500 text-white shadow-md shadow-emerald-200'),button('workout','rest','오늘은 회복','border-slate-300 bg-slate-600 text-white shadow-md shadow-slate-200')],
         ['식단',button('diet','done','식단 지켰어요','border-sky-300 bg-sky-500 text-white shadow-md shadow-sky-200'),button('diet','partial','조절 중','border-amber-300 bg-amber-400 text-white shadow-md shadow-amber-200')],
@@ -3191,10 +3135,7 @@ body.member-tabs-active #memberDietSection [id^="meal-"][id$="-editor"]{display:
       });
       if (ok) {
         resetRoutineForms();
-        if (currentMode === 'member') {
-          document.getElementById('memberRoutineEditor').open = false;
-          window.fcCloseEntry?.(document.getElementById('memberRoutineForm'));
-        }
+        if (currentMode === 'member') document.getElementById('memberRoutineEditor').open = false;
       }
     }
 
@@ -3502,8 +3443,7 @@ body.member-tabs-active #memberDietSection [id^="meal-"][id$="-editor"]{display:
       mealEditorOpen.add(meal);
       const editor=document.getElementById(`meal-${meal}-editor`);
       editor.classList.remove('hidden');
-      if (window.fcOpenMealSheet && currentMode === 'member') window.fcOpenMealSheet(meal);
-      else editor.scrollIntoView({behavior:'smooth',block:'nearest'});
+      editor.scrollIntoView({behavior:'smooth',block:'nearest'});
     }
 
     function getFoodRows(meal) {
@@ -3679,7 +3619,6 @@ body.member-tabs-active #memberDietSection [id^="meal-"][id$="-editor"]{display:
       if (saved && isCurrentSaveContext(context)) {
         dirtyMealDrafts.delete(meal);
         mealEditorOpen.delete(meal);
-        window.fcCloseEntry?.(document.getElementById(`meal-${meal}-editor`));
         renderMemberDiet(appData.diet || {},2100);
         loadFoodShortcuts();
       }
@@ -4412,7 +4351,6 @@ body.member-tabs-active #memberDietSection [id^="meal-"][id$="-editor"]{display:
         if(request!==insightsRequest||member!==activeMemberName||mode!==currentMode||date!==selectedDate)return;
         if(result.status!=='success')throw Error(result.message||'성장 기록 조회 실패');
         insightsCanonicalShown=true;
-        if (mode === 'member') window.fcReportInsights?.(result);
         renderWeeklyReport(prefix==='trainer'?'trainerWeeklyReport':'memberWeeklyReport',result.weekly);
         renderMonthlyReport(prefix==='trainer'?'trainerMonthlyReport':'memberMonthlyReport',result.monthly);
         renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);
@@ -4445,7 +4383,6 @@ body.member-tabs-active #memberDietSection [id^="meal-"][id$="-editor"]{display:
         const body={...apiCredentials(),action:'saveInbody',recordDate:document.getElementById('inbodyDate').value,
           weight:document.getElementById('inbodyWeight').value,muscle:document.getElementById('inbodyMuscle').value,fat:document.getElementById('inbodyFat').value};
         const result=await apiPost(body);if(result.status!=='success')throw Error(result.message||'저장 실패');
-        window.fcCloseEntry?.(e.target);
         showToast('인바디 기록 저장 완료');await loadMemberInsights(true);
       }catch(err){alert('인바디 저장 실패: '+err.message);}
     }
@@ -5732,193 +5669,6 @@ body.member-tabs-active #memberDietSection [id^="meal-"][id$="-editor"]{display:
   new MutationObserver(attach).observe(document.documentElement,{childList:true,subtree:true});
 })();
 
-</script>
-<script>
-(() => {
-  const byId = id => document.getElementById(id);
-  const labels = ['목표','체성분','수행력','개인운동','출석'];
-  let chart, selectedAxis = 0, insights, insightKey, briefingKey, briefing;
-  let sheet, restoreEntry;
-  const key = () => activeMemberName + '|' + selectedDate;
-  const cap = value => Math.max(0, Math.min(100, Math.round(value)));
-  const ring = (id, caption) => '<div id="'+id+'" class="fc-report-ring"><span><b>—</b><small>'+caption+'</small></span></div>';
-  function setRing(id, value, text) {
-    const el = byId(id);
-    el.style.setProperty('--progress', cap(value || 0)+'%');
-    el.querySelector('b').textContent = text ?? (value == null ? '—' : value);
-  }
-  function scores() {
-    const data = insightKey === key() ? insights : null;
-    const days = data?.weekly?.current?.days;
-    const goal = Number(data?.goal?.weeklyDays);
-    const rows = (data?.inbody || []).filter(row => row.date <= selectedDate);
-    const latest = rows.map(row => row.date).sort().at(-1);
-    const age = latest ? Math.round((Date.parse(selectedDate)-Date.parse(latest))/86400000) : null;
-    const pairs = (Array.isArray(data?.progress) ? data.progress : []).map(ex => (ex.points || []).filter(p => p.date <= selectedDate).slice(-2)).filter(p => p.length === 2 && p[0].weight > 0);
-    const performance = pairs.length ? cap(100*pairs.filter(p => p[1].weight >= p[0].weight).length/pairs.length) : null;
-    return [
-      [goal>0 && days!=null ? cap(days/goal*100) : null,goal>0 && days!=null ? '주간 운동 목표 '+goal+'일 중 '+days+'일 기록했어요.' : '주간 운동 목표가 아직 등록되지 않았어요.','코치님과 이번 주 운동 목표를 정해 보세요.'],
-      [age!=null ? cap(100-age*100/30) : null,age!=null ? '최근 인바디 측정은 '+age+'일 전이에요. 측정일의 최근성을 표시해요.' : '선택일 이전에 등록된 인바디 기록이 없어요.','다음 수업 때 인바디 측정 일정을 확인해 보세요.'],
-      [performance,pairs.length ? '최근 두 번의 중량을 비교할 수 있는 '+pairs.length+'개 운동 중 유지·증가한 비율이에요.' : '중량을 두 번 이상 기록한 운동이 필요해요.','같은 운동의 무게와 반복 횟수를 기록해 보세요.'],
-      [appData?.routines?.length ? cap(Number.parseInt(byId('memberWorkoutProgressText').textContent,10)||0) : null,appData?.routines?.length ? '선택일에 등록된 운동의 완료 세트 비율이에요.' : '선택일에 등록된 운동이 없어요.','수업일지에서 완료한 세트를 체크해 보세요.'],
-      [null,'출석률을 계산하려면 예정 수업과 실제 출석 기록이 필요해요.','코치님께 다음 수업 일정을 확인해 보세요.']
-    ];
-  }
-  function updateReport() {
-    if (!byId('fcReportHero') || currentMode !== 'member') return;
-    byId('fcReportTitle').textContent = (activeMemberName || '회원').replace(/\s*회원님?$/, '')+'님, 오늘의 관리 리포트예요';
-    const own = appData?.feedback;
-    const previous = briefingKey === key() ? briefing : null;
-    byId('fcReportBrief').textContent = previous?.text || own?.workout || own?.diet || '등록된 코치 브리핑이 없어요.';
-    byId('fcReportBriefLabel').textContent = previous ? previous.date+' 코치 브리핑' : '코치 브리핑';
-    const pct = Number.parseInt(byId('memberWorkoutProgressText').textContent,10)||0;
-    const calories = Number(byId('memberCalorieText').textContent.replace(/[^\d.]/g,''))||0;
-    const target = Number(byId('memberTargetCalorieText').textContent.replace(/[^\d.]/g,''))||0;
-    setRing('fcWorkoutRing',pct,pct+'%');
-    setRing('fcCalorieRing',target ? calories/target*100 : 0,calories.toLocaleString('ko-KR'));
-    const data = scores();
-    const measured = data.map(item=>item[0]).filter(value => value != null);
-    setRing('fcOverallRing',measured.length ? Math.round(measured.reduce((a,b)=>a+b,0)/measured.length) : null);
-    byId('fcScoreBasis').textContent = '측정된 항목의 평균 · 미측정 제외';
-    const [value, basis, action] = data[selectedAxis];
-    byId('fcBalanceBasis').textContent = (value == null ? '미측정' : value+'점')+' · '+basis;
-    byId('fcBalanceAction').textContent = action;
-    const values = data.map(item => item[0]);
-    byId('fcBalancePlot').setAttribute('aria-label',labels.map((label,i)=>label+' '+(values[i]==null?'미측정':values[i]+'점')).join(', '));
-    if (window.Chart && !chart) {
-      chart = new Chart(byId('fcBalanceCanvas'),{
-        type:'radar',data:{labels,datasets:[{data:values,spanGaps:false,backgroundColor:'#00b87a20',borderColor:'#00a86b',pointBackgroundColor:'#00a86b',pointRadius:4}]},
-        options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},
-          scales:{r:{min:0,max:100,ticks:{display:false,stepSize:25},grid:{circular:true,color:'#e0e7ec'},angleLines:{color:'#e0e7ec'},pointLabels:{color:'#4e5968',font:{size:12}}}}}
-      });
-    } else if (chart && JSON.stringify(chart.data.datasets[0].data)!==JSON.stringify(values)) {
-      chart.data.datasets[0].data = values;
-      chart.update('none');
-    }
-  }
-  async function loadBriefing() {
-    if (currentMode !== 'member' || !hasMemberAccess() || briefingKey === key()) return;
-    const context = getSaveContext();
-    const contextKey = key();
-    briefingKey = contextKey;
-    briefing = null;
-    updateReport();
-    const day = new Date(context.date+'T12:00:00');
-    try {
-      for (let offset=1;offset<=3;offset++) {
-        const prior = new Date(day);
-        prior.setDate(day.getDate()-offset);
-        const date = getLocalDateStr(prior);
-        const request = {...context,date};
-        const record = viewedRecordCache.get(recordCacheKey(request)) || await sharedDailyRead(request);
-        if (!isCurrentSaveContext(context)) return;
-        const text = String(record?.feedback?.workout || record?.feedback?.diet || '').trim();
-        if (text) { briefing = {date,text}; updateReport(); return; }
-      }
-    } catch { if (isCurrentSaveContext(context)) updateReport(); }
-  }
-  function openEntry(node, title) {
-    if (!node) return;
-    if (sheet.open) {
-      if (sheet.contains(node)) return;
-      sheet.close();
-      restoreEntry?.();
-    }
-    const marker = document.createComment('entry position');
-    const parent = node.parentNode;
-    const next = node.nextSibling;
-    const wasHidden = node.classList.contains('hidden');
-    node.before(marker);
-    node.classList.remove('hidden');
-    sheet.querySelector('strong').textContent = title;
-    sheet.append(node);
-    restoreEntry = () => {
-      if (marker.parentNode) marker.replaceWith(node);
-      else if (parent.isConnected) parent.insertBefore(node,next?.parentNode===parent?next:null);
-      if (wasHidden) node.classList.add('hidden');
-      restoreEntry = null;
-    };
-    sheet.showModal();
-  }
-  window.fcCloseEntry = node => { if (sheet?.open && sheet.contains(node)) sheet.close(); };
-  window.fcReportInsights = result => { insights=result; insightKey=key(); updateReport(); };
-  window.fcOpenMealSheet = meal => {
-    const el=byId('meal-'+meal+'-editor');
-    if (currentMode==='member' && sheet) openEntry(el,({breakfast:'아침',lunch:'점심',dinner:'저녁',snack:'간식'})[meal]+' 식단 기록');
-  };
-  function init() {
-    const home = byId('memberHomePage');
-    if (!home) return;
-    const question = document.createElement('button');
-    question.type='button'; question.id='fcHeaderQuestion'; question.textContent='코치 질문';
-    question.onclick=()=>{ navigateMemberPage('feedback'); byId('memberMemoInput')?.focus(); };
-    byId('btnTrainerMode').before(question);
-    byId('btnTrainerMode').setAttribute('aria-label','트레이너 로그인');
-    question.hidden = !document.body.classList.contains('member-tabs-active');
-    new MutationObserver(()=>{ question.hidden=!document.body.classList.contains('member-tabs-active'); }).observe(document.body,{attributes:true,attributeFilter:['class']});
-    for (const [tab,label] of [['workout','수업일지'],['feedback','메모']]) {
-      const button=document.querySelector('#memberBottomNav [data-member-tab="'+tab+'"]');
-      if (button?.lastElementChild) button.lastElementChild.textContent=label;
-    }
-    home.insertAdjacentHTML('afterbegin','<section id="fcReportHero" class="fc-report-card"><div class="fc-report-heading"><h2 id="fcReportTitle"></h2>'+ring('fcOverallRing','관리점수')+'</div><small id="fcScoreBasis"></small><div class="fc-report-brief"><strong id="fcReportBriefLabel"></strong><p id="fcReportBrief"></p><button type="button" id="fcOpenLesson">수업일지 보기 ›</button></div><button type="button" id="fcWorkoutProof">오늘 운동 인증하기</button></section><section id="fcReportMetrics" aria-label="오늘 운동과 식단 요약"><div>운동 달성률'+ring('fcWorkoutRing','완료 세트')+'</div><div>오늘 칼로리'+ring('fcCalorieRing','kcal')+'</div></section><section id="fcBalanceReport" class="fc-report-card"><h2>관리 균형 분석</h2><div id="fcBalancePlot" role="img"><canvas id="fcBalanceCanvas" aria-hidden="true"></canvas></div><div class="fc-report-segments" role="group" aria-label="분석 항목">'+labels.map((label,i)=>'<button type="button" aria-pressed="'+(i===0)+'">'+label+'</button>').join('')+'</div><div class="fc-report-detail" aria-live="polite"><strong>분석 근거</strong><p id="fcBalanceBasis"></p><strong>추천 액션</strong><p id="fcBalanceAction"></p></div></section>');
-    byId('fcCalorieRing').style.setProperty('--ring','#ff6b35');
-    byId('fcOpenLesson').onclick=()=>navigateMemberPage('workout');
-    byId('fcWorkoutProof').onclick=()=>navigateMemberPage('workout');
-    document.querySelectorAll('.fc-report-segments button').forEach((button,index)=>button.onclick=()=>{
-      selectedAxis=index;
-      document.querySelectorAll('.fc-report-segments button').forEach((item,i)=>item.setAttribute('aria-pressed',String(i===index)));
-      updateReport();
-    });
-    const check = document.createElement('section');
-    check.id='fcReportCheckin'; check.className='fc-report-card';
-    check.append(byId('memberDailyCheckin')); byId('fcCheckinFold').replaceWith(check);
-    const diet = home.querySelector('[data-record-card="diet"]');
-    
-    diet.setAttribute('aria-label','오늘의 식단');
-    diet.addEventListener('click',event=>{
-      const card = event.target.closest('.home-meal-grid>div');
-      const index = card ? [...card.parentElement.children].indexOf(card) : -1;
-      if (index>=0) openMealEditor(['breakfast','lunch','dinner'][index]);
-    });
-    const growth = home.querySelector('[data-record-card="growth"] .home-record-heading>span');
-    if(growth) growth.lastChild.textContent=' 체형분석 요약';
-    sheet=document.createElement('dialog');
-    sheet.className='fc-entry-sheet'; sheet.setAttribute('aria-labelledby','fcEntryTitle');
-    sheet.innerHTML='<header><strong id="fcEntryTitle"></strong><button type="button">닫기</button></header>';
-    sheet.querySelector('button').onclick=()=>sheet.close();
-    sheet.addEventListener('close',()=>{ if(!sheet.open) restoreEntry?.(); });
-    document.body.append(sheet);
-    const routine=byId('memberRoutineEditor');
-    routine.querySelector('summary').addEventListener('click',event=>{event.preventDefault();openEntry(byId('memberRoutineForm'),'개인운동 기록');});
-    routine.addEventListener('toggle',()=>{if(routine.open){routine.open=false;openEntry(byId('memberRoutineForm'),'개인운동 기록');}});
-    for (const [meal,label] of [['breakfast','아침'],['lunch','점심'],['dinner','저녁'],['snack','간식']]) {
-      const editor=byId('meal-'+meal+'-editor');
-      const launch=document.createElement('button');
-      launch.type='button'; launch.className='fc-meal-launch'; launch.textContent=label+' 기록하기';
-      launch.onclick=()=>openMealEditor(meal);
-      editor.before(launch);
-    }
-    const inbody = byId('inbodyDate')?.closest('form');
-    if(inbody){
-      const launch=document.createElement('button');
-      launch.type='button';launch.textContent='인바디 입력';launch.className='fc-inbody-launch';
-      const fold=document.createElement('div');fold.hidden=true;inbody.before(launch,fold);fold.append(inbody);
-      launch.onclick=()=>openEntry(inbody,'인바디 입력');
-    }
-    const observed = ['memberWorkoutProgressText','memberCalorieText','memberTargetCalorieText','feedbackWorkoutText','dailyCheckinButtons'];
-    const observer = new MutationObserver(updateReport);
-    observed.forEach(id=>{const el=byId(id);if(el)observer.observe(el,{subtree:true,childList:true,characterData:true});});
-    byId('currentDateInput').addEventListener('change',()=>{updateReport();void loadBriefing();});
-    new MutationObserver(()=>{if(document.body.classList.contains('member-tabs-active'))void loadBriefing();}).observe(document.body,{attributes:true,attributeFilter:['class']});
-    const chartScript=document.createElement('script');
-    chartScript.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js';
-    chartScript.onload=updateReport;
-    chartScript.onerror=()=>{ byId('fcBalancePlot').textContent='차트를 불러오지 못했어요. 아래에서 항목별 분석을 확인할 수 있어요.'; };
-    document.head.append(chartScript);
-    updateReport(); void loadBriefing();
-  }
-  document.addEventListener('DOMContentLoaded',init);
-})();
 </script>
 </body>
 </html>

@@ -97,16 +97,25 @@ async function buildOverview(supaGet,date) {
     'routines:data->routines,reflection:data->reflection,diet:data->diet,feedback:data->feedback'+
     '&record_date=gte.'+windowStart+'&record_date=lte.'+date+
     '&order=record_date.desc&limit='+pageSize;
-  const [allMembers,firstPage]=await Promise.all([
+  const directPending=(async()=>{
+    const counts=new Map(),size=1000;
+    for(let offset=0;;offset+=size){
+      if(offset>=10000)throw Error('video overview pagination limit exceeded');
+      const rows=await supaGet('/rest/v1/fit_direct_videos?select=member_id,feedback&state=eq.ready&order=id.asc&limit='+size+'&offset='+offset,'overview_videos');
+      for(const row of rows)if(!String(row.feedback||'').trim())counts.set(String(row.member_id),(counts.get(String(row.member_id))||0)+1);
+      if(rows.length<size)return counts;
+    }
+  })();
+  const [allMembers,firstPage,directCounts]=await Promise.all([
     supaGet('/rest/v1/fit_members?select=id,name&order=name.asc&limit=1000','overview'),
-    supaGet(prefix+'&offset=0','overview')
+    supaGet(prefix+'&offset=0','overview'),directPending
   ]);
   if(allMembers.length===1000)throw Error('too many members for overview');
   const result=new Map();
   for(const row of allMembers) {
     rememberMember(String(row.name),row.id);
     result.set(row.id,{name:row.name,lastDate:'',activeToday:false,
-      pendingWorkout:false,pendingDiet:false,pendingVideos:0,feedbackDone:false,
+      pendingWorkout:false,pendingDiet:false,pendingVideos:0,directPendingVideos:directCounts.get(String(row.id))||0,feedbackDone:false,
       workoutToday:false,dietToday:false,
       _w:new Set(),_d:new Set(),_r:new Set(),_a:new Set()});
   }
@@ -202,7 +211,7 @@ function doneRoutines(data) {
 }
 async function memberRowsAscending(supaGet,memberId,date) {
   const pageSize=1000;
-  const prefix='/rest/v1/fit_daily_records?select=record_date,routines:data->routines,diet:data->diet'+
+  const prefix='/rest/v1/fit_daily_records?select=record_date,routines:data->routines,diet:data->diet,feedback:data->feedback'+
     '&member_id=eq.'+encodeURIComponent(memberId)+'&record_date=lte.'+date+
     '&order=record_date.desc&limit='+pageSize;
   const rows=[];
@@ -213,7 +222,7 @@ async function memberRowsAscending(supaGet,memberId,date) {
     if(page.length<pageSize)break;
   }
   return rows.reverse().map(r=>({date:String(r.record_date),
-    data:{routines:r.routines,diet:r.diet}}));
+    data:{routines:r.routines,diet:r.diet,feedback:r.feedback}}));
 }
 function buildMemberInsights(rows,date) {
   const start=weekMonday(date),lastStart=shiftDay(start,-7),end=shiftDay(start,6);
@@ -223,8 +232,17 @@ function buildMemberInsights(rows,date) {
   const monthBucket=()=>({days:new Set(),sets:0,exercises:0,dietDays:new Set()});
   const monthly={current:monthBucket(),previous:monthBucket()};
   const progress=new Map();
+  const care={workoutDays:new Set(),dietDays:new Set(),feedbackDays:new Set()};
   for(const row of rows) {
     const d=row.date,data=row.data||{},done=doneRoutines(data);
+    if(d>=start&&d<=date){
+      if(done.length)care.workoutDays.add(d);
+      if(['breakfast','lunch','dinner','snack'].some(k=>{
+        const meal=data.diet?.[k]||{};
+        return !!String(meal.desc||'').trim()||(Array.isArray(meal.photos)&&meal.photos.length>0)||(Array.isArray(meal.foods)&&meal.foods.length>0);
+      }))care.dietDays.add(d);
+      if(String(data.feedback?.workout||'').trim()||String(data.feedback?.diet||'').trim())care.feedbackDays.add(d);
+    }
     if(d>=lastStart&&d<=end) {
       const bucket=d<start?week.previous:week.current;
       for(const r of done) {
@@ -269,6 +287,7 @@ function buildMemberInsights(rows,date) {
     return item;
   }).sort((a,b)=>b.points.length-a.points.length).slice(0,30);
   return {status:'success',partial:true,
+    careSummary:{start,end:date,workoutDays:care.workoutDays.size,dietDays:care.dietDays.size,feedbackDays:care.feedbackDays.size},
     weekly:{start,end,current:weeklyStat(week.current),previous:weeklyStat(week.previous),improvements},
     monthly:{month,previousMonth:prevMonth,current:monthlyStat(monthly.current),
       previous:monthlyStat(monthly.previous),inbodyChange:null},
@@ -287,7 +306,7 @@ async function handleRecords(request,env) {
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
   // Member path: either exchange a member link for a session, or use a session.
-  if((action==='videoPlaybackUrl'||directVideo||action==='columnList')&&input.password===undefined&&input.session===undefined){
+  if((action==='videoPlaybackUrl'||directVideo||action==='columnList'||action==='memberInsights')&&input.password===undefined&&input.session===undefined){
     if(!member||member.length>100||typeof input.token!=='string'||!input.token||input.token.length>200||!validDay(date))return json({status:'denied'},403);
     try{if(!await appsScriptAcceptsMember(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
   } else if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {
@@ -589,3 +608,4 @@ export default {
     return env.ASSETS.fetch(request);
   }
 };
+

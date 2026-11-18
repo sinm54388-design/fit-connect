@@ -12,7 +12,7 @@
 // MEMBER_SESSION_HOURS.
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
 const MEMBER_SESSION_HOURS=8;
-const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','dailyCheckin'];
+const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','dailyCheckin','columnList'];
 const b64url={
   encode:bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
   decode:text=>{
@@ -282,7 +282,7 @@ async function handleRecords(request,env) {
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','columnList','columnSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -345,12 +345,50 @@ async function handleRecords(request,env) {
   };
   const failed=error=>json({status:'error',
     code:'supabase_read_failed:'+step+':'+(error?.diagnostic||clean(error?.name||'error'))},502);
+  const supaWrite=async(path,method,payload,label)=>{
+    step=label||step;
+    const response=await fetch(base+path,{method,headers:{
+      apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json',
+      Prefer:'return=representation'
+    },body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
+    if(!response.ok){
+      let detail='';try{const body=await response.json();detail=clean(body?.message||body?.error||body?.code);}catch{}
+      const error=Error('Supabase HTTP '+response.status);error.diagnostic=response.status+(detail?':'+detail:'');throw error;
+    }
+    return response.json();
+  };
   const start=performance.now();
   if(action==='listMembersFast') {
     try {
       const rows=await supaGet('/rest/v1/fit_members?select=name&order=name.asc&limit=1000','members');
       if(rows.length===1000)throw Error('member list pagination required');
       return json({status:'success',source:'supabase',members:rows.map(row=>String(row.name||'').trim()).filter(Boolean)});
+    }catch(error){return failed(error);}
+  }
+  if(action==='columnList') {
+    try {
+      const isTrainer=input.password!==undefined;
+      const filter=isTrainer?'':'&status=eq.published';
+      const rows=await supaGet('/rest/v1/fit_columns?select=id,title,category,summary,content,author,published_at,status,updated_at'+filter+'&order=published_at.desc&limit=60','columns');
+      return json({status:'success',columns:rows},200,{'X-Fit-Function-Region':request.cf?.colo||'cloudflare'});
+    }catch(error){return failed(error);}
+  }
+  if(action==='columnSave') {
+    const c=input.column;
+    const categories=new Set(['영양/식단','트레이닝','회복/습관']);
+    const lines=Array.isArray(c?.content)?c.content.map(v=>String(v||'').trim()).filter(Boolean):[];
+    const title=String(c?.title||'').trim(),category=String(c?.category||'').trim(),summary=String(c?.summary||'').trim();
+    const publishedAt=String(c?.published_at||'').trim(),author=String(c?.author||'신명진 코치').trim();
+    if(title.length<3||title.length>90||!categories.has(category)||summary.length<10||summary.length>280||
+      lines.length<1||lines.length>6||lines.some(v=>v.length>500)||author.length<2||author.length>50||!validDay(publishedAt))
+      return json({status:'error',code:'invalid_column'},400);
+    const payload={title,category,summary,content:lines,author,published_at:publishedAt,status:'published',updated_at:new Date().toISOString()};
+    const id=String(c?.id||'').trim();
+    try {
+      const rows=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+        ?await supaWrite('/rest/v1/fit_columns?id=eq.'+encodeURIComponent(id),'PATCH',payload,'column_save')
+        :await supaWrite('/rest/v1/fit_columns','POST',payload,'column_publish');
+      return json({status:'success',column:rows?.[0]||null});
     }catch(error){return failed(error);}
   }
   if(action==='trainerOverview') {

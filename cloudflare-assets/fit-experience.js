@@ -335,7 +335,9 @@
     const rhythmTitle=id('reportRhythm')?.querySelector('header h2');
     if(rhythmTitle){
       const caption=make('small','','fit-rhythm-date');
-      rhythmTitle.after(caption);
+      const heading=make('div','');
+      rhythmTitle.before(heading);
+      heading.append(rhythmTitle,caption);
       const update=()=>caption.textContent=dateLabel.textContent+' · 운동 리포트';
       new MutationObserver(update).observe(dateLabel,{childList:true,characterData:true,subtree:true});
       update();

@@ -185,13 +185,13 @@ html body.fit-experience-ready.trainer-light-theme #trainerView :is(.text-brand-
   background: #2a3447; border-radius: 12px; padding: 4px;
 }
 .fit-reference-mode-segments .fit-action {
-  min-width: 0; min-height: 30px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; min-height: 30px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   background: transparent; color: #dbe4f5; border-radius: 8px; padding: 5px 7px; font-size: 11px;
 }
 .fit-reference-mode-segments .fit-action[aria-pressed="true"] {
   background: #fff; color: #0b132b; box-shadow: 0 1px 3px #0002;
 }
-html body.fit-experience-ready:not(.trainer-light-theme) #appHeader {
+html body.fit-experience-ready.member-report-enabled:not(.trainer-light-theme) #appHeader {
   position: relative; top: auto; padding: 14px 18px 3px !important;
   border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
   background: #f4f6f9 !important; transform: none !important; opacity: 1 !important;
@@ -214,12 +214,12 @@ html body.fit-experience-ready:not(.trainer-light-theme) #appHeader h1 {
 }
 html body.fit-experience-ready:not(.trainer-light-theme) #appHeader .fit-member-tools { margin: 0; gap: 7px; }
 html body.fit-experience-ready:not(.trainer-light-theme) #appHeader .fit-member-tools :is(.fit-action,.fit-pill) {
-  background: #fff !important; min-height: 28px; border: 0 !important; padding: 5px 8px;
+  background: #fff !important; min-height: 28px !important; border: 0 !important; padding: 5px 8px;
   border-radius: 99px !important; box-shadow: 0 1px 4px #1431520a !important; font-size: 11px; white-space: nowrap;
 }
 #fitStreak:not([hidden]) { display: inline-flex; align-items: center; gap: 4px; }
 #fitStreak::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
-html body.fit-experience-ready #fcDateChips {
+html body.fit-experience-ready.member-report-enabled:not(.trainer-light-theme) #fcDateChips {
   background: #f4f6f9 !important; box-shadow: none !important; border: 0 !important; padding: 9px 16px 4px;
 }
 html body.fit-experience-ready #fcDateChips .fc-date-chip:not(.fc-selected) {
@@ -238,7 +238,7 @@ html body.fit-experience-ready #fcDateChips .fc-date-chip.fc-selected::after { b
 html body.fit-experience-ready #fcDateChips .fc-date-chip.fit-recorded:not(.fc-selected)::after { background: #14b8a6; }
 html body.fit-experience-ready:not(.trainer-light-theme) main { padding: 10px 16px 28px !important; }
 .fit-reference-date { display: flex; align-items: center; gap: 5px 8px; min-width: 0; flex-wrap: wrap; margin-bottom: 7px; }
-.fit-reference-date .fit-reference-date-label { min-height: 0; border-radius: 99px; padding: 4px 8px; background: #ffffff26; color: #fff; font-size: 11px; }
+.fit-reference-date .fit-reference-date-label { min-height: 0 !important; border-radius: 99px; padding: 4px 8px; background: #ffffff26; color: #fff; font-size: 11px; }
 .fit-reference-date #fitPr { color: #5eead4; background: transparent; margin: 0; padding: 0; font-size: 11px; }
 html body.fit-experience-ready #memberHomePage #todayDateDisplay { display: none !important; }
 html body.fit-experience-ready #memberHomePage .member-goal-hero { padding: 20px !important; }
@@ -255,7 +255,7 @@ html body.fit-experience-ready #memberHomePage .fit-hero-content { grid-template
 #reportRingScore { font-size: 20px; }
 .fit-reference-brief { margin-top: 16px; border: 1px solid #ffffff24; border-radius: 16px; padding: 12px 13px; background: #ffffff19; }
 .fit-reference-brief-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.fit-reference-brief .fit-action { min-height: 24px; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; color: #eef5ff; font-size: 11px; }
+.fit-reference-brief .fit-action { min-height: 24px !important; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; color: #eef5ff; font-size: 11px; }
 .fit-reference-brief .fit-brief-link { color: #a2ccff; }
 .fit-reference-brief p { margin-top: 3px; color: #f0f6ff; line-height: 1.5; font-size: 13px; overflow-wrap: anywhere; white-space: pre-line; }
 #reportVerify { margin-top: 14px; font-size: 14px; }
@@ -271,7 +271,7 @@ html body.fit-experience-ready #reportSummaries button { min-height: 128px; padd
 .fit-calorie-percent { position: absolute; right: 13px; top: 13px; background: #ffffff28; padding: 3px 7px; border-radius: 999px; }
 #reportSummaries .fit-calorie-percent { font-size: 11px; }
 .report-calorie-card > span:first-child { padding-right: 37px; }
-.fit-rhythm-date { display: block; font-size: 11px; color: #596781; margin-top: 3px; }
+#reportRhythm > header .fit-rhythm-date { display: block; font-size: 11px; color: #596781; margin-top: 3px; }
 html body.fit-experience-ready #memberBottomNav {
   border-radius: 0 !important; box-shadow: none !important; padding: 6px 8px calc(7px + env(safe-area-inset-bottom,0px)) !important;
 }

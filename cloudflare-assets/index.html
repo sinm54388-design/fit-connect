@@ -766,9 +766,22 @@ body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-pag
   body:not(.trainer-light-theme) *{animation:none!important;transition:none!important}
 }
 
+
+/* fc-premium-polish-v2 */
+#fcSkeleton{position:fixed;inset:0;z-index:3000;display:grid;place-items:start center;padding-top:22px;background:radial-gradient(circle at 50% -10%,#213b4c 0,#080d16 48%,#05070c 100%);transition:opacity .32s ease,visibility .32s ease}#fcSkeleton.fc-loaded{opacity:0;visibility:hidden;pointer-events:none}.fc-skeleton-phone{width:min(100%,480px);min-height:610px;padding:21px 20px;background:linear-gradient(160deg,#111c2c,#0a0f1a);border:1px solid #ffffff12;border-radius:0 0 28px 28px;box-shadow:0 20px 55px #0008}.fc-skel-logo,.fc-skel-date,.fc-skel-title,.fc-skel-sub,.fc-skel-card{background:linear-gradient(100deg,#1c2735 25%,#2b3b4e 45%,#1c2735 65%);background-size:240% 100%;animation:fc-shimmer 1.3s infinite}.fc-skel-logo{width:126px;height:27px;border-radius:10px}.fc-skel-date{width:124px;height:40px;border-radius:14px;float:right;margin-top:-27px}.fc-skel-title{clear:both;width:74%;height:31px;margin-top:78px;border-radius:10px}.fc-skel-sub{width:54%;height:16px;margin-top:12px;border-radius:8px}.fc-skel-card{height:164px;margin-top:24px;border-radius:23px}.fc-skel-card-sm{height:112px;margin-top:16px}@keyframes fc-shimmer{to{background-position:-240% 0}}
+#fcDateChips{max-width:480px;margin:0 auto;padding:10px 14px 8px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;background:rgba(8,13,27,.88);border-bottom:1px solid #ffffff0d;backdrop-filter:blur(16px)}#fcDateChips::-webkit-scrollbar{display:none}.fc-date-chip{flex:0 0 48px!important;min-height:54px!important;padding:6px 4px!important;border-radius:15px!important;border:1px solid #ffffff14!important;background:#101a29!important;color:#9cabc0!important;font-size:11px!important;font-weight:800!important;line-height:1.15!important}.fc-date-chip b{display:block;font-size:17px;line-height:1.25;color:#e9f1fb}.fc-date-chip.fc-today{border-color:#86efac55!important}.fc-date-chip.fc-selected{background:linear-gradient(145deg,#b9f34a,#75d643)!important;border-color:#d9ff83!important;color:#102010!important;box-shadow:0 7px 20px #9eea4038!important}.fc-date-chip.fc-selected b{color:#102010}
+#fcQuickActions{position:fixed;z-index:890;left:50%;bottom:calc(78px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(calc(100% - 24px),456px);display:flex;gap:8px;padding:8px;border:1px solid #ffffff14;border-radius:18px;background:rgba(12,19,32,.86);box-shadow:0 16px 42px #0007;backdrop-filter:blur(18px);transition:opacity .2s ease,transform .2s ease}#fcQuickActions[hidden]{display:none}.fc-quick-action{flex:1;min-height:48px!important;border-radius:13px!important;border:0!important;font-weight:850!important;font-size:12px!important}.fc-quick-action:first-child{background:linear-gradient(135deg,#b9f34a,#84e047)!important;color:#102010!important}.fc-quick-action:last-child{background:#22314a!important;color:#f2f7ff!important;border:1px solid #ffffff14!important}body.member-tabs-active{padding-bottom:164px!important}@media(max-width:480px){#fcDateChips{padding-inline:12px}#fcQuickActions{bottom:calc(74px + env(safe-area-inset-bottom,0px));width:calc(100% - 20px)}}@media(min-width:481px){#fcDateChips{border-inline:1px solid #ffffff0d}}
+
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+  <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
+    <div class="fc-skeleton-phone">
+      <div class="fc-skel-logo"></div><div class="fc-skel-date"></div>
+      <div class="fc-skel-title"></div><div class="fc-skel-sub"></div>
+      <div class="fc-skel-card"></div><div class="fc-skel-card fc-skel-card-sm"></div>
+    </div>
+  </div>
 
   <!-- Header -->
   <header id="appHeader" class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 sm:px-8">
@@ -5274,7 +5287,43 @@ body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-pag
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 
-  </script>
+  
+/* fc-premium-polish-v2 */
+(function(){
+  const qs=(q)=>document.querySelector(q);
+  const skeleton=qs('#fcSkeleton');
+  const hideSkeleton=()=>skeleton?.classList.add('fc-loaded');
+  const originalLoad=window.loadDataFromCloud;
+  if(typeof originalLoad==='function'){
+    window.loadDataFromCloud=async function(){
+      skeleton?.classList.remove('fc-loaded');
+      try{return await originalLoad.apply(this,arguments);}finally{setTimeout(hideSkeleton,220);}
+    };
+  }
+  setTimeout(hideSkeleton,1900);
+  function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+  function setupDateChips(){
+    const input=qs('#currentDateInput'),header=qs('#appHeader');if(!input||!header||qs('#fcDateChips'))return;
+    const row=document.createElement('div');row.id='fcDateChips';row.setAttribute('aria-label','날짜 선택');
+    const draw=()=>{
+      const active=input.value||iso(new Date());const base=new Date(active+'T12:00:00');row.innerHTML='';
+      for(let offset=-3;offset<=3;offset++){const d=new Date(base);d.setDate(base.getDate()+offset);const key=iso(d),btn=document.createElement('button');btn.type='button';btn.className='fc-date-chip'+(key===active?' fc-selected':'')+(key===iso(new Date())?' fc-today':'');btn.innerHTML='<span>'+['일','월','화','수','목','금','토'][d.getDay()]+'</span><b>'+d.getDate()+'</b>';btn.onclick=()=>{input.value=key;input.dispatchEvent(new Event('change',{bubbles:true}));draw();};row.append(btn);}
+    };
+    header.after(row);input.addEventListener('change',draw);draw();
+  }
+  function setupQuickActions(){
+    if(qs('#fcQuickActions'))return;const bar=document.createElement('div');bar.id='fcQuickActions';bar.hidden=true;
+    bar.innerHTML='<button type="button" class="fc-quick-action"><i class="fa-solid fa-dumbbell"></i> 오늘 운동 인증</button><button type="button" class="fc-quick-action"><i class="fa-regular fa-comment-dots"></i> 선생님께 질문</button>';
+    document.body.append(bar);
+    const go=(tab)=>{const b=qs('#memberBottomNav [data-member-tab="'+tab+'"]');b?.click();window.scrollTo({top:0,behavior:'smooth'});};
+    bar.children[0].onclick=()=>go('workout');bar.children[1].onclick=()=>go('feedback');
+    const sync=()=>{const member=document.body.classList.contains('member-tabs-active');bar.hidden=!member;};
+    new MutationObserver(sync).observe(document.body,{attributes:true,attributeFilter:['class']});sync();
+  }
+  const boot=()=>{setupDateChips();setupQuickActions();};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})();
+</script>
 </body>
 </html>
 

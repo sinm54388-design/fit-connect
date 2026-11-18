@@ -97,7 +97,7 @@ html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(.fit-f
 html body.member-report-enabled:not(.trainer-light-theme) #memberView input[type=file]::file-selector-button { background: #dceaff; color: #19377a; }
 html body.member-report-enabled:not(.trainer-light-theme) #memberView :is(button,summary,input,textarea,select):focus-visible { outline: 2px solid #0d9488 !important; }
 
-html body.member-report-enabled:not(.trainer-light-theme) #memberHomePage .member-goal-hero {
+html body.member-report-enabled:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero {
   padding: 19px !important;
   background: linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%) !important;
   color: white !important;

@@ -779,6 +779,10 @@ body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-pag
 #fcCoachCard{background:linear-gradient(135deg,rgba(111,87,255,.72),rgba(28,35,81,.78) 58%,rgba(10,18,38,.85))!important;backdrop-filter:blur(18px) saturate(1.25)!important;-webkit-backdrop-filter:blur(18px) saturate(1.25)!important;border:1px solid rgba(199,191,255,.34)!important;box-shadow:0 18px 42px rgba(39,27,112,.30),inset 0 1px rgba(255,255,255,.16)!important}#fcCoachCard:after{content:"";position:absolute;right:-24px;top:-30px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.20),transparent 66%);pointer-events:none}
 html,body{min-height:100dvh}body.fc-keyboard-open #memberBottomNav,body.fc-keyboard-open #fcQuickActions{opacity:0!important;pointer-events:none!important;transform:translateY(22px)!important}body.fc-keyboard-open main{padding-bottom:28px!important}input,textarea,select{scroll-margin-block:110px!important}@media(max-width:480px){.fc-gauge{right:10px;width:52px;height:52px}.fc-metric-enhanced{padding-right:70px!important}}
 
+
+/* fc-trainer-date-strip-fix */
+#fcDateChips[hidden],body.trainer-light-theme #fcDateChips{display:none!important}
+
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
@@ -5352,6 +5356,21 @@ html,body{min-height:100dvh}body.fc-keyboard-open #memberBottomNav,body.fc-keybo
  }
  const boot=()=>{setupCircularGauges();setupKeyboardViewport();};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})();
+
+
+/* fc-trainer-date-strip-fix */
+(function(){
+  function syncTrainerDateStrip(){
+    const strip=document.getElementById('fcDateChips');if(!strip)return;
+    const isMember=(typeof currentMode==='undefined'||currentMode==='member');
+    strip.hidden=!isMember;
+  }
+  const originalSwitchMode=window.switchMode;
+  if(typeof originalSwitchMode==='function'){
+    window.switchMode=function(mode){const out=originalSwitchMode.apply(this,arguments);setTimeout(syncTrainerDateStrip,0);return out;};
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',syncTrainerDateStrip);else syncTrainerDateStrip();
 })();
 
 </script>

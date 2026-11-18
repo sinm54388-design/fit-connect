@@ -5496,7 +5496,7 @@ body:not(.trainer-light-theme) #appHeader{background:rgba(15,23,42,.82)!importan
   const request=async(action,extra={})=>{
     const base={action,date:(typeof selectedDate==='string'&&selectedDate)||iso(),...extra};
     if(typeof currentMode!=='undefined'&&currentMode==='trainer'&&trainerPassword)base.password=trainerPassword;
-    else {const session=await ensureMemberSession({mode:'member',member:activeMemberName,token:memberToken,date:base.date});if(!session)throw Error('session');base.session=session;}
+    else {if(action==='columnList'){if(!activeMemberName||!memberToken)throw Error('member_access');base.member=activeMemberName;base.token=memberToken;}else{const session=await ensureMemberSession({mode:'member',member:activeMemberName,token:memberToken,date:base.date});if(!session)throw Error('session');base.session=session;}}
     const res=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(base)});
     const json=(res.headers.get('content-type')||'').includes('json')?await res.json():{};
     if(!res.ok||json.status!=='success')throw Error(json.code||'request_failed');return json;

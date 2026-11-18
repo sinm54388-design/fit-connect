@@ -1,0 +1,473 @@
+/* FIT-CONNECT fit-light v4 - member light theme layered after fit-dark.css (presentation only) */
+:root{
+--fc-outer:#E5E9F2;
+--fc-canvas:#F3F5F9;
+--fc-card:#FFFFFF;
+--fc-soft:#F8FAFC;
+--fc-soft-2:#F1F4F9;
+--fc-line:#E7EAF0;
+--fc-line-2:#D9DEE8;
+--fc-ink:#111827;
+--fc-ink-2:#374151;
+--fc-muted:#6B7280;
+--fc-faint:#9CA3AF;
+--fc-primary:#4F46E5;
+--fc-primary-2:#4338CA;
+--fc-primary-soft:#EEF2FF;
+--fc-accent:#F97316;
+--fc-accent-2:#EA580C;
+--fc-accent-soft:#FFF7ED;
+--fc-good:#14B8A6;
+--fc-good-soft:#E9FBF7;
+--fc-danger:#E11D48;
+--fc-radius:24px;
+--fc-radius-sm:16px;
+--fc-shadow:0 4px 20px rgba(15,23,42,.05);
+--fc-shadow-lift:0 10px 28px rgba(15,23,42,.08);
+--fc-font:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Noto Sans KR',system-ui,sans-serif;
+--fc-shell:430px;
+}
+html body:not(.trainer-light-theme){background:var(--fc-outer)!important;color:var(--fc-ink)!important;font-family:var(--fc-font)!important;letter-spacing:-.015em;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+html body:not(.trainer-light-theme)::before{content:'';position:fixed;top:0;bottom:0;left:50%;width:min(100%,var(--fc-shell));transform:translateX(-50%);background:var(--fc-canvas);box-shadow:0 12px 40px rgba(15,23,42,.08);z-index:-1;pointer-events:none}
+html body:not(.trainer-light-theme) main{max-width:var(--fc-shell)!important;width:100%;margin:0 auto;padding:6px 16px 28px!important}
+.tabular,html body:not(.trainer-light-theme) #memberView [class*="tabular"]{font-variant-numeric:tabular-nums}
+#appHeader .header-sync-badge,#appHeader .header-brand-desc{display:none!important}
+html body:not(.trainer-light-theme) #appHeader{max-width:var(--fc-shell);width:100%;margin:0 auto;padding:14px 18px 10px!important;background:rgba(243,245,249,.9)!important;border:0!important;box-shadow:none!important;backdrop-filter:saturate(160%) blur(18px);-webkit-backdrop-filter:saturate(160%) blur(18px)}
+html body:not(.trainer-light-theme) #appHeader>div{flex-direction:row!important;align-items:center!important;gap:10px!important}
+html body:not(.trainer-light-theme) #appHeader>div>div:first-child{gap:8px!important}
+html body:not(.trainer-light-theme) #appHeader>div>div:first-child>div:first-child{width:30px!important;height:30px!important;border-radius:10px!important;background:linear-gradient(135deg,#4F46E5,#7C3AED)!important;box-shadow:0 4px 10px rgba(79,70,229,.25)!important}
+html body:not(.trainer-light-theme) #appHeader>div>div:first-child>div:first-child i{color:#fff!important;font-size:14px!important}
+html body:not(.trainer-light-theme) #appHeader h1{font-size:16px!important;font-weight:800!important;letter-spacing:-.01em!important;color:var(--fc-ink)!important}
+html body:not(.trainer-light-theme) #appHeader>div>div:last-child{width:auto!important;gap:6px!important;justify-content:flex-end!important}
+html body:not(.trainer-light-theme) #appHeader>div>div:last-child>div:first-child{background:#fff!important;border:0!important;border-radius:999px!important;padding:6px 11px!important;box-shadow:0 2px 8px rgba(79,70,229,.08)!important}
+html body:not(.trainer-light-theme) #appHeader .fa-calendar{color:var(--fc-primary)!important;margin-right:6px!important}
+html body:not(.trainer-light-theme) #appHeader #currentDateInput{color:var(--fc-ink-2)!important;color-scheme:light;font-size:12px!important;font-weight:700;max-width:104px!important}
+html body:not(.trainer-light-theme) #appHeader>div>div:last-child>div:last-child{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}
+html body:not(.trainer-light-theme) #appHeader #btnMemberMode{display:none!important}
+html body:not(.trainer-light-theme) #appHeader #btnTrainerMode{width:32px;height:32px;min-height:32px!important;padding:0!important;justify-content:center;border-radius:999px!important;background:var(--fc-ink)!important;border:0!important;color:#fff!important;font-size:0!important}
+html body:not(.trainer-light-theme) #appHeader #btnTrainerMode i{display:inline-block!important;font-size:12px!important;color:#fff!important}
+html body:not(.trainer-light-theme) #appHeader #btnTrainerMode span{display:none!important}
+html body:not(.trainer-light-theme) #memberView{max-width:none;color:var(--fc-ink)}
+html body:not(.trainer-light-theme) #memberView>section{margin-top:0}
+html body:not(.trainer-light-theme) #memberView .member-page>*+*{margin-top:14px}
+html body:not(.trainer-light-theme) #memberView .member-page-heading{padding:8px 4px 0}
+html body:not(.trainer-light-theme) #memberView .member-page-heading h2{font-size:24px!important;font-weight:800!important;letter-spacing:-.035em!important;color:var(--fc-ink)!important}
+html body:not(.trainer-light-theme) #memberView .member-page-heading p{font-size:14px!important;color:var(--fc-muted)!important;margin-top:4px}
+html body:not(.trainer-light-theme) #memberView .rounded-2xl,
+html body:not(.trainer-light-theme) #memberView .growth-report-details,
+html body:not(.trainer-light-theme) #accessNotice{background:var(--fc-card)!important;border:0!important;border-radius:var(--fc-radius)!important;box-shadow:var(--fc-shadow)!important}
+html body:not(.trainer-light-theme) #memberView .rounded-xl{border-radius:var(--fc-radius-sm)!important}
+html body:not(.trainer-light-theme) #memberView .rounded-lg{border-radius:12px!important}
+html body:not(.trainer-light-theme) #memberView [class*="bg-slate-950"],
+html body:not(.trainer-light-theme) #memberView [class*="bg-slate-900"]{background-color:var(--fc-soft)!important}
+html body:not(.trainer-light-theme) #memberView .rounded-2xl[class*="bg-slate-900"]{background-color:var(--fc-card)!important}
+html body:not(.trainer-light-theme) #memberView [class*="bg-slate-800"],html body:not(.trainer-light-theme) #memberView [class*="bg-slate-700"]{background-color:var(--fc-soft-2)!important}
+html body:not(.trainer-light-theme) #memberView [class*="border-slate-"]{border-color:var(--fc-line)!important}
+html body:not(.trainer-light-theme) #memberView .text-white,
+html body:not(.trainer-light-theme) #memberView [class*="text-slate-100"],
+html body:not(.trainer-light-theme) #memberView [class*="text-slate-200"]{color:var(--fc-ink)!important}
+html body:not(.trainer-light-theme) #memberView [class*="text-slate-300"]{color:var(--fc-ink-2)!important}
+html body:not(.trainer-light-theme) #memberView [class*="text-slate-400"],
+html body:not(.trainer-light-theme) #memberView [class*="text-slate-500"],
+html body:not(.trainer-light-theme) #memberView [class*="text-slate-600"]{color:var(--fc-muted)!important}
+html body:not(.trainer-light-theme) #memberView [class*="text-brand-"],
+html body:not(.trainer-light-theme) #memberView [class*="text-indigo-"],
+html body:not(.trainer-light-theme) #memberView [class*="text-violet-"],
+html body:not(.trainer-light-theme) #memberView [class*="text-sky-"]{color:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #memberView [class*="text-emerald-"]{color:#0F9F8C!important}
+html body:not(.trainer-light-theme) #memberView [class*="text-amber-"]{color:var(--fc-accent-2)!important}
+html body:not(.trainer-light-theme) #memberView [class*="text-rose-"]{color:var(--fc-danger)!important}
+html body:not(.trainer-light-theme) #memberView h3,html body:not(.trainer-light-theme) #memberView h4{color:var(--fc-ink)!important;font-weight:750;letter-spacing:-.025em}
+html body:not(.trainer-light-theme) #memberView h3{font-size:17px!important}
+html body:not(.trainer-light-theme) #memberView h3 i{margin-right:4px}
+html body:not(.trainer-light-theme) #memberView label{color:var(--fc-ink-2)}
+html body:not(.trainer-light-theme) #memberView .text-xs{font-size:13px}
+html body:not(.trainer-light-theme) #memberView [class~="text-[10px]"],html body:not(.trainer-light-theme) #memberView [class~="text-[11px]"]{font-size:12px}
+html body:not(.trainer-light-theme) #memberView .w-8.h-8.rounded-lg{width:38px!important;height:38px!important;border-radius:12px!important;background:var(--fc-primary-soft)!important;color:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #memberView .w-8.h-8.rounded-lg i{color:inherit!important}
+html body:not(.trainer-light-theme) #memberView .border-b{border-color:var(--fc-line)!important}
+html body:not(.trainer-light-theme) #memberView input:not([type=checkbox]):not([type=radio]):not([type=file]),
+html body:not(.trainer-light-theme) #memberView textarea,
+html body:not(.trainer-light-theme) #memberView select{background:var(--fc-soft-2)!important;border:1px solid transparent!important;color:var(--fc-ink)!important;border-radius:16px!important;min-height:50px;font-size:16px!important;padding:12px 14px!important;color-scheme:light;transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease}
+html body:not(.trainer-light-theme) #memberView textarea{line-height:1.6;resize:vertical}
+html body:not(.trainer-light-theme) #memberView input::placeholder,html body:not(.trainer-light-theme) #memberView textarea::placeholder{color:var(--fc-faint)!important;opacity:1}
+html body:not(.trainer-light-theme) #memberView input:focus,html body:not(.trainer-light-theme) #memberView textarea:focus,html body:not(.trainer-light-theme) #memberView select:focus{outline:none!important;background:#fff!important;border-color:rgba(79,70,229,.45)!important;box-shadow:0 0 0 4px rgba(79,70,229,.12)!important}
+html body:not(.trainer-light-theme) #memberView input[readonly]{opacity:.8}
+html body:not(.trainer-light-theme) #memberView input[type=file]{width:100%;font-size:13px;color:var(--fc-muted);background:var(--fc-soft-2);border:1px dashed var(--fc-line-2);border-radius:16px;padding:10px}
+html body:not(.trainer-light-theme) #memberView input[type=file]::file-selector-button{min-height:40px;background:#fff;color:var(--fc-primary);border:0;border-radius:12px;padding:9px 14px;margin-right:10px;font-weight:700;box-shadow:0 1px 4px rgba(15,23,42,.06)}
+html body:not(.trainer-light-theme) #memberView button,html body:not(.trainer-light-theme) #memberView summary,html body:not(.trainer-light-theme) #memberView label:has(input[type=file]){touch-action:manipulation;transition:transform .14s ease,background-color .18s ease,border-color .18s ease,box-shadow .18s ease}
+html body:not(.trainer-light-theme) #memberView button:active:not(:disabled){transform:scale(.97)}
+html body:not(.trainer-light-theme) #memberView button{min-height:44px;font-weight:700}
+html body:not(.trainer-light-theme) #memberView button:disabled{opacity:.55;cursor:wait}
+html body:not(.trainer-light-theme) #memberView button:focus-visible,html body:not(.trainer-light-theme) #memberView summary:focus-visible{outline:3px solid rgba(79,70,229,.3)!important;outline-offset:2px}
+html body:not(.trainer-light-theme) #memberView button[class*="bg-brand-5"],
+html body:not(.trainer-light-theme) #memberView button[class*="bg-amber-5"],
+html body:not(.trainer-light-theme) #memberView button[class*="bg-sky-5"],
+html body:not(.trainer-light-theme) #memberView button[class*="bg-sky-6"],
+html body:not(.trainer-light-theme) #memberView button[type=submit]{background:var(--fc-primary)!important;color:#fff!important;border:0!important;border-radius:16px!important;min-height:50px!important;font-size:15px!important;font-weight:800!important;box-shadow:0 6px 16px rgba(79,70,229,.24)!important}
+html body:not(.trainer-light-theme) #memberView button[class*="bg-brand-5"] *,
+html body:not(.trainer-light-theme) #memberView button[class*="bg-amber-5"] *,
+html body:not(.trainer-light-theme) #memberView button[type=submit] *{color:inherit!important}
+html body:not(.trainer-light-theme) #memberView button[class*="bg-brand-5"]:hover,
+html body:not(.trainer-light-theme) #memberView button[class*="bg-amber-5"]:hover,
+html body:not(.trainer-light-theme) #memberView button[type=submit]:hover{background:var(--fc-primary-2)!important}
+html body:not(.trainer-light-theme) #memberView button[class*="bg-slate-8"],
+html body:not(.trainer-light-theme) #memberView button[class*="border-amber-"],
+html body:not(.trainer-light-theme) #memberView button[class*="border-emerald-"],
+html body:not(.trainer-light-theme) #memberView button[class*="border-slate-7"]{background:var(--fc-soft-2)!important;color:var(--fc-ink-2)!important;border:0!important;border-radius:16px!important}
+html body:not(.trainer-light-theme) #memberView .coach-conversation .flex.gap-2>button{min-width:76px}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero{position:relative;overflow:hidden;padding:20px!important;border-radius:var(--fc-radius)!important;background:var(--fc-card)!important;border:0!important;box-shadow:var(--fc-shadow)!important}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero>div{flex-direction:column!important;align-items:stretch!important;gap:16px!important}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero #memberNameBadge{display:none!important}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero #todayDateDisplay{display:inline-flex;align-items:center;gap:6px;font-size:12px!important;font-weight:700;color:var(--fc-primary)!important;background:var(--fc-primary-soft);border-radius:999px;padding:5px 11px}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero #todayDateDisplay::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--fc-primary)}
+.fc-hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.fc-greet{flex:1;min-width:0;margin-top:10px}
+.fc-greet-hello{font-size:13px;font-weight:600;color:var(--fc-muted)}
+.fc-greet-name{margin-top:4px;font-size:23px;line-height:1.3;font-weight:800;letter-spacing:-.035em;color:var(--fc-ink);text-wrap:balance}
+.fc-greet-name em{font-style:normal;color:var(--fc-primary)}
+.fc-greet-sub{margin-top:4px;font-size:15px;line-height:1.5;font-weight:600;color:var(--fc-ink-2)}
+.fc-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;font-size:12px;font-weight:700}
+.fc-legend span{display:inline-flex;align-items:center;gap:5px}
+.fc-legend span::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}
+.fc-legend .l-w{color:var(--fc-primary)}.fc-legend .l-d{color:var(--fc-accent)}.fc-legend .l-c{color:var(--fc-good)}
+.fc-rings{position:relative;flex:0 0 112px;width:112px;height:112px}
+.fc-rings svg{width:112px;height:112px;transform:rotate(-90deg)}
+.fc-rings circle{transition:stroke-dashoffset .9s cubic-bezier(.22,1,.36,1)}
+.fc-rings-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.fc-rings-center b{font-size:21px;font-weight:800;color:var(--fc-ink);font-variant-numeric:tabular-nums;line-height:1}
+.fc-rings-center small{font-size:10px;font-weight:700;color:var(--fc-faint);margin-top:3px}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero #customHeaderMessage{margin-top:2px!important;font-size:14px!important;line-height:1.6!important;font-weight:600!important;color:var(--fc-ink-2)!important;background:var(--fc-soft);border-radius:16px;padding:12px 14px}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero #customHeaderMessage::before{content:'오늘의 한마디';display:block;font-size:11px;font-weight:800;color:var(--fc-primary);margin-bottom:3px}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero #customHeaderMessage.fc-default{display:none}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero h2+p{display:none}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;min-width:0!important}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div{background:var(--fc-soft)!important;border:0!important;border-radius:18px!important;padding:14px!important;min-width:0}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div>div:first-child{font-size:12px!important;font-weight:700;color:var(--fc-muted)!important;margin-bottom:4px!important}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div:first-child>div:first-child i{color:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div:last-child>div:first-child i{color:var(--fc-accent)!important}
+html body:not(.trainer-light-theme) #memberView #memberWorkoutProgressText,
+html body:not(.trainer-light-theme) #memberView #memberCalorieText{font-size:24px!important;line-height:1.15!important;font-weight:800!important;letter-spacing:-.03em;color:var(--fc-ink)!important;font-variant-numeric:tabular-nums}
+html body:not(.trainer-light-theme) #memberView #memberWorkoutProgressSub,
+html body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div:last-child .flex.items-baseline>span:last-child{font-size:12px!important;font-weight:600;color:var(--fc-muted)!important;margin-left:2px}
+html body:not(.trainer-light-theme) #memberView .member-goal-hero .grid>div>.rounded-full{height:8px!important;margin-top:10px!important;background:#E6E9F2!important;border-radius:999px!important;overflow:hidden}
+html body:not(.trainer-light-theme) #memberView #memberWorkoutProgressBar,
+html body:not(.trainer-light-theme) #memberView #memberCalorieBar{height:100%;border-radius:999px!important;transition:width .9s cubic-bezier(.22,1,.36,1)!important}
+html body:not(.trainer-light-theme) #memberView #memberWorkoutProgressBar{background:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #memberView #memberCalorieBar{background:var(--fc-accent)!important}
+.fc-progress-hint{margin-top:8px;font-size:12px;line-height:1.45;font-weight:600;color:var(--fc-muted)}
+.fc-progress-hint b{color:var(--fc-ink);font-weight:800}
+.member-goal-hero.fc-complete .grid>div:first-child{background:var(--fc-primary-soft)!important}
+.fc-coach{position:relative;width:100%;text-align:left;display:block;padding:18px;border-radius:var(--fc-radius);background:var(--fc-card);border:0;box-shadow:var(--fc-shadow);color:var(--fc-ink);transition:transform .14s ease,box-shadow .18s ease}
+.fc-coach:active{transform:scale(.985)}
+.fc-coach-head{display:flex;align-items:center;gap:11px}
+.fc-coach-avatar{position:relative;width:40px;height:40px;flex:0 0 40px;border-radius:13px;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff;background:var(--fc-primary)}
+.fc-coach-avatar .fc-dot{position:absolute;right:-3px;top:-3px;width:11px;height:11px;border-radius:50%;background:var(--fc-accent);border:2px solid #fff;display:none}
+.fc-coach.fc-unread .fc-dot{display:block;animation:fc-pulse 1.6s ease-out infinite}
+@keyframes fc-pulse{0%{box-shadow:0 0 0 0 rgba(249,115,22,.55)}100%{box-shadow:0 0 0 9px rgba(249,115,22,0)}}
+.fc-coach-eyebrow{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--fc-primary);white-space:nowrap}
+.fc-coach-title{font-size:16px;font-weight:800;letter-spacing:-.02em;margin-top:1px;color:var(--fc-ink)}
+.fc-coach-time{margin-left:auto;font-size:11px;font-weight:600;color:var(--fc-faint);white-space:nowrap;align-self:flex-start;padding-top:3px}
+.fc-coach-body{margin-top:12px;display:grid;gap:8px}
+.fc-coach-msg{background:var(--fc-soft);border-radius:16px;padding:12px 14px}
+.fc-coach-msg small{display:block;font-size:11px;font-weight:800;margin-bottom:3px}
+.fc-coach-msg small.w{color:var(--fc-primary)}.fc-coach-msg small.d{color:var(--fc-accent-2)}
+.fc-coach-msg p{font-size:14px;line-height:1.65;color:var(--fc-ink-2);white-space:pre-line;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.fc-coach-empty{margin-top:10px;font-size:14px;line-height:1.6;color:var(--fc-muted)}
+.fc-coach-cta{margin-top:12px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:800;color:var(--fc-primary)}
+html body:not(.trainer-light-theme) #memberDailyCheckin{background:var(--fc-card)!important;border:0!important;border-radius:var(--fc-radius)!important;box-shadow:var(--fc-shadow)!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin h3{color:var(--fc-ink)!important;font-size:17px!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin p,html body:not(.trainer-light-theme) #memberDailyCheckin span{color:var(--fc-muted)!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin p[class*="tracking-"]{color:var(--fc-primary)!important;letter-spacing:.06em!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin #dailyCheckinSummary{background:var(--fc-primary-soft)!important;border:0!important;color:var(--fc-primary)!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin .bg-sky-100{background:#E6E9F2!important;height:6px!important}
+html body:not(.trainer-light-theme) #dailyCheckinProgress{background:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #dailyCheckinButtons>div{grid-template-columns:56px 1fr!important}
+html body:not(.trainer-light-theme) #dailyCheckinButtons>div>span{color:var(--fc-ink-2)!important;font-size:14px!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-field]{min-height:46px!important;padding:10px 14px!important;border-radius:16px!important;font-size:14px!important;font-weight:700!important;background:var(--fc-soft-2)!important;border:0!important;color:var(--fc-ink-2)!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-field].text-white{color:#fff!important;animation:fc-pop .32s cubic-bezier(.3,.7,.4,1.5)}
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-field][data-check-field="workout"].text-white{background:var(--fc-primary)!important;box-shadow:0 6px 14px rgba(79,70,229,.25)!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-field][data-check-field="diet"].text-white{background:var(--fc-accent)!important;box-shadow:0 6px 14px rgba(249,115,22,.25)!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-field][data-check-field="mood"].text-white{background:var(--fc-good)!important;box-shadow:0 6px 14px rgba(20,184,166,.25)!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-value="rest"].text-white,
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-value="partial"].text-white,
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-value="normal"].text-white{background:var(--fc-ink)!important;box-shadow:0 6px 14px rgba(17,24,39,.2)!important}
+html body:not(.trainer-light-theme) #memberDailyCheckin [data-check-value="tired"].text-white{background:var(--fc-accent)!important}
+html body:not(.trainer-light-theme) #memberNewFeedbackAlert{background:var(--fc-accent-soft)!important;border:0!important;color:var(--fc-accent-2)!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #memberNewFeedbackAlert span,html body:not(.trainer-light-theme) #memberNewFeedbackAlert i{color:var(--fc-accent-2)!important}
+html body:not(.trainer-light-theme) #memberNextStep{background:var(--fc-card)!important;border:0!important;border-radius:20px!important;min-height:72px;box-shadow:var(--fc-shadow)!important}
+html body:not(.trainer-light-theme) #memberNextStep>span:first-child{background:var(--fc-primary-soft)!important;color:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #memberNextStep strong{color:var(--fc-ink)!important;font-size:15px!important}
+html body:not(.trainer-light-theme) #memberNextStep span span{color:var(--fc-muted)!important}
+html body:not(.trainer-light-theme) #memberNextStep span>span:first-child{color:var(--fc-primary)!important}
+.home-record-grid{display:grid;grid-template-columns:1fr;gap:14px}
+html body:not(.trainer-light-theme) #memberView .home-record-card{display:block;width:100%;text-align:left;padding:18px;background:var(--fc-card);border:0;border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);color:var(--fc-ink);min-width:0}
+html body:not(.trainer-light-theme) #memberView .home-record-card:hover{box-shadow:var(--fc-shadow-lift)}
+.home-record-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:16px;font-weight:800;margin-bottom:12px;color:var(--fc-ink)}
+.home-record-heading i{color:var(--fc-primary);margin-right:7px}
+.home-record-link{font-size:12px;color:var(--fc-primary);font-weight:700;white-space:nowrap}
+.home-record-row{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--fc-line);font-size:14px}
+.home-record-row:last-of-type{border-bottom:0}
+.home-record-row span{color:var(--fc-muted)}
+.home-record-note{font-size:13px;color:var(--fc-muted);line-height:1.6;margin-top:8px}
+.home-empty-icon{background:var(--fc-primary-soft);color:var(--fc-primary);width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:22px;margin-bottom:10px}
+.home-meal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.home-meal-grid>div{background:var(--fc-soft-2);border:0;border-radius:18px;padding:14px 8px;display:flex;align-items:center;flex-direction:column;gap:6px;text-align:center}
+.home-meal-grid i{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:#fff;color:var(--fc-accent);font-size:13px;box-shadow:0 1px 4px rgba(15,23,42,.06)}
+.home-meal-grid i.fa-circle-check{background:var(--fc-accent);color:#fff}
+.home-meal-grid>div:has(.fa-circle-check){background:var(--fc-accent-soft)}
+.home-meal-grid strong{font-size:14px}
+.home-meal-grid span{font-size:12px;color:var(--fc-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.home-body-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.home-body-metric{display:flex;flex-direction:column;gap:6px;padding:14px 10px;background:var(--fc-soft);border:0;border-radius:16px;min-width:0}
+.home-body-metric i{color:var(--fc-primary);font-size:15px}
+.home-body-metric>span{font-size:12px;color:var(--fc-muted)}
+.home-body-metric strong{font-size:20px;color:var(--fc-ink);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.home-body-metric small{font-size:12px;margin-left:2px;font-weight:500;color:var(--fc-muted)}
+.home-body-summary{white-space:pre-line;line-height:1.9;font-size:14px;color:var(--fc-ink-2)}
+.home-coach-message{font-size:15px;line-height:1.7;white-space:pre-line;color:var(--fc-ink)}
+html body:not(.trainer-light-theme) #memberView .home-record-card[data-record-card="feedback"]{display:none}
+html body:not(.trainer-light-theme) #memberView #memberRoutineList>div{padding:16px!important;border-radius:20px!important;background:var(--fc-soft)!important;border:0!important;transition:background-color .3s ease,box-shadow .3s ease}
+html body:not(.trainer-light-theme) #memberView #memberRoutineList>div.fc-ex-done{background:var(--fc-primary-soft)!important}
+html body:not(.trainer-light-theme) #memberView #memberRoutineList>div.fc-ex-done .exercise-card-title::after{content:'완료';font-size:11px;font-weight:800;color:#fff;background:var(--fc-primary);border-radius:999px;padding:3px 8px;margin-left:6px;vertical-align:3px}
+html body:not(.trainer-light-theme) #memberView .exercise-card-title{font-size:18px!important;line-height:1.4;color:var(--fc-ink)!important}
+html body:not(.trainer-light-theme) #memberView .exercise-card-dose{display:block;font-size:14px!important;color:var(--fc-muted)!important;font-weight:600!important;margin-top:3px}
+html body:not(.trainer-light-theme) #memberView #memberRoutineList .flex.flex-wrap{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px!important;border-top:1px solid var(--fc-line)!important;margin-top:12px!important;padding-top:12px!important}
+html body:not(.trainer-light-theme) #memberView .member-set-check{position:relative;min-width:0!important;min-height:72px!important;padding:10px 6px!important;border-radius:18px!important;flex-direction:column!important;justify-content:center!important;background:#fff!important;border:0!important;box-shadow:0 1px 4px rgba(15,23,42,.06);gap:6px!important;user-select:none;transition:transform .15s ease,background-color .2s ease,box-shadow .2s ease}
+html body:not(.trainer-light-theme) #memberView .member-set-check:active{transform:scale(.94)}
+html body:not(.trainer-light-theme) #memberView .member-set-check input{appearance:none;-webkit-appearance:none;width:24px!important;height:24px!important;border-radius:50%;margin:0;border:2px solid #CBD2DE;background:#fff;display:grid;place-items:center;transition:all .2s ease;cursor:pointer}
+html body:not(.trainer-light-theme) #memberView .member-set-check input::after{content:'';width:6px;height:11px;border:solid var(--fc-primary);border-width:0 3px 3px 0;transform:rotate(45deg) scale(0);margin-top:-3px;transition:transform .2s cubic-bezier(.3,.7,.4,1.6)}
+html body:not(.trainer-light-theme) #memberView .member-set-check input:checked{background:#fff;border-color:#fff}
+html body:not(.trainer-light-theme) #memberView .member-set-check input:checked::after{transform:rotate(45deg) scale(1)}
+html body:not(.trainer-light-theme) #memberView .member-set-check span{font-size:15px!important;font-weight:750!important;color:var(--fc-ink-2)!important;text-decoration:none!important;white-space:nowrap}
+html body:not(.trainer-light-theme) #memberView .member-set-check:has(input:checked){background:var(--fc-primary)!important;box-shadow:0 6px 14px rgba(79,70,229,.28)}
+html body:not(.trainer-light-theme) #memberView .member-set-check:has(input:checked) span{color:#fff!important}
+html body:not(.trainer-light-theme) #memberView .member-set-check.fc-just{animation:fc-pop .42s cubic-bezier(.3,.7,.4,1.5)}
+@keyframes fc-pop{0%{transform:scale(.9)}55%{transform:scale(1.06)}100%{transform:scale(1)}}
+html body:not(.trainer-light-theme) #memberView #routineCountBadge{background:var(--fc-primary-soft)!important;border:0!important;color:var(--fc-primary)!important;font-weight:700;white-space:nowrap;flex-shrink:0}
+html body:not(.trainer-light-theme) #memberView #memberRoutineList button[aria-label]{min-height:40px;width:40px;border-radius:12px;background:#fff}
+html body:not(.trainer-light-theme) #memberView details{background:var(--fc-soft);border:0;border-radius:18px}
+html body:not(.trainer-light-theme) #memberView details>summary{min-height:50px;display:flex;align-items:center;padding:14px 16px!important;font-weight:700;color:var(--fc-ink-2);list-style:none;cursor:pointer}
+html body:not(.trainer-light-theme) #memberView details>summary::-webkit-details-marker{display:none}
+html body:not(.trainer-light-theme) #memberView details.optional-fields>summary,html body:not(.trainer-light-theme) #memberView details.food-nutrition-details>summary{min-height:44px;padding:10px 12px!important;font-size:13px}
+html body:not(.trainer-light-theme) #memberView #memberRoutineEditor>summary{color:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #memberView .growth-report-details{padding:0!important}
+html body:not(.trainer-light-theme) #memberView .growth-report-details>div{padding:0 14px 14px}
+html body:not(.trainer-light-theme) #memberView .food-card{background:#fff!important;border:0!important;border-radius:18px!important;padding:12px!important;box-shadow:0 1px 4px rgba(15,23,42,.05)}
+html body:not(.trainer-light-theme) #memberView .saved-meal-summary{background:var(--fc-accent-soft)!important;border:0!important;border-radius:18px!important;padding:14px!important}
+html body:not(.trainer-light-theme) #memberView .saved-meal-summary h5{color:var(--fc-accent-2)!important}
+html body:not(.trainer-light-theme) #memberView [id^="badge-"]{border-radius:999px!important;padding:4px 10px!important;font-size:11px!important;font-weight:700;background:var(--fc-soft-2)!important;color:var(--fc-muted)!important}
+html body:not(.trainer-light-theme) #memberView [id^="badge-"][class*="emerald"]{background:var(--fc-accent-soft)!important;color:var(--fc-accent-2)!important}
+html body:not(.trainer-light-theme) #memberView [id^="photos-"] img{border-radius:14px;aspect-ratio:1;object-fit:cover}
+html body:not(.trainer-light-theme) #memberView label:has(input[type=file]){display:inline-flex;align-items:center;justify-content:center;min-height:42px!important;padding:9px 14px!important;border-radius:999px!important;background:var(--fc-accent-soft)!important;border:0!important;color:var(--fc-accent-2)!important;font-size:13px!important;font-weight:700}
+html body:not(.trainer-light-theme) #memberView #waterDisplay{font-size:15px;font-weight:800}
+html body:not(.trainer-light-theme) #memberView button[onclick^="adjustWater"]{width:44px!important;height:44px!important;border-radius:14px!important;font-size:18px;background:#fff!important;color:var(--fc-ink)!important;box-shadow:0 1px 4px rgba(15,23,42,.08)}
+html body:not(.trainer-light-theme) #memberView #totalCaloriesBadge{color:var(--fc-accent-2)!important;font-size:14px}
+html body:not(.trainer-light-theme) #memberView .meal-quick-guide{background:var(--fc-primary-soft);color:var(--fc-ink-2)!important;border:0;border-radius:16px;padding:12px 14px;font-size:13px;line-height:1.7;margin-top:12px}
+html body:not(.trainer-light-theme) #memberView .meal-editor-caption{font-size:12px;font-weight:650;color:var(--fc-muted);padding:6px 2px 2px}
+html body:not(.trainer-light-theme) #memberView .meal-save-feedback{padding:12px 14px;border:0;border-radius:14px;font-size:13px;line-height:1.5}
+html body:not(.trainer-light-theme) #memberView .meal-save-feedback[data-state=saving]{background:var(--fc-primary-soft);color:var(--fc-primary)}
+html body:not(.trainer-light-theme) #memberView .meal-save-feedback[data-state=saved]{background:var(--fc-good-soft);color:#0F766E}
+html body:not(.trainer-light-theme) #memberView .meal-save-feedback[data-state=error]{background:#FFF1F2;color:var(--fc-danger)}
+.meal-save-feedback[hidden]{display:none!important}
+html body:not(.trainer-light-theme) #memberView [class*="bg-emerald-500/"],html body:not(.trainer-light-theme) #memberView [class*="bg-amber-500/"]{background-color:var(--fc-soft)!important}
+html body:not(.trainer-light-theme) #memberView #trainerFeedbackCard{border:0!important;background:var(--fc-card)!important}
+html body:not(.trainer-light-theme) #memberView #trainerFeedbackCard h3{color:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #memberView #trainerFeedbackCard .w-12{background:var(--fc-primary)!important;border:0!important;color:#fff!important}
+html body:not(.trainer-light-theme) #memberView #trainerFeedbackCard .w-12 i{color:#fff!important}
+html body:not(.trainer-light-theme) #memberView #trainerFeedbackCard p{font-size:15px!important;line-height:1.65}
+html body:not(.trainer-light-theme) #memberView #memberMemoList{min-height:100px;max-height:380px;padding:12px!important;background:var(--fc-soft);border-radius:18px;margin-bottom:12px!important}
+html body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role]>div{font-size:14px!important;line-height:1.65!important;padding:11px 14px!important;max-width:86%}
+html body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role=coach]>div{background:#fff!important;border:0!important;border-radius:18px 18px 18px 6px!important;color:var(--fc-ink)!important;box-shadow:0 1px 4px rgba(15,23,42,.06)}
+html body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role=coach]>div>div:first-child{color:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role=member]>div{background:var(--fc-primary)!important;border:0!important;border-radius:18px 18px 6px 18px!important;color:#fff!important}
+html body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role=member]>div *{color:#fff!important}
+html body:not(.trainer-light-theme) #memberView #memberMemoList [data-memo-role]>div>div:first-child{font-size:11px!important;opacity:.8;margin-bottom:3px}
+html body:not(.trainer-light-theme) #memberView .member-field-label{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:700;color:var(--fc-ink)!important;padding-top:10px}
+html body:not(.trainer-light-theme) #memberView .member-field-label span{font-size:11px;font-weight:500;color:var(--fc-muted)}
+html body:not(.trainer-light-theme) #memberView .member-field-help{font-size:12px;line-height:1.7;color:var(--fc-muted)!important;padding:5px 0}
+html body:not(.trainer-light-theme) #memberView .coach-video-upload form{padding:16px!important;border-radius:18px!important}
+html body:not(.trainer-light-theme) #memberView .coach-video-upload button[type=submit]{width:100%}
+html body:not(.trainer-light-theme) #memberView #memberExerciseVideos>*,html body:not(.trainer-light-theme) #memberView #memberFormVideos>*,html body:not(.trainer-light-theme) #memberView #previousWorkoutRecords>*{background:var(--fc-soft)!important;border:0!important;border-radius:18px!important}
+html body:not(.trainer-light-theme) #memberView canvas{max-width:100%;border-radius:14px}
+html body:not(.trainer-light-theme) #habitCalendar{gap:6px!important}
+html body:not(.trainer-light-theme) #habitCalendar button{min-height:40px;border-radius:12px!important;background:var(--fc-soft-2)!important;color:var(--fc-ink-2)!important;border:0!important;font-weight:650}
+html body:not(.trainer-light-theme) #habitCalendar button[class*="bg-emerald"],html body:not(.trainer-light-theme) #habitCalendar button[class*="bg-brand"]{background:var(--fc-primary)!important;color:#fff!important}
+html body:not(.trainer-light-theme) #habitCalendarTop button[onclick^="moveHabitMonth"]{width:44px;height:44px;border-radius:12px;font-size:20px}
+html body:not(.trainer-light-theme) #accessNotice{text-align:center;padding:36px 24px!important;margin-top:24px}
+html body:not(.trainer-light-theme) #accessNotice h2{font-size:20px!important;color:var(--fc-ink)!important}
+html body:not(.trainer-light-theme) #accessNotice h2 i{display:block;font-size:28px;margin:0 auto 14px;color:var(--fc-primary)!important}
+html body:not(.trainer-light-theme) #accessNotice p{color:var(--fc-muted)!important;line-height:1.7}
+html body:not(.trainer-light-theme) #syncError{border-radius:18px!important;background:#FFF1F2!important;border-color:#FECDD3!important;color:#9F1239!important}
+html body:not(.trainer-light-theme) #memberBottomNav{left:50%!important;right:auto!important;width:min(100%,var(--fc-shell))!important;max-width:var(--fc-shell)!important;transform:translateX(-50%)!important;background:rgba(255,255,255,.94)!important;border:0!important;border-top:1px solid rgba(229,231,235,.8)!important;border-radius:0!important;backdrop-filter:saturate(160%) blur(20px);-webkit-backdrop-filter:saturate(160%) blur(20px);box-shadow:none!important;padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px))!important}
+html body:not(.trainer-light-theme) #memberBottomNav.nav-hidden{transform:translate(-50%,calc(100% + 10px))!important}
+html body:not(.trainer-light-theme) #memberBottomNav button{min-height:52px;color:var(--fc-faint)!important;background:transparent!important;border:0!important;border-radius:14px!important;font-size:11px!important;font-weight:600!important;gap:4px!important;transition:color .2s ease,transform .14s ease}
+html body:not(.trainer-light-theme) #memberBottomNav button:active{transform:scale(.92)}
+html body:not(.trainer-light-theme) #memberBottomNav button i{font-size:18px}
+html body:not(.trainer-light-theme) #memberBottomNav button.selected{color:var(--fc-primary)!important;font-weight:800!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #memberBottomNav button.selected i{color:var(--fc-primary)!important}
+#toastNotification{left:50%!important;right:auto!important;--tw-translate-x:-50%;max-width:calc(min(100vw,430px) - 32px);text-align:center}
+html body:not(.trainer-light-theme) #toastNotification{background:var(--fc-ink)!important;border:0!important;color:#fff!important;border-radius:999px!important;padding:11px 18px!important;font-size:13px!important;font-weight:700!important;box-shadow:0 10px 24px rgba(17,24,39,.25)!important}
+html body:not(.trainer-light-theme) #saveStatusBar{left:50%!important;right:auto!important;width:min(398px,calc(100% - 32px));transform:translateX(-50%);border-radius:16px!important;color:var(--fc-ink)!important;box-shadow:var(--fc-shadow-lift)!important}
+html body:not(.trainer-light-theme) #saveStatusBar button{color:var(--fc-ink)!important;background:rgba(17,24,39,.06)!important}
+.fc-burst{position:fixed;pointer-events:none;z-index:9999;width:0;height:0}
+.fc-burst i{position:absolute;left:0;top:0;width:7px;height:7px;border-radius:2px;animation:fc-fly .7s cubic-bezier(.2,.8,.3,1) forwards}
+@keyframes fc-fly{to{transform:translate(var(--dx),var(--dy)) rotate(var(--r));opacity:0}}
+.fc-confetti{position:fixed;inset:0;pointer-events:none;z-index:9998;overflow:hidden}
+.fc-confetti i{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;animation:fc-fall var(--t) cubic-bezier(.25,.6,.4,1) forwards}
+@keyframes fc-fall{to{transform:translate(var(--dx),110vh) rotate(var(--r));opacity:.9}}
+.fc-celebrate{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%) scale(.8);z-index:9999;pointer-events:none;text-align:center;opacity:0;background:#fff;border-radius:28px;padding:24px 30px;box-shadow:0 30px 70px rgba(15,23,42,.25);animation:fc-cele 2.4s cubic-bezier(.3,.7,.4,1.2) forwards}
+.fc-celebrate b{display:block;font-size:40px;line-height:1}
+.fc-celebrate strong{display:block;margin-top:10px;font-size:19px;font-weight:800;color:var(--fc-ink)}
+.fc-celebrate span{display:block;margin-top:4px;font-size:13px;color:var(--fc-muted)}
+@keyframes fc-cele{0%{opacity:0;transform:translate(-50%,-50%) scale(.8)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.03)}20%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-56%) scale(1)}}
+html body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-page .24s cubic-bezier(.16,1,.3,1) both}
+@keyframes fc-page{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){html body:not(.trainer-light-theme) *{animation:none!important;transition:none!important}}
+html body:not(.trainer-light-theme){
+color-scheme:light;
+--fc-text:#111827;--fc-text-2:#374151;--fc-muted:#6B7280;
+--fc-card:#FFFFFF;--fc-card-2:#F8FAFC;--fc-card-3:#F1F4F9;
+--fc-line:#E7EAF0;--fc-line-2:#D9DEE8;
+--fit-ink:#111827;--fit-muted:#6B7280;--fit-panel:#FFFFFF;--fit-inset:#F8FAFC;--fit-line-dark:#E7EAF0;
+--fit-gradient:linear-gradient(135deg,#4F46E5,#7C3AED);--fit-cta:#4F46E5;
+background:#E5E9F2!important;background-image:none!important;color:#111827!important;font-variant-numeric:normal}
+html body:not(.trainer-light-theme)::before{background:#F3F5F9!important;background-image:none!important;box-shadow:0 12px 40px rgba(15,23,42,.08)!important;width:min(100%,480px)!important}
+@media(min-width:481px){html body:not(.trainer-light-theme)::after{border-color:rgba(15,23,42,.06)!important;box-shadow:0 24px 70px rgba(15,23,42,.12)!important}}
+html body:not(.trainer-light-theme) main{max-width:480px!important}
+html body:not(.trainer-light-theme) #appHeader{max-width:480px!important;background:rgba(243,245,249,.92)!important;border:0!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #appHeader>div{padding:12px 16px!important}
+html body:not(.trainer-light-theme) #appHeader h1{color:#111827!important;white-space:nowrap;font-size:16px!important}
+html body:not(.trainer-light-theme) #appHeader>div>div:first-child>div:first-child{background:linear-gradient(135deg,#4F46E5,#7C3AED)!important;box-shadow:0 4px 10px rgba(79,70,229,.25)!important}
+html body:not(.trainer-light-theme) #appHeader>div>div:last-child>div:first-child{background:#fff!important;border:0!important;box-shadow:0 2px 8px rgba(79,70,229,.08)!important;padding:4px 10px!important}
+html body:not(.trainer-light-theme) #appHeader #currentDateInput{background:transparent!important;color:#374151!important;color-scheme:light!important;border:0!important;padding:4px 0!important;min-height:0!important;max-width:112px!important}
+html body:not(.trainer-light-theme) #appHeader :is(#btnTrainerMode){background:#111827!important;color:#fff!important;min-height:32px!important}
+html body:not(.trainer-light-theme) #appHeader #btnTrainerMode *{color:#fff!important}
+html body:not(.trainer-light-theme) #fcDateChips{background:rgba(243,245,249,.92)!important;border:0!important;box-shadow:none!important;padding:2px 14px 10px!important;max-width:480px}
+html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip{background:transparent!important;border:0!important;color:#9CA3AF!important;box-shadow:none!important;border-radius:16px!important;font-weight:600!important}
+html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip b{color:#374151}
+html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip:hover{background:rgba(255,255,255,.8)!important}
+html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-today{background:#fff!important;background-image:none!important;color:#4F46E5!important;box-shadow:0 1px 4px rgba(15,23,42,.06)!important}
+html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-today b{color:#4F46E5}
+html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-selected{background:#111827!important;background-image:none!important;color:#C7CCD6!important;box-shadow:0 4px 12px rgba(17,24,39,.18)!important}
+html body:not(.trainer-light-theme) #fcDateChips .fc-date-chip.fc-selected b{color:#fff}
+html body:not(.trainer-light-theme) #memberView :is(.rounded-2xl,.rounded-3xl,.home-record-card,.fc-focus-fold,.fc-focus-card){background:#fff!important;border:0!important;color:#111827!important;box-shadow:0 4px 20px rgba(15,23,42,.05)!important;backdrop-filter:none!important;border-radius:24px!important}
+html body:not(.trainer-light-theme) #memberView :is(h2,h3,h4,.fc-focus-fold summary){color:#111827!important}
+html body:not(.trainer-light-theme) #memberView :is(.text-slate-400,.text-slate-500,.text-slate-600){color:#6B7280!important}
+html body:not(.trainer-light-theme) #memberView :is(input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea,select){background:#F1F4F9!important;color:#111827!important;border:1px solid transparent!important;color-scheme:light!important}
+html body:not(.trainer-light-theme) #memberView :is(input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea,select):focus{background:#fff!important;border-color:rgba(79,70,229,.45)!important}
+html body:not(.trainer-light-theme) #memberView :is(input,textarea)::placeholder{color:#9CA3AF!important}
+html body:not(.trainer-light-theme) #memberView input[type=file]::file-selector-button{background:#fff;color:#4F46E5;border:0;box-shadow:0 1px 4px rgba(15,23,42,.08)}
+html body:not(.trainer-light-theme) #memberView :is(button[type="submit"],button[onclick^="saveSingleMeal"],button[onclick^="saveDietLog"],button[onclick="sendMemo()"]){background:#4F46E5!important;color:#fff!important;border:0!important;box-shadow:0 6px 16px rgba(79,70,229,.24)!important}
+html body:not(.trainer-light-theme) #memberView :is(button[type="submit"],button[onclick^="saveSingleMeal"],button[onclick^="saveDietLog"],button[onclick="sendMemo()"]) *{color:inherit!important}
+html body:not(.trainer-light-theme) #memberView :is(button,summary,input,textarea,select):focus-visible{outline:3px solid rgba(79,70,229,.3)!important;outline-offset:2px}
+html body:not(.trainer-light-theme) :is(#memberWorkoutProgressBar,#memberCalorieBar,#dailyCheckinProgress){box-shadow:none!important}
+html body:not(.trainer-light-theme) #memberWorkoutProgressBar,html body:not(.trainer-light-theme) #dailyCheckinProgress{background:#4F46E5!important}
+html body:not(.trainer-light-theme) #memberCalorieBar{background:#F97316!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero.member-goal-hero{background:radial-gradient(260px 180px at 100% 0%,rgba(79,70,229,.08),transparent 70%),#fff!important;border:0!important;border-radius:24px!important;box-shadow:0 4px 20px rgba(15,23,42,.05)!important;padding:18px!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero p{color:#6B7280!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage #todayDateDisplay{color:#4F46E5!important;background:#EEF2FF!important;border:0!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage #todayDateDisplay::before{background:#4F46E5!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage .fc-greet-name{color:#111827!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage :is(.fc-greet-name span,.fc-greet-name em){color:#4F46E5!important;background:none!important;-webkit-text-fill-color:#4F46E5!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage .fc-greet-sub{color:#374151!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage #customHeaderMessage{background:#F8FAFC!important;color:#374151!important;border:0!important;border-left:3px solid #4F46E5!important}
+html body:not(.trainer-light-theme) .fit-score-label{color:#6B7280!important}
+html body:not(.trainer-light-theme) .fit-score:hover .fit-score-label{color:#4F46E5!important}
+html body:not(.trainer-light-theme) .fit-score-ring{background:conic-gradient(#4F46E5,#7C3AED var(--fit-score),#E6E9F2 0)!important}
+html body:not(.trainer-light-theme) .fit-score-ring::before{background:#fff!important;inset:7px!important}
+html body:not(.trainer-light-theme) .fit-score-ring strong{color:#111827!important;background:none!important;-webkit-text-fill-color:#111827!important}
+html body:not(.trainer-light-theme) #fcHomeRecordActions button{background:#fff!important;color:#374151!important;border:0!important;border-radius:16px!important;box-shadow:0 2px 8px rgba(15,23,42,.06)!important}
+html body:not(.trainer-light-theme) #fcHomeRecordActions button i{color:#4F46E5!important}
+html body:not(.trainer-light-theme) #fcHomeRecordActions button:first-child{background:#4F46E5!important;color:#fff!important;box-shadow:0 6px 16px rgba(79,70,229,.24)!important}
+html body:not(.trainer-light-theme) #fcHomeRecordActions button:first-child i{color:#fff!important}
+html body:not(.trainer-light-theme) #fitMemberReplyNotice button:not([hidden]){background:#FFF7ED!important;border:0!important;color:#C2410C!important}
+html body:not(.trainer-light-theme) #fitMemberReplyNotice button>i{color:#F97316!important}
+html body:not(.trainer-light-theme) #memberBottomNav .fit-has-reply::after{background:#F97316!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #memberHomePage .fc-workout-status{color:#6B7280!important}
+html body:not(.trainer-light-theme) #memberHomePage .fc-workout-status strong{color:#4F46E5!important;background:none!important;-webkit-text-fill-color:#4F46E5!important}
+html body:not(.trainer-light-theme) #memberHomePage [data-record-card="diet"] .home-meal-grid>button{background:#F1F4F9!important;border:0!important;color:#111827!important;border-radius:18px!important}
+html body:not(.trainer-light-theme) #memberHomePage [data-record-card="diet"] .home-meal-grid>button:has(.fa-circle-check){background:#FFF7ED!important}
+html body:not(.trainer-light-theme) #memberHomePage .home-meal-grid :is(i,svg){color:#F97316!important}
+html body:not(.trainer-light-theme) #memberHomePage .home-meal-grid span{color:#6B7280!important}
+html body:not(.trainer-light-theme) #memberHomePage .home-record-link{color:#4F46E5!important}
+html body:not(.trainer-light-theme) #memberView #memberHomePage #fcCoachCard.fc-coach,
+html body:not(.trainer-light-theme) #memberView #fcCoachCard.fc-coach{background:#fff!important;border:0!important;box-shadow:0 4px 20px rgba(15,23,42,.05)!important;backdrop-filter:none!important;color:#111827!important}
+html body:not(.trainer-light-theme) #fcCoachCard.fc-coach::after{display:none!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-avatar{background:#4F46E5!important;color:#fff!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-avatar *{color:#fff!important}
+html body:not(.trainer-light-theme) #fcCoachCard :is(.fc-coach-eyebrow,.fc-coach-cta){color:#4F46E5!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-title{color:#111827!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-time{color:#9CA3AF!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-msg{background:#F8FAFC!important;border:0!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-msg p{color:#374151!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-msg small.w{color:#4F46E5!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-msg small.d{color:#EA580C!important}
+html body:not(.trainer-light-theme) #fcCoachCard .fc-coach-empty{color:#6B7280!important}
+html body:not(.trainer-light-theme) .fc-focus-card h3{color:#111827!important}
+html body:not(.trainer-light-theme) .fc-focus-card p{color:#6B7280!important}
+html body:not(.trainer-light-theme) .fc-care-grid div{border-right-color:#E7EAF0!important}
+html body:not(.trainer-light-theme) .fc-care-grid strong{color:#111827!important}
+html body:not(.trainer-light-theme) .fc-care-grid :is(span,small){color:#6B7280!important}
+html body:not(.trainer-light-theme) .fc-care-note{border-top-color:#E7EAF0!important}
+html body:not(.trainer-light-theme) #memberView .fc-care-retry{color:#4F46E5!important}
+html body:not(.trainer-light-theme) #memberView .fc-focus-fold>summary{color:#111827!important;font-size:15px!important}
+html body:not(.trainer-light-theme) #memberView .fc-focus-fold>summary:after{color:#4F46E5!important}
+html body:not(.trainer-light-theme) #memberView .fc-focus-fold #memberDailyCheckin{background:none!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) #memberView #memberDailyCheckin [data-check-field]:not(.text-white){background:#F1F4F9!important;color:#374151!important;border:0!important}
+html body:not(.trainer-light-theme) #memberView #memberDailyCheckin [data-check-field].text-white{border:0!important;color:#fff!important}
+html body:not(.trainer-light-theme) #memberView #memberDailyCheckin [data-check-field="workout"].text-white{background:#4F46E5!important}
+html body:not(.trainer-light-theme) #memberView #memberDailyCheckin [data-check-field="diet"].text-white{background:#F97316!important}
+html body:not(.trainer-light-theme) #memberView #memberDailyCheckin [data-check-field="mood"].text-white{background:#14B8A6!important}
+html body:not(.trainer-light-theme) #memberView #memberDailyCheckin :is([data-check-value="rest"],[data-check-value="partial"],[data-check-value="normal"]).text-white{background:#111827!important}
+html body:not(.trainer-light-theme) .fc-gauge{background:conic-gradient(#4F46E5 var(--p),#E6E9F2 0)!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) .fc-metric-enhanced.fc-calorie .fc-gauge{background:conic-gradient(#F97316 var(--p),#E6E9F2 0)!important}
+html body:not(.trainer-light-theme) .fc-gauge::before{background:#fff!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) .fc-gauge b{color:#111827!important}
+html body:not(.trainer-light-theme) #memberView .fc-metric-enhanced{background:#F8FAFC!important;border:0!important}
+html body:not(.trainer-light-theme) .fit-balance-grid{stroke:#D9DEE8!important}
+html body:not(.trainer-light-theme) .fit-balance-scale{fill:#6B7280!important}
+html body:not(.trainer-light-theme) .fit-balance-list li{border-bottom-color:#E7EAF0!important;color:#6B7280!important}
+html body:not(.trainer-light-theme) .fit-balance-list strong{color:#111827!important}
+html body:not(.trainer-light-theme) #fcMagazineShortcut{background:#fff!important;border:0!important;box-shadow:0 4px 20px rgba(15,23,42,.05)!important;color:#111827!important}
+html body:not(.trainer-light-theme) .fc-magazine-mark{background:linear-gradient(135deg,#4F46E5,#7C3AED)!important;color:#fff!important;box-shadow:0 6px 14px rgba(79,70,229,.25)!important}
+html body:not(.trainer-light-theme) .fc-magazine-mark *{color:#fff!important}
+html body:not(.trainer-light-theme) :is(.fc-magazine-kicker,.fc-article-tag,.fc-magazine-eyebrow,.fc-weekly-kicker,.fc-weekly-meta){color:#4F46E5!important}
+html body:not(.trainer-light-theme) .fc-magazine-shorttitle{color:#111827!important}
+html body:not(.trainer-light-theme) .fc-magazine-arrow{color:#9CA3AF!important}
+html body:not(.trainer-light-theme) :is(#fcMagazineModal,#fcWeeklyColumnsModal){background:rgba(15,23,42,.35)!important}
+html body:not(.trainer-light-theme) :is(.fc-magazine-sheet,.fc-weekly-sheet){background:#F3F5F9!important;color:#111827!important}
+html body:not(.trainer-light-theme) :is(.fc-magazine-head p,.fc-weekly-top p,.fc-article-meta,.fc-weekly-author){color:#6B7280!important}
+html body:not(.trainer-light-theme) :is(.fc-magazine-close,.fc-magazine-back,.fc-weekly-close,.fc-weekly-back){background:#fff!important;border:0!important;color:#111827!important;box-shadow:0 1px 4px rgba(15,23,42,.08)}
+html body:not(.trainer-light-theme) .fc-magazine-filter{background:#fff!important;border:0!important;color:#374151!important}
+html body:not(.trainer-light-theme) .fc-magazine-filter.is-active{background:#111827!important;color:#fff!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) :is(.fc-article-card,.fc-weekly-card){background:#fff!important;border:0!important;box-shadow:0 4px 20px rgba(15,23,42,.05)!important;color:#111827!important}
+html body:not(.trainer-light-theme) :is(.fc-article-summary,.fc-weekly-card p){color:#6B7280!important}
+html body:not(.trainer-light-theme) .fc-magazine-lead{color:#111827!important}
+html body:not(.trainer-light-theme) :is(.fc-magazine-copy p,.fc-weekly-detail-copy p){color:#374151!important}
+html body:not(.trainer-light-theme) :is(.fc-magazine-question,.fc-weekly-takeaway){background:#EEF2FF!important;border:0!important;color:#3730A3!important}
+html body:not(.trainer-light-theme) .fc-magazine-like{background:#fff!important;color:#374151!important;border:0!important}
+html body:not(.trainer-light-theme) .fc-magazine-like.is-liked{background:#F97316!important;color:#fff!important}
+html body:not(.trainer-light-theme) :is(.fc-magazine-ask,.fc-weekly-ask){background:#4F46E5!important;color:#fff!important;box-shadow:0 6px 16px rgba(79,70,229,.24)!important}
+html body:not(.trainer-light-theme) .fc-video-ready-hint{background:#F8FAFC!important;border-color:#E7EAF0!important;color:#374151!important}
+html body:not(.trainer-light-theme) .fc-video-ready-hint[data-state="checking"]{background:#EEF2FF!important;border-color:#C7D2FE!important;color:#4338CA!important}
+html body:not(.trainer-light-theme) .fc-video-ready-hint[data-state="ready"]{background:#F0FDFA!important;border-color:#99F6E4!important;color:#0F766E!important}
+html body:not(.trainer-light-theme) .fc-video-ready-hint[data-state="error"]{background:#FFF1F2!important;border-color:#FECDD3!important;color:#BE123C!important}
+html body:not(.trainer-light-theme) .fc-video-question-chips>span{color:#6B7280!important}
+html body:not(.trainer-light-theme) .fc-video-question-chips button{background:#EEF2FF!important;color:#4338CA!important;border:0!important}
+html body:not(.trainer-light-theme) .fit-feedback-actions button{background:#F1F4F9!important;color:#374151!important;border:0!important}
+html body:not(.trainer-light-theme) .fit-feedback-actions button:last-child{background:#4F46E5!important;color:#fff!important}
+html body:not(.trainer-light-theme) #memberBottomNav{background:rgba(255,255,255,.95)!important;border:0!important;border-top:1px solid rgba(229,231,235,.8)!important;border-radius:0!important;box-shadow:none!important;width:min(100%,480px)!important}
+html body:not(.trainer-light-theme) #memberBottomNav button{color:#9CA3AF!important;background:transparent!important}
+html body:not(.trainer-light-theme) #memberBottomNav button:is(.selected,[aria-current="page"]){background:transparent!important;color:#4F46E5!important;font-weight:800!important}
+html body:not(.trainer-light-theme) #memberBottomNav button:is(.selected,[aria-current="page"]) :is(i,svg){color:#4F46E5!important;filter:none!important}
+html body:not(.trainer-light-theme) #saveStatusBar{color:#111827!important;box-shadow:0 10px 28px rgba(15,23,42,.12)!important}
+html body:not(.trainer-light-theme) #saveStatusBar[data-state="saving"]{border-color:#C7D2FE!important;background:#EEF2FF!important}
+html body:not(.trainer-light-theme) #saveStatusBar[data-state="saved"]{border-color:#99F6E4!important;background:#F0FDFA!important}
+html body:not(.trainer-light-theme) #saveStatusBar[data-state="error"]{border-color:#FECDD3!important;background:#FFF1F2!important}
+html body:not(.trainer-light-theme) #saveStatusBar button{color:#111827!important;background:rgba(17,24,39,.06)!important}
+html body:not(.trainer-light-theme) #toastNotification{background:#111827!important;color:#fff!important;border:0!important}
+html body:not(.trainer-light-theme) #fcSkeleton{background:#F3F5F9!important}
+html body:not(.trainer-light-theme) .fc-skeleton-phone{background:#F3F5F9!important;border:0!important;box-shadow:none!important}
+html body:not(.trainer-light-theme) :is(.fc-skel-logo,.fc-skel-date,.fc-skel-title,.fc-skel-sub,.fc-skel-card){background:linear-gradient(100deg,#E6E9F2 25%,#F5F7FB 45%,#E6E9F2 65%)!important;background-size:240% 100%!important}
+html body:not(.trainer-light-theme) .fc-skel-card{background:linear-gradient(100deg,#fff 25%,#F5F7FB 45%,#fff 65%)!important;background-size:240% 100%!important;box-shadow:0 4px 20px rgba(15,23,42,.05)}

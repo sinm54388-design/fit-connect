@@ -900,6 +900,54 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
 #fcTrainerDetails .trainer-workspace-metrics{margin:0 0 16px}#fcTrainerDetails section{margin:14px 0}
 @media(prefers-reduced-motion:reduce){.fc-focus-fold *{scroll-behavior:auto!important}}
 </style>
+<style id="fc-light-coaching">
+html { color-scheme: light; }
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) {
+  --fc-text:#17263d; --fc-text-2:#334763; --fc-muted:#546780;
+  --fc-card:#fff; --fc-card-2:#f0f5fb; --fc-line:#dbe4f0; --fc-line-2:#bacbe0;
+  --fc-shadow:0 8px 24px #2947790c; --fc-lime:#087760; --fc-orange:#995019; --fc-violet:#5747bd;
+  background:#edf2f9!important; color:#17263d!important;
+}
+html body:not(.trainer-light-theme)::before {background:#f7f9fd!important;box-shadow:0 0 0 1px #dbe4f0!important;}
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) #appHeader,
+html body #memberBottomNav,html body #trainerAppNav,html body #fcQuickActions,
+html body #fcDateChips {background:#ffffffef!important;border-color:#dbe4f0!important;box-shadow:0 6px 20px #29477912!important;}
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) #appHeader :is(h1,#currentDateInput,#btnMemberMode,#btnTrainerMode) {color:#17263d!important;}
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) #appHeader>div>div:last-child>div,
+html body #appHeader #currentDateInput {background:#edf2fa!important;border-color:#dbe4f0!important;}
+html body #fcDateChips .fc-date-chip:not(.fc-selected) {background:#eef3fa!important;color:#304560!important;border-color:#dbe4f0!important;box-shadow:none!important;}
+html body #fcDateChips .fc-date-chip:not(.fc-selected) * {color:inherit!important;}
+html body #fcDateChips .fc-date-chip.fc-selected {background:#514bc4!important;color:white!important;border-color:#514bc4!important;}
+html body #fcDateChips .fc-date-chip.fc-selected * {color:inherit!important;}
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) {
+  --trainer-ink:#17263d;--trainer-muted:#546780;--trainer-line:#dbe4f0;color:#17263d!important;
+}
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) :is(
+  .rounded-2xl,.rounded-3xl,.bg-white,.bg-slate-900,.bg-slate-950,.bg-slate-800,[class~="bg-slate-800/60"],
+  .trainer-workspace-hero,.trainer-workspace-dashboard,.trainer-workspace-activity,.trainer-workspace-side-card,
+  .trainer-workspace-report-card,.trainer-workspace-metric,.trainer-workspace-member,.trainer-fold,.home-record-card,
+  #fcColumnTrainerPanel,#fcCareSummary,#fcCheckinFold,#fcDailyMetricsFold,#fcTrainerDetails) {
+  background:#fff!important;border-color:#dbe4f0!important;color:#17263d!important;box-shadow:0 6px 20px #2947790c!important;
+}
+html body:not(.trainer-light-theme) #memberView #memberHomePage #fcCoachCard {background:#eef3ff!important;border-color:#d6e1f7!important;color:#17263d!important;}
+html body #memberHomePage :is(#fcGreet,.fc-coach-title,.fc-coach-msg,.fc-focus-card h3,.fc-care-grid strong,.fc-focus-fold summary),
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) :is(h2,h3,h4,.text-white,.text-slate-100,.text-slate-200,.text-slate-900,.text-slate-800,.text-slate-700) {color:#17263d!important;}
+html body #memberHomePage :is(.fc-coach-empty,.fc-coach-msg p,.fc-focus-card p,.fc-care-grid span,.fc-care-grid small,.fc-workout-status),
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) :is(.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.trainer-workspace-subtle) {color:#546780!important;}
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) :is(input:not([type=checkbox]):not([type=radio]),textarea,select) {background:#f3f6fc!important;color:#17263d!important;border-color:#cbd8eb!important;}
+html body :is(#memberBottomNav,#trainerAppNav) button {color:#425674!important;}
+html body :is(#memberBottomNav,#trainerAppNav) button.selected {background:#eeeafe!important;color:#4637a9!important;}
+html body :is(#memberBottomNav,#trainerAppNav) button.selected i {color:inherit!important;filter:none!important;}
+html body #fcHomeRecordActions button,html body #fcQuickActions button:last-child {background:#edf2fb!important;color:#253a56!important;border-color:#d5e0f0!important;}
+html body #fcHomeRecordActions button:first-child,html body #fcQuickActions button:first-child,
+html body #trainerView .fc-column-publish {background:#514bc4!important;color:white!important;border-color:#514bc4!important;}
+html body #fcMagazineShortcut,html body .fc-weekly-sheet,
+html body .fc-weekly-sheet :is(.fc-weekly-card,.fc-weekly-close,.fc-weekly-back,input,select,textarea),
+html body #fcSkeleton .fc-skeleton-shell {background:#fff!important;border-color:#dbe4f0!important;color:#17263d!important;}
+html body .fc-weekly-sheet :is(p,.fc-weekly-author,.fc-column-editor label,.fc-column-editor-help) {color:#546780!important;}
+html body :is(.fc-weekly-meta,.fc-weekly-kicker,.fc-care-retry,.fc-workout-status strong,.fc-column-panel-top span) {color:#087760!important;}
+html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#17263d!important;}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">

@@ -139,6 +139,9 @@
     root.querySelector('[data-week-lines]').insertAdjacentHTML('beforeend',confirmations.map(i=>
       '<circle cx="'+(16+i*48)+'" cy="7" r="3.5" fill="#0d9488"><title>운동 인증</title></circle>').join(''));
     const activeDays=counts.filter((n,i)=>n>0||confirmations.includes(i)).length;
+    const activeDates=new Set(dates.filter((_,i)=>counts[i]>0||confirmations.includes(i)));
+    document.querySelectorAll('#fcDateChips [data-record-date]').forEach(chip=>
+      chip.classList.toggle('fit-recorded',activeDates.has(chip.dataset.recordDate)));
     root.querySelector('[data-week-days]').textContent = '운동 '+activeDays+'일';
     root.querySelector('[data-week-values]').innerHTML = dayNames.map((day,i) =>
       '<span>'+day+'<small>'+(i<counts.length ? counts[i] ?? '—' : '·')+(confirmations.includes(i)?' ✓':'')+'</small></span>').join('');
@@ -195,12 +198,14 @@
     rings.querySelectorAll('[data-ring]').forEach((ring,i) => ring.style.strokeDashoffset = String(100-(numbers[i] ?? 0)));
     const write = (id,value) => { byId(id).textContent = value; };
     write('reportRingScore',numbers[0] ?? '—');
-    ['기록','칼로리','루틴'].forEach((label,i) => {
-      byId('reportRingLegend').children[i].textContent = label+' '+(numbers[i] == null ? '—' : numbers[i]+'%');
+    ['관리','식단','루틴'].forEach((label,i) => {
+      byId('reportRingLegend').children[i].textContent = label+' '+(numbers[i] == null ? '—' : numbers[i]+(i===0?'':'%'));
     });
     write('reportWorkoutValue',values ? workout.percent+'%' : '—');
     write('reportWorkoutDetail',values && workout.planned ? workout.done+'/'+workout.planned+'세트 완료 ›' : '수업일지 보기 ›');
     write('reportCalorieValue',values ? calories.toLocaleString() : '—');
+    const calorieBadge=byId('fitCaloriePercent');
+    if(calorieBadge)calorieBadge.textContent=values?caloriePercent+'%':'—';
     write('reportCalorieDetail','목표 '+target.toLocaleString()+' kcal ›');
     byId('reportWorkoutBar').style.width = workout.percent+'%';
     byId('reportCalorieBar').style.width = caloriePercent+'%';

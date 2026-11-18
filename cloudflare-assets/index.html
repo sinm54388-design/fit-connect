@@ -909,9 +909,9 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
 </style>
 <link rel="stylesheet" href="/fit-dark.css">
 <link rel="stylesheet" href="/member-report.css">
-<link rel="stylesheet" href="/fit-experience.css">
-<script defer src="/member-report.js"></script>
-<script defer src="/fit-experience.js"></script>
+<link rel="stylesheet" href="/fit-experience.css?v=reference">
+<script defer src="/member-report.js?v=reference"></script>
+<script defer src="/fit-experience.js?v=reference"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
@@ -5570,9 +5570,8 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     title.parentElement.insertBefore(greet,title);
     const render=()=>{
       const name = memberName().trim().replace(/\s*회원님$/, '').trim();
-      const heading = name ? '<span>'+safe(name)+'님</span>, 안녕하세요' : '안녕하세요';
-      greet.innerHTML = '<h2 class="fc-greet-name">'+heading+'</h2>'+
-        '<p class="fc-greet-sub">운동과 식단을 기록하고 코치 피드백을 확인해요.</p>';
+      const heading = name ? '<span>'+safe(name)+'님의</span><br>' : '';
+      greet.innerHTML = '<h2 class="fc-greet-name">'+heading+'오늘 컨디션 리포트</h2>';
     };
     render();
     renderMemberBalance(workflowReadyKey===workflowContextKey() ? appData : null);
@@ -5759,7 +5758,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     const row=document.createElement('div');row.id='fcDateChips';row.setAttribute('aria-label','날짜 선택');
     const draw=()=>{
       const active=input.value||iso(new Date());const base=new Date(active+'T12:00:00');row.innerHTML='';
-      for(let offset=-base.getDay();offset<7-base.getDay();offset++){const d=new Date(base);d.setDate(base.getDate()+offset);const key=iso(d),btn=document.createElement('button');btn.type='button';btn.className='fc-date-chip'+(key===active?' fc-selected':'')+(key===iso(new Date())?' fc-today':'');btn.setAttribute('aria-pressed',String(key===active));btn.innerHTML='<span>'+['일','월','화','수','목','금','토'][d.getDay()]+'</span><b>'+d.getDate()+'</b>';btn.onclick=()=>{input.value=key;input.dispatchEvent(new Event('change',{bubbles:true}));draw();};row.append(btn);}
+      for(let offset=-base.getDay();offset<7-base.getDay();offset++){const d=new Date(base);d.setDate(base.getDate()+offset);const key=iso(d),btn=document.createElement('button');btn.type='button';btn.className='fc-date-chip'+(key===active?' fc-selected':'')+(key===iso(new Date())?' fc-today':'');btn.dataset.recordDate=key;btn.setAttribute('aria-pressed',String(key===active));btn.innerHTML='<span>'+['일','월','화','수','목','금','토'][d.getDay()]+'</span><b>'+d.getDate()+'</b>';btn.onclick=()=>{input.value=key;input.dispatchEvent(new Event('change',{bubbles:true}));draw();};row.append(btn);}
     };
     header.after(row);input.addEventListener('change',draw);draw();
   }

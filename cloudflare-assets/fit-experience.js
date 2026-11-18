@@ -55,7 +55,13 @@
     const water=Math.max(0,Number(data.diet?.water)||0)/1000;
     const sameDay=insightKey===workflowContextKey();
     const weight=readWeight(data)||(sameDay?Number(insight?.inbody?.at(-1)?.weight):0);
-    id('fitWaterWeight').textContent='물 '+water.toLocaleString()+' L · 체중 '+(weight>0?weight.toLocaleString()+' kg':'—');
+    id('fitWaterWeight').textContent='수분 '+water.toFixed(1)+'L'+(weight>0?' · '+weight.toLocaleString()+'kg':'');
+    const briefing=id('fitBriefingText');
+    if(briefing){
+      const header=String(data.headerMessage||'').trim();
+      briefing.textContent=String(data.feedback?.workout||'').trim()||
+        (header&&!/^오늘의 운동과 식단을 완수해볼까요/.test(header)?header:'아직 등록된 코치 브리핑이 없어요.');
+    }
     const dietReply=id('fitDietReply');
     const feedback=String(data.feedback?.diet||'').trim();
     dietReply.hidden=!feedback;
@@ -86,7 +92,7 @@
       let run=0;
       while(run<3&&weeks.has(start-run*weekMs))run++;
       lastStreak=run;
-      id('fitStreak').textContent=run+(run===3?'주+':'주')+' 연속';
+      id('fitStreak').textContent=run+'주 연속';
       id('fitStreak').hidden=!run;
     } catch {}
   }
@@ -230,18 +236,61 @@
     const header=make('div','','fit-member-tools');
     const streak=make('span','','fit-pill'); streak.id='fitStreak';streak.hidden=true;
     header.append(streak,button('코치 질문',openCoachQuestion));
-    id('appHeader').append(header);
+    const appHeader=id('appHeader');
+    appHeader.firstElementChild.append(header);
+    appHeader.querySelector('h1')?.parentElement.parentElement.previousElementSibling?.replaceChildren(
+      Object.assign(make('i','','fa-solid fa-bolt'),{ariaHidden:'true'})
+    );
+    const modes=make('nav','','fit-reference-mode');
+    modes.setAttribute('aria-label','화면 모드');
+    const modeRow=make('div','','fit-reference-mode-row');
+    const segments=make('div','','fit-reference-mode-segments');
+    const memberMode=button('회원용',()=>id('btnMemberMode').click());
+    const coachMode=button('코치용',()=>id('btnTrainerMode').click());
+    segments.append(memberMode,coachMode);
+    modeRow.append(make('span','실시간 연동'),segments);
+    modes.append(modeRow);
+    appHeader.before(modes);
+    const updateMode=()=>{
+      const coach=currentMode==='trainer';
+      memberMode.setAttribute('aria-pressed',String(!coach));
+      coachMode.setAttribute('aria-pressed',String(coach));
+      const name=String(getMemberNameFromUrl()||'').trim().replace(/\s*회원님$/,'').trim();
+      memberMode.textContent=name?'회원용 ('+name+'님)':'회원용';
+    };
+    new MutationObserver(updateMode).observe(document.body,{attributes:true,attributeFilter:['class']});
+    updateMode();
     const pr=make('span','','fit-pill');pr.id='fitPr';pr.hidden=true;
-    id('fcGreet').before(pr);
+    const greet=id('fcGreet'), date=id('todayDateDisplay');
+    const dateRow=make('div','','fit-reference-date');
+    const dateInput=id('currentDateInput');
+    const dateLabel=button('',()=>{try{dateInput.showPicker();}catch{dateInput.focus();}},'fit-reference-date-label');
+    dateLabel.setAttribute('aria-label','다른 기록 날짜 선택');
+    const updateDate=()=>{
+      const parts=(date.textContent||'').trim().match(/^\d{4}-(\d{2})-(\d{2})$/);
+      dateLabel.textContent=parts?Number(parts[1])+'월 '+Number(parts[2])+'일':'기록 날짜';
+    };
+    dateRow.append(dateLabel,pr);
+    greet.before(dateRow);
+    new MutationObserver(updateDate).observe(date,{childList:true,subtree:true,characterData:true});
+    updateDate();
     const summaries=id('reportSummaries');
     const mini=make('span','','fit-mini-ring');
     summaries.children[0].append(mini);
     new MutationObserver(()=>mini.style.setProperty('--fit-mini',id('reportWorkoutBar').style.width||'0%')).observe(id('reportWorkoutBar'),{attributes:true,attributeFilter:['style']});
     const macros=make('span','','fit-macros');macros.id='fitMacros';
     const body=make('small','물 — · 체중 —');body.id='fitWaterWeight';
-    summaries.children[1].append(macros,body);
+    const percentage=make('span','—','fit-calorie-percent');percentage.id='fitCaloriePercent';
+    summaries.children[1].append(macros,body,percentage);
     const coach=id('fcCoachCard'), coachLink=button('수업일지 ›',()=>navigateMemberPage('workout'),'fit-brief-link');
-    coach.after(coachLink);
+    const briefing=make('div','','fit-reference-brief');
+    const briefingHeading=make('div','','fit-reference-brief-heading');
+    const feedbackButton=button('코치 브리핑',()=>navigateMemberPage('feedback'),'fit-brief-heading');
+    const briefingText=make('p','아직 등록된 코치 브리핑이 없어요.');
+    briefingText.id='fitBriefingText';
+    briefingHeading.append(feedbackButton,coachLink);
+    briefing.append(briefingHeading,briefingText);
+    coach.after(briefing);
     const tip=button('자세 팁 ▶',missionTip);
     tip.id='reportMissionTip';
     const mission=id('reportMission'), actions=make('div','','fit-mission-actions');
@@ -272,6 +321,25 @@
     },'fit-fab');
     fab.setAttribute('aria-label','빠른 기록');document.body.append(fab);
     addMealTags();
+    const iconPaths={
+      home:'M3 10l9-7 9 7M5 9v11h5v-6h4v6h5V9',
+      workout:'M8 5H6a1 1 0 00-1 1v14h14V6a1 1 0 00-1-1h-2M9 4h6v4H9zM8 14l3 3 5-5',
+      diet:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+      growth:'M13 6h8v8m0-8-8 8-4-4-6 6',
+      feedback:'M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z'
+    };
+    for(const [key,path] of Object.entries(iconPaths)){
+      const icon=document.querySelector('#memberBottomNav [data-member-tab="'+key+'"] i');
+      if(icon)icon.outerHTML='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="'+path+'"/></svg>';
+    }
+    const rhythmTitle=id('reportRhythm')?.querySelector('header h2');
+    if(rhythmTitle){
+      const caption=make('small','','fit-rhythm-date');
+      rhythmTitle.after(caption);
+      const update=()=>caption.textContent=dateLabel.textContent+' · 운동 리포트';
+      new MutationObserver(update).observe(dateLabel,{childList:true,characterData:true,subtree:true});
+      update();
+    }
     document.addEventListener('click',event=>{
       if(currentMode==='member'&&event.target.closest('#fcMagazineShortcut')){
         event.stopImmediatePropagation();

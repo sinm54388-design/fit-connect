@@ -909,7 +909,9 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
 </style>
 <link rel="stylesheet" href="/fit-dark.css">
 <link rel="stylesheet" href="/member-report.css">
+<link rel="stylesheet" href="/fit-experience.css">
 <script defer src="/member-report.js"></script>
+<script defer src="/fit-experience.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
@@ -2546,6 +2548,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         if(active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
       });
       if(scroll){document.getElementById('appHeader')?.classList.remove('header-hidden');window.scrollTo({top:0,behavior:'auto'});}
+      window.fitExperience?.coachTab(page);
     }
     function syncTrainerNavigation(){
       const active=currentMode==='trainer'&&!!trainerPassword;
@@ -3187,6 +3190,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
 
       if (currentMode === 'member') {
         const careKey=activeMemberName+'|'+selectedDate;
+        window.fitExperience?.memberData(appData);
         renderMemberBalance(workflowReadyKey===workflowContextKey() ? appData : null);
         if(homeCareKey!==careKey){homeCareKey=careKey;renderHomeCareSummary(null,'loading');}
         renderMemberRoutines(appData.routines || []);
@@ -3213,7 +3217,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     /* ---------- 메모 (코치 ↔ 회원) ---------- */
     function renderMemos(listId, memos) {
       const el = document.getElementById(listId);
-      memos=(memos||[]).filter(m=>!isDailyCheckinMemo(m));
+      memos=(memos||[]).filter(m=>!isDailyCheckinMemo(m)&&!String(m?.text||'').startsWith('__FIT_MEMBER_WEIGHT__:'));
       if (memos.length === 0) {
         el.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">아직 메모가 없습니다.</p>';
         lastMemoCount[listId] = 0;
@@ -3953,6 +3957,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         lastOverviewItems=result.members;
         if(isFast)supplementalFast=result.members;
         const items=supplement(result.members).map(m=>({...m,pendingVideos:(Number(m.pendingVideos)||0)+(Number(m.directPendingVideos)||0)}));
+        window.fitExperience?.coachOverview(items,date);
         renderTrainerSupplemental(supplement(items),date);
         // The overview already contains member names. Populate the selector
         // immediately instead of waiting on the slower/possibly stuck listMembers request.
@@ -4550,6 +4555,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         renderMonthlyReport(prefix==='trainer'?'trainerMonthlyReport':'memberMonthlyReport',result.monthly);
         renderStrengthProgress(prefix==='trainer'?'trainerStrengthProgress':'memberStrengthProgress',result.progress);
         renderInbodyChart(prefix==='trainer'?'trainerInbodyChart':'memberInbodyChart',result.inbody);
+        if(mode==='member')window.fitExperience?.memberInsights(result,date);
         renderPtSummary(prefix==='trainer'?'trainerPtSummary':'memberPtSummary',result.pt);
         renderMemberGoal(prefix==='trainer'?'trainerGoalSummary':'memberGoalSummary',result.goal,result.weekly,result.inbody);
         if(mode==='trainer'){
@@ -4602,7 +4608,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     }
     // 식단 사진: 업로드 크기를 줄이고(최대 1080px, 약 300KB 내외),
     // 올리는 즉시 미리보기를 보여주며, 한 번 받은 사진은 다시 내려받지 않습니다.
-    const PHOTO_MAX_SIDE=1080, PHOTO_TARGET_BYTES=450000, PHOTO_HARD_LIMIT=1400000;
+    const PHOTO_MAX_SIDE=1000, PHOTO_TARGET_BYTES=450000, PHOTO_HARD_LIMIT=1400000;
     const photoCache=new Map();            // fileId -> Promise<dataURL>
     const pendingMealPhotos={};            // meal -> [{id,url}]
     function cachePhoto(fileId,promise){
@@ -4611,7 +4617,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       promise.catch(()=>{if(photoCache.get(fileId)===promise)photoCache.delete(fileId);});
       return promise;
     }
-    async function compressPhoto(file) {
+    async function compressPhoto(file,format='image/webp') {
       if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 첨부할 수 있어요.');
       let bitmap;
       try{bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});}catch{bitmap=await createImageBitmap(file);}
@@ -4622,13 +4628,17 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
       bitmap.close&&bitmap.close();
       let quality=.74, blob;
-      do {blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));quality-=.1;}
+      do {
+        blob=await new Promise(resolve=>canvas.toBlob(resolve,format,quality));
+        if(blob?.type==='image/png') blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));
+        quality-=.1;
+      }
       while(blob&&blob.size>PHOTO_TARGET_BYTES&&quality>.4);
       if(!blob||blob.size>PHOTO_HARD_LIMIT) throw new Error('사진을 압축할 수 없어요.');
       const dataUrl=await new Promise((resolve,reject)=>{
         const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(blob);
       });
-      return {dataUrl,base64:dataUrl.split(',')[1]};
+      return {dataUrl,mime:blob.type,base64:dataUrl.split(',')[1]};
     }
     async function uploadMealPhoto(meal,input) {
       const file=input.files?.[0];if(!file)return;
@@ -4640,9 +4650,14 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         (pendingMealPhotos[meal]=pendingMealPhotos[meal]||[]).push(pending);
         renderMealPhotos();
         showToast('사진 올리는 중... 다른 기록을 계속해도 돼요');
-        const {dataUrl,base64}=await compressPhoto(file);
+        let {dataUrl,mime,base64}=await compressPhoto(file);
         const before=new Set((appData?.diet?.[meal]?.photos||[]).map(p=>p.fileId));
-        const result=await apiPost({...apiCredentials(),action:'uploadPhoto',meal,mime:'image/jpeg',base64});
+        const credentials={member:context.member,date:context.date,token:context.token};
+        let result=await apiPost({...credentials,action:'uploadPhoto',meal,mime,base64});
+        if(result.status!=='success'&&mime==='image/webp'&&/mime|webp|형식|format/i.test(String(result.code||'')+' '+String(result.message||''))){
+          ({dataUrl,mime,base64}=await compressPhoto(file,'image/jpeg'));
+          result=await apiPost({...credentials,action:'uploadPhoto',meal,mime,base64});
+        }
         if(result.status!=='success')throw new Error(result.message||'업로드 실패');
         const newId=result.fileId||result.photo?.fileId||result.data?.fileId;
         if(newId)cachePhoto(newId,Promise.resolve(dataUrl));
@@ -5744,7 +5759,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     const row=document.createElement('div');row.id='fcDateChips';row.setAttribute('aria-label','날짜 선택');
     const draw=()=>{
       const active=input.value||iso(new Date());const base=new Date(active+'T12:00:00');row.innerHTML='';
-      for(let offset=-3;offset<=3;offset++){const d=new Date(base);d.setDate(base.getDate()+offset);const key=iso(d),btn=document.createElement('button');btn.type='button';btn.className='fc-date-chip'+(key===active?' fc-selected':'')+(key===iso(new Date())?' fc-today':'');btn.innerHTML='<span>'+['일','월','화','수','목','금','토'][d.getDay()]+'</span><b>'+d.getDate()+'</b>';btn.onclick=()=>{input.value=key;input.dispatchEvent(new Event('change',{bubbles:true}));draw();};row.append(btn);}
+      for(let offset=-base.getDay();offset<7-base.getDay();offset++){const d=new Date(base);d.setDate(base.getDate()+offset);const key=iso(d),btn=document.createElement('button');btn.type='button';btn.className='fc-date-chip'+(key===active?' fc-selected':'')+(key===iso(new Date())?' fc-today':'');btn.setAttribute('aria-pressed',String(key===active));btn.innerHTML='<span>'+['일','월','화','수','목','금','토'][d.getDay()]+'</span><b>'+d.getDate()+'</b>';btn.onclick=()=>{input.value=key;input.dispatchEvent(new Event('change',{bubbles:true}));draw();};row.append(btn);}
     };
     header.after(row);input.addEventListener('change',draw);draw();
   }

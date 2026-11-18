@@ -1,0 +1,173 @@
+:root {
+  --exp-hero: radial-gradient(circle at 88% 18%, #38bdf840 0%, transparent 45%),
+    linear-gradient(135deg,#0b132b 0%,#1e3a8a 58%,#2563eb 100%);
+  --exp-white: #fff;
+  --exp-ink: #0f172a;
+  --exp-muted: #4a5d78;
+  --exp-shadow: 0 4px 20px rgba(15,23,42,.04);
+}
+html body.fit-experience-ready,
+html body.fit-experience-ready.trainer-light-theme,
+html body.fit-experience-ready.member-report-enabled:not(.trainer-light-theme) {
+  background: #e2e6ee !important;
+  color: var(--exp-ink) !important;
+  color-scheme: light;
+  font-variant-numeric: tabular-nums;
+}
+html body.fit-experience-ready:not(.trainer-light-theme)::before {
+  width: min(100%,430px);
+  background: #f4f6f9 !important;
+}
+html body.fit-experience-ready.trainer-light-theme::before {
+  content: ""; display: block; position: fixed; inset: 0; margin: auto;
+  width: min(100%,430px); background: #f4f6f9; z-index: -1; pointer-events: none;
+}
+html body.fit-experience-ready main {
+  width: 100%; max-width: 430px !important; margin-inline: auto;
+  background: #f4f6f9;
+}
+html body.fit-experience-ready.trainer-light-theme #trainerView { width: 100%; max-width: 430px !important; padding: 6px 0 90px !important; }
+html body.fit-experience-ready.trainer-light-theme #trainerDashboardSection { display: flex; }
+html body.fit-experience-ready.trainer-light-theme #appHeader,
+html body.fit-experience-ready.member-report-enabled:not(.trainer-light-theme) #appHeader {
+  width: min(100%,430px); max-width: 430px; margin-inline: auto;
+  background: #f4f6f9f5 !important; color: var(--exp-ink) !important; border-color: #e1e8f3 !important;
+}
+html body.fit-experience-ready.trainer-light-theme #appHeader :is(h1,#currentDateInput,#btnMemberMode) { color: #1e3a8a !important; }
+html body.fit-experience-ready.trainer-light-theme #appHeader > div > div:last-child > div { background: #edf3fd !important; }
+html body.fit-experience-ready #fcDateChips {
+  display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 5px;
+  width: min(100%,430px); max-width: 430px; padding: 8px 12px; overflow: visible;
+}
+html body.fit-experience-ready #fcDateChips .fc-date-chip.fc-selected { background: var(--exp-hero) !important; color: #fff !important; }
+html body.fit-experience-ready #fcDateChips .fc-date-chip { min-width: 0 !important; min-height: 45px !important; }
+html body.fit-experience-ready #memberBottomNav { width: min(100%,430px) !important; }
+.fit-experience-ready button { transition: transform .13s ease; }
+.fit-experience-ready button:active:not(:disabled) { transform: scale(.975); }
+@media (prefers-reduced-motion:reduce) {.fit-experience-ready button { transition: none; }}
+html body.fit-experience-ready #toastNotification {
+  inset: max(14px,env(safe-area-inset-top)) auto auto 50% !important;
+  transform: translateX(-50%) !important; width: max-content; max-width: min(390px,calc(100% - 28px));
+  border: 0; background: #173470; color: white; z-index: 1500; pointer-events: none;
+}
+html body.fit-experience-ready #saveStatusBar {
+  inset: max(16px,env(safe-area-inset-top)) auto auto 50% !important;
+  transform: translateX(-50%) !important; width: min(390px,calc(100% - 28px));
+}
+.fit-action {
+  min-height: 44px; padding: 7px 12px; border: 0; border-radius: 13px;
+  background: #edf4ff; color: #1e40af; font-size: 13px; font-weight: 750;
+}
+.fit-action.primary { background: #1d4ed8; color: white; }
+.fit-action[aria-pressed="true"] { background: #dbeafe; color: #153885; box-shadow: inset 0 0 0 1px #93baf9; }
+.fit-action:disabled { opacity: .58; }
+.fit-pill { padding: 4px 8px; border-radius: 999px; background: #eaf2ff; color: #1e40af; font-size: 11px; font-weight: 750; }
+.fit-filter-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.fit-callout { padding: 11px 12px; background: #edf4ff; border-radius: 14px; line-height: 1.55; color: #294471; white-space: pre-wrap; }
+.fit-soft-card,.fit-coach-row,.fit-magazine-entry {
+  background: #fff; color: var(--exp-ink); border-radius: 24px; box-shadow: var(--exp-shadow); padding: 16px;
+}
+.fit-soft-card > * + *, .fit-magazine-entry > * + * { margin-top: 8px; }
+.fit-context-note { color: var(--exp-muted); font-size: 12px; }
+[hidden].fit-pill,[hidden].fit-soft-card,.fit-coach-work [hidden] { display: none !important; }
+
+html body.fit-experience-ready.member-report-enabled:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero {
+  background: var(--exp-hero) !important;
+}
+.fit-experience-ready .report-workout-card { background: linear-gradient(145deg,#1d4ed8 0%,#3b82f6 100%); }
+.fit-experience-ready .report-calorie-card { background: linear-gradient(145deg,#0f766e 0%,#14b8a6 100%); }
+.fit-experience-ready #reportSummaries button { position: relative; }
+.fit-mini-ring {
+  width: 33px; aspect-ratio: 1; position: absolute; top: 12px; right: 11px; border-radius: 50%;
+  background: conic-gradient(white var(--fit-mini,0%),#ffffff40 0);
+  mask: radial-gradient(farthest-side,transparent calc(100% - 4px),black calc(100% - 3px));
+}
+.report-workout-card > span:first-child { padding-right: 30px; }
+.fit-macros { display: flex; overflow: hidden; height: 5px; border-radius: 999px; background: #ffffff55; }
+.fit-macros i[data-macro="0"] { background: #bfdbfe; }
+.fit-macros i[data-macro="1"] { background: #fce7a2; }
+.fit-macros i[data-macro="2"] { background: #5eead4; }
+.fit-member-tools { display: flex; align-items: center; justify-content: flex-end; gap: 7px; margin-top: 5px; }
+.fit-member-tools .fit-action { min-height: 36px; }
+.trainer-light-theme .fit-member-tools { display: none; }
+#fitPr { display: inline-block; margin-top: 5px; color: white; background: #ffffff24; }
+.fit-brief-link { display: block; margin: 7px 0 0 auto; min-height: 36px; background: #ffffff24; color: #fff; }
+.fit-mission-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; align-items: stretch; margin-top: 14px; }
+#reportRhythm .fit-mission-actions #reportMission { margin-top: 0; }
+#reportMission[aria-pressed="true"] { background: #d1fae5; color: #115e59; }
+#reportMissionTip { max-width: 90px; }
+.fit-tip-figure { background: #f0f6ff; border-radius: 18px; padding: 10px; }
+.fit-tip-figure svg { width: 100%; }
+.fit-meal-tags { display: none; }
+#fitMealSheet .fit-meal-tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 5px 0 9px; }
+#fitMealSheet .report-sheet-panel,.fit-shared-sheet .report-sheet-panel { width: min(100%,430px); }
+.fit-fab { display: none; }
+body.member-tabs-active:not(.trainer-light-theme):not(.fc-keyboard-open) .fit-fab {
+  display: grid; place-items: center; position: fixed; z-index: 1000;
+  right: max(14px,calc((100vw - 430px) / 2 + 14px)); bottom: calc(87px + env(safe-area-inset-bottom,0px));
+  width: 50px; aspect-ratio: 1; border-radius: 50%;
+  background: var(--exp-hero); color: white; box-shadow: 0 7px 18px #25458d50; font-size: 25px;
+}
+#dailyCheckinButtons > div > div { display: flex; flex-wrap: nowrap; gap: 3px; background: #eef3fa; padding: 3px; border-radius: 14px; }
+#dailyCheckinButtons > div > div > button { flex: 1; min-width: 0; font-size: 12px !important; padding-inline: 4px !important; }
+.fit-shared-sheet {
+  padding: 0; margin: 0; width: 100%; height: 100%; max-width: none; max-height: none;
+  border: 0; position: fixed; inset: 0; background: transparent; color: var(--exp-ink);
+}
+.fit-shared-sheet[open] { display: grid; justify-items: center; align-items: end; }
+.fit-shared-sheet::backdrop { background: #0a162d85; }
+.fit-sheet-content { display: grid; gap: 9px; font-size: 14px; }
+.fit-sheet-content :is(input,textarea,select),#fitRosterSearch {
+  width: 100%; min-height: 46px; background: #f3f7fe; color: #14294d;
+  border: 1px solid #cfdaeb; border-radius: 12px; padding: 9px 11px;
+}
+.fit-sheet-content textarea { min-height: 75px; }
+.fit-sheet-content > p > span { display: block; margin-block: 4px; }
+.fit-sheet-content ol { display: grid; list-style: decimal inside; gap: 6px; }
+.fit-magazine-entry { border: 1px solid #e5edf8; margin-block: 8px; }
+.fit-magazine-entry summary { cursor: pointer; font-weight: 800; }
+
+.fit-coach-nav { display: none; }
+body.trainer-app-active.fit-experience-ready #trainerAppNav { display: none !important; }
+body.trainer-app-active.fit-experience-ready .fit-coach-nav {
+  position: fixed; inset: auto 0 0; margin: auto; z-index: 1010;
+  box-sizing: border-box; display: grid; grid-template-columns: repeat(4,minmax(0,1fr));
+  width: min(100%,430px); background: #fffffff5; border-top: 1px solid #e0e8f3; backdrop-filter: blur(12px);
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom,0px)); gap: 4px;
+}
+.fit-coach-nav .fit-action { display: grid; place-content: center; gap: 4px; min-height: 52px; background: transparent; color: #526681; padding-inline: 2px; font-size: 11px; }
+.fit-coach-nav .fit-action i { font-size: 16px; }
+.fit-coach-nav .fit-action.selected { background: #ebf2ff; color: #1d4ed8; }
+.fit-coach-work { margin-bottom: 12px; }
+.fit-coach-work section > h2 { margin: 13px 0 4px; font-size: 17px; font-weight: 850; }
+.fit-coach-hero { padding: 18px; border-radius: 24px; color: #fff; background: var(--exp-hero); }
+.fit-coach-hero strong { display: block; font-size: 34px; margin: 4px 0; }
+.fit-coach-hero p { color: #e1edff; font-size: 13px; }
+.fit-coach-hero button { background: #ffffff26; color: #fff; padding: 8px 10px; border-radius: 12px; margin-top: 9px; }
+.fit-coach-row { margin-top: 9px; }
+.fit-coach-row-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.fit-publish-list { display: grid; gap: 7px; }
+.fit-publish-row {
+  display: grid; grid-template-columns: minmax(0,1fr) auto auto auto; align-items: center; gap: 5px;
+  background: #f2f6fc; padding: 7px; border-radius: 11px;
+}
+.fit-publish-row > span { overflow-wrap: anywhere; }
+.fit-publish-row .fit-action { padding-inline: 7px; white-space: nowrap; }
+.fit-sheet-status { color: #294471; }
+html body.fit-experience-ready.trainer-light-theme #trainerView :is(
+  .trainer-workspace-hero,.trainer-workspace-dashboard,.trainer-workspace-activity,.trainer-workspace-side-card,
+  .trainer-workspace-report-card,.trainer-workspace-metric,.trainer-workspace-member,.trainer-fold,.trainer-feedback-compose,.rounded-2xl,.rounded-3xl
+) { background: #fff !important; color: var(--exp-ink) !important; border-color: #e1e8f3 !important; border-radius: 24px !important; box-shadow: var(--exp-shadow) !important; }
+html body.fit-experience-ready.trainer-light-theme #trainerView :is(h2,h3,h4,.text-white,.text-slate-200,.text-slate-100,.trainer-fold > summary) { color: var(--exp-ink) !important; }
+html body.fit-experience-ready.trainer-light-theme #trainerView :is(.text-slate-400,.text-slate-500,.trainer-workspace-subtle) { color: var(--exp-muted) !important; }
+html body.fit-experience-ready.trainer-light-theme #trainerView :is(.bg-slate-950,.bg-slate-900,.bg-slate-800,.trainer-workspace-list > button,#memberRegistryList > div,#trainerQuickSummary > div) {
+  background: #f2f6fc !important; border-color: #e2ebf6 !important; color: var(--exp-ink) !important;
+}
+html body.fit-experience-ready.trainer-light-theme #trainerView .trainer-workspace-list > button > span:first-child { color: #142b53 !important; }
+html body.fit-experience-ready.trainer-light-theme #trainerView :is(input:not([type=checkbox]):not([type=radio]),textarea,select) {
+  color: #10264b !important; background: #f1f6fe !important; border-color: #cfdaeb !important; color-scheme: light;
+}
+html body.fit-experience-ready.trainer-light-theme #trainerView :is(button.bg-indigo-600,button[class*="bg-brand-"],button[class*="bg-sky-"],.trainer-workspace-primary) {
+  background: #1d4ed8 !important; color: #fff !important;
+}
+html body.fit-experience-ready.trainer-light-theme #trainerView :is(.text-brand-400,.text-sky-400,.text-indigo-400,.trainer-workspace-kicker) { color: #1e40af !important; }

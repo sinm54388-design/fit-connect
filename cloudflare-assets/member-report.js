@@ -1,7 +1,7 @@
 (() => {
   const byId = id => document.getElementById(id);
   const mealNames = {breakfast:'아침', lunch:'점심', dinner:'저녁', snack:'간식'};
-  const dayNames = ['월','화','수','목','금','토','일'];
+  const dayNames = ['일','월','화','수','목','금','토'];
   const ready = () => currentMode === 'member' && workflowReadyKey === workflowContextKey();
   const pending = new Map();
   let mirrorQueue = Promise.resolve();
@@ -84,10 +84,10 @@
   }
 
   function weekDates(date) {
-    const monday = new Date(date+'T12:00:00Z');
-    monday.setUTCDate(monday.getUTCDate()-(monday.getUTCDay()+6)%7);
+    const sunday = new Date(date+'T12:00:00Z');
+    sunday.setUTCDate(sunday.getUTCDate()-sunday.getUTCDay());
     return dayNames.map((_,index) => {
-      const day = new Date(monday);
+      const day = new Date(sunday);
       day.setUTCDate(day.getUTCDate()+index);
       return day.toISOString().slice(0,10);
     });
@@ -208,7 +208,10 @@
     const missionButton = byId('reportMission');
     missionButton.querySelector('strong').textContent = mission ? '개인 미션 · '+mission.name : '개인 미션';
     missionButton.querySelector('small').textContent = missionDone ? '완료한 운동이에요.' : mission ? '이 운동의 모든 세트 완료' : '코치 루틴이 등록되면 표시돼요.';
-    missionButton.disabled = !values || !mission || missionDone || missionPreview?.context === workflowContextKey();
+    missionButton.disabled = !values || !mission || missionPreview?.context === workflowContextKey();
+    missionButton.setAttribute('aria-pressed',String(!!missionDone));
+    const tip = byId('reportMissionTip');
+    if(tip) tip.disabled = !mission;
     missionButton.dataset.id = mission ? String(mission.id) : '';
     if (!values) { week = null; resetWeek(); return; }
     const key = workflowContextKey();
@@ -230,7 +233,8 @@
     const planned = routine && workoutTotals([routine]).planned;
     if (!planned) return;
     const context = getSaveContext();
-    const completedSets = Array(planned).fill(true);
+    const markDone = workoutTotals([routine]).done<planned;
+    const completedSets = Array(planned).fill(markDone);
     const preview = {id,context:workflowContextKey(),completedSets};
     missionPreview = preview;
     refresh(appData);
@@ -241,8 +245,9 @@
     if (missionPreview === preview) missionPreview = null;
     if (!isCurrentSaveContext(context)) return;
     refresh(appData);
-    if (saved && workoutTotals([(appData.routines || []).find(r => String(r.id)===id)]).percent===100)
-      showToast('개인 미션을 완료했어요.');
+    const current = (appData.routines || []).find(r => String(r.id)===id);
+    if (saved && current && workoutTotals([current]).done===(markDone?planned:0))
+      showToast(markDone?'개인 미션을 완료했어요.':'개인 미션 완료를 취소했어요.');
   }
 
   function setup() {

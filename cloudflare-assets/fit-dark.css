@@ -51,7 +51,7 @@ html body.trainer-light-theme {
   background-size: auto, 32px 32px, 32px 32px, auto !important;
 }
 
-html body :is(#appHeader, #memberBottomNav, #trainerAppNav, #fcQuickActions, #fcDateChips) {
+html body :is(#appHeader, #memberBottomNav, #trainerAppNav, #fcDateChips) {
   background: #0b1427f0 !important;
   border-color: var(--fit-line-dark) !important;
   box-shadow: 0 10px 28px #02050d55 !important;
@@ -192,7 +192,8 @@ html body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-her
 }
 html body .fit-hero-content { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
 .fit-hero-content .fc-greet { margin: 6px 0 0; }
-.fit-score { display: grid; justify-items: center; gap: 7px; }
+.fit-score { display: grid; justify-items: center; gap: 7px; border-radius: 16px; padding: 2px; }
+.fit-score:hover .fit-score-label { color: var(--fit-accent); }
 .fit-score-label { color: var(--fc-text-2); font-size: 12px; font-weight: 750; }
 .fit-score-ring {
   --fit-score: 0%;
@@ -206,7 +207,9 @@ html body .fit-hero-content { display: grid; grid-template-columns: minmax(0, 1f
   background: conic-gradient(var(--fit-mint), var(--fit-blue) var(--fit-score), #29405c 0);
 }
 .fit-score-ring::before { content: ""; position: absolute; inset: 5px; z-index: -1; border-radius: 50%; background: #0c172b; }
-.fit-score-ring strong { font-size: clamp(23px, 6vw, 33px); font-weight: 850; letter-spacing: -.045em; }
+.fit-score-ring strong { font-size: clamp(19px, 5.7vw, 29px); font-weight: 850; letter-spacing: -.045em; }
+#fitMemberBalanceFold { order: 6; scroll-margin-top: 118px; }
+html body #memberView #fitMemberBalance { padding: 10px 2px 0; background: transparent !important; box-shadow: none !important; border: 0; }
 
 html body:not(.trainer-light-theme) #memberView #memberHomePage #fcCoachCard {
   background: radial-gradient(ellipse at 100% 0%, #23548d47, transparent 62%), var(--fit-panel) !important;
@@ -222,7 +225,7 @@ html body :is(.fc-coach-eyebrow, .trainer-workspace-kicker, .fc-weekly-kicker) {
 }
 
 html body #fcHomeRecordActions button,
-html body #fcQuickActions button:last-child,
+html body .fit-feedback-actions button,
 html body #trainerView :is(.quick-feedback-btn, .trainer-workspace-refresh, .trainer-workspace-search) {
   border: 1px solid var(--fit-line-dark) !important;
   border-radius: 999px !important;
@@ -230,7 +233,7 @@ html body #trainerView :is(.quick-feedback-btn, .trainer-workspace-refresh, .tra
   color: var(--fit-ink) !important;
 }
 html body #fcHomeRecordActions button:first-child,
-html body #fcQuickActions button:first-child,
+html body .fit-feedback-actions button:last-child,
 html body #trainerView :is(.trainer-workspace-primary, .fc-column-publish, button[class*="bg-brand-"], button[class*="bg-sky-"], button.bg-indigo-600, button.bg-indigo-500),
 html body #memberView :is(button[type="submit"], button[onclick^="saveSingleMeal"], button[onclick^="saveDietLog"], button[onclick="sendMemo()"]) {
   border: 0 !important;
@@ -314,3 +317,43 @@ html body .fc-video-ready-hint[data-state="ready"] { background: #103630; border
 html body .fc-video-ready-hint[data-state="error"] { background: #3a2131; border-color: #804257; color: #ffc1cd; }
 html body .fc-video-question-chips > span { color: var(--fit-muted); }
 html body .fc-video-question-chips button { background: #162b49 !important; color: #c4dfff !important; border-color: #385679 !important; }
+
+#fitMemberReplyNotice:not([hidden]) {
+  order: 1;
+  display: grid;
+  gap: 8px;
+}
+#fitMemberReplyNotice button[hidden] { display: none; }
+#fitMemberReplyNotice button:not([hidden]) {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 48px;
+  text-align: left;
+  padding: 10px 14px;
+  border: 1px solid #2c5582;
+  border-radius: 14px;
+  background: #142c48;
+  color: #d4eaff;
+  font-weight: 750;
+}
+#fitMemberReplyNotice button > span { flex: 1; }
+#fitMemberReplyNotice button > i { color: #76e1d5; }
+#memberBottomNav .fit-has-reply { position: relative; }
+#memberBottomNav .fit-has-reply::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: calc(50% + 9px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #68ebd7;
+  box-shadow: 0 0 8px #2dd4bf75;
+}
+.fit-feedback-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.fit-feedback-actions button { min-height: 48px; font-size: 13px; font-weight: 750; }
+#memberView :is(.coach-video-upload, #memberFormVideos, #memberFormVideos article) { scroll-margin-top: 118px; }
+html body #saveStatusBar[data-state="saved"] { border-color: #358f7a; background: #10352e; }
+html body #saveStatusBar { z-index: 950; }
+#saveRetryButton { min-height: 44px; }

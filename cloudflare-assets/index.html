@@ -766,14 +766,16 @@ body:not(.trainer-light-theme) [data-member-page]:not([hidden]){animation:fc-pag
 /* fc-premium-polish-v2 */
 #fcSkeleton{position:fixed;inset:0;z-index:3000;display:grid;place-items:start center;padding-top:22px;background:radial-gradient(circle at 50% -10%,#213b4c 0,#080d16 48%,#05070c 100%);transition:opacity .32s ease,visibility .32s ease}#fcSkeleton.fc-loaded{opacity:0;visibility:hidden;pointer-events:none}.fc-skeleton-phone{width:min(100%,480px);min-height:610px;padding:21px 20px;background:linear-gradient(160deg,#111c2c,#0a0f1a);border:1px solid #ffffff12;border-radius:0 0 28px 28px;box-shadow:0 20px 55px #0008}.fc-skel-logo,.fc-skel-date,.fc-skel-title,.fc-skel-sub,.fc-skel-card{background:linear-gradient(100deg,#1c2735 25%,#2b3b4e 45%,#1c2735 65%);background-size:240% 100%;animation:fc-shimmer 1.3s infinite}.fc-skel-logo{width:126px;height:27px;border-radius:10px}.fc-skel-date{width:124px;height:40px;border-radius:14px;float:right;margin-top:-27px}.fc-skel-title{clear:both;width:74%;height:31px;margin-top:78px;border-radius:10px}.fc-skel-sub{width:54%;height:16px;margin-top:12px;border-radius:8px}.fc-skel-card{height:164px;margin-top:24px;border-radius:23px}.fc-skel-card-sm{height:112px;margin-top:16px}@keyframes fc-shimmer{to{background-position:-240% 0}}
 #fcDateChips{position:relative;z-index:70;max-width:480px;margin:0 auto;padding:10px 14px 8px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;background:rgba(8,13,27,.88);border-bottom:1px solid #ffffff0d;backdrop-filter:blur(16px)}#fcDateChips::-webkit-scrollbar{display:none}.fc-date-chip{flex:0 0 48px!important;min-height:54px!important;padding:6px 4px!important;border-radius:15px!important;border:1px solid #ffffff14!important;background:#101a29!important;color:#9cabc0!important;font-size:11px!important;font-weight:800!important;line-height:1.15!important}.fc-date-chip b{display:block;font-size:17px;line-height:1.25;color:#e9f1fb}.fc-date-chip.fc-today{border-color:#86efac55!important}.fc-date-chip.fc-selected{background:linear-gradient(145deg,#b9f34a,#75d643)!important;border-color:#d9ff83!important;color:#102010!important;box-shadow:0 7px 20px #9eea4038!important}.fc-date-chip.fc-selected b{color:#102010}
-#fcQuickActions{position:fixed;z-index:890;left:50%;bottom:calc(78px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(calc(100% - 24px),456px);display:flex;gap:8px;padding:8px;border:1px solid #ffffff14;border-radius:18px;background:rgba(12,19,32,.86);box-shadow:0 16px 42px #0007;backdrop-filter:blur(18px);transition:opacity .2s ease,transform .2s ease}#fcQuickActions[hidden]{display:none}.fc-quick-action{flex:1;min-height:48px!important;border-radius:13px!important;border:0!important;font-weight:850!important;font-size:12px!important}.fc-quick-action:first-child{background:linear-gradient(135deg,#b9f34a,#84e047)!important;color:#102010!important}.fc-quick-action:last-child{background:#22314a!important;color:#f2f7ff!important;border:1px solid #ffffff14!important}body.member-tabs-active{padding-bottom:164px!important}@media(max-width:480px){#fcDateChips{padding-inline:12px}#fcQuickActions{bottom:calc(74px + env(safe-area-inset-bottom,0px));width:calc(100% - 20px)}}@media(min-width:481px){#fcDateChips{border-inline:1px solid #ffffff0d}}
+body.member-tabs-active{padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))!important}
+@media(max-width:480px){#fcDateChips{padding-inline:12px}}
+@media(min-width:481px){#fcDateChips{border-inline:1px solid #ffffff0d}}
 
 
 /* fc-top-tier-v3 */
 @media(min-width:481px){body:after{content:"";position:fixed;z-index:-1;left:50%;top:8px;bottom:8px;width:500px;transform:translateX(-50%);border:1px solid rgba(255,255,255,.11);border-radius:34px;box-shadow:0 32px 100px rgba(0,0,0,.62),inset 0 1px rgba(255,255,255,.08);pointer-events:none}#appHeader{border-radius:30px 30px 0 0!important}}
 #memberGreeting{display:none!important}.fc-metric-enhanced{position:relative!important;padding-right:82px!important;overflow:hidden}.fc-gauge{--p:0%;position:absolute;right:13px;top:50%;width:56px;height:56px;transform:translateY(-50%) rotate(-90deg);display:grid;place-items:center;border-radius:50%;background:conic-gradient(var(--fc-gauge,#c8f560) var(--p),rgba(255,255,255,.10) 0);box-shadow:0 0 0 4px rgba(255,255,255,.025),0 10px 18px rgba(0,0,0,.22);transition:background .6s cubic-bezier(.2,.8,.2,1)}.fc-gauge:before{content:"";position:absolute;inset:6px;border-radius:inherit;background:#121b2b;box-shadow:inset 0 1px 3px #0008}.fc-gauge b{position:relative;z-index:1;transform:rotate(90deg);font-size:11px;font-weight:900;color:#f8fbff;font-variant-numeric:tabular-nums}.fc-metric-enhanced.fc-calorie{--fc-gauge:#ff9254}.fc-metric-enhanced.fc-workout{--fc-gauge:#c8f560}
 #fcCoachCard{background:linear-gradient(135deg,rgba(111,87,255,.72),rgba(28,35,81,.78) 58%,rgba(10,18,38,.85))!important;backdrop-filter:blur(18px) saturate(1.25)!important;-webkit-backdrop-filter:blur(18px) saturate(1.25)!important;border:1px solid rgba(199,191,255,.34)!important;box-shadow:0 18px 42px rgba(39,27,112,.30),inset 0 1px rgba(255,255,255,.16)!important}#fcCoachCard:after{content:"";position:absolute;right:-24px;top:-30px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.20),transparent 66%);pointer-events:none}
-html,body{min-height:100dvh}body.fc-keyboard-open #memberBottomNav,body.fc-keyboard-open #fcQuickActions{opacity:0!important;pointer-events:none!important;transform:translateY(22px)!important}body.fc-keyboard-open main{padding-bottom:28px!important}input,textarea,select{scroll-margin-block:110px!important}@media(max-width:480px){.fc-gauge{right:10px;width:52px;height:52px}.fc-metric-enhanced{padding-right:70px!important}}
+html,body{min-height:100dvh}body.fc-keyboard-open #memberBottomNav{opacity:0!important;pointer-events:none!important;transform:translateY(22px)!important}body.fc-keyboard-open main{padding-bottom:28px!important}input,textarea,select{scroll-margin-block:110px!important}@media(max-width:480px){.fc-gauge{right:10px;width:52px;height:52px}.fc-metric-enhanced{padding-right:70px!important}}
 
 
 /* fc-trainer-date-strip-fix */
@@ -885,7 +887,6 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
 .fc-focus-fold>div{padding:0 14px 14px}.fc-focus-fold #memberDailyCheckin{border:0!important;box-shadow:none!important;margin:0!important;padding:10px 4px!important;background:none!important}
 .fc-focus-fold #memberNewFeedbackAlert{display:none!important}
 #fcDailyMetricsFold .grid{grid-template-columns:1fr!important;gap:10px}
-body[data-member-page="home"] #fcQuickActions{display:none!important}body.member-tabs-active[data-member-page="home"]{padding-bottom:94px!important}
 #trainerDashboardSection{display:flex;flex-direction:column;gap:16px}
 #trainerDashboardSection>.trainer-workspace-section-title{order:0}#overviewStatus{order:1;margin:0!important}
 #fcTrainerTaskSummary{order:2;color:#cbd5e1;font-size:13px;line-height:1.65}
@@ -1832,7 +1833,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
     let formVideos = [];
     let formVideoListOwner='';
     function videoListOwner(){return JSON.stringify([activeMemberName,currentMode,memberToken,currentMode==='trainer'?trainerPassword:'']);}
-    function clearForeignVideoLists(){if(formVideoListOwner===videoListOwner())return;setFormVideoListStatus('영상을 불러오는 중…');formVideos=[];exerciseVideos=[];formVideoListOwner='';for(const id of ['memberFormVideos','trainerFormVideos','memberExerciseVideos','trainerExerciseVideos']){const el=document.getElementById(id);if(el)el.textContent='영상을 불러오는 중…';}}
+    function clearForeignVideoLists(){if(formVideoListOwner===videoListOwner())return;setFormVideoListStatus('영상을 불러오는 중…');formVideos=[];exerciseVideos=[];formVideoListOwner='';renderMemberReplyNotice();for(const id of ['memberFormVideos','trainerFormVideos','memberExerciseVideos','trainerExerciseVideos']){const el=document.getElementById(id);if(el)el.textContent='영상을 불러오는 중…';}}
     const VIDEO_LIMIT = 20 * 1024 * 1024;
     const VIDEO_INPUT_LIMIT = 200 * 1024 * 1024;
     const VIDEO_MAX_DURATION = 40;
@@ -1872,7 +1873,8 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
         el.classList.toggle('selected',selected);
         if(selected)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
       });
-      if(page==='feedback')markCurrentFeedbackSeen();
+      // A jump to the question or video form does not mean the written reply was read.
+      if(page==='feedback' && scroll)markCurrentFeedbackSeen();
       if (scroll) {
         document.getElementById('appHeader')?.classList.remove('header-hidden');
         window.scrollTo({top:0, left:0, behavior:'instant'});
@@ -1891,6 +1893,9 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
     function openCoachQuestion() {
       const conversation = document.querySelector('#memberView .coach-conversation');
       openMemberSection('feedback', conversation);
+    }
+    function openMemberVideoUpload() {
+      openMemberSection('feedback', document.querySelector('#memberView .coach-video-upload'));
     }
     function syncMemberNavigation(){
       const active=currentMode==='member'&&hasMemberAccess();
@@ -2063,9 +2068,69 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
     }
     function isDailyCheckinMemo(memo){return String(memo?.text||'').startsWith(DAILY_CHECKIN_PREFIX);}
     function feedbackFingerprint(feedback){const fb=feedback||{};const text=[fb.time,fb.workout,fb.diet].map(x=>String(x||'').trim()).join('|');return (fb.workout||fb.diet)?text:'';}
-    function feedbackSeenStorageKey(){return FEEDBACK_SEEN_STORE+encodeURIComponent(activeMemberName||'');}
-    function hasUnreadFeedback(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return false;try{return localStorage.getItem(feedbackSeenStorageKey())!==fingerprint;}catch{return true;}}
-    function markCurrentFeedbackSeen(){const fingerprint=feedbackFingerprint(appData?.feedback);if(!fingerprint)return;try{localStorage.setItem(feedbackSeenStorageKey(),fingerprint);}catch{}renderMemberHomeSignals();renderMemberNextStep();}
+    const seenFeedbackInSession = new Map();
+    function feedbackSeenEntry() {
+      if (currentMode !== 'member' || workflowReadyKey !== workflowContextKey()) return null;
+      const fingerprint = feedbackFingerprint(appData?.feedback);
+      if (!fingerprint) return null;
+      // Keep message text out of the new read-receipt storage.
+      let revision = 2166136261;
+      for (let i = 0; i < fingerprint.length; i++) revision = Math.imul(revision ^ fingerprint.charCodeAt(i), 16777619);
+      const legacyKey = FEEDBACK_SEEN_STORE+encodeURIComponent(activeMemberName);
+      return {legacyKey, key:legacyKey+':'+selectedDate, fingerprint, revision:String(revision >>> 0)};
+    }
+    function hasUnreadFeedback() {
+      const entry = feedbackSeenEntry();
+      if (!entry || seenFeedbackInSession.get(entry.key) === entry.revision) return false;
+      try {
+        const saved = localStorage.getItem(entry.key);
+        if (saved !== null) return saved !== entry.revision;
+        if (localStorage.getItem(entry.legacyKey) === entry.fingerprint) {
+          localStorage.setItem(entry.key,entry.revision);
+          localStorage.removeItem(entry.legacyKey);
+          return false;
+        }
+      } catch {}
+      return true;
+    }
+    function markCurrentFeedbackSeen() {
+      const entry = feedbackSeenEntry();
+      if (!entry || !hasUnreadFeedback()) return;
+      seenFeedbackInSession.set(entry.key,entry.revision);
+      try { localStorage.setItem(entry.key,entry.revision); } catch {}
+      renderMemberHomeSignals();
+      renderMemberNextStep();
+      document.dispatchEvent(new Event('fit:reply-read'));
+    }
+
+    function unreadMemberVideoReplies() {
+      if (currentMode !== 'member' || formVideoListOwner !== videoListOwner()) return [];
+      return formVideos.filter(video => String(video.feedback || '').trim() && !video.readAt);
+    }
+    function renderMemberReplyNotice() {
+      const notice = document.getElementById('fitMemberReplyNotice');
+      if (!notice) return;
+      const written = hasUnreadFeedback();
+      const videoReplies = unreadMemberVideoReplies();
+      const writtenButton = notice.querySelector('[data-reply-kind="written"]');
+      const videoButton = notice.querySelector('[data-reply-kind="video"]');
+      writtenButton.hidden = !written;
+      videoButton.hidden = !videoReplies.length;
+      videoButton.querySelector('span').textContent = '새 영상 피드백 '+videoReplies.length+'건';
+      notice.hidden = !written && !videoReplies.length;
+      const navButton = document.querySelector('#memberBottomNav [data-member-tab="feedback"]');
+      if (navButton) {
+        navButton.classList.toggle('fit-has-reply', !notice.hidden);
+        if (notice.hidden) navButton.removeAttribute('aria-label');
+        else navButton.setAttribute('aria-label','피드백 · 새 답변 있음');
+      }
+    }
+    function openUnreadVideoReply() {
+      const first = unreadMemberVideoReplies()[0];
+      const list = document.getElementById('memberFormVideos');
+      const target = first && list && Array.from(list.children).find(node => node.dataset.videoKey === String(first.id));
+      openMemberSection('feedback', target || list);
+    }
     // 오늘 체크는 트레이너 화면이 읽는 구글 시트(정본)에 메모 형태로 저장하고,
     // 빠른 조회용 Supabase에도 함께 기록합니다. (예전에는 Supabase에만 저장되어
     // 트레이너 화면이 시트에서 읽을 때 체크가 보이지 않았습니다.)
@@ -2109,6 +2174,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
       document.getElementById('dailyCheckinSummary').textContent=completed?completed+'/3 완료':'체크 전';
       const progress=document.getElementById('dailyCheckinProgress');if(progress)progress.style.width=(completed/3*100)+'%';
       const unread=hasUnreadFeedback(),alert=document.getElementById('memberNewFeedbackAlert');if(alert)alert.classList.toggle('hidden',!unread);
+      renderMemberReplyNotice();
       const feedbackCard=document.querySelector('[data-record-card="feedback"]');if(feedbackCard){let badge=feedbackCard.querySelector('[data-feedback-badge]');if(unread&&!badge){badge=document.createElement('span');badge.dataset.feedbackBadge='1';badge.className='ml-1 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white';badge.textContent='NEW';feedbackCard.querySelector('.home-record-heading span')?.append(badge);}if(!unread&&badge)badge.remove();}
     }
 
@@ -2257,7 +2323,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
           </svg>
           <figcaption><ol class="fit-balance-list"></ol></figcaption>
         </figure>
-        <p>관리 점수는 각 항목의 기록률을 평균한 값이에요. 루틴이 없는 날은 운동 세트를 점수에서 제외해요.</p>`;
+        <p>다섯 항목의 기록률을 평균해요. 루틴이 없는 날은 운동 세트를 제외해요.</p>`;
       return card;
     }
 
@@ -2266,7 +2332,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
       const chart = document.getElementById('fitMemberBalance');
       if (!score || !chart) return;
       const balance = data ? memberRecordBalance(data) : null;
-      score.querySelector('strong').textContent = balance?.score ?? '—';
+      score.querySelector('strong').textContent = balance ? balance.score+'%' : '—';
       score.style.setProperty('--fit-score', (balance?.score ?? 0)+'%');
       chart.querySelector('.fit-balance-date').textContent = balance ? selectedDate+' 기록 기준' : '기록을 불러오는 중이에요.';
       const shape = chart.querySelector('.fit-balance-data');
@@ -2308,11 +2374,20 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
         actions.append(button);
       });
       home.append(actions);
-      home.append(setupMemberBalance());
+      const notice = document.createElement('section');
+      notice.id = 'fitMemberReplyNotice';
+      notice.setAttribute('aria-label','새 코치 답변');
+      notice.hidden = true;
+      notice.innerHTML = '<button type="button" data-reply-kind="written" hidden><i aria-hidden="true" class="fa-solid fa-comment-dots"></i><span>새 코치 답변</span> ›</button>'+
+        '<button type="button" data-reply-kind="video" hidden><i aria-hidden="true" class="fa-solid fa-video"></i><span></span> ›</button>';
+      notice.querySelector('[data-reply-kind="written"]').onclick = () => navigateMemberPage('feedback');
+      notice.querySelector('[data-reply-kind="video"]').onclick = openUnreadVideoReply;
+      home.append(notice);
       const care=document.createElement('section');care.id='fcCareSummary';care.className='fc-focus-card';care.setAttribute('aria-live','polite');home.append(care);renderHomeCareSummary(null,'loading');
       const fold=(target,id,label)=>{if(!target)return;const details=document.createElement('details');details.id=id;details.className='fc-focus-fold';const summary=document.createElement('summary');summary.textContent=label;const body=document.createElement('div');details.append(summary,body);body.append(target);home.append(details);};
       fold(document.getElementById('memberDailyCheckin'),'fcCheckinFold','오늘 상태 간단히 체크하기');
       fold(home.querySelector('.member-goal-hero .grid'),'fcDailyMetricsFold','운동 달성률 · 칼로리 자세히 보기');
+      fold(setupMemberBalance(),'fitMemberBalanceFold','기록 달성률 자세히 보기');
     }
 
     function setupFocusedTrainerHome(){
@@ -2386,7 +2461,12 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
       reportDetails.append(reportSummary,reportContent);growth.replaceChildren(bodyCard,goalCard,calendar,reportDetails);growthPage.append(growth);
       const feedbackPage=make('feedback','memberFeedbackPage','코치님과 소통','코치 답변을 확인하고, 메모와 운동 영상으로 질문하세요.');
       memo.classList.add('coach-conversation');videos.classList.add('coach-video-upload');
-      feedbackPage.append(feedback,memo,videos);
+      const feedbackActions = document.createElement('div');
+      feedbackActions.className = 'fit-feedback-actions';
+      feedbackActions.innerHTML = '<button type="button">코치에게 질문</button><button type="button">운동 영상 보내기</button>';
+      feedbackActions.children[0].onclick = openCoachQuestion;
+      feedbackActions.children[1].onclick = openMemberVideoUpload;
+      feedbackPage.append(feedbackActions,feedback,memo,videos);
       oldGrid.remove();oldNav.remove();
       const nav=document.createElement('nav');nav.id='memberBottomNav';nav.setAttribute('aria-label','회원 페이지 메뉴');nav.hidden=true;
       memberPages.forEach(([key,label,icon])=>{
@@ -2888,7 +2968,10 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
       const request = ++latestLoadRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
       const context=getSaveContext();
-      if (mode==='member' && workflowReadyKey!==workflowContextKey()) renderMemberBalance(null);
+      if (mode==='member' && workflowReadyKey!==workflowContextKey()) {
+        renderMemberBalance(null);
+        renderMemberReplyNotice();
+      }
       let shownCached=false;
       if(!silent&&queuedSaveCount===0){
         const cached=viewedRecordCache.get(recordCacheKey(context));
@@ -2978,7 +3061,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
         }finally{
           queuedSaveCount=Math.max(0,queuedSaveCount-1);
           if(queuedSaveCount===0&&lastFailedSave===null&&isCurrentSaveContext(batch.context))
-            setSaveStatus('saved','저장 완료 ✓ · 구글 시트에 반영됐어요');
+            setSaveStatus('saved','기록을 저장했어요.');
         }
       };
       const result=saveQueue.then(work,work);
@@ -3029,7 +3112,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
     function updateAndSave(mutate) {
       const context=getSaveContext();
       queuedSaveCount++;
-      setSaveStatus('saving','구글 시트에 저장 중...');
+      setSaveStatus('saving','기록을 저장하고 있어요…');
       const work=async()=>{
         try {
           let latest=null;
@@ -3058,7 +3141,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
             // 이 조회들은 저장 성공 여부를 바꾸지 않으며 느린 네트워크에서도 저장 표시를 지연시키지 않습니다.
             schedulePostSaveExtras();
           }
-          if(lastFailedSave===null&&queuedSaveCount===1&&isCurrentSaveContext(context))setSaveStatus('saved','저장 완료 ✓ · 구글 시트에 반영됐어요');
+          if(lastFailedSave===null&&queuedSaveCount===1&&isCurrentSaveContext(context))setSaveStatus('saved','기록을 저장했어요.');
           return true;
         } catch(e) {
           console.error(e);
@@ -3067,7 +3150,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
           return false;
         } finally {
           queuedSaveCount=Math.max(0,queuedSaveCount-1);
-          if(queuedSaveCount===0&&lastFailedSave===null&&isCurrentSaveContext(context))setSaveStatus('saved','저장 완료 ✓ · 구글 시트에 반영됐어요');
+          if(queuedSaveCount===0&&lastFailedSave===null&&isCurrentSaveContext(context))setSaveStatus('saved','기록을 저장했어요.');
         }
       };
       const result=saveQueue.then(work,work);
@@ -4917,6 +5000,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
     function renderFormVideos(){
       const memberRoot=document.getElementById('memberFormVideos'), trainerRoot=document.getElementById('trainerFormVideos');
       const videos=formVideos||[];
+      renderMemberReplyNotice();
       if(memberRoot)reconcileFormVideoRoot(memberRoot,videos.length?videos.map(v=>`<article data-video-key="${esc(v.id||v.fileId||'')}" data-video-version="${esc(JSON.stringify(v))}" data-video-file="${esc(v.fileId||v.url||'')}" class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div data-video-player>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">질문: ${esc(v.question||'없음')}</p><div class="bg-slate-900 rounded-lg p-2 text-xs whitespace-pre-wrap"><strong class="text-emerald-400">트레이너 피드백</strong><p class="mt-1">${esc(v.feedback||'아직 피드백을 기다리고 있어요.')}</p>${v.feedback?`<div class="mt-2 flex items-center justify-between gap-2"><span class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?'✓ 확인 완료':'확인 버튼을 눌러주세요'}</span>${v.readAt?'':`<button type="button" onclick="markFormVideoRead('${esc(v.id)}')" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">확인했어요</button>`}</div>`:''}</div></article>`).join(''):'<p class="text-xs text-slate-500">업로드한 운동 영상이 없어요.</p>');
       if(trainerRoot)reconcileFormVideoRoot(trainerRoot,videos.length?videos.map(v=>`<article data-video-key="${esc(v.id||v.fileId||'')}" data-video-version="${esc(JSON.stringify(v))}" data-video-file="${esc(v.fileId||v.url||'')}" class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"><strong class="text-sm">${esc(v.name)}</strong><div data-video-player>${videoLink(v)}</div><p class="text-xs text-slate-400 whitespace-pre-wrap">회원 질문: ${esc(v.question||'없음')}</p><div class="text-xs ${v.readAt?'text-emerald-400':'text-amber-300'}">${v.readAt?`✓ 회원 확인 완료 · ${esc(v.readAt)}`:'○ 회원 확인 전'}</div><textarea id="feedback-${esc(v.id)}" maxlength="2000" rows="3" class="w-full bg-slate-900 rounded-lg p-2 text-xs" placeholder="영상 아래에 보여줄 자세 피드백">${esc(v.feedback||'')}</textarea><div class="flex gap-3"><button onclick="saveFormVideoFeedback('${esc(v.id)}')" class="text-xs text-sky-400">피드백 저장</button><button onclick="deleteFormVideo('${esc(v.id)}')" class="text-xs text-rose-400">영상 삭제</button></div></article>`).join(''):'<p class="text-xs text-slate-500">회원님이 올린 운동 영상이 없어요.</p>');
     }
@@ -5372,11 +5456,14 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
       try{const r=await (id.startsWith('direct:')?directVideoRequest:apiPost)({...apiCredentials(),action:id.startsWith('direct:')?'directVideoFeedback':'formVideoFeedback',id,feedback});if(r.status!=='success')throw Error(r.message||'저장 실패');showToast('피드백 저장 완료');await loadExtras();}catch(e){alert(e.message);}
     }
     async function markFormVideoRead(id){
+      const owner = videoListOwner();
       try{
         const r=await (id.startsWith('direct:')?directVideoRequest:apiPost)({...apiCredentials(),action:id.startsWith('direct:')?'directVideoRead':'markFormVideoRead',id});
         if(r.status!=='success')throw Error(r.message||'확인 저장 실패');
-        showToast('피드백 확인 완료');
-        await loadExtras();
+        if (owner === videoListOwner()) {
+          showToast('피드백 확인 완료');
+          await loadExtras();
+        }
       }catch(e){alert(e.message);}
     }
     async function deleteFormVideo(id){
@@ -5419,10 +5506,19 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
     const greet=document.createElement('div');greet.id='fcGreet';greet.className='fc-greet';
     const headingGroup = title.parentElement;
     headingGroup.parentElement.classList.add('fit-hero-content');
-    const score = document.createElement('div');
+    const score = document.createElement('button');
+    score.type = 'button';
     score.className = 'fit-score';
-    score.innerHTML = '<span class="fit-score-label" id="fitScoreLabel">관리 점수</span>'+
-      '<div id="fitMemberScore" class="fit-score-ring" role="group" aria-labelledby="fitScoreLabel"><strong>—</strong></div>';
+    score.setAttribute('aria-controls','fitMemberBalanceFold');
+    score.innerHTML = '<span class="fit-score-label">기록 달성률</span>'+
+      '<span id="fitMemberScore" class="fit-score-ring"><strong>—</strong></span>';
+    score.addEventListener('click',() => {
+      const details = $('fitMemberBalanceFold');
+      if (!details) return;
+      details.open = true;
+      details.querySelector('summary').focus({preventScroll:true});
+      details.scrollIntoView({block:'start',behavior:'instant'});
+    });
     headingGroup.after(score);
     title.parentElement.insertBefore(greet,title);
     const render=()=>{
@@ -5494,8 +5590,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
     const mo=new MutationObserver(render);
     if(src.card)mo.observe(src.card,{attributes:true,attributeFilter:['class']});
     [src.w,src.d,src.t].forEach(el=>el&&mo.observe(el,{childList:true,characterData:true,subtree:true}));
-    // '읽음' 상태가 바뀌는 시점(피드백 탭 진입) 반영
-    document.addEventListener('click',e=>{if(e.target.closest('[data-member-tab]'))setTimeout(render,50);});
+    document.addEventListener('fit:reply-read',render);
   }
 
   /* ---------- 3. 세트 체크 인터랙션 ---------- */
@@ -5580,7 +5675,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
   /* ---------- 5. 홈 카드 순서 ---------- */
   function orderHome(){
     const home=$('memberHomePage');if(!home)return;
-    const ordered=[home.querySelector('.member-goal-hero'),$('fcHomeRecordActions'),home.querySelector('[data-record-card="workout"]'),home.querySelector('[data-record-card="diet"]'),$('fcCoachCard'),$('fitMemberBalance'),$('fcCareSummary'),$('fcCheckinFold'),$('fcDailyMetricsFold'),home.querySelector('[data-record-card="growth"]'),$('fcMagazineShortcut')];
+    const ordered=[home.querySelector('.member-goal-hero'),$('fitMemberReplyNotice'),$('fcHomeRecordActions'),home.querySelector('[data-record-card="workout"]'),home.querySelector('[data-record-card="diet"]'),$('fcCoachCard'),$('fcCareSummary'),$('fcCheckinFold'),$('fitMemberBalanceFold'),$('fcDailyMetricsFold'),home.querySelector('[data-record-card="growth"]'),$('fcMagazineShortcut')];
     ordered.filter(Boolean).forEach(el=>home.append(el));
     const grid=home.querySelector('.home-record-grid');if(grid&&!grid.children.length)grid.remove();
   }
@@ -5621,16 +5716,7 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
     };
     header.after(row);input.addEventListener('change',draw);draw();
   }
-  function setupQuickActions(){
-    if(qs('#fcQuickActions'))return;const bar=document.createElement('div');bar.id='fcQuickActions';bar.hidden=true;
-    bar.innerHTML='<button type="button" class="fc-quick-action"><i class="fa-solid fa-dumbbell"></i> 오늘 운동 인증</button><button type="button" class="fc-quick-action"><i class="fa-regular fa-comment-dots"></i> 선생님께 질문</button>';
-    document.body.append(bar);
-    const go=(tab)=>{const b=qs('#memberBottomNav [data-member-tab="'+tab+'"]');b?.click();window.scrollTo({top:0,behavior:'smooth'});};
-    bar.children[0].onclick=()=>go('workout');bar.children[1].onclick=()=>go('feedback');
-    const sync=()=>{const member=document.body.classList.contains('member-tabs-active');bar.hidden=!member;};
-    new MutationObserver(sync).observe(document.body,{attributes:true,attributeFilter:['class']});sync();
-  }
-  const boot=()=>{setupDateChips();setupQuickActions();};
+  const boot=setupDateChips;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
 

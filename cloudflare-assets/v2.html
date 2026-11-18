@@ -99,6 +99,28 @@
     </div>
   </div>
 
+  <!-- Privacy Consent Bottom Sheet (1회 노출, localStorage 저장) -->
+  <div id="consent-backdrop" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] hidden items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="w-full max-w-[430px] bg-white rounded-t-[28px] sm:rounded-[28px] p-6 shadow-2xl animate-in space-y-4">
+      <div class="w-10 h-1 rounded-full bg-gray-200 mx-auto sm:hidden"></div>
+      <div class="flex items-center gap-2.5">
+        <span class="w-9 h-9 rounded-2xl hero-navy text-white flex items-center justify-center text-sm font-extrabold">✓</span>
+        <div>
+          <span class="text-[11px] font-bold text-[#1D4ED8]">FIT-CONNECT 개인정보 보호</span>
+          <h3 class="text-[16px] font-extrabold text-[#111827]">신체 · 식단 기록 수집 및 활용 동의</h3>
+        </div>
+      </div>
+      <div class="p-3.5 rounded-2xl bg-[#F4F6F9] text-[12px] text-[#4B5563] space-y-1.5 leading-relaxed">
+        <p>• <b class="text-[#111827]">수집 항목</b>: 운동 루틴 수행 기록, 식단(메뉴·사진·수분), 컨디션 체크 및 코치 소통 메모</p>
+        <p>• <b class="text-[#111827]">이용 목적</b>: 담당 코치의 1:1 맞춤 트레이닝 피드백 및 주간 성장 리포트 제공</p>
+        <p>• <b class="text-[#111827]">보관 및 보호</b>: 암호화 세션으로 본인 및 담당 코치만 열람 가능하며 언제든 삭제를 요청할 수 있습니다.</p>
+      </div>
+      <button type="button" id="btn-consent-agree" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-extrabold shadow-md">
+        동의하고 리포트 시작하기
+      </button>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
 
@@ -114,6 +136,14 @@
       const d = new Date(dateStr + 'T00:00:00Z');
       d.setUTCDate(d.getUTCDate() + offset);
       return d.toISOString().slice(0, 10);
+    }
+
+    function daysBetween(dateA, dateB) {
+      if (!dateA || !dateB) return 99;
+      const a = new Date(dateA + 'T00:00:00Z').getTime();
+      const b = new Date(dateB + 'T00:00:00Z').getTime();
+      if (Number.isNaN(a) || Number.isNaN(b)) return 99;
+      return Math.max(0, Math.round((b - a) / 86400000));
     }
 
     function nowTimeHHMM() {
@@ -132,6 +162,14 @@
       });
     }
 
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
     // --- Parse URL Query (?name=김윤지&token=...&date=...) ---
     const urlParams = new URLSearchParams(window.location.search);
     const paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
@@ -139,13 +177,61 @@
     const paramDate = /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date') || '') ? urlParams.get('date') : getTodayKST();
     const isLiveOrigin = window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
 
+    // --- Exercise 10-Second Form Tips Library ---
+    const FORM_TIPS = {
+      '고블릿 스쿼트': {
+        cue: '발바닥 3점 지지 · 팔꿈치가 무릎 안쪽을 스치듯 수직 하강',
+        steps: [
+          '덤벨/케틀벨을 명치 앞에 밀착해 상체가 앞으로 쏟아지지 않게 고정하세요.',
+          '내려갈 때 3초 동안 무릎과 발끝 방향을 일치시키고 골반을 수직으로 앉힙니다.',
+          '일어설 때 발뒤꿈치와 엄지발가락 뿌리로 바닥을 강하게 밀어 둔근을 수축하세요.'
+        ],
+        mistake: '무릎이 안쪽으로 모이거나 허리가 말리지 않도록 복압을 유지하세요.'
+      },
+      '루마니안 데드리프트': {
+        cue: '정강이 고정 · 엉덩이를 뒤로 멀리 보내며 햄스트링 텐션 유지',
+        steps: [
+          '무릎을 살짝 구부린 각도를 고정한 채 고관절만 접어 상체를 숙입니다.',
+          '바벨/덤벨이 허벅지와 정강이를 스치듯 내려가야 허리 부담이 없습니다.',
+          '허벅지 뒤쪽이 팽팽해지는 지점에서 발바닥으로 바닥을 밀며 일어섭니다.'
+        ],
+        mistake: '등이 둥글게 말리면 중량을 낮추고 가동범위를 무릎 아래까지만 제한하세요.'
+      },
+      '데드버그': {
+        cue: '허리 바닥 완전 밀착 · 날숨에 복부를 납작하게 잠그기',
+        steps: [
+          '등을 바닥에 대고 누워 허리와 바닥 사이 틈이 없도록 골반을 살짝 말아줍니다.',
+          '입으로 길게 숨을 내쉬며 반대쪽 팔과 다리를 천천히 뻗어줍니다.',
+          '허리가 바닥에서 뜨기 직전까지만 내렸다가 코어로 끌어당기듯 돌아옵니다.'
+        ],
+        mistake: '목이나 어깨에 힘이 들어가면 턱을 살짝 당기고 천천히 진행하세요.'
+      }
+    };
+
+    function getFormTipForExercise(name) {
+      const clean = String(name || '').replace(/\(.*?\)/g, '').trim();
+      for (const key of Object.keys(FORM_TIPS)) {
+        if (clean.includes(key) || key.includes(clean)) return { title: key, ...FORM_TIPS[key] };
+      }
+      return {
+        title: clean || '맞춤 자세 가이드',
+        cue: '호흡과 복압을 먼저 세팅한 뒤 천천히 컨트롤하며 수행하세요',
+        steps: [
+          '시작 자세에서 어깨를 내리고 코어에 힘을 주어 척추 중립을 유지합니다.',
+          '내리는 동작(이완)을 2~3초간 천천히 버티며 타겟 근육의 자극을 느끼세요.',
+          '밀거나 당기는 순간 숨을 내쉬며 반동 없이 목표 횟수를 채웁니다.'
+        ],
+        mistake: '관절에 날카로운 통증이 느껴지면 즉시 중단하고 코치에게 메모를 남겨주세요.'
+      };
+    }
+
     // --- App State ---
     const state = {
       isLive: false,
       loading: false,
       appMode: 'member', // 'member' | 'coach'
       memberTab: 'report', // 'report' | 'lesson' | 'diet' | 'body' | 'feedback'
-      coachTab: 'today', // 'today' | 'members' | 'alerts'
+      coachTab: 'today', // 'today' | 'members' | 'dietReply' | 'dormant'
       memberName: paramName || '김윤지',
       token: paramToken,
       session: '',
@@ -154,6 +240,7 @@
       weekDays: buildWeekDays(paramDate),
       fabOpen: false,
       restTimerSeconds: 0,
+      restTimerDuration: 60,
       restTimerInterval: null,
       activeColumnIdx: 0,
       targetKcal: 2100,
@@ -168,10 +255,10 @@
         ],
         reflection: { good: '', bad: '' },
         diet: {
-          breakfast: { desc: '그릭요거트 · 삶은계란 2개 · 사과', cal: '480', carb: '45', prot: '28', fat: '12' },
-          lunch: { desc: '', cal: '', carb: '', prot: '', fat: '' },
-          dinner: { desc: '', cal: '', carb: '', prot: '', fat: '' },
-          snack: { desc: '', cal: '', carb: '', prot: '', fat: '' },
+          breakfast: { desc: '그릭요거트 · 삶은계란 2개 · 사과', cal: '480', carb: '45', prot: '28', fat: '12', photos: [] },
+          lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+          dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+          snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
           water: 1000
         },
         feedback: {
@@ -192,12 +279,27 @@
       // Insights matching /api/records action:'memberInsights'
       insights: {
         careSummary: { workoutDays: 2, dietDays: 3, feedbackDays: 2 },
-        weekly: { current: { days: 2, sets: 16, exercises: 6 }, previous: { days: 2, sets: 14, exercises: 5 }, improvements: [{ name: '고블릿 스쿼트', previous: 12, current: 16 }] },
+        weekly: {
+          current: { days: 2, sets: 16, exercises: 6 },
+          previous: { days: 2, sets: 14, exercises: 5 },
+          improvements: [
+            { name: '고블릿 스쿼트', previous: 12, current: 16 },
+            { name: '루마니안 데드리프트', previous: 25, current: 30 }
+          ]
+        },
         progress: []
       },
 
-      // Workout history days for calendar dots
-      workoutDays: [],
+      // Workout history days for calendar dots & weekly rhythm SVG curve
+      workoutDays: [
+        shiftDateStr(paramDate, -4),
+        shiftDateStr(paramDate, -2),
+        paramDate
+      ],
+      previousWeights: {
+        '고블릿 스쿼트': { date: shiftDateStr(paramDate, -2), weight: '16', reps: '12' },
+        '루마니안 데드리프트': { date: shiftDateStr(paramDate, -2), weight: '30', reps: '10' }
+      },
 
       // Magazine columns matching /api/records action:'columnList'
       columns: [
@@ -228,7 +330,13 @@
       ],
 
       // Trainer Overview matching /api/records action:'trainerOverview'
-      trainerOverview: []
+      trainerOverview: [
+        { name: '김윤지', lastDate: paramDate, activeToday: true, workoutToday: true, dietToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 3, weeklyDietDays: 3 },
+        { name: '이서연', lastDate: paramDate, activeToday: true, workoutToday: false, dietToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 2, weeklyDietDays: 4 },
+        { name: '박민준', lastDate: shiftDateStr(paramDate, -6), activeToday: false, workoutToday: false, dietToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0, weeklyDietDays: 1 },
+        { name: '최수아', lastDate: shiftDateStr(paramDate, -4), activeToday: false, workoutToday: false, dietToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 1, weeklyDietDays: 1 }
+      ],
+      coachMemberCache: {}
     };
 
     // --- API Helpers (100% compatible with cloudflare-worker.js) ---
@@ -252,8 +360,74 @@
       return res.json();
     }
 
+    // --- Browser Canvas JPEG Compression (<=900px) ---
+    function compressImageToDataUrl(file, maxDim = 900, quality = 0.78) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('file_read_error'));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error('img_decode_error'));
+          img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w >= h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // --- Clipboard Helper ---
+    async function copyTextToClipboard(text, toastMsg = '클립보드에 복사되었어요!') {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        showToast(toastMsg);
+      } catch {
+        showToast('복사에 실패했어요');
+      }
+    }
+
+    // --- Normalize Meal Object ---
+    function normalizeMeal(m) {
+      const obj = m && typeof m === 'object' ? m : {};
+      return {
+        desc: obj.desc || '',
+        cal: obj.cal || '',
+        carb: obj.carb || '',
+        prot: obj.prot || '',
+        fat: obj.fat || '',
+        photos: Array.isArray(obj.photos) ? obj.photos : []
+      };
+    }
+
     // --- Live Initialization ---
     async function initLiveMemberData() {
+      checkPrivacyConsent();
       if (!isLiveOrigin || !state.memberName || !state.token) {
         renderAll();
         return;
@@ -261,7 +435,6 @@
       state.loading = true;
       renderAll();
       try {
-        // 1. Exchange member token for 8-hour HMAC session
         const sessRes = await postRecords({
           action: 'memberSession',
           member: state.memberName,
@@ -273,8 +446,7 @@
           state.isLive = true;
         }
         await loadMemberDateData(state.selectedDate);
-      } catch (e) {
-        // Fallback smoothly to preview mode if offline or unauthorized
+      } catch {
         state.isLive = false;
         showToast('미리보기 데이터로 표시 중입니다');
       } finally {
@@ -304,10 +476,10 @@
           routines: Array.isArray(d.routines) ? d.routines : [],
           reflection: d.reflection || { good: '', bad: '' },
           diet: {
-            breakfast: d.diet?.breakfast || { desc: '', cal: '', carb: '', prot: '', fat: '' },
-            lunch: d.diet?.lunch || { desc: '', cal: '', carb: '', prot: '', fat: '' },
-            dinner: d.diet?.dinner || { desc: '', cal: '', carb: '', prot: '', fat: '' },
-            snack: d.diet?.snack || { desc: '', cal: '', carb: '', prot: '', fat: '' },
+            breakfast: normalizeMeal(d.diet?.breakfast),
+            lunch: normalizeMeal(d.diet?.lunch),
+            dinner: normalizeMeal(d.diet?.dinner),
+            snack: normalizeMeal(d.diet?.snack),
             water: Number(d.diet?.water) || 0
           },
           feedback: d.feedback || { workout: '', diet: '', time: '' },
@@ -321,8 +493,9 @@
       if (cols.status === 'fulfilled' && cols.value?.status === 'success' && Array.isArray(cols.value.columns) && cols.value.columns.length) {
         state.columns = cols.value.columns;
       }
-      if (hist.status === 'fulfilled' && hist.value?.status === 'success' && Array.isArray(hist.value.days)) {
-        state.workoutDays = hist.value.days;
+      if (hist.status === 'fulfilled' && hist.value?.status === 'success') {
+        if (Array.isArray(hist.value.days)) state.workoutDays = hist.value.days;
+        if (hist.value.previous && typeof hist.value.previous === 'object') state.previousWeights = hist.value.previous;
       }
     }
 
@@ -342,13 +515,13 @@
       }
     }
 
-    async function savePatchLive(patchObj) {
+    async function savePatchLive(patchObj, targetMember = state.memberName, targetDate = state.selectedDate) {
       if (!state.isLive) return;
       try {
         await postAppsScript({
           action: 'patchData',
-          member: state.memberName,
-          date: state.selectedDate,
+          member: targetMember,
+          date: targetDate,
           token: state.token,
           ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : {}),
           patch: patchObj
@@ -358,18 +531,33 @@
       }
     }
 
-    async function saveFullRecordLive() {
+    async function saveFullRecordLive(targetMember = state.memberName, targetDate = state.selectedDate, recordData = state.record) {
       if (!state.isLive) return;
       try {
         await postAppsScript({
-          member: state.memberName,
-          date: state.selectedDate,
+          member: targetMember,
+          date: targetDate,
           token: state.token,
           ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : {}),
-          data: state.record
+          data: recordData
         });
       } catch {
         showToast('저장 중 네트워크 오류가 발생했어요');
+      }
+    }
+
+    // --- Privacy Consent Check (1회 노출, localStorage 저장) ---
+    function checkPrivacyConsent() {
+      const key = 'fit_connect_privacy_consent_v2';
+      try {
+        if (localStorage.getItem(key) === 'agreed') return;
+      } catch {
+        return;
+      }
+      const el = document.getElementById('consent-backdrop');
+      if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
       }
     }
 
@@ -406,6 +594,7 @@
         clearInterval(state.restTimerInterval);
         state.restTimerInterval = null;
       }
+      state.restTimerDuration = sec;
       state.restTimerSeconds = sec;
       renderAll();
       state.restTimerInterval = setInterval(() => {
@@ -414,12 +603,13 @@
           clearInterval(state.restTimerInterval);
           state.restTimerInterval = null;
           state.restTimerSeconds = 0;
-          showToast('휴식 끝! 다음 세트 시작해볼까요?');
+          showToast(`${sec}초 휴식 끝! 다음 세트 시작해볼까요?`);
           triggerConfetti();
+          renderAll();
+          return;
         }
-        const badge = document.getElementById('rest-timer-badge');
-        if (badge) badge.textContent = state.restTimerSeconds > 0 ? `⏱ ${state.restTimerSeconds}초` : '⏱ 60초 휴식';
-        else renderAll();
+        const badge = document.getElementById('rest-timer-live');
+        if (badge) badge.textContent = `${state.restTimerSeconds}초 남음`;
       }, 1000);
     }
 
@@ -448,11 +638,13 @@
     function getDietStats() {
       const d = state.record.diet || {};
       const keys = ['breakfast', 'lunch', 'dinner', 'snack'];
-      let kcal = 0, carb = 0, prot = 0, fat = 0, loggedCount = 0;
+      let kcal = 0, carb = 0, prot = 0, fat = 0, loggedCount = 0, photoCount = 0;
       keys.forEach(k => {
         const m = d[k] || {};
         const c = Number(m.cal) || 0;
-        if (c > 0 || String(m.desc || '').trim()) loggedCount++;
+        const hasPhoto = Array.isArray(m.photos) && m.photos.length > 0;
+        if (hasPhoto) photoCount += m.photos.length;
+        if (c > 0 || String(m.desc || '').trim() || hasPhoto) loggedCount++;
         kcal += c;
         carb += Number(m.carb) || 0;
         prot += Number(m.prot) || 0;
@@ -463,6 +655,7 @@
         kcal,
         pct: Math.min(100, Math.round((kcal / state.targetKcal) * 100)),
         loggedCount,
+        photoCount,
         carbPct: macroSum ? Math.round((carb / macroSum) * 100) : 45,
         protPct: macroSum ? Math.round((prot / macroSum) * 100) : 35,
         fatPct: macroSum ? Math.round((fat / macroSum) * 100) : 20,
@@ -516,9 +709,212 @@
       `;
     }
 
-    // --- Modals ---
+    // --- Weekly Workout Rhythm SVG Curve (linked to workoutDays) ---
+    function renderWeeklyRhythmSvg() {
+      const wr = getWorkoutRate();
+      const chk = state.record.dailyCheckin || {};
+      const pts = state.weekDays.map((d, idx) => {
+        const isSelected = d.fullDate === state.selectedDate;
+        const inHistory = state.workoutDays.includes(d.fullDate);
+        const activeToday = isSelected && (wr.done > 0 || chk.workout === 'done');
+        const active = inHistory || activeToday;
+        const x = 22 + idx * 46;
+        // Compute rhythm height: active days rise smoothly, selected day reflects completion
+        const y = active ? (isSelected ? Math.max(16, 44 - Math.round(wr.pct * 0.26)) : 20) : 56;
+        return { ...d, x, y, active, isSelected };
+      });
+
+      let dPath = `M ${pts[0].x} ${pts[0].y}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const cx = ((pts[i].x + pts[i + 1].x) / 2).toFixed(1);
+        dPath += ` C ${cx} ${pts[i].y}, ${cx} ${pts[i + 1].y}, ${pts[i + 1].x} ${pts[i + 1].y}`;
+      }
+      const areaPath = `${dPath} L ${pts[pts.length - 1].x} 72 L ${pts[0].x} 72 Z`;
+      const activeCount = pts.filter(p => p.active).length;
+
+      return `
+        <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-[#1D4ED8]">WEEKLY RHYTHM</span>
+              <h2 class="text-[16px] font-bold text-[#111827]">주간 운동 리듬</h2>
+            </div>
+            <span class="text-[12px] font-extrabold px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">이번 주 ${activeCount}일 활성화</span>
+          </div>
+          <svg viewBox="0 0 320 92" class="w-full h-24 overflow-visible">
+            <defs>
+              <linearGradient id="rhythmGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.28"/>
+                <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+            <line x1="16" y1="22" x2="304" y2="22" stroke="#F1F5F9" stroke-width="1" stroke-dasharray="3 3"/>
+            <line x1="16" y1="56" x2="304" y2="56" stroke="#F1F5F9" stroke-width="1"/>
+            <path d="${areaPath}" fill="url(#rhythmGrad)"/>
+            <path d="${dPath}" fill="none" stroke="#2563EB" stroke-width="2.8" stroke-linecap="round"/>
+            ${pts.map(p => `
+              <g>
+                <circle cx="${p.x}" cy="${p.y}" r="${p.isSelected ? 5.5 : (p.active ? 4.2 : 3)}"
+                  fill="${p.active ? '#1D4ED8' : '#CBD5E1'}" stroke="#FFFFFF" stroke-width="2"/>
+                <text x="${p.x}" y="86" text-anchor="middle" font-size="10" font-weight="${p.isSelected ? '800' : '600'}"
+                  fill="${p.isSelected ? '#1D4ED8' : '#64748B'}">${p.day}</text>
+              </g>
+            `).join('')}
+          </svg>
+        </section>
+      `;
+    }
+
+    // --- Personal Mission Card + 10-Second Form Tip Trigger ---
+    function getPrimaryMissionExercise() {
+      const rs = state.record.routines || [];
+      const hw = rs.find(r => /숙제|개인|데드버그/.test(String(r.name || ''))) || rs.find(r => !(Array.isArray(r.completedSets) && r.completedSets.some(Boolean))) || rs[0];
+      return hw || { name: '데드버그 (개인숙제)', sets: '3', reps: '12', note: '허리 바닥 밀착 호흡', completedSets: [false, false, false] };
+    }
+
+    function openFormTipModal(exerciseName) {
+      const tip = getFormTipForExercise(exerciseName);
+      openModal('10초 자세 팁', `
+        <div class="space-y-4">
+          <div class="p-4 rounded-2xl hero-navy text-white">
+            <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">10-SEC FORM CUE</span>
+            <h4 class="text-[18px] font-extrabold mt-1.5">${escapeHtml(tip.title)}</h4>
+            <p class="text-[12px] text-white/90 mt-1 font-semibold">${escapeHtml(tip.cue)}</p>
+          </div>
+          <div class="space-y-2">
+            ${tip.steps.map((s, idx) => `
+              <div class="p-3 rounded-2xl bg-[#F4F6F9] flex items-start gap-2.5">
+                <span class="w-5 h-5 rounded-full bg-[#1D4ED8] text-white text-[11px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">${idx + 1}</span>
+                <p class="text-[13px] text-[#111827] leading-snug">${escapeHtml(s)}</p>
+              </div>
+            `).join('')}
+          </div>
+          <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/70 text-[12px] text-amber-900">
+            <b class="font-extrabold">주의 포인트:</b> ${escapeHtml(tip.mistake)}
+          </div>
+          <button type="button" id="btn-tip-done" class="tap-scale w-full py-3 rounded-2xl hero-navy text-white text-[13px] font-bold">숙지 완료!</button>
+        </div>
+      `);
+      document.getElementById('btn-tip-done').addEventListener('click', closeModal);
+    }
+
+    // --- PR Share Card Modal (insights.weekly.improvements) ---
+    function openPrShareModal(impIndex = 0) {
+      const imps = state.insights?.weekly?.improvements || [];
+      const item = imps[impIndex] || imps[0] || { name: '고블릿 스쿼트', previous: 12, current: 16 };
+      const diff = Number(item.current) - Number(item.previous);
+      const shareText = `[FIT-CONNECT 최고 기록 달성]\n🏆 ${state.memberName} 회원님 '${item.name}' 증량 성공!\n• 직전 기록: ${item.previous}kg → 현재 최고: ${item.current}kg (+${diff}kg ▲)\n• 측정일: ${state.selectedDate}\n꾸준한 루틴이 만든 멋진 성장을 응원합니다!`;
+
+      openModal('최고 기록(PR) 공유 카드', `
+        <div class="space-y-4">
+          <div class="hero-navy rounded-[24px] p-5 text-white shadow-xl relative overflow-hidden">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-white/15 text-[#5EEAD4]">PERSONAL RECORD</span>
+              <span class="text-[11px] font-bold text-white/75">${state.selectedDate}</span>
+            </div>
+            <p class="text-[12px] text-white/80 mt-3">${escapeHtml(state.memberName)} 회원님의 증량 리포트</p>
+            <h4 class="text-[21px] font-extrabold mt-0.5">${escapeHtml(item.name)}</h4>
+            <div class="mt-4 p-3.5 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-between">
+              <div>
+                <p class="text-[11px] text-white/70">이전 중량</p>
+                <p class="text-[17px] font-bold tabular-nums">${item.previous}kg</p>
+              </div>
+              <span class="text-[18px] font-extrabold text-[#5EEAD4]">→</span>
+              <div>
+                <p class="text-[11px] text-[#5EEAD4] font-bold">최고 기록(PR)</p>
+                <p class="text-[24px] font-extrabold tabular-nums text-white">${item.current}kg</p>
+              </div>
+              <span class="px-3 py-1.5 rounded-full bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold tabular-nums">+${diff}kg ▲</span>
+            </div>
+            <p class="text-[11px] text-white/75 mt-3">FIT-CONNECT 1:1 퍼스널 트레이닝 성장 인증</p>
+          </div>
+
+          <button type="button" id="btn-copy-pr" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-extrabold shadow-md">
+            PR 축하 텍스트 복사하기
+          </button>
+        </div>
+      `);
+
+      triggerConfetti();
+      document.getElementById('btn-copy-pr').addEventListener('click', () => {
+        copyTextToClipboard(shareText, 'PR 공유 텍스트가 복사되었어요!');
+      });
+    }
+
+    // --- Custom Exercise Add Modal (수업일지 탭 '개인운동 직접 추가') ---
+    function openAddExerciseModal() {
+      const quickList = [
+        { name: '플랭크 (개인운동)', weight: '', sets: '3', reps: '60', note: '복부 긴장 유지 (초 단위)' },
+        { name: '힙 브릿지 (개인운동)', weight: '', sets: '3', reps: '15', note: '상단에서 둔근 2초 수축' },
+        { name: '유산소 인터벌', weight: '', sets: '1', reps: '20', note: '심박수 올리기 20분' }
+      ];
+
+      openModal('개인운동 직접 추가', `
+        <div class="space-y-4">
+          <div>
+            <p class="text-[12px] font-bold text-[#4B5563] mb-2">자주 하는 개인운동 원터치 선택</p>
+            <div class="flex flex-wrap gap-1.5">
+              ${quickList.map((q, idx) => `
+                <button type="button" data-qidx="${idx}" class="q-ex-btn tap-scale px-3 py-1.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[12px] font-bold">+ ${escapeHtml(q.name)}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <form id="add-ex-form" class="space-y-2.5 pt-2 border-t border-gray-100">
+            <input id="ex-name" required placeholder="운동 이름 (예: 케틀벨 스윙, 천국의 계단)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <div class="grid grid-cols-3 gap-2">
+              <input id="ex-weight" type="number" step="0.5" placeholder="무게(kg)" class="w-full text-sm px-3 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+              <input id="ex-sets" type="number" min="1" max="15" value="3" placeholder="세트" class="w-full text-sm px-3 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+              <input id="ex-reps" type="number" min="1" value="12" placeholder="횟수" class="w-full text-sm px-3 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            </div>
+            <input id="ex-note" placeholder="메모 또는 집중 포인트 (선택)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-extrabold">루틴에 추가하고 완료 체크</button>
+          </form>
+        </div>
+      `);
+
+      document.querySelectorAll('.q-ex-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const q = quickList[Number(btn.dataset.qidx)];
+          document.getElementById('ex-name').value = q.name;
+          document.getElementById('ex-weight').value = q.weight;
+          document.getElementById('ex-sets').value = q.sets;
+          document.getElementById('ex-reps').value = q.reps;
+          document.getElementById('ex-note').value = q.note;
+        });
+      });
+
+      document.getElementById('add-ex-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const name = document.getElementById('ex-name').value.trim();
+        if (!name) return;
+        const weight = document.getElementById('ex-weight').value.trim();
+        const sets = Math.max(1, Math.min(15, Number(document.getElementById('ex-sets').value) || 3));
+        const reps = document.getElementById('ex-reps').value.trim() || '12';
+        const note = document.getElementById('ex-note').value.trim() || '개인 추가 운동';
+        const newRoutine = {
+          id: Date.now(),
+          name,
+          weight,
+          sets: String(sets),
+          reps: String(reps),
+          note,
+          completedSets: Array(sets).fill(true)
+        };
+        if (!Array.isArray(state.record.routines)) state.record.routines = [];
+        state.record.routines.push(newRoutine);
+        closeModal();
+        triggerConfetti();
+        showToast(`'${name}' 개인운동이 추가되었어요!`);
+        renderAll();
+        saveFullRecordLive();
+      });
+    }
+
+    // --- Meal Modal with 1 Photo Attachment (Canvas <=900px JPEG -> diet[meal].photos) ---
     function openMealModal(mealKey, mealLabel) {
-      const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '' };
+      const m = normalizeMeal(state.record.diet[mealKey]);
+      let stagedPhoto = m.photos[0] || '';
       const presets = [
         { tag: '클린식', cal: '450', carb: '40', prot: '35', fat: '10', desc: '닭가슴살 · 현미밥 · 샐러드' },
         { tag: '일반식', cal: '650', carb: '70', prot: '28', fat: '18', desc: '일반 한식 · 단백질 반찬 포함' },
@@ -528,6 +924,21 @@
 
       openModal(`${mealLabel} 식단 기록`, `
         <div class="space-y-4">
+          <!-- Photo Attachment (Canvas <=900px JPEG) -->
+          <div class="p-3.5 rounded-2xl bg-[#F4F6F9] space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[12px] font-bold text-[#111827]">식단 사진 첨부 (1장 · 자동 900px 압축)</span>
+              <label for="meal-photo-input" class="tap-scale cursor-pointer px-3 py-1.5 rounded-full hero-navy text-white text-[11px] font-bold">
+                📷 사진 선택
+              </label>
+              <input id="meal-photo-input" type="file" accept="image/*" class="hidden" />
+            </div>
+            <div id="meal-photo-preview-wrap" class="${stagedPhoto ? '' : 'hidden'} relative rounded-2xl overflow-hidden bg-black/5">
+              <img id="meal-photo-preview" src="${stagedPhoto}" alt="식단 사진" class="w-full h-40 object-cover rounded-2xl" />
+              <button type="button" id="meal-photo-remove" class="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-black/65 text-white text-[11px] font-bold">삭제</button>
+            </div>
+          </div>
+
           <div>
             <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 태그로 2초 만에 저장</p>
             <div class="grid grid-cols-2 gap-2">
@@ -544,17 +955,49 @@
           </div>
 
           <form id="meal-form" class="pt-2 border-t border-gray-100 space-y-2.5">
-            <input id="mf-desc" value="${m.desc || ''}" placeholder="먹은 메뉴를 입력하세요" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
-            <input id="mf-cal" type="number" min="0" value="${m.cal || ''}" placeholder="예상 칼로리 (kcal)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <input id="mf-desc" value="${escapeHtml(m.desc)}" placeholder="먹은 메뉴를 입력하세요" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <input id="mf-cal" type="number" min="0" value="${escapeHtml(m.cal)}" placeholder="예상 칼로리 (kcal)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
             <button type="submit" class="w-full py-3 rounded-2xl hero-navy text-white text-sm font-bold">저장하기</button>
           </form>
         </div>
       `);
 
+      const fileInput = document.getElementById('meal-photo-input');
+      const previewWrap = document.getElementById('meal-photo-preview-wrap');
+      const previewImg = document.getElementById('meal-photo-preview');
+      const removeBtn = document.getElementById('meal-photo-remove');
+
+      fileInput.addEventListener('change', async e => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          showToast('사진을 900px JPEG로 압축 중...');
+          stagedPhoto = await compressImageToDataUrl(file, 900, 0.78);
+          previewImg.src = stagedPhoto;
+          previewWrap.classList.remove('hidden');
+          showToast('사진 압축 첨부 완료!');
+        } catch {
+          showToast('사진 처리 중 오류가 발생했어요');
+        }
+      });
+
+      removeBtn.addEventListener('click', () => {
+        stagedPhoto = '';
+        previewImg.src = '';
+        previewWrap.classList.add('hidden');
+      });
+
       document.querySelectorAll('.pr-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const pr = presets[Number(btn.dataset.pr)];
-          const updated = { desc: `[${pr.tag}] ${pr.desc}`, cal: pr.cal, carb: pr.carb, prot: pr.prot, fat: pr.fat };
+          const updated = {
+            desc: `[${pr.tag}] ${pr.desc}`,
+            cal: pr.cal,
+            carb: pr.carb,
+            prot: pr.prot,
+            fat: pr.fat,
+            photos: stagedPhoto ? [stagedPhoto] : []
+          };
           state.record.diet[mealKey] = updated;
           closeModal();
           showToast(`${mealLabel} (${pr.tag}) 저장 완료!`);
@@ -567,8 +1010,13 @@
         e.preventDefault();
         const desc = document.getElementById('mf-desc').value.trim();
         const cal = document.getElementById('mf-cal').value.trim();
-        if (!desc && !cal) return;
-        const updated = { ...m, desc, cal };
+        if (!desc && !cal && !stagedPhoto) return;
+        const updated = {
+          ...m,
+          desc,
+          cal,
+          photos: stagedPhoto ? [stagedPhoto] : []
+        };
         state.record.diet[mealKey] = updated;
         closeModal();
         showToast(`${mealLabel} 식단이 저장되었어요`);
@@ -587,23 +1035,359 @@
           <div class="flex gap-1.5 overflow-x-auto pb-1">
             ${state.columns.map((c, i) => `
               <button type="button" data-cidx="${i}" class="col-tab-btn shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold transition ${i === state.activeColumnIdx ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'}">
-                #${c.category || '인사이트'}
+                #${escapeHtml(c.category || '인사이트')}
               </button>
             `).join('')}
           </div>
           <div class="p-4 rounded-2xl hero-navy text-white space-y-1.5">
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${item.category || '코치 칼럼'}</span>
-            <h4 class="text-[17px] font-extrabold leading-snug">${item.title}</h4>
-            <p class="text-[12px] text-white/80">${item.summary || ''}</p>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${escapeHtml(item.category || '코치 칼럼')}</span>
+            <h4 class="text-[17px] font-extrabold leading-snug">${escapeHtml(item.title)}</h4>
+            <p class="text-[12px] text-white/80">${escapeHtml(item.summary || '')}</p>
           </div>
           <div class="space-y-2.5 text-[13px] text-[#374151] leading-relaxed px-1">
-            ${lines.map(line => `<p>${line}</p>`).join('')}
+            ${lines.map(line => `<p>${escapeHtml(line)}</p>`).join('')}
           </div>
-          <p class="text-[11px] text-[#9CA3AF] px-1">작성: ${item.author || '담당 코치'} · ${item.published_at || ''}</p>
+          <p class="text-[11px] text-[#9CA3AF] px-1">작성: ${escapeHtml(item.author || '담당 코치')} · ${escapeHtml(item.published_at || '')}</p>
         </div>
       `);
       document.querySelectorAll('.col-tab-btn').forEach(b => {
         b.addEventListener('click', () => openMagazineModal(Number(b.dataset.cidx)));
+      });
+    }
+
+    // --- Coach Features: Load Member Context for Briefing / Log / Diet Reply ---
+    async function fetchMemberContextForCoach(memberName) {
+      if (state.coachMemberCache[memberName]) return state.coachMemberCache[memberName];
+      if (memberName === state.memberName) {
+        return {
+          record: JSON.parse(JSON.stringify(state.record)),
+          previous: state.previousWeights
+        };
+      }
+      if (state.isLive && state.trainerPassword) {
+        try {
+          const [rec, hist] = await Promise.allSettled([
+            postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
+            postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
+          ]);
+          const rVal = rec.status === 'fulfilled' && rec.value ? rec.value : {};
+          const hVal = hist.status === 'fulfilled' && hist.value?.previous ? hist.value.previous : {};
+          const ctx = {
+            record: {
+              headerMessage: rVal.headerMessage || '',
+              routines: Array.isArray(rVal.routines) && rVal.routines.length ? rVal.routines : [
+                { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '하체 기본 루틴', completedSets: [true, true, true, true] },
+                { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '둔근/햄스트링', completedSets: [true, true, true, true] }
+              ],
+              reflection: rVal.reflection || { good: '', bad: '' },
+              diet: {
+                breakfast: normalizeMeal(rVal.diet?.breakfast),
+                lunch: normalizeMeal(rVal.diet?.lunch),
+                dinner: normalizeMeal(rVal.diet?.dinner),
+                snack: normalizeMeal(rVal.diet?.snack),
+                water: Number(rVal.diet?.water) || 0
+              },
+              feedback: rVal.feedback || { workout: '', diet: '', time: '' },
+              memos: Array.isArray(rVal.memos) ? rVal.memos : [],
+              dailyCheckin: rVal.dailyCheckin || { workout: '', diet: '', mood: '' }
+            },
+            previous: hVal
+          };
+          state.coachMemberCache[memberName] = ctx;
+          return ctx;
+        } catch {
+          // fallback below
+        }
+      }
+      const fallback = {
+        record: {
+          headerMessage: `${memberName} 회원님, 오늘 컨디션에 맞춰 코어와 하체 밸런스에 집중해 진행했어요.`,
+          routines: [
+            { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '발목 가동성 워밍업 후 진행', completedSets: [true, true, true, true] },
+            { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '고관절 힌지 유지', completedSets: [true, true, true, true] },
+            { id: 3, name: '데드버그 (개인숙제)', weight: '0', sets: '3', reps: '12', note: '허리 바닥 밀착', completedSets: [true, true, true] }
+          ],
+          reflection: { good: '', bad: '' },
+          diet: {
+            breakfast: { desc: '단백질 쉐이크 · 바나나 1개', cal: '320', carb: '38', prot: '25', fat: '5', photos: [] },
+            lunch: { desc: '닭가슴살 샐러드 · 현미밥 반 공기', cal: '540', carb: '55', prot: '36', fat: '12', photos: [] },
+            dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            water: 1500
+          },
+          feedback: { workout: '', diet: '', time: '' },
+          memos: [
+            { id: 'cm1', from: 'member', text: '코치님! 왼쪽 무릎 시큰거림은 많이 좋아졌고 오늘은 컨디션 좋습니다.', time: '11:20' }
+          ],
+          dailyCheckin: { workout: 'done', diet: 'done', mood: 'good' }
+        },
+        previous: {
+          '고블릿 스쿼트': { date: shiftDateStr(state.selectedDate, -3), weight: '16', reps: '12' },
+          '루마니안 데드리프트': { date: shiftDateStr(state.selectedDate, -3), weight: '30', reps: '10' }
+        }
+      };
+      state.coachMemberCache[memberName] = fallback;
+      return fallback;
+    }
+
+    // --- Coach Modal 1: 회원별 '5분 전 브리핑' 모달 (직전 중량 · 최근 메모 · 대타용 1장 인수인계 복사) ---
+    async function openCoachBriefingModal(memberName) {
+      const ctx = await fetchMemberContextForCoach(memberName);
+      const routines = ctx.record.routines || [];
+      const memos = ctx.record.memos || [];
+      const lastMemo = memos[memos.length - 1]?.text || ctx.record.headerMessage || '특이 통증/이슈 없음 (발목 워밍업 권장)';
+      const weightLines = routines.map(r => `• ${r.name}: ${r.weight ? r.weight + 'kg' : '맨몸'} × ${r.reps || 12}회 (${r.sets || 3}세트)`).join('\n');
+      const handoverText = `[FIT-CONNECT 대타/수업 인수인계 1장 요약]\n• 회원명: ${memberName} 회원님 (기준일: ${state.selectedDate})\n• 최근 컨디션/이슈: ${lastMemo}\n• 직전 수행 중량:\n${weightLines}\n• 코칭 포인트: 본 운동 전 발목/고관절 워밍업 3분 진행 후 메인 세트 들어가 주세요.`;
+
+      openModal(`${memberName} 회원 5분 전 브리핑`, `
+        <div class="space-y-4">
+          <div class="p-4 rounded-2xl hero-navy text-white space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">PRE-SESSION BRIEF</span>
+              <span class="text-[11px] text-white/75">${state.selectedDate}</span>
+            </div>
+            <h4 class="text-[17px] font-extrabold">${escapeHtml(memberName)} 회원님 핵심 요약</h4>
+            <p class="text-[12px] text-white/85 leading-relaxed">${escapeHtml(lastMemo)}</p>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-[12px] font-bold text-[#4B5563]">직전 수업 중량 · 볼륨</p>
+            ${routines.map(r => `
+              <div class="p-3 rounded-2xl bg-[#F4F6F9] flex items-center justify-between">
+                <div>
+                  <p class="text-[13px] font-bold text-[#111827]">${escapeHtml(r.name)}</p>
+                  <p class="text-[11px] text-[#6B7280]">${escapeHtml(r.note || '자세 집중')}</p>
+                </div>
+                <span class="text-[13px] font-extrabold text-[#1D4ED8] tabular-nums">${r.weight ? r.weight + 'kg' : '맨몸'} · ${r.reps || 12}회×${r.sets || 3}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-[#EFF6FF] space-y-1">
+            <p class="text-[11px] font-extrabold text-[#1D4ED8]">최근 회원/코치 메모</p>
+            ${memos.length ? memos.slice(-2).map(m => `
+              <p class="text-[12px] text-[#1E293B]">• [${m.from === 'trainer' ? '코치' : '회원'}] ${escapeHtml(m.text)}</p>
+            `).join('') : `<p class="text-[12px] text-[#4B5563]">• ${escapeHtml(lastMemo)}</p>`}
+          </div>
+
+          <button type="button" id="btn-copy-handover" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold shadow-md">
+            📋 대타·인수인계용 1장 브리핑 복사
+          </button>
+        </div>
+      `);
+
+      document.getElementById('btn-copy-handover').addEventListener('click', () => {
+        copyTextToClipboard(handoverText, '대타용 1장 인수인계 브리핑이 복사되었어요!');
+      });
+    }
+
+    // --- Coach Modal 2: 회원별 '30초 일지 발행' 모달 (+2kg/-2kg 조절, 음성 입력/프리셋 코멘트, 실제 저장) ---
+    async function openQuickLogPublishModal(memberName) {
+      const ctx = await fetchMemberContextForCoach(memberName);
+      const draftRoutines = (ctx.record.routines && ctx.record.routines.length ? ctx.record.routines : [
+        { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '하체 메인', completedSets: [true, true, true, true] },
+        { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '후면 사슬', completedSets: [true, true, true, true] },
+        { id: 3, name: '데드버그 (개인숙제)', weight: '0', sets: '3', reps: '12', note: '코어 안정화', completedSets: [true, true, true] }
+      ]).map(r => ({ ...r, weight: String(Number(r.weight) || 0) }));
+
+      const presetComments = [
+        '오늘 중량 +2kg 증량에도 코어 흔들림 없이 완벽했어요! 개인숙제 데드버그만 3세트 챙겨주세요.',
+        '무릎 각도와 발바닥 지지감이 훨씬 안정적이었습니다. 오늘 저녁 단백질과 수분 섭취 꼭 챙겨주세요!',
+        '컨디션에 맞춰 템포 위주로 자극을 정확히 잡았습니다. 내일 가벼운 스트레칭 10분 권장드려요.'
+      ];
+
+      openModal(`${memberName} 회원 30초 일지 발행`, `
+        <div class="space-y-4">
+          <div>
+            <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 중량 조절 (-2kg / +2kg)</p>
+            <div id="qlog-routines" class="space-y-2">
+              ${draftRoutines.map((r, idx) => `
+                <div class="p-3 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(r.name)}</p>
+                    <p class="text-[11px] text-[#6B7280]">${r.sets || 4}세트 × ${r.reps || 12}회</p>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button type="button" data-ridx="${idx}" data-delta="-2" class="w-8 h-8 rounded-xl bg-white text-[#111827] font-extrabold text-xs shadow-sm w-delta-btn">-2</button>
+                    <span id="w-val-${idx}" class="w-14 text-center text-[13px] font-extrabold text-[#1D4ED8] tabular-nums">${r.weight}kg</span>
+                    <button type="button" data-ridx="${idx}" data-delta="2" class="w-8 h-8 rounded-xl hero-navy text-white font-extrabold text-xs shadow-sm w-delta-btn">+2</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <p class="text-[12px] font-bold text-[#4B5563]">코치 한줄 피드백 (프리셋 · 음성 입력)</p>
+              <button type="button" id="btn-voice-input" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold flex items-center gap-1">
+                🎙️ 음성 입력
+              </button>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              ${presetComments.map((c, idx) => `
+                <button type="button" data-pcomment="${idx}" class="p-comment-btn tap-scale px-2.5 py-1.5 rounded-xl bg-[#F4F6F9] text-[11px] font-bold text-[#374151] text-left">
+                  프리셋 ${idx + 1}: ${escapeHtml(c.slice(0, 22))}…
+                </button>
+              `).join('')}
+            </div>
+            <textarea id="qlog-comment" rows="3" placeholder="회원에게 전달할 오늘 수업 총평" class="w-full text-[13px] p-3.5 rounded-2xl bg-[#F4F6F9] focus:outline-none">${escapeHtml(ctx.record.headerMessage || presetComments[0])}</textarea>
+          </div>
+
+          <button type="button" id="btn-publish-qlog" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-extrabold shadow-md">
+            ⚡ 30초 수업일지 즉시 발행 및 저장
+          </button>
+        </div>
+      `);
+
+      document.querySelectorAll('.w-delta-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.ridx);
+          const delta = Number(btn.dataset.delta);
+          const next = Math.max(0, (Number(draftRoutines[idx].weight) || 0) + delta);
+          draftRoutines[idx].weight = String(next);
+          document.getElementById(`w-val-${idx}`).textContent = `${next}kg`;
+        });
+      });
+
+      document.querySelectorAll('.p-comment-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('qlog-comment').value = presetComments[Number(btn.dataset.pcomment)];
+        });
+      });
+
+      const voiceBtn = document.getElementById('btn-voice-input');
+      voiceBtn.addEventListener('click', () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          document.getElementById('qlog-comment').value = presetComments[0];
+          showToast('브라우저 음성인식 미지원으로 추천 코멘트가 입력되었어요');
+          return;
+        }
+        const rec = new SpeechRecognition();
+        rec.lang = 'ko-KR';
+        rec.interimResults = false;
+        voiceBtn.textContent = '🎙️ 듣는 중...';
+        rec.onresult = e => {
+          const transcript = e.results?.[0]?.[0]?.transcript || '';
+          if (transcript) {
+            const ta = document.getElementById('qlog-comment');
+            ta.value = (ta.value ? ta.value + ' ' : '') + transcript;
+            showToast('음성 코멘트가 입력되었어요');
+          }
+        };
+        rec.onerror = () => showToast('음성 인식에 실패했어요');
+        rec.onend = () => { voiceBtn.textContent = '🎙️ 음성 입력'; };
+        rec.start();
+      });
+
+      document.getElementById('btn-publish-qlog').addEventListener('click', async () => {
+        const msg = document.getElementById('qlog-comment').value.trim();
+        const updatedRoutines = draftRoutines.map(r => {
+          const sCount = Math.max(1, Number(r.sets) || 4);
+          return { ...r, completedSets: Array(sCount).fill(true) };
+        });
+
+        ctx.record.headerMessage = msg;
+        ctx.record.routines = updatedRoutines;
+        ctx.record.feedback = { ...(ctx.record.feedback || {}), workout: msg, time: nowTimeHHMM() };
+
+        if (memberName === state.memberName) {
+          state.record.headerMessage = msg;
+          state.record.routines = updatedRoutines;
+          state.record.feedback.workout = msg;
+        }
+        const ovItem = state.trainerOverview.find(m => m.name === memberName);
+        if (ovItem) {
+          ovItem.pendingWorkout = false;
+          ovItem.feedbackDone = true;
+          ovItem.activeToday = true;
+          ovItem.lastDate = state.selectedDate;
+        }
+
+        closeModal();
+        triggerConfetti();
+        showToast(`${memberName} 회원님 수업일지가 발행·저장되었어요!`);
+        renderAll();
+        await saveFullRecordLive(memberName, state.selectedDate, ctx.record);
+      });
+    }
+
+    // --- Coach Modal 3: 헤더 '+ 칼럼' 버튼으로 매거진 칼럼 발행 (action: 'columnSave') ---
+    function openColumnPublishModal() {
+      openModal('FIT-CONNECT 매거진 칼럼 발행', `
+        <form id="col-publish-form" class="space-y-3">
+          <div>
+            <label class="text-[11px] font-bold text-[#4B5563]">카테고리 (필수)</label>
+            <select id="col-cat" class="w-full mt-1 text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] font-bold">
+              <option value="트레이닝">트레이닝</option>
+              <option value="영양/식단">영양/식단</option>
+              <option value="회복/습관">회복/습관</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-[#4B5563]">제목 (3~90자)</label>
+            <input id="col-title" required minlength="3" maxlength="90" placeholder="예: 하체 운동 후 무릎이 편해지는 폼롤러 루틴" class="w-full mt-1 text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-[#4B5563]">한줄 요약 (10~280자)</label>
+            <input id="col-summary" required minlength="10" maxlength="280" placeholder="핵심 요약을 10자 이상 입력해 주세요" class="w-full mt-1 text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-[#4B5563]">본문 단락 (줄바꿈으로 1~6단락 구분)</label>
+            <textarea id="col-content" required rows="4" placeholder="첫 번째 단락을 입력하세요.&#10;두 번째 단락을 입력하세요." class="w-full mt-1 text-sm p-3.5 rounded-2xl bg-[#F4F6F9]"></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <input id="col-author" value="신명진 코치" placeholder="작성자" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <input id="col-date" value="${state.selectedDate}" placeholder="YYYY-MM-DD" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+          </div>
+          <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-extrabold shadow-md">
+            매거진 칼럼 즉시 발행하기
+          </button>
+        </form>
+      `);
+
+      document.getElementById('col-publish-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const category = document.getElementById('col-cat').value;
+        const title = document.getElementById('col-title').value.trim();
+        const summary = document.getElementById('col-summary').value.trim();
+        const rawLines = document.getElementById('col-content').value.split('\n').map(v => v.trim()).filter(Boolean).slice(0, 6);
+        const author = document.getElementById('col-author').value.trim() || '신명진 코치';
+        const published_at = document.getElementById('col-date').value.trim() || state.selectedDate;
+
+        if (title.length < 3 || summary.length < 10 || !rawLines.length) {
+          showToast('제목(3자↑), 요약(10자↑), 본문을 확인해 주세요');
+          return;
+        }
+
+        const newCol = { category, title, summary, content: rawLines, author, published_at };
+
+        if (state.isLive && state.trainerPassword) {
+          try {
+            const res = await postRecords({
+              action: 'columnSave',
+              password: state.trainerPassword,
+              date: state.selectedDate,
+              column: newCol
+            });
+            if (res?.status === 'success' && res.column) {
+              state.columns.unshift(res.column);
+            } else {
+              state.columns.unshift({ id: 'c-' + Date.now(), ...newCol });
+            }
+          } catch {
+            showToast('칼럼 서버 저장 중 오류가 발생해 로컬에 반영했어요');
+            state.columns.unshift({ id: 'c-' + Date.now(), ...newCol });
+          }
+        } else {
+          state.columns.unshift({ id: 'c-' + Date.now(), ...newCol });
+        }
+
+        closeModal();
+        triggerConfetti();
+        showToast('새 매거진 칼럼이 발행되었어요!');
+        renderAll();
       });
     }
 
@@ -635,12 +1419,6 @@
             showToast('코치 인증 중 오류가 발생했어요');
             return;
           }
-        } else {
-          // Demo preview fallback
-          state.trainerOverview = [
-            { name: '김윤지', lastDate: state.selectedDate, activeToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 2 },
-            { name: '이서연', lastDate: state.selectedDate, activeToday: true, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 3 }
-          ];
         }
         state.appMode = 'coach';
         state.fabOpen = false;
@@ -707,9 +1485,13 @@
               <span class="text-[16px] font-extrabold tracking-tight text-[#0F172A]">FIT-CONNECT</span>
               <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#1E3A8A] text-white">COACH</span>
             </div>
-            <button type="button" id="btn-back-member" class="tap-scale h-7 px-3 rounded-full bg-white text-[11px] font-bold text-[#1D4ED8] shadow-sm">회원 화면</button>
+            <div class="flex items-center gap-1.5">
+              <button type="button" id="btn-new-column" class="tap-scale h-7 px-2.5 rounded-full hero-navy text-[11px] font-extrabold text-white shadow-sm">+ 칼럼</button>
+              <button type="button" id="btn-back-member" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#1D4ED8] shadow-sm">회원 화면</button>
+            </div>
           </div>
         `;
+        document.getElementById('btn-new-column').addEventListener('click', openColumnPublishModal);
         document.getElementById('btn-back-member').addEventListener('click', () => { state.appMode = 'member'; renderAll(); });
       }
     }
@@ -732,11 +1514,13 @@
         }).join('');
         nav.querySelectorAll('.m-nav-btn').forEach(b => b.addEventListener('click', () => { state.memberTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
       } else {
-        nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-3 px-2 pt-2 pb-3';
+        // Coach 4-Tab Navigation: 오늘현황 · 전체회원 · 식단답장 · 잠수케어
+        nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-4 px-2 pt-2 pb-3';
         const tabs = [
           { id: 'today', label: '오늘현황', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
           { id: 'members', label: '전체회원', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-          { id: 'alerts', label: '피드백대기', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' }
+          { id: 'dietReply', label: '식단답장', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
+          { id: 'dormant', label: '잠수케어', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
         ];
         nav.innerHTML = tabs.map(t => {
           const act = state.coachTab === t.id;
@@ -765,6 +1549,8 @@
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || '오늘 기록을 남기면 코치님이 확인 후 맞춤 피드백을 보내드려요.';
       const pr = state.insights?.weekly?.improvements?.[0];
+      const missionEx = getPrimaryMissionExercise();
+      const missionDone = Array.isArray(missionEx.completedSets) && missionEx.completedSets.some(Boolean);
 
       if (state.memberTab === 'report') {
         return `
@@ -775,9 +1561,9 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-white">${state.selectedDate}</span>
-                    ${pr ? `<span class="text-[11px] font-bold text-[#5EEAD4]">${pr.name} +${pr.current - pr.previous}kg ▲</span>` : ''}
+                    ${pr ? `<button type="button" id="btn-hero-pr" class="tap-scale text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-[#5EEAD4]/20 text-[#5EEAD4]">🏆 ${escapeHtml(pr.name)} +${pr.current - pr.previous}kg ▲</button>` : ''}
                   </div>
-                  <h1 class="text-[22px] font-extrabold tracking-tight leading-snug mt-2">${state.memberName}님의<br/>오늘 컨디션 리포트</h1>
+                  <h1 class="text-[22px] font-extrabold tracking-tight leading-snug mt-2">${escapeHtml(state.memberName)}님의<br/>오늘 컨디션 리포트</h1>
                   <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[11px] font-bold">
                     <span class="flex items-center gap-1 text-[#60A5FA]"><span class="w-2 h-2 rounded-full bg-[#60A5FA]"></span>관리 ${score}</span>
                     <span class="flex items-center gap-1 text-[#5EEAD4]"><span class="w-2 h-2 rounded-full bg-[#5EEAD4]"></span>식단 ${ds.pct}%</span>
@@ -795,7 +1581,7 @@
                   <span class="text-[11px] font-bold text-white/90">FROM COACH</span>
                   <button type="button" id="go-lesson" class="text-[11px] font-bold text-[#60A5FA]">수업일지 ›</button>
                 </div>
-                <p class="text-[13px] text-white/90 leading-relaxed mt-1">${coachNote}</p>
+                <p class="text-[13px] text-white/90 leading-relaxed mt-1">${escapeHtml(coachNote)}</p>
               </div>
 
               <button type="button" id="btn-verify" class="tap-scale w-full mt-3.5 py-3.5 rounded-2xl text-[14px] font-extrabold transition flex items-center justify-center gap-1.5 shadow-md ${chk.workout === 'done' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white text-[#1E3A8A]'}">
@@ -819,10 +1605,35 @@
                     <div class="h-full bg-[#FDE68A]" style="width:${ds.protPct}%"></div>
                     <div class="h-full bg-[#99F6E4] rounded-r-full" style="width:${ds.fatPct}%"></div>
                   </div>
-                  <p class="text-[10px] font-semibold text-white/85 mt-1.5">수분 ${(ds.water/1000).toFixed(1)}L ›</p>
+                  <p class="text-[10px] font-semibold text-white/85 mt-1.5">수분 ${(ds.water/1000).toFixed(1)}L ${ds.photoCount ? `· 사진 ${ds.photoCount}장` : ''} ›</p>
                 </div>
               </button>
             </div>
+
+            <!-- Personal Mission Card & 10-Sec Form Tip Popup -->
+            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-[10px] font-extrabold uppercase tracking-wider text-[#0F766E]">TODAY'S MISSION</span>
+                  <h2 class="text-[16px] font-bold text-[#111827] mt-0.5">코치 지정 개인 미션</h2>
+                </div>
+                <button type="button" data-tip-ex="${escapeHtml(missionEx.name)}" class="btn-form-tip tap-scale px-3 py-1.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">
+                  💡 10초 자세 팁
+                </button>
+              </div>
+              <div class="mt-3 p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-[14px] font-extrabold text-[#111827] truncate">${escapeHtml(missionEx.name)}</p>
+                  <p class="text-[12px] text-[#6B7280] mt-0.5">${missionEx.sets || 3}세트 × ${missionEx.reps || 12}회 · ${escapeHtml(missionEx.note || '코어 호흡 유지')}</p>
+                </div>
+                <button type="button" id="btn-mission-toggle" class="tap-scale shrink-0 px-3.5 py-2 rounded-full text-[12px] font-extrabold ${missionDone ? 'card-teal text-white' : 'hero-navy text-white'}">
+                  ${missionDone ? '미션 완료 ✓' : '미션 체크'}
+                </button>
+              </div>
+            </section>
+
+            <!-- Weekly Workout Rhythm SVG Curve (workoutDays linked) -->
+            ${renderWeeklyRhythmSvg()}
 
             <!-- Compact Segmented Today Check (Live Syncs with /api/records action:'dailyCheckin') -->
             <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
@@ -837,11 +1648,12 @@
               <div class="flex items-center justify-between mb-3"><h2 class="text-[16px] font-bold text-[#111827]">오늘의 식단</h2><button type="button" id="go-diet-2" class="text-[12px] font-bold text-[#0F766E]">자세히 ›</button></div>
               <div class="grid grid-cols-3 gap-2.5">
                 ${[['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁']].map(([key, label]) => {
-                  const ml = state.record.diet[key] || {};
-                  const logged = !!(String(ml.desc || '').trim() || Number(ml.cal) > 0);
+                  const ml = normalizeMeal(state.record.diet[key]);
+                  const hasPhoto = ml.photos.length > 0;
+                  const logged = !!(String(ml.desc || '').trim() || Number(ml.cal) > 0 || hasPhoto);
                   return `
                     <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn tap-scale p-3.5 rounded-2xl text-center transition ${logged ? 'card-teal text-white shadow-sm' : 'bg-[#F4F6F9] text-[#111827]'}">
-                      <p class="text-[13px] font-bold">${label}</p>
+                      <p class="text-[13px] font-bold">${label} ${hasPhoto ? '📷' : ''}</p>
                       <p class="text-[11px] font-semibold tabular-nums mt-1 ${logged ? 'text-white/90' : 'text-[#0F766E]'}">${logged ? (ml.cal ? ml.cal + 'kcal' : '기록됨') : '원터치 +'}</p>
                     </button>
                   `;
@@ -854,7 +1666,7 @@
               <div class="min-w-0">
                 <span class="text-[10px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
                 <p class="text-[15px] font-bold text-[#111827] mt-1 truncate">운동이 더 쉬워지는 코치 인사이트</p>
-                <p class="text-[12px] text-[#6B7280] mt-0.5 truncate">${state.columns[0]?.title || '최신 코치 칼럼을 확인해 보세요'}</p>
+                <p class="text-[12px] text-[#6B7280] mt-0.5 truncate">${escapeHtml(state.columns[0]?.title || '최신 코치 칼럼을 확인해 보세요')}</p>
               </div>
               <span class="w-9 h-9 rounded-full bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm">›</span>
             </button>
@@ -866,30 +1678,50 @@
         const rs = state.record.routines || [];
         return `
           <div class="space-y-3.5 animate-in">
-            <div class="hero-navy rounded-[24px] p-5 text-white">
-              <div class="flex items-center justify-between">
+            <div class="hero-navy rounded-[24px] p-5 text-white space-y-3">
+              <div class="flex items-center justify-between flex-wrap gap-2">
                 <span class="text-[12px] font-bold text-[#60A5FA]">${state.selectedDate} 수업일지</span>
-                <button type="button" id="btn-start-rest" class="tap-scale px-3 py-1 rounded-full bg-white/15 text-[#5EEAD4] text-[11px] font-extrabold">
-                  <span id="rest-timer-badge">${state.restTimerSeconds > 0 ? '⏱ ' + state.restTimerSeconds + '초' : '⏱ 60초 휴식'}</span>
-                </button>
+                <div class="flex items-center gap-1.5">
+                  <button type="button" id="btn-rest-60" class="tap-scale px-3 py-1 rounded-full ${state.restTimerSeconds > 0 && state.restTimerDuration === 60 ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-[#5EEAD4]'} text-[11px] font-extrabold">
+                    ⏱ 60초 휴식
+                  </button>
+                  <button type="button" id="btn-rest-90" class="tap-scale px-3 py-1 rounded-full ${state.restTimerSeconds > 0 && state.restTimerDuration === 90 ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white'} text-[11px] font-extrabold">
+                    ⏱ 90초 휴식
+                  </button>
+                </div>
               </div>
-              <p class="text-[13px] text-white/90 mt-2.5 leading-relaxed">${coachNote}</p>
+              ${state.restTimerSeconds > 0 ? `
+                <div class="p-2.5 rounded-xl bg-white/15 flex items-center justify-between">
+                  <span class="text-[12px] font-bold text-[#5EEAD4]">휴식 타이머 작동 중</span>
+                  <span id="rest-timer-live" class="text-[13px] font-extrabold tabular-nums text-white">${state.restTimerSeconds}초 남음</span>
+                </div>
+              ` : ''}
+              <p class="text-[13px] text-white/90 leading-relaxed">${escapeHtml(coachNote)}</p>
             </div>
 
             <div class="bg-white rounded-[24px] p-5 space-y-2.5">
+              <div class="flex items-center justify-between pb-1">
+                <h2 class="text-[15px] font-bold text-[#111827]">오늘의 루틴 (${rs.length}종목)</h2>
+                <button type="button" id="btn-add-custom-ex" class="tap-scale px-3 py-1.5 rounded-full hero-navy text-white text-[11px] font-extrabold">
+                  + 개인운동 직접 추가
+                </button>
+              </div>
               ${rs.length ? rs.map((r, i) => {
                 const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
                 return `
                   <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
-                    <div>
-                      <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${r.name || '운동'}</p>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <p class="text-[14px] font-bold text-[#111827] truncate">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
+                        <button type="button" data-tip-ex="${escapeHtml(r.name || '')}" class="btn-form-tip shrink-0 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white text-[#1D4ED8] shadow-sm">10초 팁</button>
+                      </div>
                       <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>
-                      ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${r.note}</p>` : ''}
+                      ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${escapeHtml(r.note)}</p>` : ''}
                     </div>
                     <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
                   </div>
                 `;
-              }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 코치님이 루틴을 올리면 여기에 바로 표시됩니다.</div>`}
+              }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단의 '+ 개인운동 직접 추가' 버튼으로 나만의 루틴을 기록해 보세요!</div>`}
             </div>
           </div>
         `;
@@ -901,18 +1733,22 @@
             <div class="card-teal rounded-[24px] p-5 text-white">
               <p class="text-[12px] font-bold text-white/80">오늘 섭취 칼로리</p>
               <p class="text-[28px] font-extrabold tabular-nums mt-1">${ds.kcal.toLocaleString()} <span class="text-[14px] font-medium text-white/80">/ ${state.targetKcal.toLocaleString()} kcal</span></p>
-              ${state.record.feedback?.diet ? `<p class="mt-2.5 p-2.5 rounded-xl bg-white/15 text-[12px]">코치 식단 피드백: "${state.record.feedback.diet}"</p>` : ''}
+              ${state.record.feedback?.diet ? `<p class="mt-2.5 p-2.5 rounded-xl bg-white/15 text-[12px]">코치 식단 피드백: "${escapeHtml(state.record.feedback.diet)}"</p>` : ''}
             </div>
             ${[['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']].map(([key, label]) => {
-              const ml = state.record.diet[key] || {};
-              const logged = !!(String(ml.desc || '').trim() || Number(ml.cal) > 0);
+              const ml = normalizeMeal(state.record.diet[key]);
+              const photo = ml.photos[0] || '';
+              const logged = !!(String(ml.desc || '').trim() || Number(ml.cal) > 0 || photo);
               return `
-                <div class="bg-white rounded-[22px] p-4 flex items-center justify-between gap-2">
-                  <div>
-                    <p class="text-[15px] font-bold text-[#111827]">${label}</p>
-                    <p class="text-[12px] text-[#6B7280] mt-0.5">${ml.desc || '아직 기록 전이에요'}</p>
+                <div class="bg-white rounded-[22px] p-4 space-y-2.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-[15px] font-bold text-[#111827]">${label} ${photo ? '<span class="text-[11px] font-bold text-[#0F766E]">📷 사진 첨부됨</span>' : ''}</p>
+                      <p class="text-[12px] text-[#6B7280] mt-0.5 truncate">${escapeHtml(ml.desc || '아직 기록 전이에요')}</p>
+                    </div>
+                    <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn shrink-0 px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '사진·기록'}</button>
                   </div>
-                  <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
+                  ${photo ? `<img src="${photo}" alt="${label} 식단 사진" class="w-full h-36 object-cover rounded-2xl" />` : ''}
                 </div>
               `;
             }).join('')}
@@ -925,6 +1761,7 @@
         const imps = state.insights?.weekly?.improvements || [];
         return `
           <div class="space-y-3.5 animate-in">
+            ${renderWeeklyRhythmSvg()}
             <div class="bg-white rounded-[24px] p-5 space-y-3">
               <h2 class="text-[16px] font-bold text-[#111827]">이번 주 성장 요약</h2>
               <div class="grid grid-cols-3 gap-2 text-center">
@@ -933,9 +1770,19 @@
                 <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">식단 기록</p><p class="text-[18px] font-extrabold text-[#0F766E] mt-0.5">${state.insights?.careSummary?.dietDays || 0}일</p></div>
               </div>
               ${imps.length ? `
-                <div class="pt-2 space-y-1.5">
-                  <p class="text-[12px] font-bold text-[#1D4ED8]">지난주 대비 증량 성공</p>
-                  ${imps.map(it => `<div class="p-3 rounded-xl bg-[#EFF6FF] flex justify-between text-[13px]"><span class="font-bold text-[#111827]">${it.name}</span><span class="font-bold text-[#1D4ED8]">${it.previous}kg → ${it.current}kg</span></div>`).join('')}
+                <div class="pt-2 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <p class="text-[12px] font-bold text-[#1D4ED8]">🏆 지난주 대비 증량 성공 (클릭 시 PR 공유 카드)</p>
+                  </div>
+                  ${imps.map((it, idx) => `
+                    <button type="button" data-pr-idx="${idx}" class="pr-card-btn tap-scale w-full p-3.5 rounded-2xl bg-[#EFF6FF] hover:bg-[#DBEAFE] flex items-center justify-between text-left">
+                      <div>
+                        <span class="text-[14px] font-extrabold text-[#111827]">${escapeHtml(it.name)}</span>
+                        <p class="text-[11px] text-[#1D4ED8] font-bold mt-0.5">PR 공유 카드 열기 · 텍스트 복사 ›</p>
+                      </div>
+                      <span class="text-[14px] font-extrabold text-[#1D4ED8] tabular-nums">${it.previous}kg → ${it.current}kg (+${it.current - it.previous}kg)</span>
+                    </button>
+                  `).join('')}
                 </div>
               ` : ''}
             </div>
@@ -952,10 +1799,10 @@
             ${memos.length ? memos.map(f => `
               <div class="p-3.5 rounded-2xl ${f.from === 'trainer' ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'}">
                 <div class="flex justify-between text-[11px] mb-1">
-                  <span class="font-bold ${f.from === 'trainer' ? 'text-[#1D4ED8]' : 'text-[#111827]'}">${f.from === 'trainer' ? '담당 코치' : state.memberName + ' 회원님'}</span>
-                  <span class="text-[#9CA3AF]">${f.time || ''}</span>
+                  <span class="font-bold ${f.from === 'trainer' ? 'text-[#1D4ED8]' : 'text-[#111827]'}">${f.from === 'trainer' ? '담당 코치' : escapeHtml(state.memberName) + ' 회원님'}</span>
+                  <span class="text-[#9CA3AF]">${escapeHtml(f.time || '')}</span>
                 </div>
-                <p class="text-[13px] text-[#374151]">${f.text || ''}</p>
+                <p class="text-[13px] text-[#374151]">${escapeHtml(f.text || '')}</p>
               </div>
             `).join('') : '<p class="text-[13px] text-[#6B7280] py-4 text-center">코치님께 궁금한 점을 편하게 남겨보세요.</p>'}
             <form id="memo-form" class="pt-2 flex gap-2">
@@ -967,34 +1814,138 @@
       `;
     }
 
-    // --- Coach View ---
+    // --- Coach View (4 Tabs: 오늘현황 · 전체회원 · 식단답장 · 잠수케어) ---
+    function renderCoachMemberCard(m) {
+      const inactiveDays = m.lastDate ? daysBetween(m.lastDate, state.selectedDate) : 14;
+      return `
+        <div class="bg-white rounded-[22px] p-4 shadow-sm space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-[16px] font-extrabold text-[#111827]">${escapeHtml(m.name)}</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">주 ${m.weeklyWorkoutDays || 0}회 운동</span>
+              </div>
+              <p class="text-[12px] text-[#6B7280] mt-0.5">최근 기록: ${escapeHtml(m.lastDate || '기록 없음')} ${inactiveDays >= 3 ? `(${inactiveDays}일 전)` : ''}</p>
+            </div>
+            <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${m.pendingWorkout || m.pendingDiet ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">
+              ${m.pendingWorkout || m.pendingDiet ? '피드백 대기' : '관리 완료'}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
+            <button type="button" data-mname="${escapeHtml(m.name)}" class="btn-coach-brief tap-scale py-2.5 rounded-xl bg-[#F4F6F9] hover:bg-[#EFF6FF] text-[#1E3A8A] text-[12px] font-extrabold">
+              📋 5분 전 브리핑
+            </button>
+            <button type="button" data-mname="${escapeHtml(m.name)}" class="btn-coach-qlog tap-scale py-2.5 rounded-xl hero-navy text-white text-[12px] font-extrabold">
+              ⚡ 30초 일지 발행
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
     function renderCoachView() {
       const list = state.trainerOverview || [];
-      const pendingList = list.filter(m => m.pendingWorkout || m.pendingDiet);
-      const shown = state.coachTab === 'alerts' ? pendingList : list;
+      const pendingDietList = list.filter(m => m.pendingDiet || m.dietToday);
+      const dormantList = list.filter(m => !m.lastDate || daysBetween(m.lastDate, state.selectedDate) >= 3 || (m.weeklyWorkoutDays || 0) === 0);
+      const pendingTotal = list.filter(m => m.pendingWorkout || m.pendingDiet).length;
+
+      if (state.coachTab === 'dietReply') {
+        const targets = pendingDietList.length ? pendingDietList : list;
+        const quickReplies = [
+          '단백질과 탄수화물 비율이 아주 좋습니다! 저녁에도 수분 500ml만 더 챙겨주세요 👍',
+          '클린한 식단 잘 유지하고 계시네요! 운동 전후 단백질 보충 아주 훌륭합니다.',
+          '외식 메뉴에서도 양 조절을 잘해주셨어요! 다음 끼니는 가볍게 채소·단백질 위주로 가볼까요?'
+        ];
+        return `
+          <div class="space-y-3.5 animate-in">
+            <section class="card-teal rounded-[26px] p-5 text-white">
+              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15">식단 원터치 답장</span>
+              <h1 class="text-[20px] font-extrabold mt-2">식단 피드백 대기 ${pendingDietList.length}명</h1>
+              <p class="text-[12px] text-white/85 mt-1">프리셋 버튼이나 한줄 코멘트로 즉시 feedback.diet를 패치 저장합니다.</p>
+            </section>
+
+            <div class="space-y-3">
+              ${targets.map((m, idx) => `
+                <div class="bg-white rounded-[22px] p-4 shadow-sm space-y-3">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <span class="text-[15px] font-extrabold text-[#111827]">${escapeHtml(m.name)} 회원님</span>
+                      <span class="ml-1.5 text-[11px] font-bold text-[#0F766E]">주 ${m.weeklyDietDays || 1}일 식단 기록</span>
+                    </div>
+                    <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ${m.pendingDiet ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">${m.pendingDiet ? '답장 대기' : '답장 완료'}</span>
+                  </div>
+                  <div class="flex flex-wrap gap-1.5">
+                    ${quickReplies.map((qr, qidx) => `
+                      <button type="button" data-mname="${escapeHtml(m.name)}" data-reply="${escapeHtml(qr)}" class="btn-diet-preset tap-scale px-2.5 py-1.5 rounded-xl bg-[#F0FDFA] text-[#0F766E] text-[11px] font-bold text-left">
+                        원터치 ${qidx + 1}: ${escapeHtml(qr.slice(0, 20))}…
+                      </button>
+                    `).join('')}
+                  </div>
+                  <div class="flex gap-2">
+                    <input id="diet-reply-inp-${idx}" type="text" placeholder="${escapeHtml(m.name)} 회원님께 식단 피드백 입력" class="flex-1 text-[12px] px-3.5 py-2.5 rounded-xl bg-[#F4F6F9] focus:outline-none" />
+                    <button type="button" data-mname="${escapeHtml(m.name)}" data-inp="diet-reply-inp-${idx}" class="btn-diet-send tap-scale px-3.5 py-2.5 rounded-xl hero-navy text-white text-[12px] font-extrabold shrink-0">저장</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      if (state.coachTab === 'dormant') {
+        return `
+          <div class="space-y-3.5 animate-in">
+            <section class="hero-navy rounded-[26px] p-5 text-white">
+              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#FDE68A]">RETENTION CARE</span>
+              <h1 class="text-[20px] font-extrabold mt-2">잠수 · 미출석 케어 대상 ${dormantList.length}명</h1>
+              <p class="text-[12px] text-white/80 mt-1">최근 3일 이상 기록이 없거나 주간 운동이 0회인 회원에게 안부 메모를 발송하세요.</p>
+            </section>
+
+            <div class="space-y-2.5">
+              ${dormantList.length ? dormantList.map(m => {
+                const gap = m.lastDate ? daysBetween(m.lastDate, state.selectedDate) : 14;
+                const careMsg = `${m.name} 회원님! 최근 ${gap}일 동안 기록이 비어 있어 컨디션이 괜찮으신지 안부 연락드려요. 오늘 가벼운 스트레칭이나 수분 섭취부터 함께 다시 시작해 볼까요? 😊`;
+                return `
+                  <div class="bg-white rounded-[22px] p-4 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <span class="text-[15px] font-extrabold text-[#111827]">${escapeHtml(m.name)}</span>
+                        <span class="ml-2 text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700">${gap}일 미기록</span>
+                      </div>
+                      <span class="text-[11px] text-[#6B7280]">최근: ${escapeHtml(m.lastDate || '없음')}</span>
+                    </div>
+                    <p class="text-[12px] text-[#4B5563] p-3 rounded-xl bg-[#F4F6F9] leading-relaxed">"${escapeHtml(careMsg)}"</p>
+                    <div class="grid grid-cols-2 gap-2">
+                      <button type="button" data-msg="${escapeHtml(careMsg)}" class="btn-copy-dormant tap-scale py-2.5 rounded-xl bg-[#F4F6F9] text-[#111827] text-[12px] font-bold">
+                        📋 카톡 안부 복사
+                      </button>
+                      <button type="button" data-mname="${escapeHtml(m.name)}" data-msg="${escapeHtml(careMsg)}" class="btn-send-dormant tap-scale py-2.5 rounded-xl hero-navy text-white text-[12px] font-extrabold">
+                        💬 앱 메모 즉시 발송
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('') : '<div class="bg-white rounded-[22px] p-6 text-center text-[13px] text-[#6B7280]">현재 3일 이상 잠수 중인 회원이 없습니다 🎉</div>'}
+            </div>
+          </div>
+        `;
+      }
+
+      const shown = state.coachTab === 'today' ? list.filter(m => m.activeToday || m.pendingWorkout || m.pendingDiet) : list;
+      const finalShown = shown.length ? shown : list;
 
       return `
         <div class="space-y-3.5 animate-in">
           <section class="hero-navy rounded-[26px] p-5 text-white">
-            <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.selectedDate} 코치 현황</span>
-            <h1 class="text-[21px] font-extrabold mt-2">전체 ${list.length}명 중<br/>피드백 대기 ${pendingList.length}건</h1>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.selectedDate} 코치 대시보드</span>
+              <span class="text-[11px] font-bold text-white/80">칼럼 ${state.columns.length}편</span>
+            </div>
+            <h1 class="text-[21px] font-extrabold mt-2">전체 ${list.length}명 중<br/>피드백 대기 ${pendingTotal}건 · 잠수케어 ${dormantList.length}명</h1>
           </section>
 
           <div class="space-y-2.5">
-            ${shown.length ? shown.map(m => `
-              <div class="bg-white rounded-[22px] p-4 shadow-sm flex items-center justify-between gap-2">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <span class="text-[15px] font-bold text-[#111827]">${m.name}</span>
-                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">주 ${m.weeklyWorkoutDays || 0}회</span>
-                  </div>
-                  <p class="text-[12px] text-[#6B7280] mt-0.5">최근 기록: ${m.lastDate || '없음'}</p>
-                </div>
-                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${m.pendingWorkout || m.pendingDiet ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">
-                  ${m.pendingWorkout || m.pendingDiet ? '피드백 대기' : '관리 완료'}
-                </span>
-              </div>
-            `).join('') : '<div class="bg-white rounded-[22px] p-6 text-center text-[13px] text-[#6B7280]">표시할 회원이 없습니다.</div>'}
+            ${finalShown.length ? finalShown.map(renderCoachMemberCard).join('') : '<div class="bg-white rounded-[22px] p-6 text-center text-[13px] text-[#6B7280]">표시할 회원이 없습니다.</div>'}
           </div>
         </div>
       `;
@@ -1022,16 +1973,72 @@
       bindEvents();
     }
 
+    async function sendCoachDietFeedback(memberName, replyText) {
+      if (!replyText) return;
+      const fb = { workout: state.record.feedback?.workout || '', diet: replyText, time: nowTimeHHMM() };
+      if (memberName === state.memberName) {
+        state.record.feedback = fb;
+      }
+      if (state.coachMemberCache[memberName]) {
+        state.coachMemberCache[memberName].record.feedback = fb;
+      }
+      const ov = state.trainerOverview.find(m => m.name === memberName);
+      if (ov) {
+        ov.pendingDiet = false;
+        ov.feedbackDone = true;
+      }
+      triggerConfetti();
+      showToast(`${memberName} 회원님 식단 답장이 저장되었어요!`);
+      renderAll();
+      await savePatchLive({ feedback: fb }, memberName, state.selectedDate);
+    }
+
     function bindEvents() {
       const vBtn = document.getElementById('btn-verify');
       if (vBtn) {
         vBtn.addEventListener('click', () => {
           const nextVal = state.record.dailyCheckin.workout === 'done' ? 'rest' : 'done';
           state.record.dailyCheckin.workout = nextVal;
-          if (nextVal === 'done') triggerConfetti();
+          if (nextVal === 'done') {
+            if (!state.workoutDays.includes(state.selectedDate)) state.workoutDays.push(state.selectedDate);
+            triggerConfetti();
+          }
           showToast(nextVal === 'done' ? '오늘 운동 인증 완료!' : '회복 상태로 변경했어요');
           renderAll();
           saveDailyCheckinLive({ ...state.record.dailyCheckin, workout: nextVal });
+        });
+      }
+
+      const heroPrBtn = document.getElementById('btn-hero-pr');
+      if (heroPrBtn) heroPrBtn.addEventListener('click', () => openPrShareModal(0));
+
+      document.querySelectorAll('.pr-card-btn').forEach(b => {
+        b.addEventListener('click', () => openPrShareModal(Number(b.dataset.prIdx) || 0));
+      });
+
+      document.querySelectorAll('.btn-form-tip').forEach(b => {
+        b.addEventListener('click', () => openFormTipModal(b.dataset.tipEx));
+      });
+
+      const missionBtn = document.getElementById('btn-mission-toggle');
+      if (missionBtn) {
+        missionBtn.addEventListener('click', () => {
+          const rs = state.record.routines || [];
+          const target = rs.find(r => /숙제|개인|데드버그/.test(String(r.name || ''))) || rs[0];
+          if (target) {
+            const sCount = Math.max(1, Number(target.sets) || 3);
+            const done = Array.isArray(target.completedSets) && target.completedSets.some(Boolean);
+            target.completedSets = Array(sCount).fill(!done);
+            if (!done) {
+              if (!state.workoutDays.includes(state.selectedDate)) state.workoutDays.push(state.selectedDate);
+              triggerConfetti();
+              showToast('오늘 개인 미션 완료!');
+            } else {
+              showToast('개인 미션 체크를 해제했어요');
+            }
+            renderAll();
+            saveFullRecordLive();
+          }
         });
       }
 
@@ -1040,6 +2047,9 @@
           const grp = b.dataset.grp;
           const val = b.dataset.val;
           state.record.dailyCheckin[grp] = val;
+          if (grp === 'workout' && val === 'done' && !state.workoutDays.includes(state.selectedDate)) {
+            state.workoutDays.push(state.selectedDate);
+          }
           showToast('오늘 상태가 저장되었어요');
           renderAll();
           saveDailyCheckinLive({ ...state.record.dailyCheckin });
@@ -1058,14 +2068,22 @@
           const setsCount = Math.max(1, Number(r.sets) || (Array.isArray(r.completedSets) ? r.completedSets.length : 3));
           const currentlyDone = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
           r.completedSets = Array(setsCount).fill(!currentlyDone);
-          if (!currentlyDone) triggerConfetti();
+          if (!currentlyDone) {
+            if (!state.workoutDays.includes(state.selectedDate)) state.workoutDays.push(state.selectedDate);
+            triggerConfetti();
+          }
           renderAll();
           saveFullRecordLive();
         });
       });
 
-      const restBtn = document.getElementById('btn-start-rest');
-      if (restBtn) restBtn.addEventListener('click', () => startRestTimer(60));
+      const rest60Btn = document.getElementById('btn-rest-60');
+      if (rest60Btn) rest60Btn.addEventListener('click', () => startRestTimer(60));
+      const rest90Btn = document.getElementById('btn-rest-90');
+      if (rest90Btn) rest90Btn.addEventListener('click', () => startRestTimer(90));
+
+      const addExBtn = document.getElementById('btn-add-custom-ex');
+      if (addExBtn) addExBtn.addEventListener('click', openAddExerciseModal);
 
       const magBtn = document.getElementById('btn-open-magazine');
       if (magBtn) magBtn.addEventListener('click', () => openMagazineModal(0));
@@ -1094,6 +2112,46 @@
       if (goD) goD.addEventListener('click', () => { state.memberTab = 'diet'; renderAll(); });
       const goD2 = document.getElementById('go-diet-2');
       if (goD2) goD2.addEventListener('click', () => { state.memberTab = 'diet'; renderAll(); });
+
+      // Coach Actions
+      document.querySelectorAll('.btn-coach-brief').forEach(b => {
+        b.addEventListener('click', () => openCoachBriefingModal(b.dataset.mname));
+      });
+      document.querySelectorAll('.btn-coach-qlog').forEach(b => {
+        b.addEventListener('click', () => openQuickLogPublishModal(b.dataset.mname));
+      });
+      document.querySelectorAll('.btn-diet-preset').forEach(b => {
+        b.addEventListener('click', () => sendCoachDietFeedback(b.dataset.mname, b.dataset.reply));
+      });
+      document.querySelectorAll('.btn-diet-send').forEach(b => {
+        b.addEventListener('click', () => {
+          const inp = document.getElementById(b.dataset.inp);
+          const val = inp ? inp.value.trim() : '';
+          if (!val) {
+            showToast('식단 답장 내용을 입력해 주세요');
+            return;
+          }
+          sendCoachDietFeedback(b.dataset.mname, val);
+        });
+      });
+      document.querySelectorAll('.btn-copy-dormant').forEach(b => {
+        b.addEventListener('click', () => copyTextToClipboard(b.dataset.msg, '잠수케어 안부 메시지가 복사되었어요!'));
+      });
+      document.querySelectorAll('.btn-send-dormant').forEach(b => {
+        b.addEventListener('click', async () => {
+          const mname = b.dataset.mname;
+          const msg = b.dataset.msg;
+          const ctx = await fetchMemberContextForCoach(mname);
+          const memoItem = { id: Date.now() + '-care', from: 'trainer', text: msg, time: nowTimeHHMM() };
+          ctx.record.memos.push(memoItem);
+          if (mname === state.memberName) state.record.memos.push(memoItem);
+          const ov = state.trainerOverview.find(m => m.name === mname);
+          if (ov) ov.lastDate = state.selectedDate;
+          showToast(`${mname} 회원님께 안부 메모를 발송했어요!`);
+          renderAll();
+          await savePatchLive({ memos: ctx.record.memos }, mname, state.selectedDate);
+        });
+      });
     }
 
     // FAB listeners
@@ -1119,6 +2177,17 @@
     document.getElementById('modal-close').addEventListener('click', closeModal);
     document.getElementById('modal-backdrop').addEventListener('click', e => {
       if (e.target.id === 'modal-backdrop') closeModal();
+    });
+
+    // Privacy Consent listener
+    document.getElementById('btn-consent-agree').addEventListener('click', () => {
+      try {
+        localStorage.setItem('fit_connect_privacy_consent_v2', 'agreed');
+      } catch {}
+      const el = document.getElementById('consent-backdrop');
+      el.classList.add('hidden');
+      el.classList.remove('flex');
+      showToast('개인정보 수집 및 활용에 동의하셨습니다');
     });
 
     initLiveMemberData();

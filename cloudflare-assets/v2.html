@@ -1393,12 +1393,17 @@
 
     function openTrainerLoginModal() {
       openModal('코치 전용 로그인', `
-        <form id="coach-login-form" class="space-y-3">
+        <form id="coach-login-form" autocomplete="off" class="space-y-3">
           <p class="text-[12px] text-[#6B7280]">기존 FIT-CONNECT 트레이너 비밀번호를 입력하면 전체 회원 현황을 불러옵니다.</p>
-          <input id="coach-pw" type="password" required placeholder="트레이너 비밀번호" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
+          <input id="coach-pw" type="password" value="" autocomplete="new-password" required placeholder="트레이너 비밀번호" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
           <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-bold">코치 모드로 전환</button>
         </form>
       `);
+      const pwInput = document.getElementById('coach-pw');
+      if (pwInput) {
+        pwInput.value = '';
+        setTimeout(() => { pwInput.value = ''; }, 50);
+      }
       document.getElementById('coach-login-form').addEventListener('submit', async e => {
         e.preventDefault();
         const pw = document.getElementById('coach-pw').value;

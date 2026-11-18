@@ -113,9 +113,12 @@
     if (!root || !week) return;
     const dates = week.dates.filter(date => date <= selectedDate);
     const counts = [], groups = [0,0,0];
+    const confirmations = [];
     for (const date of dates) {
       const record = date === selectedDate ? data : week.records.get(date);
       if (!record) { counts.push(null); continue; }
+      const check = date===selectedDate ? {...readDailyCheckin(record),...pendingChecks()} : readDailyCheckin(record);
+      if(check.workout==='done')confirmations.push(counts.length);
       const routines = record.routines || [];
       counts.push(workoutTotals(routines).done);
       for (const exercise of routines) groups[workoutGroup(exercise.name)] += workoutTotals([exercise]).done;
@@ -133,9 +136,12 @@
       return fill+'<path fill="none" stroke="url(#reportCurve)" stroke-width="3" stroke-linecap="round" d="'+path+'"/>'+
         points.map(([x,y]) => '<circle cx="'+x+'" cy="'+y+'" r="3.5" fill="#2563eb"/>').join('');
     }).join('');
-    root.querySelector('[data-week-days]').textContent = '운동 '+counts.filter(n => n>0).length+'일';
+    root.querySelector('[data-week-lines]').insertAdjacentHTML('beforeend',confirmations.map(i=>
+      '<circle cx="'+(16+i*48)+'" cy="7" r="3.5" fill="#0d9488"><title>운동 인증</title></circle>').join(''));
+    const activeDays=counts.filter((n,i)=>n>0||confirmations.includes(i)).length;
+    root.querySelector('[data-week-days]').textContent = '운동 '+activeDays+'일';
     root.querySelector('[data-week-values]').innerHTML = dayNames.map((day,i) =>
-      '<span>'+day+'<small>'+(i<counts.length ? counts[i] ?? '—' : '·')+'</small></span>').join('');
+      '<span>'+day+'<small>'+(i<counts.length ? counts[i] ?? '—' : '·')+(confirmations.includes(i)?' ✓':'')+'</small></span>').join('');
     const total = groups.reduce((sum,n) => sum+n,0);
     const labels = ['상체','하체','코어·기타'];
     root.querySelector('[data-week-stack]').innerHTML = groups.map((n,i) =>
@@ -143,7 +149,7 @@
     root.querySelector('[data-week-legend]').textContent = total
       ? labels.map((label,i) => label+' '+Math.round(groups[i]/total*100)+'%').join(' · ')
       : week.loading ? '이번 주 기록을 확인하고 있어요.' : week.partial ? '일부 기록을 불러오지 못했어요.' : '완료한 세트가 쌓이면 비중을 보여드려요.';
-    root.querySelector('[data-week-status]').textContent = week.loading ? '지난 기록 확인 중' : week.partial ? '조회된 기록 기준' : '완료 세트 기준';
+    root.querySelector('[data-week-status]').textContent = week.loading ? '지난 기록 확인 중' : week.partial ? '조회된 기록 기준' : '세트 수 · ✓ 운동 인증';
   }
 
   async function loadWeek(model, context) {

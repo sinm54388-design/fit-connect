@@ -900,63 +900,13 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
 #fcTrainerDetails .trainer-workspace-metrics{margin:0 0 16px}#fcTrainerDetails section{margin:14px 0}
 @media(prefers-reduced-motion:reduce){.fc-focus-fold *{scroll-behavior:auto!important}}
 </style>
-<style id="fc-light-coaching">
-html { color-scheme: light; }
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) {
-  --fc-text:#17263d; --fc-text-2:#334763; --fc-muted:#546780;
-  --fc-card:#fff; --fc-card-2:#f0f5fb; --fc-line:#dbe4f0; --fc-line-2:#bacbe0;
-  --fc-shadow:0 8px 24px #2947790c; --fc-lime:#087760; --fc-orange:#995019; --fc-violet:#5747bd;
-  background:#edf2f9!important; color:#17263d!important;
-}
-html body:not(.trainer-light-theme)::before {background:#f7f9fd!important;box-shadow:0 0 0 1px #dbe4f0!important;}
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) #appHeader,
-html body #memberBottomNav,html body #trainerAppNav,html body #fcQuickActions,
-html body #fcDateChips {background:#ffffffef!important;border-color:#dbe4f0!important;box-shadow:0 6px 20px #29477912!important;}
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) #appHeader :is(h1,#currentDateInput,#btnMemberMode,#btnTrainerMode) {color:#17263d!important;}
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) #appHeader>div>div:last-child>div,
-html body #appHeader #currentDateInput {background:#edf2fa!important;border-color:#dbe4f0!important;}
-html body #fcDateChips .fc-date-chip:not(.fc-selected) {background:#eef3fa!important;color:#304560!important;border-color:#dbe4f0!important;box-shadow:none!important;}
-html body #fcDateChips .fc-date-chip:not(.fc-selected) * {color:inherit!important;}
-html body #fcDateChips .fc-date-chip.fc-selected {background:#514bc4!important;color:white!important;border-color:#514bc4!important;}
-html body #fcDateChips .fc-date-chip.fc-selected * {color:inherit!important;}
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) {
-  --trainer-ink:#17263d;--trainer-muted:#546780;--trainer-line:#dbe4f0;color:#17263d!important;
-}
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) :is(
-  .rounded-2xl,.rounded-3xl,.bg-white,.bg-slate-900,.bg-slate-950,.bg-slate-800,[class~="bg-slate-800/60"],
-  .trainer-workspace-hero,.trainer-workspace-dashboard,.trainer-workspace-activity,.trainer-workspace-side-card,
-  .trainer-workspace-report-card,.trainer-workspace-metric,.trainer-workspace-member,.trainer-fold,.home-record-card,
-  #fcColumnTrainerPanel,#fcCareSummary,#fcCheckinFold,#fcDailyMetricsFold,#fcTrainerDetails) {
-  background:#fff!important;border-color:#dbe4f0!important;color:#17263d!important;box-shadow:0 6px 20px #2947790c!important;
-}
-html body:not(.trainer-light-theme) #memberView #memberHomePage #fcCoachCard {background:#eef3ff!important;border-color:#d6e1f7!important;color:#17263d!important;}
-html body #memberHomePage #fcCoachCard :is(.fc-coach-eyebrow,.fc-coach-cta) {color:#4637a9;}
-html body #memberHomePage #fcCoachCard .fc-coach-time {color:#465873;}
-html body #memberHomePage #fcCoachCard .fc-coach-msg small {color:#334763;}
-html body #memberHomePage :is(#fcGreet,.fc-coach-title,.fc-coach-msg,.fc-focus-card h3,.fc-care-grid strong,.fc-focus-fold summary),
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) :is(h2,h3,h4,.text-white,.text-slate-100,.text-slate-200,.text-slate-900,.text-slate-800,.text-slate-700) {color:#17263d!important;}
-html body #memberHomePage :is(.fc-coach-empty,.fc-coach-msg p,.fc-focus-card p,.fc-care-grid span,.fc-care-grid small,.fc-workout-status),
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) :is(.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.trainer-workspace-subtle) {color:#546780!important;}
-html body:is(.trainer-light-theme,:not(.trainer-light-theme)) :is(#memberView,#trainerView) :is(input:not([type=checkbox]):not([type=radio]),textarea,select) {background:#f3f6fc!important;color:#17263d!important;border-color:#cbd8eb!important;}
-html body :is(#memberBottomNav,#trainerAppNav) button {color:#425674!important;}
-html body :is(#memberBottomNav,#trainerAppNav) button.selected {background:#eeeafe!important;color:#4637a9!important;}
-html body :is(#memberBottomNav,#trainerAppNav) button.selected i {color:inherit!important;filter:none!important;}
-html body #fcHomeRecordActions button,html body #fcQuickActions button:last-child {background:#edf2fb!important;color:#253a56!important;border-color:#d5e0f0!important;}
-html body #fcHomeRecordActions button:first-child,html body #fcQuickActions button:first-child,
-html body #trainerView .fc-column-publish {background:#514bc4!important;color:white!important;border-color:#514bc4!important;}
-html body #fcMagazineShortcut,html body .fc-weekly-sheet,
-html body .fc-weekly-sheet :is(.fc-weekly-card,.fc-weekly-close,.fc-weekly-back,input,select,textarea),
-html body #fcSkeleton .fc-skeleton-shell {background:#fff!important;border-color:#dbe4f0!important;color:#17263d!important;}
-html body .fc-weekly-sheet :is(p,.fc-weekly-author,.fc-column-editor label,.fc-column-editor-help) {color:#546780!important;}
-html body :is(.fc-weekly-meta,.fc-weekly-kicker,.fc-care-retry,.fc-workout-status strong,.fc-column-panel-top span) {color:#087760!important;}
-html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#17263d!important;}
-</style>
 <style id="fc-member-safety-style">
 #fcDateChips[hidden],#habitCalendarTop[hidden]{display:none!important}
 .fc-video-ready-hint{margin-top:9px;padding:10px 12px;border-radius:12px;font-size:12px;font-weight:650;line-height:1.55;background:#f3f6fc;border:1px solid #cbd8eb;color:#425674}
 .fc-video-ready-hint[data-state="checking"]{color:#0b6fa4;border-color:#91d5f4;background:#eefaff}.fc-video-ready-hint[data-state="ready"]{color:#087760;border-color:#9bd5bf;background:#eefbf5}.fc-video-ready-hint[data-state="error"]{color:#b23a4f;border-color:#f3b4bf;background:#fff2f4}
 .fc-video-question-chips{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:9px}.fc-video-question-chips>span{font-size:11px;font-weight:700;color:#546780}.fc-video-question-chips button{min-height:32px!important;padding:5px 9px!important;border:1px solid #cbd8eb!important;border-radius:999px!important;background:#eef3ff!important;color:#4637a9!important;font-size:11px!important;font-weight:700!important}
 </style>
+<link rel="stylesheet" href="/fit-dark.css">
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
@@ -1617,14 +1567,16 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
               <h4 class="text-sm font-bold text-amber-400"><i class="fa-solid fa-images"></i> 회원 식단 사진 확인</h4>
               <div id="trainerMealPhotos" class="space-y-3"></div>
             </div>
-            <div class="pt-4 border-t border-slate-800 space-y-4">
+            <div class="trainer-feedback-compose space-y-4">
               <h4 class="text-sm font-bold text-brand-400"><i class="fa-solid fa-paper-plane"></i> 피드백 작성 및 전송하기</h4>
+              <div class="trainer-feedback-fields space-y-3 md:space-y-0">
               <div><label class="block text-sm font-semibold text-slate-200 mb-2">운동 코멘트</label>
                 <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('workout','오늘 운동 꾸준히 수행하신 점 좋습니다!')" class="quick-feedback-btn">꾸준한 수행 👏</button><button type="button" onclick="appendFeedbackTemplate('workout','무게보다 동작의 정확도와 호흡을 먼저 신경 써주세요.')" class="quick-feedback-btn">동작 정확도</button><button type="button" onclick="appendFeedbackTemplate('workout','불편한 동작은 무리하지 말고 다음 수업 때 함께 확인해요.')" class="quick-feedback-btn">불편함 확인</button></div>
                 <textarea id="inputFeedbackWorkout" rows="3" aria-label="운동 피드백" placeholder="운동 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
               <div><label class="block text-sm font-semibold text-slate-200 mb-2">식단 코멘트</label>
                 <div class="flex flex-wrap gap-2 mb-2"><button type="button" onclick="appendFeedbackTemplate('diet','식단을 빠짐없이 기록해주신 점 좋습니다!')" class="quick-feedback-btn">기록 칭찬</button><button type="button" onclick="appendFeedbackTemplate('diet','매 끼니 단백질 식품을 충분히 챙겨보세요.')" class="quick-feedback-btn">단백질</button><button type="button" onclick="appendFeedbackTemplate('diet','식사 구성과 양을 함께 점검해볼게요.')" class="quick-feedback-btn">식사 구성</button></div>
                 <textarea id="inputFeedbackDiet" rows="3" aria-label="식단 피드백" placeholder="식단 피드백 입력" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm leading-relaxed text-slate-100 focus:outline-none focus:border-brand-500"></textarea></div>
+              </div>
               <div class="flex justify-end"><button onclick="sendTrainerFeedback()" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg cursor-pointer">피드백 보내기</button></div>
               <button id="nextPendingMemberButton" type="button" hidden onclick="openNextPendingMember()">다음 확인할 회원</button>
             </div>
@@ -2216,9 +2168,7 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
         const meals=[['breakfast','아침'],['lunch','점심'],['dinner','저녁']];
         put(diet,'<div class="home-meal-grid">'+meals.map(([key,label])=>{
           const meal = data.diet?.[key] || {};
-          const recorded = Boolean(String(meal.desc||'').trim() || meal.photos?.length ||
-            meal.foods?.some(food => String(food?.name || '').trim()) ||
-            ['cal','carb','prot','fat'].some(field => Number(meal[field])));
+          const recorded = hasMemberMealRecord(meal);
           return '<button type="button" data-meal="'+key+'"><i aria-hidden="true" class="fa-solid '+(recorded?'fa-circle-check':'fa-plus')+'"></i><strong>'+label+'</strong><span>'+(recorded?'기록 보기':'기록하기')+'</span></button>';
         }).join('')+'</div>');
         const source=document.getElementById('memberInbodyChart');
@@ -2235,6 +2185,99 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
       const observer=new MutationObserver(()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;render();});});
       ['memberRoutineList','memberInbodyChart','memberCalorieText','feedbackWorkoutText','memberNameBadge'].forEach(id=>{const el=document.getElementById(id);if(el)observer.observe(el,{childList:true,subtree:true,characterData:true});});
       render();
+    }
+
+    function hasMemberMealRecord(meal = {}) {
+      return Boolean(String(meal.desc || '').trim() || meal.photos?.length ||
+        (Array.isArray(meal.foods) && meal.foods.some(food => String(food?.name || '').trim())) ||
+        ['cal','carb','prot','fat'].some(field => Number(meal[field])));
+    }
+
+    function memberRecordBalance(data) {
+      let sets = 0;
+      let completed = 0;
+      for (const routine of data.routines || []) {
+        const planned = Number(routine?.sets);
+        if (!Number.isFinite(planned) || planned <= 0) continue;
+        sets += planned;
+        const checked = Array.isArray(routine.completedSets) ? routine.completedSets.filter(Boolean).length : 0;
+        completed += Math.min(planned, checked);
+      }
+      const meals = ['breakfast','lunch','dinner'].filter(key => hasMemberMealRecord(data.diet?.[key])).length;
+      const checkin = readDailyCheckin(data);
+      const checks = ['workout','diet','mood'].filter(key => Boolean(checkin[key])).length;
+      const waterLogged = Number(data.diet?.water) > 0;
+      const reflectionLogged = ['good','bad'].some(key => String(data.reflection?.[key] || '').trim());
+      const axes = [
+        {label:'운동 세트', ratio:sets ? completed / sets : null, detail:sets ? completed+'/'+sets+'세트' : '루틴 없음'},
+        {label:'끼니 기록', ratio:meals / 3, detail:meals+'/3끼'},
+        {label:'상태 체크', ratio:checks / 3, detail:checks+'/3개'},
+        {label:'수분 기록', ratio:Number(waterLogged), detail:waterLogged ? '기록 있음' : '미기록'},
+        {label:'운동 소감', ratio:Number(reflectionLogged), detail:reflectionLogged ? '기록 있음' : '미기록'}
+      ];
+      const applicable = axes.filter(axis => axis.ratio !== null);
+      const score = Math.round(applicable.reduce((sum, axis) => sum + axis.ratio, 0) / applicable.length * 100);
+      return {axes, score};
+    }
+
+    function balanceRadarPoint(index, ratio, radius = 58) {
+      const angle = index * 2 * Math.PI / 5 - Math.PI / 2;
+      return [100 + Math.cos(angle) * radius * ratio, 88 + Math.sin(angle) * radius * ratio]
+        .map(value => value.toFixed(1)).join(',');
+    }
+
+    function setupMemberBalance() {
+      const card = document.createElement('section');
+      card.id = 'fitMemberBalance';
+      card.className = 'fc-focus-card fit-balance';
+      const grid = [0.25,0.5,0.75,1].map(level => {
+        const points = Array.from({length:5}, (_, index) => balanceRadarPoint(index,level));
+        return '<polygon class="fit-balance-grid" points="'+points.join(' ')+'"/>';
+      }).join('');
+      const spokes = Array.from({length:5}, (_,index) => {
+        const [x,y] = balanceRadarPoint(index,1).split(',');
+        return '<line x1="100" y1="88" x2="'+x+'" y2="'+y+'"/>';
+      }).join('');
+      const labels = Array.from({length:5}, (_,index) => {
+        const [x,y] = balanceRadarPoint(index,1,76).split(',');
+        return '<text class="fit-balance-scale" x="'+x+'" y="'+y+'">'+(index+1)+'</text>';
+      }).join('');
+      card.innerHTML = `<h3>기록 균형</h3><p class="fit-balance-date"></p>
+        <figure class="fit-balance-layout">
+          <svg viewBox="0 0 200 166" aria-hidden="true">
+            <defs>
+              <linearGradient id="fit-radar-stroke" gradientUnits="userSpaceOnUse" x1="42" y1="26" x2="158" y2="150">
+                <stop stop-color="#548fff"/><stop offset="1" stop-color="#42efd8"/>
+              </linearGradient>
+              <linearGradient id="fit-radar-fill" gradientUnits="userSpaceOnUse" x1="42" y1="26" x2="158" y2="150">
+                <stop stop-color="#3b82f6" stop-opacity=".28"/><stop offset="1" stop-color="#2dd4bf" stop-opacity=".24"/>
+              </linearGradient>
+            </defs>
+            ${grid}<g class="fit-balance-grid">${spokes}</g><polygon class="fit-balance-data"/>${labels}
+          </svg>
+          <figcaption><ol class="fit-balance-list"></ol></figcaption>
+        </figure>
+        <p>관리 점수는 각 항목의 기록률을 평균한 값이에요. 루틴이 없는 날은 운동 세트를 점수에서 제외해요.</p>`;
+      return card;
+    }
+
+    function renderMemberBalance(data) {
+      const score = document.getElementById('fitMemberScore');
+      const chart = document.getElementById('fitMemberBalance');
+      if (!score || !chart) return;
+      const balance = data ? memberRecordBalance(data) : null;
+      score.querySelector('strong').textContent = balance?.score ?? '—';
+      score.style.setProperty('--fit-score', (balance?.score ?? 0)+'%');
+      chart.querySelector('.fit-balance-date').textContent = balance ? selectedDate+' 기록 기준' : '기록을 불러오는 중이에요.';
+      const shape = chart.querySelector('.fit-balance-data');
+      if (balance) {
+        shape.setAttribute('points',balance.axes.map((axis,index) => balanceRadarPoint(index,axis.ratio ?? 0)).join(' '));
+      } else {
+        shape.removeAttribute('points');
+      }
+      chart.querySelector('ol').innerHTML = balance
+        ? balance.axes.map((axis,index) => '<li><span>'+(index+1)+'. '+axis.label+'</span><strong>'+axis.detail+'</strong></li>').join('')
+        : '';
     }
 
     let homeCareKey='';
@@ -2265,6 +2308,7 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
         actions.append(button);
       });
       home.append(actions);
+      home.append(setupMemberBalance());
       const care=document.createElement('section');care.id='fcCareSummary';care.className='fc-focus-card';care.setAttribute('aria-live','polite');home.append(care);renderHomeCareSummary(null,'loading');
       const fold=(target,id,label)=>{if(!target)return;const details=document.createElement('details');details.id=id;details.className='fc-focus-fold';const summary=document.createElement('summary');summary.textContent=label;const body=document.createElement('div');details.append(summary,body);body.append(target);home.append(details);};
       fold(document.getElementById('memberDailyCheckin'),'fcCheckinFold','오늘 상태 간단히 체크하기');
@@ -2844,6 +2888,7 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
       const request = ++latestLoadRequest;
       const member = activeMemberName, date = selectedDate, mode = currentMode;
       const context=getSaveContext();
+      if (mode==='member' && workflowReadyKey!==workflowContextKey()) renderMemberBalance(null);
       let shownCached=false;
       if(!silent&&queuedSaveCount===0){
         const cached=viewedRecordCache.get(recordCacheKey(context));
@@ -3040,6 +3085,7 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
 
       if (currentMode === 'member') {
         const careKey=activeMemberName+'|'+selectedDate;
+        renderMemberBalance(workflowReadyKey===workflowContextKey() ? appData : null);
         if(homeCareKey!==careKey){homeCareKey=careKey;renderHomeCareSummary(null,'loading');}
         renderMemberRoutines(appData.routines || []);
         renderMemberFeedback(appData.feedback || {});
@@ -5371,14 +5417,22 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
     const hero=document.querySelector('#memberView .member-goal-hero');if(!hero||$('fcGreet'))return;
     const title=$('customHeaderMessage');if(!title)return;
     const greet=document.createElement('div');greet.id='fcGreet';greet.className='fc-greet';
+    const headingGroup = title.parentElement;
+    headingGroup.parentElement.classList.add('fit-hero-content');
+    const score = document.createElement('div');
+    score.className = 'fit-score';
+    score.innerHTML = '<span class="fit-score-label" id="fitScoreLabel">관리 점수</span>'+
+      '<div id="fitMemberScore" class="fit-score-ring" role="group" aria-labelledby="fitScoreLabel"><strong>—</strong></div>';
+    headingGroup.after(score);
     title.parentElement.insertBefore(greet,title);
     const render=()=>{
       const name = memberName().trim().replace(/\s*회원님$/, '').trim();
-      const heading = name ? name+'님, 안녕하세요' : '안녕하세요';
-      greet.innerHTML = '<h2 class="fc-greet-name">'+safe(heading)+'</h2>'+
+      const heading = name ? '<span>'+safe(name)+'님</span>, 안녕하세요' : '안녕하세요';
+      greet.innerHTML = '<h2 class="fc-greet-name">'+heading+'</h2>'+
         '<p class="fc-greet-sub">운동과 식단을 기록하고 코치 피드백을 확인해요.</p>';
     };
     render();
+    renderMemberBalance(workflowReadyKey===workflowContextKey() ? appData : null);
     // 트레이너가 설정한 상단 메시지는 '오늘의 한마디'로만 노출(기본 문구면 숨김)
     const syncHeader=()=>{const t=(title.innerText||'').trim();title.classList.toggle('fc-default',!t||t===DEFAULT_HEADER);};
     syncHeader();
@@ -5428,7 +5482,7 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
       let unread=false;try{unread=typeof hasUnreadFeedback==='function'&&hasUnreadFeedback();}catch(e){}
       card.classList.toggle('fc-unread',unread);
       const head='<div class="fc-coach-head"><span class="fc-coach-avatar"><i aria-hidden="true" class="fa-solid fa-comment-dots"></i><span class="fc-dot"></span></span>'+
-        '<span>'+(unread?'<span class="fc-coach-eyebrow block">새 답변</span>':'')+'<span class="fc-coach-title" style="display:block">코치 피드백</span></span>'+
+        '<span><span class="fc-coach-eyebrow block">FROM COACH'+(unread?' · 새 답변':'')+'</span><span class="fc-coach-title" style="display:block">코치 브리핑</span></span>'+
         (time&&(w||d)?'<span class="fc-coach-time">'+safe(time)+'</span>':'')+'</div>';
       let body='';
       if(w&&w!==EMPTY)body+='<div class="fc-coach-msg"><small class="w"><i class="fa-solid fa-dumbbell"></i> 운동 코멘트</small><p>'+safe(w)+'</p></div>';
@@ -5526,7 +5580,7 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
   /* ---------- 5. 홈 카드 순서 ---------- */
   function orderHome(){
     const home=$('memberHomePage');if(!home)return;
-    const ordered=[home.querySelector('.member-goal-hero'),$('fcHomeRecordActions'),home.querySelector('[data-record-card="workout"]'),home.querySelector('[data-record-card="diet"]'),$('fcCoachCard'),$('fcCareSummary'),$('fcCheckinFold'),$('fcDailyMetricsFold'),home.querySelector('[data-record-card="growth"]'),$('fcMagazineShortcut')];
+    const ordered=[home.querySelector('.member-goal-hero'),$('fcHomeRecordActions'),home.querySelector('[data-record-card="workout"]'),home.querySelector('[data-record-card="diet"]'),$('fcCoachCard'),$('fitMemberBalance'),$('fcCareSummary'),$('fcCheckinFold'),$('fcDailyMetricsFold'),home.querySelector('[data-record-card="growth"]'),$('fcMagazineShortcut')];
     ordered.filter(Boolean).forEach(el=>home.append(el));
     const grid=home.querySelector('.home-record-grid');if(grid&&!grid.children.length)grid.remove();
   }
@@ -5538,7 +5592,7 @@ html body #fcColumnTrainerPanel strong,html body #fcTrainerTaskSummary {color:#1
     try{setupSetInteractions();}catch(e){console.warn('[premium] sets',e);}
     try{setupCheckinHaptics();}catch(e){console.warn('[premium] haptics',e);}
     const meta=document.querySelector('meta[name="theme-color"]')||Object.assign(document.createElement('meta'),{name:'theme-color'});
-    meta.content='#edf2f9';document.head.append(meta);
+    meta.content='#0b1120';document.head.append(meta);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

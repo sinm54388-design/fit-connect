@@ -1,0 +1,316 @@
+:root {
+  color-scheme: dark;
+  --fit-ink: #edf4ff;
+  --fit-muted: #a2b2cb;
+  --fit-panel: rgba(15, 23, 42, .86);
+  --fit-inset: #0b1426;
+  --fit-line-dark: rgba(214, 230, 255, .12);
+  --fit-blue: #3b82f6;
+  --fit-mint: #2dd4bf;
+  --fit-accent: #80e9e0;
+  --fit-gradient: linear-gradient(115deg, #3b82f6, #2dd4bf);
+  --fit-cta: linear-gradient(110deg, #86b4ff, #51dcc9);
+  --fit-grid: linear-gradient(#b8d7ff08 1px, transparent 1px),
+              linear-gradient(90deg, #b8d7ff08 1px, transparent 1px);
+}
+
+html body:not(.trainer-light-theme), html body.trainer-light-theme {
+  --fc-text: var(--fit-ink);
+  --fc-text-2: #c5d2e6;
+  --fc-muted: var(--fit-muted);
+  --fc-outer: #070b14;
+  --fc-app: #0b1120;
+  --fc-card: var(--fit-panel);
+  --fc-card-2: #112037;
+  --fc-card-3: #14233a;
+  --fc-line: var(--fit-line-dark);
+  --fc-line-2: #365577;
+  --fc-lime: var(--fit-accent);
+  --fc-lime-2: #9ac7ff;
+  --fc-lime-ink: #061325;
+  --fc-violet: #9abfff;
+  --fc-orange: #ffcb8a;
+  --fc-shadow: 0 14px 35px #03071044;
+  background: radial-gradient(ellipse at 50% -12%, #12284d 0, transparent 57%), #070b14 !important;
+  color: var(--fit-ink) !important;
+  font-family: 'Pretendard Variable', Pretendard, Inter, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+html body:not(.trainer-light-theme)::before {
+  background: radial-gradient(ellipse at 85% 0%, #2dd4bf13, transparent 35%),
+              var(--fit-grid), #0b1120 !important;
+  background-size: auto, 28px 28px, 28px 28px, auto !important;
+  box-shadow: 0 0 0 1px var(--fit-line-dark) !important;
+}
+
+html body.trainer-light-theme::before { display: none; }
+html body.trainer-light-theme {
+  background: radial-gradient(ellipse at 74% 0%, #203a6633, transparent 45%),
+              var(--fit-grid), #0b1120 !important;
+  background-size: auto, 32px 32px, 32px 32px, auto !important;
+}
+
+html body :is(#appHeader, #memberBottomNav, #trainerAppNav, #fcQuickActions, #fcDateChips) {
+  background: #0b1427f0 !important;
+  border-color: var(--fit-line-dark) !important;
+  box-shadow: 0 10px 28px #02050d55 !important;
+  backdrop-filter: blur(16px);
+}
+
+html body:is(.trainer-light-theme,:not(.trainer-light-theme)) #appHeader {
+  background: #0b1427f0 !important;
+  border-color: var(--fit-line-dark) !important;
+}
+html body #appHeader > div > div:first-child > div:first-child {
+  background: var(--fit-gradient) !important;
+  box-shadow: 0 5px 22px #3b82f630 !important;
+}
+html body.trainer-light-theme #appHeader #btnTrainerMode.bg-indigo-600 {
+  background: var(--fit-cta) !important;
+  color: #08182b !important;
+  box-shadow: none !important;
+}
+html body :is(#appHeader h1, #btnMemberMode, #btnTrainerMode, #currentDateInput) { color: var(--fit-ink) !important; }
+html body #appHeader > div > div:last-child > div,
+html body #appHeader #currentDateInput {
+  background: #122039 !important;
+  border-color: var(--fit-line-dark) !important;
+  color-scheme: dark;
+}
+
+html body #fcDateChips .fc-date-chip {
+  background: #111f34 !important;
+  color: var(--fit-muted) !important;
+  border-color: var(--fit-line-dark) !important;
+  box-shadow: none !important;
+}
+html body #fcDateChips .fc-date-chip.fc-today { border-color: #2dd4bf70 !important; }
+html body #fcDateChips .fc-date-chip.fc-selected {
+  background: var(--fit-cta) !important;
+  border-color: transparent !important;
+  color: #071626 !important;
+}
+html body #fcDateChips .fc-date-chip * { color: inherit !important; }
+
+html body :is(#memberBottomNav, #trainerAppNav) button { color: var(--fit-muted) !important; }
+html body :is(#memberBottomNav, #trainerAppNav) button:is(.selected, [aria-current="page"]) {
+  background: #163252 !important;
+  color: #a4f3ed !important;
+}
+html body :is(#memberBottomNav, #trainerAppNav) button:is(.selected, [aria-current="page"]) i {
+  color: inherit !important;
+  filter: none !important;
+}
+
+html body.trainer-light-theme #trainerView {
+  --trainer-ink: var(--fit-ink);
+  --trainer-muted: var(--fit-muted);
+  --trainer-line: var(--fit-line-dark);
+}
+html body #trainerView [class*="bg-slate-"] {
+  background: var(--fit-inset) !important;
+  border-color: var(--fit-line-dark) !important;
+  color: var(--fit-ink) !important;
+}
+html body :is(#memberView, #trainerView) :is(
+  .rounded-2xl, .rounded-3xl, .home-record-card, .fc-focus-fold, .fc-focus-card,
+  .trainer-workspace-hero, .trainer-workspace-dashboard, .trainer-workspace-activity,
+  .trainer-workspace-side-card, .trainer-workspace-report-card, .trainer-workspace-metric,
+  .trainer-workspace-member, .trainer-fold, .trainer-feedback-compose, #fcColumnTrainerPanel
+) {
+  background: var(--fit-panel) !important;
+  border-color: var(--fit-line-dark) !important;
+  color: var(--fit-ink) !important;
+  box-shadow: var(--fc-shadow) !important;
+}
+html body :is(#memberView, #trainerView) :is(
+  .home-record-card, .fc-focus-card, .fc-focus-fold, .trainer-workspace-activity, .trainer-workspace-side-card
+) {
+  border-style: solid;
+  border-width: 1px;
+  border-radius: 18px;
+  backdrop-filter: blur(8px);
+}
+html body :is(#memberView, #trainerView) :is(h2, h3, h4, .fc-focus-fold summary),
+html body #trainerView :is([class*="text-slate-"], .text-white, .trainer-fold > summary) {
+  color: var(--fit-ink) !important;
+}
+html body :is(#memberView, #trainerView) :is(.text-slate-400, .text-slate-500, .text-slate-600, .trainer-fold small),
+html body #trainerView :is(.trainer-workspace-overview-status, .trainer-workspace-subtle, .trainer-workspace-metric > span) {
+  color: var(--fit-muted) !important;
+}
+html body #trainerView :is([class*="text-brand-"], [class*="text-indigo-"], [class*="text-purple-"], [class*="text-sky-"], [class*="text-blue-"]) { color: #a2caff !important; }
+html body #trainerView :is([class*="text-emerald-"], [class*="text-green-"]) { color: #8ce9ca !important; }
+html body #trainerView :is([class*="text-amber-"], [class*="text-orange-"]) { color: #ffd296 !important; }
+html body #trainerView :is([class*="text-rose-"], [class*="text-red-"]) { color: #ffb0bf !important; }
+html body #trainerView [class*="bg-emerald-"] { background: #15342f !important; border-color: #2d6255 !important; }
+html body #trainerView [class*="bg-amber-"] { background: #342819 !important; border-color: #614b2a !important; }
+html body #trainerView .bg-white { background: var(--fit-panel) !important; }
+html body #trainerView #trainerInbodyChart > div.grid:first-of-type > div { background: var(--fit-inset) !important; }
+html body #trainerView #trainerInbodyChart > div.grid:first-of-type > div :is(p, span) { color: var(--fit-ink) !important; }
+html body :is(#memberView, #trainerView, #trainerLoginModal) :is(input:not([type=checkbox]):not([type=radio]), textarea, select) {
+  background: #0b1427 !important;
+  color: var(--fit-ink) !important;
+  border-color: #304664 !important;
+  color-scheme: dark;
+}
+html body :is(#memberView, #trainerView) :is(input, textarea)::placeholder { color: #93a5bf; opacity: 1; }
+html body :is(#memberView, #trainerView) input[type=file]::file-selector-button {
+  background: #203653;
+  color: var(--fit-ink);
+  border: 1px solid var(--fit-line-dark);
+  border-radius: 999px;
+}
+
+html body #memberHomePage #todayDateDisplay {
+  color: var(--fit-muted) !important;
+  background: #14233a !important;
+  border-color: var(--fit-line-dark) !important;
+}
+.fc-greet-name span,
+html body .fit-score-ring strong,
+html body #memberHomePage .fc-workout-status strong,
+html body #trainerView .trainer-workspace-metric strong {
+  color: var(--fit-accent) !important;
+  background-image: linear-gradient(115deg, #8bb7ff, #5ef0db);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+@media (forced-colors: active) {
+  .fc-greet-name span, .fit-score-ring strong, .fc-workout-status strong, .trainer-workspace-metric strong {
+    -webkit-text-fill-color: CanvasText;
+  }
+}
+
+html body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero {
+  background: radial-gradient(ellipse at 92% 2%, #24538271, transparent 64%),
+              radial-gradient(ellipse at 0% 130%, #145e583b, transparent 55%), #0e192c !important;
+  border: 1px solid var(--fit-line-dark) !important;
+  border-radius: 22px;
+  padding: 16px !important;
+}
+html body .fit-hero-content { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.fit-hero-content .fc-greet { margin: 6px 0 0; }
+.fit-score { display: grid; justify-items: center; gap: 7px; }
+.fit-score-label { color: var(--fc-text-2); font-size: 12px; font-weight: 750; }
+.fit-score-ring {
+  --fit-score: 0%;
+  width: clamp(64px, 21vw, 94px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  position: relative;
+  isolation: isolate;
+  border-radius: 50%;
+  background: conic-gradient(var(--fit-mint), var(--fit-blue) var(--fit-score), #29405c 0);
+}
+.fit-score-ring::before { content: ""; position: absolute; inset: 5px; z-index: -1; border-radius: 50%; background: #0c172b; }
+.fit-score-ring strong { font-size: clamp(23px, 6vw, 33px); font-weight: 850; letter-spacing: -.045em; }
+
+html body:not(.trainer-light-theme) #memberView #memberHomePage #fcCoachCard {
+  background: radial-gradient(ellipse at 100% 0%, #23548d47, transparent 62%), var(--fit-panel) !important;
+  border-color: var(--fit-line-dark) !important;
+}
+html body #fcCoachCard .fc-coach-avatar { background: var(--fit-gradient) !important; color: #081828 !important; box-shadow: none !important; }
+html body #fcCoachCard :is(.fc-coach-cta, .fc-coach-eyebrow) { color: #a5d3ff; }
+html body :is(.fc-coach-eyebrow, .trainer-workspace-kicker, .fc-weekly-kicker) {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+html body #fcHomeRecordActions button,
+html body #fcQuickActions button:last-child,
+html body #trainerView :is(.quick-feedback-btn, .trainer-workspace-refresh, .trainer-workspace-search) {
+  border: 1px solid var(--fit-line-dark) !important;
+  border-radius: 999px !important;
+  background: #13233c !important;
+  color: var(--fit-ink) !important;
+}
+html body #fcHomeRecordActions button:first-child,
+html body #fcQuickActions button:first-child,
+html body #trainerView :is(.trainer-workspace-primary, .fc-column-publish, button[class*="bg-brand-"], button[class*="bg-sky-"], button.bg-indigo-600, button.bg-indigo-500),
+html body #memberView :is(button[type="submit"], button[onclick^="saveSingleMeal"], button[onclick^="saveDietLog"], button[onclick="sendMemo()"]) {
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: var(--fit-cta) !important;
+  color: #08182b !important;
+  box-shadow: 0 4px 18px #3b82f628 !important;
+  font-weight: 800;
+}
+html body #trainerView :is(.trainer-workspace-primary, button[class*="bg-brand-"], button[class*="bg-sky-"]) :is(i,span) { color: inherit !important; }
+html body :is(#appHeader, #memberView, #trainerView, #memberBottomNav, #trainerAppNav) :is(button, summary, input, textarea, select):focus-visible {
+  outline: 2px solid #81cdfd !important;
+  outline-offset: 3px;
+}
+
+html body :is(#memberWorkoutProgressBar, #memberCalorieBar, #dailyCheckinProgress) { background: var(--fit-gradient) !important; }
+html body .fc-gauge {
+  background: conic-gradient(var(--fit-mint), var(--fit-blue) var(--p), #283b57 0) !important;
+}
+html body .fc-gauge::before { background: #0d192c !important; }
+html body #memberDailyCheckin [data-check-field].text-white {
+  background: #164443 !important;
+  color: #b1fff2 !important;
+  border-color: #2dd4bf64 !important;
+}
+html body #memberHomePage [data-record-card="diet"] .home-meal-grid > button {
+  background: #112039;
+  border-color: var(--fit-line-dark);
+}
+html body #memberView .fc-care-retry { color: #9ed5ff; }
+
+.fit-balance { order: 5; min-width: 0; }
+.fit-balance-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 12px; margin-top: 12px; }
+.fit-balance svg { display: block; width: 100%; max-width: 220px; margin: auto; overflow: visible; }
+.fit-balance-grid { fill: none; stroke: #93b8ef30; stroke-width: 1; }
+.fit-balance-scale { fill: var(--fit-muted); font-size: 10px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+.fit-balance-data { fill: url(#fit-radar-fill); stroke: url(#fit-radar-stroke); stroke-width: 2.25; stroke-linejoin: round; }
+.fit-balance figcaption { min-width: 0; }
+.fit-balance-list { display: grid; gap: 5px; }
+.fit-balance-list li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 6px;
+  border-bottom: 1px solid var(--fit-line-dark); padding: 5px 0;
+  color: var(--fit-muted); font-size: 12px;
+}
+.fit-balance-list strong { color: var(--fit-ink); white-space: nowrap; }
+.fit-balance figcaption > p { margin-top: 10px; }
+@media (max-width: 360px) {
+  .fit-balance-layout { gap: 7px; }
+  .fit-balance-list li { font-size: 11px; }
+}
+
+html body #trainerView :is(.trainer-workspace-metric > i, .trainer-workspace-kicker, .trainer-workspace-member-link) { color: #8cbfff !important; }
+html body #trainerView :is(.trainer-workspace-list > button, #memberRegistryList > div, #trainerQuickSummary > div, #trainerMemoList) {
+  background: var(--fit-inset) !important;
+  border-color: var(--fit-line-dark) !important;
+}
+html body #trainerView .trainer-workspace-list > button:hover { background: #172b48 !important; border-color: #37618b !important; }
+html body #trainerView :is(.trainer-workspace-list > button span:first-child, #trainerQuickSummary > div > p:last-child) { color: var(--fit-ink) !important; }
+html body #trainerView .trainer-workspace-list > button span:last-child:not(:first-child) {
+  color: #b5d7ff !important;
+  background: #1a3151;
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+html body #trainerView #fcInactiveTaskCard { border-color: #d3a45d45 !important; }
+html body #trainerView #fcInactiveTaskCard > .trainer-workspace-list-heading i { color: #ffc984; }
+.trainer-feedback-compose { padding: 14px; border: 1px solid var(--fit-line-dark); border-radius: 18px; }
+@media (min-width: 760px) {
+  html body.trainer-light-theme #trainerView { max-width: 980px !important; }
+  html body #trainerView #trainerDashboardSection { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); align-items: start; }
+  #trainerDashboardSection > :is(.trainer-workspace-section-title,#overviewStatus,#fcTrainerTaskSummary,#fcInactiveTaskCard,#fcTrainerDetails) { grid-column: 1/-1; }
+  .trainer-feedback-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+}
+
+html body :is(#fcMagazineShortcut, .fc-weekly-sheet, .fc-weekly-card) { background: #101d32 !important; border-color: var(--fit-line-dark) !important; }
+html body :is(.fc-weekly-kicker, .fc-weekly-meta, .fc-magazine-kicker) { color: var(--fit-accent) !important; }
+html body :is(.fc-magazine-mark, .fc-weekly-ask) { background: var(--fit-gradient) !important; color: #061325 !important; }
+html body .fc-video-ready-hint { background: #142139; border-color: #34516f; color: #d1dff1; }
+html body .fc-video-ready-hint[data-state="checking"] { background: #122d46; border-color: #356789; color: #aedbff; }
+html body .fc-video-ready-hint[data-state="ready"] { background: #103630; border-color: #2a7264; color: #91f6dc; }
+html body .fc-video-ready-hint[data-state="error"] { background: #3a2131; border-color: #804257; color: #ffc1cd; }
+html body .fc-video-question-chips > span { color: var(--fit-muted); }
+html body .fc-video-question-chips button { background: #162b49 !important; color: #c4dfff !important; border-color: #385679 !important; }

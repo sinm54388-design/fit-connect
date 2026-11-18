@@ -849,7 +849,7 @@ body:not(.trainer-light-theme) #appHeader{background:rgba(15,23,42,.82)!importan
 <style id="fc-focused-coaching-v1">
 #memberHomePage:not([hidden]){display:flex;flex-direction:column;gap:14px}
 #memberHomePage>*,#memberHomePage .home-record-card{margin-top:0!important}
-#memberHomePage .member-goal-hero{order:0;background:none!important;border:0!important;box-shadow:none!important;padding:8px 2px 10px!important}
+body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{order:0;background:none!important;border:0!important;box-shadow:none!important;padding:8px 2px 10px!important}
 #memberHomePage .member-goal-hero:before{display:none}
 #memberHomePage #memberGreeting{display:none}
 #memberHomePage .fc-greet-name{font-size:27px!important}
@@ -5451,9 +5451,9 @@ body[data-member-page="home"] #fcQuickActions{display:none!important}body.member
   /* ---------- 5. 홈 카드 순서: 히어로 → 코치 메시지 → 체크인 → 다음 할 일 → 기록 ---------- */
   function orderHome(){
     const home=$('memberHomePage');if(!home)return;
-    const hero=home.querySelector('.member-goal-hero'),coach=$('fcCoachCard');
-    if(hero&&home.firstElementChild!==hero)home.prepend(hero);
-    if(hero&&coach)hero.after(coach);
+    const ordered=[home.querySelector('.member-goal-hero'),home.querySelector('[data-record-card="workout"]'),$('fcCoachCard'),$('fcHomeRecordActions'),home.querySelector('[data-record-card="diet"]'),$('fcCareSummary'),$('fcCheckinFold'),$('fcDailyMetricsFold'),home.querySelector('[data-record-card="growth"]'),home.querySelector('[data-record-card="feedback"]'),$('fcMagazineShortcut')];
+    ordered.filter(Boolean).forEach(el=>home.append(el));
+    const grid=home.querySelector('.home-record-grid');if(grid&&!grid.children.length)grid.remove();
   }
 
   function init(){

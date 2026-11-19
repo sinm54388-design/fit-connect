@@ -544,6 +544,62 @@
       return res;
     }
 
+    function makeUuidV4() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+
+    function normalizeVideoMime(file) {
+      const t = String(file?.type || '').toLowerCase();
+      if (t === 'video/mp4' || t === 'video/webm' || t === 'video/quicktime') return t;
+      const n = String(file?.name || '').toLowerCase();
+      if (n.endsWith('.mov')) return 'video/quicktime';
+      if (n.endsWith('.webm')) return 'video/webm';
+      return 'video/mp4';
+    }
+
+    async function uploadDirectVideoFile(file, memberName, memberToken, questionText) {
+      if (!file) throw new Error('no_file');
+      if (file.size > 50000000) throw new Error('50MB 이하 영상만 업로드할 수 있어요');
+      if (!memberToken) throw new Error('회원 전용 토큰이 필요해요');
+      const mime = normalizeVideoMime(file);
+      const id = makeUuidV4();
+      const begin = await postRecords({
+        action: 'directVideoBegin',
+        member: memberName,
+        date: state.selectedDate,
+        token: memberToken,
+        id,
+        name: (file.name || 'workout-video.mp4').slice(0, 150),
+        question: String(questionText || '').slice(0, 1000),
+        mime,
+        size: file.size
+      });
+      if (begin?.status !== 'success') {
+        throw new Error(begin?.code || begin?.message || '업로드 시작 실패');
+      }
+      if (!begin.alreadyReady && begin.url) {
+        const putRes = await fetch(begin.url, {
+          method: 'PUT',
+          headers: { 'Content-Type': mime },
+          body: file
+        });
+        if (!putRes.ok) throw new Error('영상 파일 전송 실패 (' + putRes.status + ')');
+      }
+      const fin = await postRecords({
+        action: 'directVideoFinish',
+        member: memberName,
+        date: state.selectedDate,
+        token: memberToken,
+        id
+      });
+      if (fin?.status !== 'success') throw new Error(fin?.code || '업로드 마무리 실패');
+      return 'direct:' + id;
+    }
+
     function applyCachedMemberData(dateStr) {
       try {
         const raw = localStorage.getItem(`fit_cache_v2_${state.memberName}_${dateStr}`);
@@ -1867,10 +1923,30 @@
       `;
     }
 
-    function openFormGuideModal(title, note) {
+    function buildVideoPlayerHtml(videoUrl) {
+      const u = String(videoUrl || '').trim();
+      if (!u) return '';
+      const ytMatch = u.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+      if (ytMatch) {
+        return `
+          <div class="rounded-[20px] overflow-hidden bg-black aspect-video shadow-sm">
+            <iframe src="https://www.youtube.com/embed/${ytMatch[1]}?playsinline=1&rel=0" class="w-full h-full" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          </div>
+        `;
+      }
+      return `
+        <div class="rounded-[20px] overflow-hidden bg-black shadow-sm">
+          <video src="${escapeHtml(u)}" controls playsinline preload="metadata" class="w-full max-h-56 object-contain"></video>
+        </div>
+      `;
+    }
+
+    async function openFormGuideModal(title, note, videoUrl, videoId) {
       const profile = getExerciseProfile(title);
+      let resolvedUrl = String(videoUrl || '').trim();
       openModal(`자극 근육 · 자세 가이드`, `
         <div class="space-y-4">
+          <div id="fg-video-slot">${buildVideoPlayerHtml(resolvedUrl)}</div>
           <div class="p-4 rounded-[24px] bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
             <div class="flex items-center justify-between text-[11px] font-bold">
               <span class="text-[#111827] text-[13px] font-extrabold">${escapeHtml(title)}</span>
@@ -1907,6 +1983,18 @@
         </div>
       `);
       document.getElementById('btn-close-guide').addEventListener('click', closeModal);
+      if (!resolvedUrl && videoId && state.isLive) {
+        try {
+          const auth = state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword });
+          const isDirect = String(videoId).startsWith('direct:');
+          const vRes = isDirect
+            ? await postRecords({ action: 'directVideoPlay', id: videoId, member: state.memberName, date: state.selectedDate, ...auth })
+            : await postRecords({ action: 'videoPlaybackUrl', fileId: videoId, videoId, member: state.memberName, date: state.selectedDate, ...auth });
+          const playUrl = vRes?.url || vRes?.playbackUrl || vRes?.data?.url || '';
+          const slot = document.getElementById('fg-video-slot');
+          if (playUrl && slot) slot.innerHTML = buildVideoPlayerHtml(playUrl);
+        } catch {}
+      }
     }
 
     function openAddRoutineModal() {
@@ -2292,6 +2380,13 @@
                       </div>
                     ` : ''}
                     <input type="text" data-ni="${i}" value="${escapeHtml(r.note || '')}" placeholder="코치 핵심 큐잉 입력 (예: 발바닥 3점 지지, 3초 하강)" class="cd-note-inp w-full text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
+                    <div class="flex items-center gap-1.5">
+                      <input type="url" data-vi="${i}" value="${escapeHtml(r.videoUrl || '')}" placeholder="🎬 영상 링크 또는 오른쪽 버튼으로 사진첩 업로드" class="cd-vid-inp flex-1 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#1D4ED8] focus:outline-none" />
+                      <label class="tap-scale shrink-0 px-2.5 py-1.5 rounded-xl ${r.videoId ? 'card-teal text-white' : 'bg-[#EFF6FF] text-[#1D4ED8]'} text-[11px] font-extrabold cursor-pointer">
+                        <input type="file" accept="video/mp4,video/quicktime,video/webm,video/*" data-vfi="${i}" class="cd-vid-file hidden" />
+                        <span>${r.videoId ? '📹 업로드됨 ✓' : '📹 사진첩'}</span>
+                      </label>
+                    </div>
                   </div>
                 `;
               }).join('') : '<p class="text-[12px] text-[#6B7280] py-2">등록된 루틴이 없습니다. 아래에서 종목을 추가해 보세요.</p>'}
@@ -2304,6 +2399,7 @@
                   <input id="cd-new-name" placeholder="새 종목명 (예: 랫풀다운)" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
                 </div>
                 <input id="cd-new-note" placeholder="핵심 큐잉 메모 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                <input id="cd-new-video" type="url" placeholder="🎬 시범 영상 링크 (유튜브·쇼츠 등, 선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
                 <div class="flex gap-1.5">
                   <input id="cd-new-weight" type="number" min="0" placeholder="무게(kg)" class="w-20 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
                   <input id="cd-new-sets" type="number" min="1" value="3" placeholder="세트" class="w-16 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
@@ -2435,6 +2531,7 @@
             sets: String(sets),
             reps: document.getElementById('cd-new-reps').value.trim() || '12',
             note: document.getElementById('cd-new-note').value.trim(),
+            videoUrl: document.getElementById('cd-new-video')?.value.trim() || '',
             completedSets: Array(sets).fill(false)
           });
           renderDetailBody();
@@ -2443,6 +2540,38 @@
         document.querySelectorAll('.cd-note-inp').forEach(inp => {
           inp.addEventListener('input', e => {
             routines[Number(inp.dataset.ni)].note = e.target.value;
+          });
+        });
+
+        document.querySelectorAll('.cd-vid-inp').forEach(inp => {
+          inp.addEventListener('input', e => {
+            routines[Number(inp.dataset.vi)].videoUrl = e.target.value.trim();
+          });
+        });
+
+        document.querySelectorAll('.cd-vid-file').forEach(inp => {
+          inp.addEventListener('change', async e => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            const ri = Number(inp.dataset.vfi);
+            const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
+            const mTok = mObj?.token || (memberName === state.memberName ? state.token : '');
+            if (!mTok) {
+              showToast('먼저 상단 🔗 링크에서 이 회원의 토큰을 연결해 주세요');
+              return;
+            }
+            showToast('사진첩 영상을 업로드 중입니다... ⏳');
+            try {
+              const directId = await uploadDirectVideoFile(f, memberName, mTok, routines[ri]?.name || '');
+              routines[ri].videoId = directId;
+              routines[ri].videoUrl = '';
+              replyMsg = document.getElementById('cd-reply-msg').value;
+              dietMsg = document.getElementById('cd-diet-msg').value;
+              showToast('영상 업로드 완료! 아래 저장 버튼을 꼭 눌러주세요 ✓');
+              renderDetailBody();
+            } catch (err) {
+              showToast('영상 업로드 실패: ' + (err?.message || '용량(50MB 이하) 확인'));
+            }
           });
         });
 
@@ -2598,6 +2727,7 @@
               reps: pRp,
               setDetails: Array.from({ length: pSets }, () => ({ weight: pWt, reps: pRp })),
               note: document.getElementById('cd-new-note')?.value.trim() || '',
+              videoUrl: document.getElementById('cd-new-video')?.value.trim() || '',
               completedSets: Array(pSets).fill(false)
             });
           }
@@ -3100,11 +3230,11 @@
                 const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
                 return `
                   <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
-                    <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
+                    <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || '')}" data-gvid="${escapeHtml(r.videoUrl || '')}" data-gvidid="${escapeHtml(r.videoId || r.demoKey || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
                       <div class="flex items-center gap-1.5 flex-wrap">
                         <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${r.routineType === 'homework' ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${r.routineType === 'homework' ? '개인 숙제' : 'PT 수업'}</span>
                         <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
-                        <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">자세 · 부위 ›</span>
+                        <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">${r.videoUrl || r.videoId || r.demoKey ? '🎬 영상 · 자세 ›' : '자세 · 부위 ›'}</span>
                       </div>
                       ${Array.isArray(r.setDetails) && r.setDetails.length
                         ? `<div class="flex flex-wrap gap-1 mt-1">${r.setDetails.map((sd, sIdx) => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white text-[#4B5563] tabular-nums">${sIdx + 1}set ${sd.weight ? sd.weight + 'kg×' : ''}${sd.reps || r.reps || '12'}회</span>`).join('')}</div>`
@@ -3237,7 +3367,13 @@
       return `
         <div class="space-y-3.5 animate-in">
           <div class="bg-white rounded-[24px] p-5 space-y-2.5">
-            <h2 class="text-[16px] font-bold text-[#111827]">코치 · 회원 메모</h2>
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-[16px] font-bold text-[#111827]">코치 · 회원 메모</h2>
+              <label class="tap-scale px-3 py-1.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold cursor-pointer">
+                <input id="member-vid-upload" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+                <span>📹 자세 영상 올리기</span>
+              </label>
+            </div>
             ${memos.length ? memos.map(f => `
               <div class="p-3.5 rounded-2xl ${f.from === 'trainer' ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'}">
                 <div class="flex justify-between text-[11px] mb-1">
@@ -3537,7 +3673,7 @@
       });
 
       document.querySelectorAll('.routine-guide-btn').forEach(b => {
-        b.addEventListener('click', () => openFormGuideModal(b.dataset.gtitle, b.dataset.gnote));
+        b.addEventListener('click', () => openFormGuideModal(b.dataset.gtitle, b.dataset.gnote, b.dataset.gvid, b.dataset.gvidid));
       });
 
       const addR = document.getElementById('btn-add-routine');
@@ -3553,6 +3689,34 @@
       document.querySelectorAll('.mag-item-btn').forEach(b => {
         b.addEventListener('click', () => openMagazineModal(Number(b.dataset.colidx)));
       });
+
+      const mVidInp = document.getElementById('member-vid-upload');
+      if (mVidInp) {
+        mVidInp.addEventListener('change', async e => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          if (!state.isLive || !state.token) {
+            showToast('라이브 회원 링크에서만 영상 업로드가 가능해요');
+            return;
+          }
+          showToast('자세 영상을 업로드 중입니다... ⏳');
+          try {
+            const directId = await uploadDirectVideoFile(f, state.memberName, state.token, '회원 자세 체크 영상');
+            state.record.memos.push({
+              id: Date.now() + '-vid',
+              from: 'member',
+              text: `📹 자세 영상을 올렸어요 (${f.name || '영상'})`,
+              time: nowTimeHHMM(),
+              videoId: directId
+            });
+            showToast('자세 영상 업로드 완료! 코치님께 전달되었어요 ✓');
+            renderAll();
+            savePatchLive({ memos: state.record.memos });
+          } catch (err) {
+            showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 MP4/MOV만 가능'));
+          }
+        });
+      }
 
       const memoForm = document.getElementById('memo-form');
       if (memoForm) {

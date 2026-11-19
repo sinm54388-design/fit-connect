@@ -76,10 +76,27 @@ function validDay(v) {
   return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===v;
 }
 const memberCache=new Map();
+const memberLookups=new Map();
 function rememberMember(name,id) {
   memberCache.delete(name);
   memberCache.set(name,{id,timestamp:Date.now()});
   if(memberCache.size>256)memberCache.delete(memberCache.keys().next().value);
+}
+async function lookupMember(base,member,supaGet) {
+  const key=JSON.stringify([base,member]);
+  const cached=memberCache.get(key);
+  if(cached && Date.now()-cached.timestamp<600000) return cached.id;
+  const pending=memberLookups.get(key);
+  if(pending) return pending;
+  const lookup=supaGet('/rest/v1/fit_members?select=id&name=eq.'+
+    encodeURIComponent(member)+'&limit=1','member').then(matches=>{
+    if(matches.length!==1) return null;
+    const id=matches[0].id;
+    rememberMember(key,id);
+    return id;
+  });
+  memberLookups.set(key,lookup);
+  try{return await lookup;}finally{memberLookups.delete(key);}
 }
 function shiftDay(day,offset) {
   const d=new Date(day+'T00:00:00Z');
@@ -90,7 +107,7 @@ function shiftDay(day,offset) {
 // response stays small; the page always replaces it with the canonical
 // Apps Script overview (which also carries video counts) once that arrives.
 const OVERVIEW_WINDOW_DAYS=45;
-async function buildOverview(supaGet,date) {
+async function buildOverview(supaGet,date,base) {
   const weekStart=shiftDay(date,-6),windowStart=shiftDay(date,-OVERVIEW_WINDOW_DAYS);
   const pageSize=1000;
   const prefix='/rest/v1/fit_daily_records?select=member_id,record_date,'+
@@ -113,7 +130,7 @@ async function buildOverview(supaGet,date) {
   if(allMembers.length===1000)throw Error('too many members for overview');
   const result=new Map();
   for(const row of allMembers) {
-    rememberMember(String(row.name),row.id);
+    if(base)rememberMember(JSON.stringify([base,String(row.name)]),row.id);
     result.set(row.id,{name:row.name,lastDate:'',activeToday:false,
       pendingWorkout:false,pendingDiet:false,pendingVideos:0,directPendingVideos:directCounts.get(String(row.id))||0,feedbackDone:false,
       workoutToday:false,dietToday:false,
@@ -294,6 +311,7 @@ function buildMemberInsights(rows,date) {
     progress:exercises};
 }
 async function handleRecords(request,env) {
+  const requestStarted=performance.now();
   if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
   if(Number(request.headers.get('content-length')||0)>16384)
     return json({status:'error',code:'too_large'},413);
@@ -320,7 +338,10 @@ async function handleRecords(request,env) {
       try{accepted=await appsScriptAcceptsMember(member,token,date);}
       catch{return json({status:'error',code:'apps_script_unreachable'},502);}
       if(!accepted)return json({status:'denied',code:'unauthorized'},403);
-      return json({status:'success',...await signMemberSession(sessionSecret,member)});
+      const session=await signMemberSession(sessionSecret,member);
+      return json({status:'success',...session},200,{
+        'Server-Timing':'session;dur='+(performance.now()-requestStarted).toFixed(1)
+      });
     }
     if(!MEMBER_ACTIONS.includes(action))return json({status:'denied',code:'unauthorized'},403);
     const sessionMember=await readMemberSession(sessionSecret,input.session);
@@ -389,7 +410,10 @@ async function handleRecords(request,env) {
       const isTrainer=input.password!==undefined;
       const filter=isTrainer?'':'&status=eq.published';
       const rows=await supaGet('/rest/v1/fit_columns?select=id,title,category,summary,content,author,published_at,status,updated_at'+filter+'&order=published_at.desc&limit=60','columns');
-      return json({status:'success',columns:rows},200,{'X-Fit-Function-Region':request.cf?.colo||'cloudflare'});
+      return json({status:'success',columns:rows},200,{
+        'Server-Timing':'columns;dur='+(performance.now()-start).toFixed(1),
+        'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
+      });
     }catch(error){return failed(error);}
   }
   if(action==='columnSave') {
@@ -412,7 +436,7 @@ async function handleRecords(request,env) {
   }
   if(action==='trainerOverview') {
     try {
-      const overview=await buildOverview(supaGet,date);
+      const overview=await buildOverview(supaGet,date,base);
       return json(overview,200,{
         'Server-Timing':'overview;dur='+(performance.now()-start).toFixed(1),
         'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
@@ -435,16 +459,9 @@ async function handleRecords(request,env) {
     }catch(error){ return failed(error); }
   }
   try {
-    const cached=memberCache.get(member);
-    let memberId;
-    if(cached && Date.now()-cached.timestamp<600000) memberId=cached.id;
-    else {
-      const matches=await supaGet('/rest/v1/fit_members?select=id&name=eq.'+
-        encodeURIComponent(member)+'&limit=1','member');
-      if(matches.length!==1)return json({status:'denied',code:'member_not_found'},403);
-      memberId=matches[0].id;
-      rememberMember(member,memberId);
-    }
+    step='member';
+    const memberId=await lookupMember(base,member,supaGet);
+    if(memberId===null)return json({status:'denied',code:'member_not_found'},403);
     const lookupMs=performance.now()-start;
     if(action==='dailyCheckin'){
       const raw=input.checkin;

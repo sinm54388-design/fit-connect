@@ -2,15 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="referrer" content="no-referrer" />
   <title>FIT-CONNECT</title>
-  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="/v2.tailwind.css?v=1" />
   <style>
     body {
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
       background-color: #E2E6EE;
       color: #111827;
       -webkit-font-smoothing: antialiased;
@@ -45,15 +43,14 @@
       0% { opacity: 1; transform: translate(0, 0) scale(1); }
       100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.4); }
     }
-    .skeleton {
-      background: linear-gradient(90deg, #E5E7EB 25%, #F3F4F6 50%, #E5E7EB 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.2s infinite;
-    }
-    @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
+    .skeleton { background: #E5E7EB; }
+    #app-header, #bottom-nav { backdrop-filter: none; background-color: #F4F6F9; }
+    #app-frame { padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px)); }
+    #app-header { padding-top: calc(1rem + env(safe-area-inset-top, 0px)); }
+    #bottom-nav { padding-bottom: calc(.75rem + env(safe-area-inset-bottom, 0px)); }
+    .fit-coach-search-row[hidden] { display: none !important; }
+    .fit-photo { background: #F4F6F9; }
+    @media (prefers-reduced-motion: reduce) { .animate-in, .confetti-dot { animation: none; } }
   </style>
 </head>
 <body class="min-h-screen bg-[#E2E6EE] text-[#111827]">
@@ -61,7 +58,12 @@
   <!-- Mobile App Frame -->
   <div class="mx-auto min-h-screen max-w-[430px] bg-[#F4F6F9] relative flex flex-col pb-32 sm:shadow-[0_12px_40px_rgba(15,23,42,0.12)]">
     <header id="app-header" class="sticky top-0 z-30 bg-[#F4F6F9]/94 backdrop-blur-xl px-5 pt-4 pb-3"></header>
-    <main id="main-content" class="flex-1 px-4 pt-1 space-y-3.5"></main>
+    <main id="main-content" class="flex-1 px-4 pt-1 space-y-3.5">
+      <section class="rounded-[26px] bg-white p-5" aria-busy="true">
+        <strong>FIT-CONNECT</strong>
+        <p>운동노트 준비 중…</p>
+      </section>
+    </main>
 
     <!-- Floating Mini Rest Timer Bar (Member Mode) -->
     <div id="floating-timer-bar" class="hidden fixed bottom-[72px] left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[398px] z-35 rounded-2xl hero-navy text-white px-4 py-2.5 shadow-[0_10px_28px_rgba(11,19,43,0.38)] flex items-center justify-between gap-2 animate-in">
@@ -207,27 +209,23 @@
       return DAILY_COACH_TIPS[sum % DAILY_COACH_TIPS.length];
     }
 
-    // Client-side Image Compression (<= 900px JPEG for fast mobile upload)
-    function compressImageFile(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const img = new Image();
-          img.onload = () => {
-            const maxW = 900;
-            const scale = img.width > maxW ? maxW / img.width : 1;
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.round(img.width * scale);
-            canvas.height = Math.round(img.height * scale);
-            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/jpeg', 0.72));
-          };
+    async function compressImageFile(file) {
+      const source = URL.createObjectURL(file);
+      try {
+        const img = new Image();
+        await new Promise((resolve,reject) => {
+          img.onload = resolve;
           img.onerror = reject;
-          img.src = reader.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+          img.src = source;
+        });
+        const scale = Math.min(1,900 / Math.max(img.naturalWidth,img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1,Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1,Math.round(img.naturalHeight * scale));
+        canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+        return await new Promise((resolve,reject) =>
+          canvas.toBlob(blob=>blob ? resolve(blob) : reject(Error('photo_encode_failed')),'image/jpeg',.72));
+      } finally { URL.revokeObjectURL(source); }
     }
 
     // Web Audio API Beep for Timer End
@@ -255,7 +253,10 @@
     const urlParams = new URLSearchParams(window.location.search);
     const paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
     const paramToken = (urlParams.get('token') || '').trim();
-    const paramDate = /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date') || '') ? urlParams.get('date') : getTodayKST();
+    const dateParam = urlParams.get('date') || '';
+    const dateValue = new Date(dateParam+'T00:00:00Z');
+    const paramDate = /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && Number.isFinite(+dateValue) &&
+      dateValue.toISOString().slice(0,10) === dateParam ? dateParam : getTodayKST();
     const isLiveOrigin = window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
 
     // --- App State ---
@@ -267,9 +268,13 @@
       coachTab: 'coaching', // 'coaching' | 'members'
       coachFilter: 'pending', // 'pending' | 'today' | 'dormant' | 'all'
       coachSearch: '',
-      memberName: paramName || '김윤지',
+      memberName: paramName || (isLiveOrigin ? '회원' : '김윤지'),
       token: paramToken,
       session: '',
+      sessionExpires: 0,
+      recordDate: '',
+      memberError: '',
+      saving: false,
       trainerPassword: '',
       selectedDate: paramDate,
       weekDays: buildWeekDays(paramDate),
@@ -388,7 +393,7 @@
         state.feedbackReaction = localStorage.getItem(rk) || '';
         const wk = `fit_water_${state.memberName}_${state.selectedDate}`;
         const wv = localStorage.getItem(wk);
-        if (wv !== null && !Number(state.record.diet.water)) {
+        if (!isLiveOrigin && wv !== null && !Number(state.record.diet.water)) {
           state.record.diet.water = Number(wv) || 0;
         }
       } catch {}
@@ -406,98 +411,207 @@
       } catch {}
     }
 
-    // --- API Helpers ---
-    async function postRecords(payload) {
-      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+    // --- Live member reads and canonical writes ---
+    const MEALS = ['breakfast', 'lunch', 'dinner', 'snack'];
+    const CHECKIN_PREFIX = '__FIT_DAILY_CHECKIN__:';
+    const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+    const rows = value => Array.isArray(value) ? value.filter(isObject) : [];
+    const number = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
+    let sessionRequest;
+    let latestMemberLoad = 0;
+    let privacyAgreed = false;
+    let publishedColumns;
+    let columnRequest;
+    const canonicalDates = new Set();
+    const photoCache = new Map();
+
+    async function post(endpoint, payload) {
+      const response = await fetch(endpoint, {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        ...(endpoint === '/api/records' && typeof AbortSignal !== 'undefined' && AbortSignal.timeout
+          ? {signal:AbortSignal.timeout(12_000)} : {})
+      });
+      const result = await response.json();
+      if (!response.ok || !isObject(result) || ['denied', 'error'].includes(result.status)) {
+        const error = new Error('request_failed');
+        error.code = result?.code || (result?.status === 'denied' ? 'unauthorized' : '');
+        error.status = response.status;
+        throw error;
+      }
+      return result;
+    }
+
+    const postRecords = payload => post('/api/records', payload);
+    const postAppsScript = payload => post('/api/apps-script', payload);
+
+    async function successful(request) {
+      const result = await request;
+      if (result.status !== 'success') throw new Error('unconfirmed_write');
+      return result;
+    }
+
+    function ensureMemberSession(date, rejectedSession) {
+      if (rejectedSession && state.session === rejectedSession) {
+        state.session = '';
+        state.sessionExpires = 0;
+      }
+      if (state.session && state.sessionExpires > Date.now() + 30000) return Promise.resolve(state.session);
+      if (!sessionRequest) {
+        sessionRequest = successful(postRecords({ action: 'memberSession', member: state.memberName, token: state.token, date }))
+          .then(result => {
+            if (!result.session || !Number.isFinite(result.exp)) throw new Error('invalid_session_response');
+            state.session = result.session;
+            state.sessionExpires = result.exp;
+            return state.session;
+          }).finally(() => { sessionRequest = null; });
+      }
+      return sessionRequest;
+    }
+
+    async function memberRecords(payload) {
+      const session = await ensureMemberSession(payload.date);
       try {
-        const res = await fetch('/api/records', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          ...(ctrl ? { signal: ctrl.signal } : {})
-        });
-        if (!res.ok) throw new Error('records_' + res.status);
-        return res.json();
-      } finally {
-        if (timer) clearTimeout(timer);
+        return await postRecords({ member: state.memberName, ...payload, session });
+      } catch (error) {
+        if (error.code !== 'session_invalid') throw error;
+        const renewed = await ensureMemberSession(payload.date, session);
+        return postRecords({ member: state.memberName, ...payload, session: renewed });
       }
     }
 
-    async function postAppsScript(payload) {
-      const res = await fetch('/api/apps-script', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('apps_script_' + res.status);
-      return res.json();
+    function credentials(date = state.selectedDate, member = state.memberName) {
+      return state.appMode === 'coach'
+        ? { date, member, password: state.trainerPassword }
+        : { date, member, token: state.token };
     }
 
-    function applyCachedMemberData(dateStr) {
-      try {
-        const raw = localStorage.getItem(`fit_cache_v2_${state.memberName}_${dateStr}`);
-        if (!raw) return false;
-        const cached = JSON.parse(raw);
-        if (cached.record) state.record = cached.record;
-        if (cached.insights) state.insights = cached.insights;
-        if (Array.isArray(cached.columns) && cached.columns.length) state.columns = cached.columns;
-        if (Array.isArray(cached.workoutDays)) state.workoutDays = cached.workoutDays;
-        return true;
-      } catch { return false; }
+    async function readCanonical(auth) {
+      return normalizeRecord(await postAppsScript({ action: 'read', ...auth }));
     }
 
-    function saveCachedMemberData(dateStr) {
-      try {
-        localStorage.setItem(`fit_cache_v2_${state.memberName}_${dateStr}`, JSON.stringify({
-          record: state.record,
-          insights: state.insights,
-          columns: state.columns,
-          workoutDays: state.workoutDays
-        }));
-      } catch {}
+    function failureText(error) {
+      if (error?.status === 403 || ['unauthorized', 'session_invalid'].includes(error?.code)) {
+        return '접근 권한을 확인해 주세요. 회원 전용 링크나 코치 로그인을 다시 확인해 주세요.';
+      }
+      return '서버 연결을 확인한 뒤 다시 시도해 주세요.';
     }
 
-    // --- Live Initialization (Parallel + Instant Cache) ---
+    function normalizeMeal(value) {
+      const meal = isObject(value) ? value : {};
+      return { desc: '', cal: '', carb: '', prot: '', fat: '', ...meal,
+        photos: Array.isArray(meal.photos) ? meal.photos.filter(Boolean) : [] };
+    }
+
+    function isCheckinMemo(memo) {
+      return typeof memo.text === 'string' && memo.text.startsWith(CHECKIN_PREFIX);
+    }
+
+    function normalizeRecord(value) {
+      const record = isObject(value) ? value : {};
+      const memos = rows(record.memos);
+      let dailyCheckin = isObject(record.dailyCheckin) ? record.dailyCheckin : {};
+      for (const memo of memos.filter(isCheckinMemo).reverse()) {
+        try {
+          const parsed = JSON.parse(memo.text.slice(CHECKIN_PREFIX.length));
+          if (isObject(parsed) && (!dailyCheckin.updatedAt || !parsed.updatedAt || parsed.updatedAt >= dailyCheckin.updatedAt)) {
+            dailyCheckin = parsed;
+          }
+          break;
+        } catch {}
+      }
+      const diet = { ...record.diet, water: number(record.diet?.water) };
+      for (const meal of MEALS) diet[meal] = normalizeMeal(diet[meal]);
+      return { ...record, headerMessage: record.headerMessage || '', routines: rows(record.routines).map(routine => ({ ...routine,
+          completedSets: Array.isArray(routine.completedSets) ? routine.completedSets : [] })),
+        reflection: { good: '', bad: '', ...record.reflection }, diet,
+        feedback: { workout: '', diet: '', time: '', ...record.feedback }, memos, dailyCheckin };
+
+    }
+
+    const photoObservers = new WeakMap();
+    function stopPhotoObservation(root = document.getElementById('main-content')) {
+      photoObservers.get(root)?.disconnect();
+      photoObservers.delete(root);
+    }
+    function clearMealPhotoCache() {
+      photoCache.clear();
+      stopPhotoObservation();
+      stopPhotoObservation(document.getElementById('modal-body'));
+    }
+    const safePhotoSource = source => typeof source === 'string' &&
+      /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(source) ? source : '';
+
+    function mealPhotoMarkup(photo, meal, className, index = 0) {
+      const fileId = isObject(photo) && typeof photo.fileId === 'string' ? photo.fileId : '';
+      if (!fileId && !safePhotoSource(photo)) return '';
+      return `<img data-fit-photo-meal="${meal}" ${fileId ? `data-fit-photo-id="${escapeHtml(fileId)}"` :
+        `data-fit-photo-index="${index}"`} class="fit-photo ${className}" alt="식단 사진" loading="lazy" decoding="async" />`;
+    }
+    function hydrateMealPhotos(root, auth, record = state.record) {
+      const images = root.querySelectorAll('img[data-fit-photo-meal]');
+      if (!images.length) return;
+      const hydrate = async img => {
+        const {fitPhotoId:fileId,fitPhotoMeal:meal,fitPhotoIndex:index} = img.dataset;
+        if (!fileId) {
+          const src = safePhotoSource(record.diet?.[meal]?.photos?.[Number(index)]);
+          if (src && img.isConnected) img.src = src;
+          return;
+        }
+        if (!auth.token && !auth.password) return;
+        const key = JSON.stringify([auth.password ? 'coach' : 'member',auth.member,auth.date,meal,fileId]);
+        let photo = photoCache.get(key);
+        if (!photo) {
+          if (photoCache.size >= 12) photoCache.delete(photoCache.keys().next().value);
+          photo = successful(postAppsScript({action:'photo',...auth,fileId,meal})).then(result => {
+            const src = safePhotoSource('data:'+result.mime+';base64,'+result.base64);
+            if (!src) throw Error('invalid_photo');
+            return src;
+          });
+          photoCache.set(key,photo);
+        }
+        try {
+          const src = await photo;
+          if (img.isConnected) img.src = src;
+        } catch {
+          if (photoCache.get(key) === photo) photoCache.delete(key);
+          if (img.isConnected) img.alt = '식단 사진을 불러오지 못했어요';
+        }
+      };
+      if (typeof IntersectionObserver !== 'function') { images.forEach(hydrate); return; }
+      const observer = new IntersectionObserver(entries => {
+        for (const entry of entries) if (entry.isIntersecting) {
+          observer.unobserve(entry.target);
+          void hydrate(entry.target);
+        }
+      },{rootMargin:'180px'});
+      photoObservers.set(root,observer);
+      images.forEach(img=>observer.observe(img));
+    }
+    if (isLiveOrigin) {
+      state.record = normalizeRecord({});
+      state.insights = {};
+      state.columns = [];
+      state.workoutDays = [];
+    }
+
     async function initLiveMemberData() {
       loadLocalMemberExtras();
-      if (!isLiveOrigin || !state.memberName || !state.token) {
+      if (!isLiveOrigin) { renderAll(); return; }
+      if (!state.token || !paramName) {
+        state.memberError = '회원 전용 링크로 접속해 주세요.';
         renderAll();
         return;
       }
-      const hadCache = applyCachedMemberData(state.selectedDate);
-      state.isLive = true;
-      state.loading = !hadCache;
-      renderAll();
-      try {
-        const [sessRes] = await Promise.all([
-          postRecords({
-            action: 'memberSession',
-            member: state.memberName,
-            token: state.token,
-            date: state.selectedDate
-          }).catch(() => null),
-          loadMemberDateData(state.selectedDate)
-        ]);
-        if (sessRes?.status === 'success' && sessRes.session) {
-          state.session = sessRes.session;
-        }
-        saveCachedMemberData(state.selectedDate);
-        loadLocalMemberExtras();
-        maybeShowPrivacyConsent();
-      } catch {
-        state.isLive = false;
-        if (!hadCache) showToast('미리보기 데이터로 표시 중입니다');
-      } finally {
-        state.loading = false;
-        renderAll();
-      }
+      if (maybeShowPrivacyConsent()) { renderAll(); return; }
+      await loadMemberDateData(state.selectedDate);
     }
 
     function maybeShowPrivacyConsent() {
       try {
-        if (localStorage.getItem('fit_connect_consent_v2')) return;
-      } catch { return; }
+        if (privacyAgreed || localStorage.getItem('fit_connect_consent_v2')) return false;
+      } catch { if (privacyAgreed) return false; }
       openModal('개인정보 수집 · 이용 안내', `
         <div class="space-y-4">
           <p class="text-[13px] text-[#4B5563] leading-relaxed">
@@ -514,89 +628,143 @@
       `);
       document.getElementById('btn-consent-ok').addEventListener('click', () => {
         try { localStorage.setItem('fit_connect_consent_v2', '1'); } catch {}
+        privacyAgreed = true;
         closeModal();
+        void initLiveMemberData();
         showToast('환영합니다! 오늘 리포트를 확인해 보세요');
       });
+      return true;
     }
 
-    async function loadMemberDateData(dateStr) {
-      if (!state.isLive) return;
-      const auth = state.session ? { session: state.session } : { token: state.token };
-      const month = dateStr.slice(0, 7);
-
-      const [daily, ins, cols, hist] = await Promise.allSettled([
-        postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth })
-      ]);
-
-      if (daily.status === 'fulfilled' && daily.value && typeof daily.value === 'object') {
-        const d = daily.value;
-        state.record = {
-          headerMessage: d.headerMessage || '',
-          routines: Array.isArray(d.routines) ? d.routines : [],
-          reflection: d.reflection || { good: '', bad: '' },
-          diet: {
-            breakfast: d.diet?.breakfast || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-            lunch: d.diet?.lunch || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-            dinner: d.diet?.dinner || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-            snack: d.diet?.snack || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-            water: Number(d.diet?.water) || 0
-          },
-          feedback: d.feedback || { workout: '', diet: '', time: '' },
-          memos: Array.isArray(d.memos) ? d.memos : [],
-          dailyCheckin: d.dailyCheckin || { workout: '', diet: '', mood: '' }
-        };
+    function loadPublishedColumns(date) {
+      if (publishedColumns && Date.now() - publishedColumns.at < 60_000)
+        return Promise.resolve(publishedColumns.items);
+      if (!columnRequest) {
+        columnRequest = successful(memberRecords({action:'columnList',date})).then(result => {
+          const items = rows(result.columns);
+          publishedColumns = {at:Date.now(),items};
+          return items;
+        }).finally(() => { columnRequest = null; });
       }
-      if (ins.status === 'fulfilled' && ins.value?.status === 'success') state.insights = ins.value;
-      if (cols.status === 'fulfilled' && cols.value?.status === 'success' && Array.isArray(cols.value.columns) && cols.value.columns.length) {
-        state.columns = cols.value.columns;
-      }
-      if (hist.status === 'fulfilled' && hist.value?.status === 'success' && Array.isArray(hist.value.days)) {
-        state.workoutDays = hist.value.days;
-      }
+      return columnRequest;
     }
 
-    // --- Live Save Wrappers ---
-    async function saveDailyCheckinLive(checkinObj) {
-      if (!state.isLive) return;
+    async function loadMemberDateData(date) {
+      const request = ++latestMemberLoad;
+      const current = () => request === latestMemberLoad && date === state.selectedDate && state.appMode === 'member';
+      if (!current()) return;
+      state.recordDate = '';
+      state.memberError = '';
+      state.loading = true;
+      state.record = normalizeRecord({});
+      state.insights = {};
+      state.workoutDays = [];
+      state.columns = publishedColumns?.items || [];
+      renderAll();
+      const auth = credentials(date);
       try {
-        await postRecords({ action: 'dailyCheckin', member: state.memberName, date: state.selectedDate, session: state.session, checkin: checkinObj });
-      } catch {
-        showToast('체크인 저장 중 네트워크 오류가 발생했어요');
+        let record;
+        if (canonicalDates.has(date)) record = await readCanonical(auth);
+        else {
+          try { record = normalizeRecord(await memberRecords({action:'read',date})); }
+          catch (error) {
+            if (error.status === 403 && error.code !== 'member_not_found') throw error;
+            record = await readCanonical(auth);
+          }
+        }
+        if (!current()) return;
+        state.record = record;
+        state.recordDate = date;
+        state.isLive = true;
+      } catch (error) {
+        if (current()) state.memberError = '기록을 불러오지 못했어요. ' + failureText(error);
+      } finally {
+        if (current()) {
+          state.loading = false;
+          renderAll();
+        }
       }
+      if (!current() || state.recordDate !== date) return;
+      // Let the daily record paint before starting optional work.
+      const hydrate = async () => {
+        if (!current()) return;
+        const [insights,history,columns] = await Promise.allSettled([
+          memberRecords({action:'memberInsights',date}),
+          memberRecords({action:'workoutHistory',date,month:date.slice(0,7)}),
+          loadPublishedColumns(date)
+        ]);
+        if (!current()) return;
+        if (insights.value?.status === 'success') state.insights = insights.value;
+        if (history.value?.status === 'success')
+          state.workoutDays = [...new Set([...state.workoutDays,...(history.value.days || [])])];
+        if (columns.status === 'fulfilled') state.columns = columns.value;
+        refreshMemberSummaries();
+      };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(() => void hydrate()));
+      else if (typeof setTimeout === 'function') setTimeout(() => void hydrate(),0);
     }
 
-    async function savePatchLive(patchObj, targetMember) {
-      if (!state.isLive) return;
-      const mName = targetMember || state.memberName;
-      try {
-        await postAppsScript({
-          action: 'patchData',
-          member: mName,
-          date: state.selectedDate,
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
-          patch: patchObj
-        });
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
+    async function saveAction(work, message, onSuccess = renderAll) {
+      if (state.saving) return false;
+      if (!isLiveOrigin || (state.appMode === 'member' && state.recordDate !== state.selectedDate) ||
+          (state.appMode === 'coach' && !state.trainerPassword)) {
+        showToast('기록을 불러오거나 로그인한 뒤 저장할 수 있어요.');
+        return false;
       }
+      state.saving = true;
+      try {
+        await work();
+      } catch (error) {
+        showToast(error.userMessage || '저장을 확인하지 못했어요. ' + failureText(error));
+        return false;
+      } finally {
+        state.saving = false;
+      }
+      onSuccess();
+      showToast(message);
+      return true;
     }
 
-    async function saveFullRecordLive(targetMember, fullData) {
-      if (!state.isLive) return;
-      const mName = targetMember || state.memberName;
-      try {
-        await postAppsScript({
-          member: mName,
-          date: state.selectedDate,
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
-          data: fullData || state.record
-        });
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
-      }
+    async function savePatchLive(patch, target = credentials()) {
+      const auth = typeof target === 'string' ? credentials(state.selectedDate,target) : target;
+      const result = await successful(postAppsScript({action:'patchData',...auth,patch}));
+      if (auth.token) canonicalDates.add(auth.date);
+      return result;
+    }
+
+    async function saveFullRecordLive(target, data) {
+      const auth = credentials(state.selectedDate,target || state.memberName);
+      await successful(postAppsScript({...auth,data}));
+      if (auth.token) canonicalDates.add(auth.date);
+    }
+
+    async function saveDailyCheckinLive(checkin, auth) {
+      const latest = await readCanonical(auth);
+      const updated = {...latest.dailyCheckin,...checkin,updatedAt:new Date().toISOString()};
+      await savePatchLive({memos:[{id:'checkin-'+crypto.randomUUID(),from:'member',
+        text:CHECKIN_PREFIX+JSON.stringify(updated),time:nowTimeHHMM()}]},auth);
+      void memberRecords({action:'dailyCheckin',date:auth.date,checkin}).catch(() => {});
+      return updated;
+    }
+
+    async function saveSetProgress(routine, checked) {
+      const auth = credentials();
+      const sets = Number(routine.sets);
+      if (!Number.isInteger(sets) || sets < 1 || sets > 100 || routine.id == null) throw Error('invalid_routine');
+      await successful(postAppsScript({action:'setProgressBatch',...auth,
+        changes:Array.from({length:sets},(_,index) => ({id:routine.id,index,checked}))}));
+      canonicalDates.add(auth.date);
+      routine.completedSets = Array(sets).fill(checked);
+      if (checked && !state.workoutDays.includes(auth.date)) state.workoutDays.push(auth.date);
+    }
+
+    async function sendCoachDietFeedback(memberName, replyText) {
+      if (!replyText) return;
+      const auth = credentials(state.selectedDate,memberName);
+      return saveAction(async () => {
+        const latest = await readCanonical(auth);
+        await savePatchLive({feedback:{...latest.feedback,diet:replyText,time:nowTimeHHMM()}},auth);
+      },memberName+' 회원님 식단 답장을 저장했어요.');
     }
 
     // --- UI Feedback ---
@@ -1182,16 +1350,17 @@
     }
 
     function addWaterCup(mlDelta) {
-      state.record.diet.water = Math.max(0, (Number(state.record.diet.water) || 0) + mlDelta);
-      try {
-        localStorage.setItem(`fit_water_${state.memberName}_${state.selectedDate}`, String(state.record.diet.water));
-      } catch {}
-      showToast(mlDelta > 0 ? `물 ${mlDelta}ml 추가! (총 ${(state.record.diet.water / 1000).toFixed(2)}L)` : `수분 기록 조정 (${(state.record.diet.water / 1000).toFixed(2)}L)`);
-      renderAll();
-      savePatchLive({ diet: { water: state.record.diet.water } });
+      const auth = credentials();
+      void saveAction(async () => {
+        const latest = await readCanonical(auth);
+        const water = Math.max(0,latest.diet.water+mlDelta);
+        await savePatchLive({diet:{water}},auth);
+        state.record.diet.water = water;
+      },'수분 기록을 저장했어요.',renderMain);
     }
 
     function openModal(title, htmlContent) {
+      clearModalPhotos();
       document.getElementById('modal-title').textContent = title;
       document.getElementById('modal-body').innerHTML = htmlContent;
       const b = document.getElementById('modal-backdrop');
@@ -1200,9 +1369,18 @@
     }
 
     function closeModal() {
+      if (state.saving) return;
+      clearModalPhotos();
       const b = document.getElementById('modal-backdrop');
       b.classList.add('hidden');
       b.classList.remove('flex');
+    }
+
+    let mealPreviewUrl = '';
+    function clearModalPhotos() {
+      stopPhotoObservation(document.getElementById('modal-body'));
+      if (mealPreviewUrl) URL.revokeObjectURL(mealPreviewUrl);
+      mealPreviewUrl = '';
     }
 
     // --- Metrics & Visual SVGs ---
@@ -1327,17 +1505,20 @@
         { tag: '외식', cal: '820', carb: '85', prot: '25', fat: '32', desc: '외식 메뉴 · 양 조절' },
         { tag: '단백질·간식', cal: '220', carb: '12', prot: '26', fat: '6', desc: '프로틴 쉐이크 · 견과류' }
       ];
-      let compressedPhoto = Array.isArray(m.photos) && m.photos[0] ? m.photos[0] : '';
+      let compressedPhoto = null;
+      let compressionRequest = 0;
+      let compressing = false;
 
       openModal(`${mealLabel} 식단 기록`, `
         <div class="space-y-4">
           <div>
-            <label class="tap-scale w-full py-3 px-4 rounded-2xl border-2 border-dashed ${compressedPhoto ? 'border-[#0F766E] bg-[#F0FDFA] text-[#0F766E]' : 'border-gray-200 bg-[#F4F6F9] text-[#4B5563]'} flex items-center justify-center gap-2 text-[13px] font-bold cursor-pointer">
+            <label class="tap-scale w-full py-3 px-4 rounded-2xl border-2 border-dashed border-gray-200 bg-[#F4F6F9] text-[#4B5563] flex items-center justify-center gap-2 text-[13px] font-bold cursor-pointer">
               <input id="meal-photo-input" type="file" accept="image/*" class="hidden" />
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              <span id="photo-status-txt">${compressedPhoto ? '식단 사진 준비됨 ✓ (변경하려면 터치)' : '사진 1장 첨부 (자동 압축)'}</span>
+              <span id="photo-status-txt">사진 1장 첨부 (자동 압축)</span>
             </label>
-            <img id="meal-photo-preview" src="${compressedPhoto}" alt="식단 사진" class="${compressedPhoto ? '' : 'hidden'} mt-2 w-full h-36 object-cover rounded-2xl" />
+            ${(m.photos || []).map((photo,index)=>mealPhotoMarkup(photo,mealKey,'mt-2 w-full h-36 object-cover rounded-2xl',index)).join('')}
+            <img id="meal-photo-preview" alt="첨부할 식단 사진" class="hidden mt-2 w-full h-36 object-cover rounded-2xl" decoding="async" />
           </div>
 
           <div>
@@ -1360,44 +1541,76 @@
         </div>
       `);
 
-      document.getElementById('meal-photo-input').addEventListener('change', async e => {
-        const f = e.target.files?.[0];
-        if (!f) return;
+      const form = document.getElementById('meal-form');
+      const photoInput = document.getElementById('meal-photo-input');
+      const preview = document.getElementById('meal-photo-preview');
+      const auth = credentials();
+      hydrateMealPhotos(document.getElementById('modal-body'),auth);
+      photoInput.addEventListener('change',async () => {
+        const request = ++compressionRequest;
+        const file = photoInput.files?.[0];
+        compressedPhoto = null;
+        preview.classList.add('hidden');
+        preview.removeAttribute('src');
+        if (mealPreviewUrl) URL.revokeObjectURL(mealPreviewUrl);
+        mealPreviewUrl = '';
+        compressing = Boolean(file);
+        if (!file) return;
         try {
-          compressedPhoto = await compressImageFile(f);
-          const prev = document.getElementById('meal-photo-preview');
-          prev.src = compressedPhoto;
-          prev.classList.remove('hidden');
-          document.getElementById('photo-status-txt').textContent = '사진 압축 완료 ✓';
-          showToast('사진이 가볍게 압축되었어요');
+          const photo = await compressImageFile(file);
+          if (request !== compressionRequest || !form.isConnected) return;
+          compressedPhoto = photo;
+          mealPreviewUrl = URL.createObjectURL(photo);
+          preview.src = mealPreviewUrl;
+          preview.classList.remove('hidden');
+          document.getElementById('photo-status-txt').textContent = '사진 첨부 준비 완료';
         } catch {
-          showToast('사진을 불러오지 못했어요');
-        }
+          if (form.isConnected && request === compressionRequest) showToast('사진을 불러오지 못했어요');
+        } finally { if (request === compressionRequest) compressing = false; }
       });
 
-      document.querySelectorAll('.pr-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const pr = presets[Number(btn.dataset.pr)];
-          const updated = { desc: `[${pr.tag}] ${pr.desc}`, cal: pr.cal, carb: pr.carb, prot: pr.prot, fat: pr.fat, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
-          state.record.diet[mealKey] = updated;
-          closeModal();
-          showToast(`${mealLabel} (${pr.tag}) 저장 완료!`);
-          renderAll();
-          savePatchLive({ diet: { [mealKey]: updated } });
-        });
-      });
-
-      document.getElementById('meal-form').addEventListener('submit', e => {
-        e.preventDefault();
+      async function submitMeal(fields) {
+        if (compressing || state.saving) return;
+        const controls = form.querySelectorAll('input,button');
+        controls.forEach(control=>{control.disabled=true;});
+        try {
+          await saveAction(async () => {
+            const result = await savePatchLive({diet:{[mealKey]:fields}},auth);
+            state.record = isObject(result.data) ? normalizeRecord(result.data) : state.record;
+            state.record.diet[mealKey] = {...state.record.diet[mealKey],...fields};
+            if (!compressedPhoto) return;
+            const photo = compressedPhoto;
+            const base64 = await new Promise((resolve,reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result.split(',')[1]);
+              reader.onerror = reject;
+              reader.readAsDataURL(photo);
+            });
+            let resultPhoto;
+            try { resultPhoto = await successful(postAppsScript({action:'uploadPhoto',...auth,meal:mealKey,mime:photo.type,base64})); }
+            catch (error) {
+              error.userMessage = '식단은 저장했지만 사진 업로드를 확인하지 못했어요. 저장 상태를 확인해 주세요.';
+              throw error;
+            }
+            compressedPhoto = null;
+            if (Array.isArray(resultPhoto.photos)) state.record.diet[mealKey].photos = resultPhoto.photos;
+            else {
+              const refreshed = await readCanonical(auth).catch(()=>null);
+              if (refreshed) state.record = refreshed;
+            }
+          },mealLabel+' 식단을 저장했어요.',()=>{closeModal();renderMain();});
+        } finally { controls.forEach(control=>{control.disabled=false;}); }
+      }
+      form.querySelectorAll('.pr-btn').forEach(btn=>btn.addEventListener('click',()=>{
+        const pr = presets[Number(btn.dataset.pr)];
+        void submitMeal({desc:`[${pr.tag}] ${pr.desc}`,cal:pr.cal,carb:pr.carb,prot:pr.prot,fat:pr.fat});
+      }));
+      form.addEventListener('submit',event=>{
+        event.preventDefault();
         const desc = document.getElementById('mf-desc').value.trim();
         const cal = document.getElementById('mf-cal').value.trim();
         if (!desc && !cal && !compressedPhoto) return;
-        const updated = { ...m, desc: desc || '사진 기록', cal, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
-        state.record.diet[mealKey] = updated;
-        closeModal();
-        showToast(`${mealLabel} 식단이 저장되었어요`);
-        renderAll();
-        savePatchLive({ diet: { [mealKey]: updated } });
+        void submitMeal({desc:desc || (compressedPhoto ? '사진 기록' : ''),cal});
       });
     }
 
@@ -1593,8 +1806,8 @@
         e.preventDefault();
         const name = document.getElementById('ar-name').value.trim();
         if (!name) return;
-        const sets = Math.max(1, Number(document.getElementById('ar-sets').value) || 3);
-        state.record.routines.push({
+        const sets = Math.min(100,Math.max(1, Math.trunc(Number(document.getElementById('ar-sets').value)) || 3));
+        const routine = {
           id: Date.now(),
           name,
           weight: document.getElementById('ar-weight').value.trim(),
@@ -1602,12 +1815,12 @@
           reps: document.getElementById('ar-reps').value.trim() || '12',
           note: document.getElementById('ar-note').value.trim(),
           completedSets: Array(sets).fill(true)
-        });
-        closeModal();
-        triggerConfetti();
-        showToast('개인운동이 추가되었어요!');
-        renderAll();
-        saveFullRecordLive();
+        };
+        void saveAction(async () => {
+          const latest = await readCanonical(credentials());
+          await saveFullRecordLive(state.memberName,{...latest,routines:[...latest.routines,routine]});
+          state.record.routines = [...latest.routines,routine];
+        },'개인운동이 추가되었어요.',()=>{closeModal();triggerConfetti();renderMain();});
       });
     }
 
@@ -1711,23 +1924,29 @@
       if (!state.isLive || !state.trainerPassword) {
         return { daily: state.record, history: { previous: { '고블릿 스쿼트': { weight: 14, reps: 12, date: shiftDateStr(state.selectedDate, -3) } } } };
       }
-      const [dRes, hRes] = await Promise.allSettled([
-        postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
-        postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
+      const auth = credentials(state.selectedDate,memberName);
+      const [daily,hRes] = await Promise.all([
+        readCanonical(auth),
+        postRecords({action:'workoutHistory',...auth,month:auth.date.slice(0,7)}).catch(()=>null)
       ]);
       return {
-        daily: (dRes.status === 'fulfilled' && dRes.value && typeof dRes.value === 'object') ? dRes.value : {},
-        history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} }
+        daily,
+        history:hRes?.status==='success' ? hRes : {previous:{}}
       };
     }
 
     // One-Stop Member Detail & Immediate Reply Bottom Sheet
     async function openCoachDetailSheet(memberName) {
       openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
-      const { daily, history } = await fetchMemberForCoach(memberName);
-      const routines = Array.isArray(daily.routines) && daily.routines.length
-        ? daily.routines.map(r => ({ ...r }))
-        : [{ id: Date.now(), name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '', completedSets: [true, true, true, true] }];
+      const modalBody = document.getElementById('modal-body');
+      const placeholder = modalBody.firstElementChild;
+      const auth = credentials(state.selectedDate,memberName);
+      const result = await fetchMemberForCoach(memberName).catch(()=>null);
+      if (state.appMode!=='coach' || modalBody.firstElementChild!==placeholder ||
+          document.getElementById('modal-backdrop').classList.contains('hidden')) return;
+      if (!result) { closeModal(); showToast('회원 기록을 불러오지 못했어요.'); return; }
+      const {daily,history} = result;
+      const routines = rows(daily.routines).map(r=>({...r}));
 
       const prevMap = history.previous || {};
       const dietObj = daily.diet || {};
@@ -1735,7 +1954,7 @@
         .map(([k, label]) => ({ key: k, label, ...(dietObj[k] || {}) }))
         .filter(m => m.desc || m.cal || (Array.isArray(m.photos) && m.photos.length));
 
-      const memos = Array.isArray(daily.memos) ? daily.memos : [];
+      const memos = rows(daily.memos).filter(memo=>!isCheckinMemo(memo));
       const lastMemo = memos.length ? memos[memos.length - 1].text : '최근 메모 없음';
       const chk = daily.dailyCheckin || {};
       const handoverText = `[FIT-CONNECT 인수인계] ${memberName} 회원님\n- 최근 코멘트: ${daily.headerMessage || '없음'}\n- 주요 중량: ${Object.entries(prevMap).slice(0, 4).map(([k, v]) => `${k} ${v.weight}kg×${v.reps}`).join(', ') || '기록 없음'}\n- 최근 메모: ${lastMemo}`;
@@ -1771,9 +1990,9 @@
                 <div class="p-2.5 rounded-xl bg-white space-y-1.5">
                   <div class="flex items-center justify-between text-[12px]">
                     <span class="font-bold text-[#111827]">${m.label}: ${escapeHtml(m.desc || '사진 기록')}</span>
-                    ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${m.cal}kcal</span>` : ''}
+                    ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${escapeHtml(m.cal)}kcal</span>` : ''}
                   </div>
-                  ${Array.isArray(m.photos) && m.photos[0] ? `<img src="${m.photos[0]}" alt="${m.label} 식단" class="w-full h-32 object-cover rounded-lg" />` : ''}
+                  ${mealPhotoMarkup(m.photos?.[0],m.key,'w-full h-32 object-cover rounded-lg')}
                 </div>
               `).join('') : '<p class="text-[12px] text-[#6B7280]">아직 오늘 올라온 식단이 없습니다.</p>'}
               <div class="flex flex-wrap gap-1 pt-1">
@@ -1801,7 +2020,7 @@
                           <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(r.name)}</p>
                           ${diff !== null && diff !== 0 ? `<span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white text-[#1D4ED8]">${diff > 0 ? '+' + diff : diff}kg</span>` : ''}
                         </div>
-                        <p class="text-[11px] text-[#6B7280] mt-0.5">${r.reps || '12'}회 × ${r.sets || '3'}세트 ${prev?.weight ? `(직전 ${prev.weight}kg)` : ''}</p>
+                        <p class="text-[11px] text-[#6B7280] mt-0.5">${escapeHtml(r.reps || '12')}회 × ${escapeHtml(r.sets || '3')}세트 ${prev?.weight ? `(직전 ${escapeHtml(prev.weight)}kg)` : ''}</p>
                       </div>
                       <div class="flex items-center gap-1.5 shrink-0">
                         <button type="button" data-wi="${i}" data-wd="-2" class="cd-wt-btn w-7 h-7 rounded-lg bg-white text-[#4B5563] font-bold text-xs shadow-sm">-</button>
@@ -1943,58 +2162,37 @@
           }
         });
 
+        hydrateMealPhotos(modalBody,auth,daily);
         document.getElementById('cd-broadcast-all').addEventListener('click', async () => {
           const finalReply = document.getElementById('cd-reply-msg').value.trim();
           if (!finalReply) {
             showToast('전체 적용할 코치 한마디를 먼저 선택하거나 입력해 주세요');
             return;
           }
-          state.record.headerMessage = finalReply;
           const members = state.trainerOverview || [];
-          closeModal();
-          triggerConfetti();
-          showToast(`전체 ${members.length || 1}명 회원님께 한마디를 통일 적용 중...`);
-          renderAll();
-          if (state.isLive && members.length) {
-            await Promise.allSettled(
-              members.map(m => savePatchLive({ headerMessage: finalReply }, m.name))
-            );
-            showToast(`전체 ${members.length}명 회원님께 통일 적용 완료!`);
-          } else {
-            showToast('전체 회원 한마디 통일 적용 완료!');
-          }
+          if (!members.length) return;
+          await saveAction(async () => {
+            const outcomes = await Promise.allSettled(members.map(m=>savePatchLive({headerMessage:finalReply},m.name)));
+            const saved = outcomes.filter(item=>item.status==='fulfilled').length;
+            if (saved!==members.length) {
+              throw Object.assign(Error('partial_save'),{userMessage:`${saved}/${members.length}명 저장 확인 · 나머지는 다시 시도해 주세요.`});
+            }
+          },`전체 ${members.length}명 회원님께 저장했어요.`,closeModal);
         });
 
         document.getElementById('cd-save-all').addEventListener('click', async () => {
           const finalReply = document.getElementById('cd-reply-msg').value.trim();
           const finalDiet = document.getElementById('cd-diet-msg').value.trim();
-          const fullPayload = {
-            ...daily,
-            headerMessage: finalReply || daily.headerMessage || '',
-            routines,
-            feedback: {
-              ...(daily.feedback || {}),
-              ...(finalReply ? { workout: finalReply } : {}),
-              ...(finalDiet ? { diet: finalDiet } : {}),
-              time: nowTimeHHMM()
-            }
-          };
-
-          const ovTarget = state.trainerOverview.find(x => x.name === memberName);
-          if (ovTarget) {
-            if (finalReply) ovTarget.pendingWorkout = false;
-            if (finalDiet) ovTarget.pendingDiet = false;
-          }
-          if (memberName === state.memberName) {
-            state.record.headerMessage = fullPayload.headerMessage;
-            state.record.routines = routines;
-            state.record.feedback = fullPayload.feedback;
-          }
-          closeModal();
-          triggerConfetti();
-          showToast(`${memberName} 회원님 피드백 저장 완료!`);
-          renderAll();
-          await saveFullRecordLive(memberName, fullPayload);
+          await saveAction(async () => {
+            const latest = await readCanonical(credentials(state.selectedDate,memberName));
+            const feedback = {...latest.feedback,
+              ...(finalReply?{workout:finalReply}:{}),...(finalDiet?{diet:finalDiet}:{}),time:nowTimeHHMM()};
+            await saveFullRecordLive(memberName,{...latest,routines,feedback,
+              headerMessage:finalReply || latest.headerMessage});
+            const member = state.trainerOverview.find(item=>item.name===memberName);
+            if (member && finalReply) member.pendingWorkout = false;
+            if (member && finalDiet) member.pendingDiet = false;
+          },`${memberName} 회원님 기록을 저장했어요.`,()=>{closeModal();renderMain();});
         });
       }
       renderDetailBody();
@@ -2033,6 +2231,7 @@
             return;
           }
         }
+        publishedColumns = null;
         state.columns.unshift(colObj);
         closeModal();
         showToast('새 매거진 칼럼이 발행되었어요!');
@@ -2075,23 +2274,20 @@
         `;
         hdr.querySelectorAll('.day-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
+            if (state.saving) return;
             state.selectedDate = btn.dataset.fdate;
             state.weekDays = buildWeekDays(state.selectedDate);
-            if (state.isLive) {
-              const hadCache = applyCachedMemberData(state.selectedDate);
-              state.loading = !hadCache;
-              renderAll();
-              await loadMemberDateData(state.selectedDate);
-              saveCachedMemberData(state.selectedDate);
-              state.loading = false;
-            }
             loadLocalMemberExtras();
-            renderAll();
+            if (isLiveOrigin && state.token && paramName) {
+              if (!maybeShowPrivacyConsent()) await loadMemberDateData(state.selectedDate);
+            } else renderAll();
           });
         });
         document.getElementById('btn-hdr-timer').addEventListener('click', openTimerModal);
         document.getElementById('btn-ask-coach').addEventListener('click', () => { state.memberTab = 'feedback'; renderAll(); });
-        document.getElementById('btn-coach-switch').addEventListener('click', openTrainerLoginModal);
+        document.getElementById('btn-coach-switch').addEventListener('click', () => {
+          if (!state.saving) openTrainerLoginModal();
+        });
       } else {
         hdr.innerHTML = `
           <div class="flex items-center justify-between">
@@ -2109,7 +2305,14 @@
           </div>
         `;
         document.getElementById('btn-new-col').addEventListener('click', openColumnWriteModal);
-        document.getElementById('btn-back-member').addEventListener('click', () => { state.appMode = 'member'; renderAll(); });
+        document.getElementById('btn-back-member').addEventListener('click', () => {
+          if (state.saving) return;
+          state.trainerPassword = '';
+          state.trainerOverview = [];
+          state.appMode = 'member';
+          clearMealPhotoCache();
+          void initLiveMemberData();
+        });
       }
     }
 
@@ -2184,6 +2387,8 @@
       if (state.loading) {
         return `<div class="space-y-3.5"><div class="h-60 rounded-[26px] skeleton"></div><div class="grid grid-cols-2 gap-3"><div class="h-32 rounded-[22px] skeleton"></div><div class="h-32 rounded-[22px] skeleton"></div></div><div class="h-40 rounded-[24px] skeleton"></div></div>`;
       }
+      if (state.memberError)
+        return `<p role="status" class="rounded-2xl bg-white p-4">${escapeHtml(state.memberError)} <button type="button" id="member-read-retry" class="font-bold text-blue-800">다시 시도</button></p>`;
 
       const wr = getWorkoutRate();
       const ds = getDietStats();
@@ -2333,7 +2538,7 @@
                   return `
                     <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn tap-scale p-3.5 rounded-2xl text-center transition ${logged ? 'card-teal text-white shadow-sm' : 'bg-[#F4F6F9] text-[#111827]'}">
                       <p class="text-[13px] font-bold">${label}</p>
-                      <p class="text-[11px] font-semibold tabular-nums mt-1 ${logged ? 'text-white/90' : 'text-[#0F766E]'}">${logged ? (ml.cal ? ml.cal + 'kcal' : '사진기록') : '원터치 +'}</p>
+                      <p class="text-[11px] font-semibold tabular-nums mt-1 ${logged ? 'text-white/90' : 'text-[#0F766E]'}">${logged ? (ml.cal ? escapeHtml(ml.cal) + 'kcal' : '사진기록') : '원터치 +'}</p>
                     </button>
                   `;
                 }).join('')}
@@ -2360,7 +2565,7 @@
 
             <div class="bg-white rounded-[24px] p-5 space-y-2.5">
               <div class="flex items-center justify-between mb-1">
-                <h3 class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
+                <h3 id="routine-progress-heading" class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
                 <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
               </div>
               ${rs.length ? rs.map((r, i) => {
@@ -2373,7 +2578,7 @@
                         <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
                         <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">자세 · 부위 ›</span>
                       </div>
-                      <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>
+                      <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? escapeHtml(r.weight) + 'kg · ' : ''}${r.reps ? escapeHtml(r.reps) + '회 ' : ''}${r.sets ? '× ' + escapeHtml(r.sets) + '세트' : ''}</p>
                       ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${escapeHtml(r.note)}</p>` : ''}
                     </button>
                     <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
@@ -2405,9 +2610,9 @@
                       <p class="text-[15px] font-bold text-[#111827]">${label}</p>
                       <p class="text-[12px] text-[#6B7280] mt-0.5">${escapeHtml(ml.desc || '아직 기록 전이에요')}</p>
                     </div>
-                    <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
+                    <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? escapeHtml(ml.cal) + ' kcal' : '기록하기'}</button>
                   </div>
-                  ${hasPhoto ? `<img src="${ml.photos[0]}" alt="${label} 식단" class="w-full h-32 object-cover rounded-xl" />` : ''}
+                  ${hasPhoto ? mealPhotoMarkup(ml.photos[0],key,'w-full h-32 object-cover rounded-xl') : ''}
                 </div>
               `;
             }).join('')}
@@ -2543,7 +2748,6 @@
       }
 
       // Second Coach Tab: '회원 · 매거진'
-      const matchedMembers = list.filter(m => !state.coachSearch || m.name.includes(state.coachSearch));
       return `
         <div class="space-y-3.5 animate-in">
           <!-- Magazine Management Card -->
@@ -2571,8 +2775,8 @@
           <!-- All Members Search & List -->
           <section class="space-y-2.5">
             <input id="coach-search-inp" value="${escapeHtml(state.coachSearch)}" placeholder="전체 회원 이름 검색 (${list.length}명)..." class="w-full text-[13px] px-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none" />
-            ${matchedMembers.map(m => `
-              <button type="button" data-cname="${escapeHtml(m.name)}" class="c-detail-btn tap-scale w-full bg-white rounded-[22px] p-4 shadow-sm text-left flex items-center justify-between gap-2">
+            ${list.map(m => `
+              <button type="button" data-cname="${escapeHtml(m.name)}" ${state.coachSearch && !m.name.toLowerCase().includes(state.coachSearch.toLowerCase()) ? 'hidden' : ''} class="fit-coach-search-row c-detail-btn tap-scale w-full bg-white rounded-[22px] p-4 shadow-sm text-left flex items-center justify-between gap-2">
                 <div>
                   <div class="flex items-center gap-2">
                     <span class="text-[15px] font-bold text-[#111827]">${escapeHtml(m.name)}</span>
@@ -2598,22 +2802,64 @@
     function renderAll() {
       renderHeader();
       renderBottomNav();
-      document.getElementById('main-content').innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
+      renderMain();
       updateFabUI();
       updateFloatingTimerUI();
+    }
+
+    function renderMain() {
+      const main = document.getElementById('main-content');
+      stopPhotoObservation();
+      main.innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
+      if (state.appMode === 'member' && state.recordDate === state.selectedDate) hydrateMealPhotos(main, credentials());
       bindEvents();
     }
 
+    function refreshMemberSummaries() {
+      renderHeader();
+      if (['report','body'].includes(state.memberTab)) renderMain();
+    }
+
+    async function setWorkoutDone(routine, done, button) {
+      if (state.saving) return;
+      if (button) {
+        button.disabled = true;
+        button.setAttribute('aria-busy','true');
+      }
+      try { await saveAction(() => saveSetProgress(routine,done), '운동 기록을 저장했어요.', () => {
+        if (done) {
+          state.timer.setsDone++;
+          triggerConfetti();
+          if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
+        }
+        if (!button?.isConnected) { renderMain(); return; }
+        for (const name of ['card-blue','text-white']) button.classList.toggle(name,done);
+        for (const name of ['bg-white','text-[#4B5563]','shadow-sm']) button.classList.toggle(name,!done);
+        button.textContent = done ? '완료' : '체크';
+        button.setAttribute('aria-pressed',String(done));
+        const progress = document.getElementById('routine-progress-heading');
+        const {done:count,total} = getWorkoutRate();
+        if (progress) progress.textContent = `오늘 운동 종목 (${count}/${total})`;
+      }); } finally {
+        if (button) {
+          button.disabled = false;
+          button.removeAttribute('aria-busy');
+        }
+      }
+    }
+
     function bindEvents() {
+      document.getElementById('member-read-retry')?.addEventListener('click',()=>void initLiveMemberData());
       const vBtn = document.getElementById('btn-verify');
       if (vBtn) {
         vBtn.addEventListener('click', () => {
           const nextVal = state.record.dailyCheckin.workout === 'done' ? 'rest' : 'done';
-          state.record.dailyCheckin.workout = nextVal;
-          if (nextVal === 'done') triggerConfetti();
-          showToast(nextVal === 'done' ? '오늘 운동 인증 완료!' : '회복 상태로 변경했어요');
-          renderAll();
-          saveDailyCheckinLive({ ...state.record.dailyCheckin, workout: nextVal });
+          void saveAction(async () => {
+            state.record.dailyCheckin = await saveDailyCheckinLive({workout:nextVal},credentials());
+          },nextVal === 'done' ? '오늘 운동 인증 완료!' : '회복 상태로 변경했어요',()=>{
+            if (nextVal === 'done') triggerConfetti();
+            renderMain();
+          });
         });
       }
 
@@ -2650,14 +2896,7 @@
         hmBtn.addEventListener('click', () => {
           const idx = (state.record.routines || []).findIndex(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
           if (idx >= 0) {
-            const r = state.record.routines[idx];
-            r.completedSets = Array(Math.max(1, Number(r.sets) || 3)).fill(true);
-            state.timer.setsDone += 1;
-            triggerConfetti();
-            showToast(`${r.name} 완료 체크!`);
-            if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
-            renderAll();
-            saveFullRecordLive();
+            setWorkoutDone(state.record.routines[idx],true);
           } else {
             state.memberTab = 'lesson';
             renderAll();
@@ -2676,10 +2915,9 @@
 
       document.querySelectorAll('.chk-btn').forEach(b => {
         b.addEventListener('click', () => {
-          state.record.dailyCheckin[b.dataset.grp] = b.dataset.val;
-          showToast('오늘 상태가 저장되었어요');
-          renderAll();
-          saveDailyCheckinLive({ ...state.record.dailyCheckin });
+          void saveAction(async () => {
+            state.record.dailyCheckin = await saveDailyCheckinLive({[b.dataset.grp]:b.dataset.val},credentials());
+          },'오늘 상태가 저장되었어요',renderMain);
         });
       });
 
@@ -2690,16 +2928,8 @@
           const idx = Number(b.dataset.ridx);
           const r = state.record.routines[idx];
           if (!r) return;
-          const setsCount = Math.max(1, Number(r.sets) || (Array.isArray(r.completedSets) ? r.completedSets.length : 3));
           const currentlyDone = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
-          r.completedSets = Array(setsCount).fill(!currentlyDone);
-          if (!currentlyDone) {
-            state.timer.setsDone += 1;
-            triggerConfetti();
-            if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
-          }
-          renderAll();
-          saveFullRecordLive();
+          setWorkoutDone(r,!currentlyDone,b);
         });
       });
 
@@ -2728,11 +2958,11 @@
           const inp = document.getElementById('memo-inp');
           const txt = inp.value.trim();
           if (!txt) return;
-          state.record.memos.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), from: 'member', text: txt, time: nowTimeHHMM() });
-          inp.value = '';
-          showToast('코치님께 메모를 전송했어요');
-          renderAll();
-          savePatchLive({ memos: state.record.memos });
+          const memo = {id:crypto.randomUUID(),from:'member',text:txt,time:nowTimeHHMM()};
+          void saveAction(async () => {
+            await savePatchLive({memos:[memo]});
+            state.record.memos.push(memo);
+          },'코치님께 메모를 전송했어요',renderMain);
         });
       }
 
@@ -2762,12 +2992,14 @@
 
       const csInp = document.getElementById('coach-search-inp');
       if (csInp) {
-        csInp.addEventListener('input', e => {
-          state.coachSearch = e.target.value.trim();
-          renderAll();
-          const n = document.getElementById('coach-search-inp');
-          if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
-        });
+        const list = csInp.parentElement.querySelectorAll('.fit-coach-search-row');
+        const filter = () => {
+          state.coachSearch = csInp.value.trim();
+          const query = state.coachSearch.toLowerCase();
+          for (const row of list) row.hidden = !row.dataset.cname.toLowerCase().includes(query);
+        };
+        csInp.addEventListener('compositionend',filter);
+        csInp.addEventListener('input',event=>{ if (!event.isComposing) filter(); });
       }
     }
 
@@ -2800,6 +3032,23 @@
     document.getElementById('modal-close').addEventListener('click', closeModal);
     document.getElementById('modal-backdrop').addEventListener('click', e => { if (e.target.id === 'modal-backdrop') closeModal(); });
 
+    window.addEventListener('pagehide',()=>{
+      clearMealPhotoCache();
+      clearModalPhotos();
+      if (state.appMode === 'coach') {
+        state.trainerPassword = '';
+        state.trainerOverview = [];
+        state.appMode = 'member';
+        document.getElementById('main-content').replaceChildren();
+        document.getElementById('modal-body').replaceChildren();
+      }
+    });
+    window.addEventListener('pageshow',event=>{
+      if (!event.persisted) return;
+      state.saving = false;
+      closeModal();
+      void initLiveMemberData();
+    });
     initLiveMemberData();
   </script>
 </body>

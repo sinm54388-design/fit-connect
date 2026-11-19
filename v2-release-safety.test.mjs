@@ -68,6 +68,31 @@ test('an older or denied date read cannot remain on the current screen', async (
   assert.match(run('state.memberError'), /불러오지 못했어요/);
 });
 
+test('cold member date renders before optional calls and reuses published columns', async () => {
+  const calls = [];
+  const run = app(async (_,request)=>{
+    const body = JSON.parse(request.body);
+    calls.push({action:body.action,session:body.session});
+    if (body.action==='memberSession')
+      return Response.json({status:'success',session:'verified',exp:Date.now()+3600000});
+    if (body.action==='read') return Response.json({headerMessage:'today first'});
+    return Response.json({status:'success',columns:[],days:[]});
+  });
+  run('globalThis.frames = []; globalThis.requestAnimationFrame = cb => frames.push(cb); refreshMemberSummaries = () => {};');
+  await run('loadMemberDateData(state.selectedDate)');
+  assert.deepEqual(calls.map(item=>item.action),['memberSession','read']);
+  assert.equal(run('state.record.headerMessage'),'today first');
+  assert.equal(run('state.loading'),false);
+  run('frames.shift()(); frames.shift()();');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(calls.filter(item=>item.action==='columnList').length,1);
+  assert.ok(calls.slice(1).every(item=>item.session==='verified'));
+  await run("state.selectedDate = '2026-11-20'; loadMemberDateData(state.selectedDate)");
+  run('frames.shift()(); frames.shift()();');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(calls.filter(item=>item.action==='columnList').length,1);
+});
+
 test('HTTP 200 denial preserves the draft and shows failure before any success', async () => {
   const run = app(async () => Response.json({ status: 'denied' }));
   run('state.recordDate = state.selectedDate; globalThis.applied = false;');
@@ -116,6 +141,21 @@ test('empty and legacy records render safely, preserving photo references and fo
   assert.equal(run('state.record.diet.lunch.photoFeedback'), '사진 의견');
   assert.match(run("state.memberTab='lesson'; renderMemberView()"), /&lt;b&gt;무게/);
   assert.match(run("state.memberTab='feedback'; renderMemberView()"), /&lt;b&gt;메모/);
+  assert.match(run("mealPhotoMarkup('data:image/jpeg;base64,AAAA','lunch','',0)"),/data-fit-photo-index="0"/);
+  assert.doesNotMatch(run("mealPhotoMarkup('data:image/jpeg;base64,AAAA','lunch','',0)"),/base64/);
+});
+
+test('concurrent worker requests share one member ID lookup and keep projects isolated', async () => {
+  const context = vm.createContext({});
+  vm.runInContext(workerSource.slice(workerSource.indexOf('const memberCache'),workerSource.indexOf('function shiftDay')),context);
+  const lookup = vm.runInContext('lookupMember',context);
+  let calls = 0;
+  const query = async () => [{id:++calls}];
+  assert.deepEqual(await Promise.all([
+    lookup('project-a','member',query),lookup('project-a','member',query)
+  ]),[1,1]);
+  assert.equal(await lookup('project-b','member',query),2);
+  assert.equal(await lookup('project-a','member',query),1);
 });
 
 test('Worker retries a check-in write conflict and preserves intervening record fields', async () => {

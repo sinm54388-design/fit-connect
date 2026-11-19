@@ -2164,6 +2164,58 @@
       renderDetailBody();
     }
 
+    function openAddMemberModal() {
+      openModal('새 회원 등록', `
+        <form id="add-member-form" class="space-y-3">
+          <p class="text-[12px] text-[#6B7280]">새 회원님의 이름을 입력하면 오늘 날짜로 초기 운동노트가 생성됩니다.</p>
+          <input id="am-name" required minlength="2" maxlength="30" placeholder="회원 이름 (예: 박지훈)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+          <input id="am-msg" placeholder="첫 인사말 (비워두면 오늘의 코칭 팁 자동 적용)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+          <button type="submit" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-extrabold">회원 등록하기</button>
+        </form>
+      `);
+      document.getElementById('add-member-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const mName = document.getElementById('am-name').value.trim();
+        if (!mName) return;
+        const exists = (state.trainerOverview || []).some(m => m.name === mName);
+        if (exists) {
+          showToast('이미 등록된 회원 이름이에요');
+          return;
+        }
+        const firstMsg = document.getElementById('am-msg').value.trim();
+        const initialRecord = {
+          headerMessage: firstMsg,
+          routines: [],
+          reflection: { good: '', bad: '' },
+          diet: {
+            breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            water: 0
+          },
+          feedback: { workout: '', diet: '', time: '' },
+          memos: [],
+          dailyCheckin: { workout: '', diet: '', mood: '' }
+        };
+        state.trainerOverview.unshift({
+          name: mName,
+          lastDate: state.selectedDate,
+          activeToday: false,
+          pendingWorkout: false,
+          pendingDiet: false,
+          weeklyWorkoutDays: 0
+        });
+        closeModal();
+        triggerConfetti();
+        showToast(`${mName} 회원님이 등록되었어요!`);
+        renderAll();
+        if (state.isLive && state.trainerPassword) {
+          await saveFullRecordLive(mName, initialRecord);
+        }
+      });
+    }
+
     function openColumnWriteModal() {
       openModal('새 코치 인사이트 칼럼 발행', `
         <form id="col-write-form" class="space-y-3">
@@ -2739,9 +2791,12 @@
             </div>
           </section>
 
-          <!-- All Members Search & List -->
+          <!-- All Members Search & Add -->
           <section class="space-y-2.5">
-            <input id="coach-search-inp" value="${escapeHtml(state.coachSearch)}" placeholder="전체 회원 이름 검색 (${list.length}명)..." class="w-full text-[13px] px-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none" />
+            <div class="flex items-center gap-2">
+              <input id="coach-search-inp" value="${escapeHtml(state.coachSearch)}" placeholder="회원 이름 검색 (${list.length}명)..." class="flex-1 text-[13px] px-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none" />
+              <button type="button" id="btn-add-member" class="tap-scale shrink-0 px-3.5 py-3 rounded-2xl hero-navy text-white text-[12px] font-extrabold shadow-sm">+ 회원 추가</button>
+            </div>
             ${matchedMembers.map(m => `
               <button type="button" data-cname="${escapeHtml(m.name)}" class="c-detail-btn tap-scale w-full bg-white rounded-[22px] p-4 shadow-sm text-left flex items-center justify-between gap-2">
                 <div>
@@ -2936,6 +2991,9 @@
       document.querySelectorAll('.c-detail-btn').forEach(b => {
         b.addEventListener('click', () => openCoachDetailSheet(b.dataset.cname));
       });
+
+      const addMemberBtn = document.getElementById('btn-add-member');
+      if (addMemberBtn) addMemberBtn.addEventListener('click', openAddMemberModal);
 
       const coachColBtn = document.getElementById('btn-coach-tab-col');
       if (coachColBtn) coachColBtn.addEventListener('click', openColumnWriteModal);

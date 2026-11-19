@@ -185,6 +185,26 @@
         .replace(/"/g, '&quot;');
     }
 
+    const DAILY_COACH_TIPS = [
+      '중량을 올리는 것보다 내려놓는(신장성) 3초를 통제할 때 근섬유 자극이 가장 선명하게 들어갑니다.',
+      '코어 복압을 먼저 채우고 움직이면 허리 개입은 줄고 목표 부위 가동범위가 훨씬 안정적으로 나옵니다.',
+      '하체 루틴 시 엄지·새끼발가락·뒤꿈치 3점 지지를 유지하면 무릎 흔들림 없이 고관절에 정확히 실립니다.',
+      '등·상체 운동 전 어깨를 귀에서 멀리 내린 상태(견갑 하강)를 먼저 고정해야 승모근 과개입을 막을 수 있습니다.',
+      '마지막 2회가 살짝 버겁지만 폼이 무너지지 않는 강도(RIR 2)가 오늘 가장 이상적인 자극입니다.',
+      '근성장은 운동 중이 아니라 수분과 수면이 채워지는 회복 시간에 완성됩니다. 오늘 수분 2L를 꼭 채워주세요.',
+      '본 세트 전 50% 이하 가벼운 무게로 관절 가동범위부터 열어야 본 운동 출력과 안정성이 올라갑니다.',
+      '동작의 끝 지점에서 반동으로 치고 나오기보다 0.5초 멈춰 긴장을 유지하면 적은 중량으로도 충분한 자극이 나옵니다.',
+      '좌우 밸런스가 흔들리는 날엔 무리한 증량보다 한쪽씩 집중하는 편측 동작이나 템포 조절이 훨씬 효과적입니다.',
+      '피로가 누적된 날엔 무게를 10% 낮추고 호흡과 정렬에 집중하세요. 꾸준한 출석이 결국 가장 빠른 증량입니다.'
+    ];
+
+    function getDailyCoachTip(dateStr) {
+      const s = String(dateStr || getTodayKST());
+      let sum = 0;
+      for (let i = 0; i < s.length; i++) sum += s.charCodeAt(i) * (i + 1);
+      return DAILY_COACH_TIPS[sum % DAILY_COACH_TIPS.length];
+    }
+
     // Client-side Image Compression (<= 900px JPEG for fast mobile upload)
     function compressImageFile(file) {
       return new Promise((resolve, reject) => {
@@ -279,7 +299,7 @@
       feedbackReaction: '',
 
       record: {
-        headerMessage: '지난 수업 때 말씀하신 왼쪽 무릎 시큰거림이 발목 워밍업 후 완전히 잡혔어요. 오늘도 무리하지 말고 자세에 집중해 보세요.',
+        headerMessage: '',
         routines: [
           { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '발바닥 3점 지지, 3초 천천히 하강', completedSets: [true, true, true, true] },
           { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '무릎 고정하고 엉덩이 뒤로 밀기', completedSets: [true, true, true, true] },
@@ -295,14 +315,14 @@
         },
         feedback: { workout: '', diet: '', time: '' },
         memos: [
-          { id: 'm1', from: 'trainer', text: '윤지님, 지난 수업일지 정리해 올렸어요. 오늘 데드버그 3세트 가볍게 체크해 주세요!', time: '14:10' }
+          { id: 'm1', from: 'trainer', text: '지난 수업일지 정리해 올렸어요. 오늘 개인 루틴 체크 후 특이사항이 있으면 남겨주세요.', time: '14:10' }
         ],
         dailyCheckin: { workout: '', diet: '', mood: '' }
       },
 
       insights: {
         careSummary: { workoutDays: 2, dietDays: 3, feedbackDays: 2 },
-        weekly: { current: { days: 2, sets: 16, exercises: 6 }, previous: { days: 2, sets: 14, exercises: 5 }, improvements: [{ name: '고블릿 스쿼트', previous: 12, current: 16 }] },
+        weekly: { current: { days: 2, sets: 16, exercises: 6 }, previous: { days: 2, sets: 14, exercises: 5 }, improvements: [] },
         progress: []
       },
 
@@ -312,23 +332,35 @@
         {
           id: 'c1',
           category: '트레이닝',
-          title: '스쿼트 전 3분 발목 가동성이 무릎 부담을 40% 줄여줘요',
-          summary: '종아리가 뻣뻣하면 무릎이 안쪽으로 모이기 쉽습니다.',
+          title: '개인 운동 20분, 핵심 루틴 잡는 법',
+          summary: '시간이 부족한 날엔 유산소보다 대근육 1종목의 정확한 자극이 우선입니다.',
           content: [
-            '본 운동 전 벽을 보고 서서 무릎으로 벽을 살짝 터치하는 동작을 양쪽 10회씩만 해보세요.',
-            '발목이 부드러워지면 스쿼트 깊이와 엉덩이 자극이 훨씬 좋아집니다.'
+            '수업 외 개인 운동 시 루틴이 길어지면 집중력이 떨어져 자세가 무너지기 쉽습니다.',
+            '지난 수업 메인 종목 1가지(워킹세트 3~4세트)와 코어 안정화 동작 1가지만 정해진 템포로 마치고 가셔도 근신경 유지에 충분합니다.'
           ],
           author: '신명진 코치',
           published_at: paramDate
         },
         {
           id: 'c2',
-          category: '영양/식단',
-          title: '단백질 한 번에 40g 먹으면 나머지는 버려질까요?',
-          summary: '흡수량 제한은 오해! 하루 총량이 더 중요합니다.',
+          category: '영양 · 회복',
+          title: '외식·과식 다음 날, 굶지 말고 이렇게 조절하세요',
+          summary: '갑작스러운 단식은 체수분 손실과 근손실만 유발하고 반동 폭식으로 이어집니다.',
           content: [
-            '우리 몸은 한 끼에 먹은 단백질을 천천히 모두 흡수합니다.',
-            '근합성 신호를 자주 주려면 하루 총량을 3~4끼로 나누어 드시는 게 가장 효율적이에요.'
+            '염분과 탄수화물 섭취가 많았던 다음 날 체중 증가는 대부분 체지방이 아닌 수분 정체입니다.',
+            '끼니를 거르기보다 평소보다 수분을 500ml 이상 늘려 나트륨 배출을 돕고, 점심·저녁은 순수 단백질과 채소 비중을 높여 24시간 내에 밸런스를 되돌리는 편이 훨씬 효율적입니다.'
+          ],
+          author: '신명진 코치',
+          published_at: paramDate
+        },
+        {
+          id: 'c3',
+          category: '컨디션 관리',
+          title: '증량보다 중요한 건 관절 정렬과 피로도 체크입니다',
+          summary: '컨디션이 떨어진 상태에서 무리한 중량 증가는 보상 작용과 부상 위험을 높입니다.',
+          content: [
+            '수면 부족이나 근육통이 남은 날엔 중량을 10~15% 낮추고 가동범위와 호흡 컨트롤에 집중하는 디로딩(Deloading)이 필요합니다.',
+            '수업 전 뻐근하거나 불편한 부위가 있다면 메모에 먼저 남겨주세요. 당일 워밍업과 강도를 바로 조정해 드리겠습니다.'
           ],
           author: '신명진 코치',
           published_at: paramDate
@@ -1485,9 +1517,12 @@
 
             <!-- Sticky Reply Box -->
             <div class="pt-2 border-t border-gray-100 space-y-2">
-              <div class="flex items-center justify-between">
+              <div class="flex items-center justify-between gap-1.5">
                 <span class="text-[12px] font-extrabold text-[#111827]">3. 코치 바로 답글 · 한마디</span>
-                <button type="button" id="cd-voice-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold">🎙 음성 입력</button>
+                <div class="flex items-center gap-1.5">
+                  <button type="button" id="cd-tip-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#F0FDFA] text-[#0F766E] text-[11px] font-bold">✨ 멘트 추천</button>
+                  <button type="button" id="cd-voice-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold">🎙 음성 입력</button>
+                </div>
               </div>
               <div class="flex flex-wrap gap-1.5">
                 ${workoutPresets.map((wp, idx) => `<button type="button" data-wpidx="${idx}" class="cd-wp-btn tap-scale px-2.5 py-1 rounded-xl bg-[#F4F6F9] text-[#4B5563] text-[11px] font-semibold">+ ${wp.slice(0, 12)}...</button>`).join('')}
@@ -1528,6 +1563,14 @@
             routines[idx].weight = String(Math.max(0, cur + Number(b.dataset.wd)));
             renderDetailBody();
           });
+        });
+
+        let tipCycleIdx = 0;
+        document.getElementById('cd-tip-btn').addEventListener('click', () => {
+          const picked = DAILY_COACH_TIPS[tipCycleIdx % DAILY_COACH_TIPS.length];
+          tipCycleIdx += 1;
+          replyMsg = picked;
+          document.getElementById('cd-reply-msg').value = picked;
         });
 
         document.getElementById('cd-voice-btn').addEventListener('click', () => {
@@ -1733,6 +1776,11 @@
     function renderWaterWidget(ds) {
       const cups = Math.min(8, Math.floor(ds.water / 250));
       const waterPct = Math.min(100, Math.round((ds.water / 2000) * 100));
+      const waterTip = cups >= 8
+        ? '일일 권장 수분(2L) 충족 — 근섬유 회복과 체내 노폐물 대사에 최적의 상태입니다.'
+        : (cups >= 4
+          ? '충분한 수분 섭취는 나트륨 배출을 도와 부종을 줄이고, 가짜 허기를 완화하는 데 효과적입니다.'
+          : '근육 내 수분 보유량이 떨어지면 퍼포먼스와 회복 속도가 함께 저하됩니다. (부종·가짜 허기 예방)');
       return `
         <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
           <div class="flex items-center justify-between gap-2">
@@ -1753,6 +1801,7 @@
           <div class="w-full h-1.5 rounded-full bg-[#F4F6F9] overflow-hidden">
             <div class="h-full card-teal transition-all duration-300" style="width:${waterPct}%"></div>
           </div>
+          <p class="text-[12px] text-[#1D4ED8] bg-[#EFF6FF] px-3 py-2 rounded-xl font-medium leading-snug">${waterTip}</p>
         </section>
       `;
     }
@@ -1767,7 +1816,7 @@
       const score = computeCareScore();
       const chk = state.record.dailyCheckin || {};
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
-      const coachNote = state.record.headerMessage || state.record.feedback?.workout || '오늘 기록을 남기면 코치님이 확인 후 맞춤 피드백을 보내드려요.';
+      const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
       const pendingRoutine = (state.record.routines || []).find(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
       const missionTitle = pendingRoutine ? pendingRoutine.name : '데드버그 (코어 미션)';

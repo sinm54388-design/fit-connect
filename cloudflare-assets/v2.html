@@ -2265,6 +2265,7 @@
       const { daily, history } = await fetchMemberForCoach(memberName);
       const routines = Array.isArray(daily.routines) ? daily.routines.map(r => ({ ...r })) : [];
       const expandedSets = {};
+      let pendingNewVideoId = '';
 
       const prevMap = history.previous || {};
       const dietObj = daily.diet || {};
@@ -2384,7 +2385,7 @@
                       <input type="url" data-vi="${i}" value="${escapeHtml(r.videoUrl || '')}" placeholder="🎬 영상 링크 또는 오른쪽 버튼으로 사진첩 업로드" class="cd-vid-inp flex-1 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#1D4ED8] focus:outline-none" />
                       <label class="tap-scale shrink-0 px-2.5 py-1.5 rounded-xl ${r.videoId ? 'card-teal text-white' : 'bg-[#EFF6FF] text-[#1D4ED8]'} text-[11px] font-extrabold cursor-pointer">
                         <input type="file" accept="video/mp4,video/quicktime,video/webm,video/*" data-vfi="${i}" class="cd-vid-file hidden" />
-                        <span>${r.videoId ? '📹 업로드됨 ✓' : '📹 사진첩'}</span>
+                        <span>${r.videoId ? '📹 업로드됨 ✓' : '📹 영상 올리기'}</span>
                       </label>
                     </div>
                   </div>
@@ -2399,7 +2400,13 @@
                   <input id="cd-new-name" placeholder="새 종목명 (예: 랫풀다운)" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
                 </div>
                 <input id="cd-new-note" placeholder="핵심 큐잉 메모 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
-                <input id="cd-new-video" type="url" placeholder="🎬 시범 영상 링크 (유튜브·쇼츠 등, 선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                <div class="flex items-center gap-1.5">
+                  <input id="cd-new-video" type="url" placeholder="🎬 시범 영상 링크 또는 오른쪽 버튼으로 올리기" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                  <label class="tap-scale shrink-0 px-3 py-2 rounded-xl bg-white text-[#1D4ED8] text-[11px] font-extrabold shadow-sm cursor-pointer">
+                    <input id="cd-new-vid-file" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+                    <span id="cd-new-vid-lbl">📹 영상 올리기</span>
+                  </label>
+                </div>
                 <div class="flex gap-1.5">
                   <input id="cd-new-weight" type="number" min="0" placeholder="무게(kg)" class="w-20 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
                   <input id="cd-new-sets" type="number" min="1" value="3" placeholder="세트" class="w-16 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
@@ -2532,8 +2539,10 @@
             reps: document.getElementById('cd-new-reps').value.trim() || '12',
             note: document.getElementById('cd-new-note').value.trim(),
             videoUrl: document.getElementById('cd-new-video')?.value.trim() || '',
+            ...(pendingNewVideoId ? { videoId: pendingNewVideoId } : {}),
             completedSets: Array(sets).fill(false)
           });
+          pendingNewVideoId = '';
           renderDetailBody();
         });
 
@@ -2548,6 +2557,31 @@
             routines[Number(inp.dataset.vi)].videoUrl = e.target.value.trim();
           });
         });
+
+        const newVidFile = document.getElementById('cd-new-vid-file');
+        if (newVidFile) {
+          newVidFile.addEventListener('change', async e => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
+            const mTok = mObj?.token || (memberName === state.memberName ? state.token : '');
+            if (!mTok) {
+              showToast('먼저 상단 🔗 링크에서 이 회원의 토큰을 연결해 주세요');
+              return;
+            }
+            const lbl = document.getElementById('cd-new-vid-lbl');
+            if (lbl) lbl.textContent = '업로드 중...';
+            try {
+              const titleHint = document.getElementById('cd-new-name')?.value.trim() || '시범 영상';
+              pendingNewVideoId = await uploadDirectVideoFile(f, memberName, mTok, titleHint);
+              if (lbl) lbl.textContent = '📹 업로드됨 ✓';
+              showToast('영상 업로드 완료! + 종목 추가 또는 저장을 눌러주세요 ✓');
+            } catch (err) {
+              if (lbl) lbl.textContent = '📹 영상 올리기';
+              showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 확인'));
+            }
+          });
+        }
 
         document.querySelectorAll('.cd-vid-file').forEach(inp => {
           inp.addEventListener('change', async e => {
@@ -2728,6 +2762,7 @@
               setDetails: Array.from({ length: pSets }, () => ({ weight: pWt, reps: pRp })),
               note: document.getElementById('cd-new-note')?.value.trim() || '',
               videoUrl: document.getElementById('cd-new-video')?.value.trim() || '',
+              ...(pendingNewVideoId ? { videoId: pendingNewVideoId } : {}),
               completedSets: Array(pSets).fill(false)
             });
           }

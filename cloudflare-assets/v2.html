@@ -504,6 +504,7 @@
       try {
         const res = await fetch('/api/records', {
           method: 'POST',
+          cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
           ...(ctrl ? { signal: ctrl.signal } : {})
@@ -518,11 +519,22 @@
     async function postAppsScript(payload) {
       const res = await fetch('/api/apps-script', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('apps_script_' + res.status);
       return res.json();
+    }
+
+    function markJustSaved(memberName, dateStr) {
+      try { localStorage.setItem(`fit_just_saved_${memberName}_${dateStr}`, String(Date.now())); } catch {}
+    }
+    function wasRecentlySaved(memberName, dateStr) {
+      try {
+        const ts = Number(localStorage.getItem(`fit_just_saved_${memberName}_${dateStr}`) || 0);
+        return ts > 0 && (Date.now() - ts) < 120000;
+      } catch { return false; }
     }
 
     function applyCachedMemberData(dateStr) {
@@ -616,7 +628,9 @@
       const month = dateStr.slice(0, 7);
 
       const [daily, ins, cols, hist] = await Promise.allSettled([
-        postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
+        wasRecentlySaved(state.memberName, dateStr)
+          ? postAppsScript({ action: 'read', member: state.memberName, date: dateStr, token: state.token })
+          : postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
         postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
         postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
         postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth })
@@ -660,18 +674,26 @@
     }
 
     async function savePatchLive(patchObj, targetMember) {
-      if (!state.isLive) return;
+      if (!state.isLive) return true;
       const mName = targetMember || state.memberName;
       try {
-        await postAppsScript({
+        const res = await postAppsScript({
           action: 'patchData',
           member: mName,
           date: state.selectedDate,
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
+          token: state.token || '',
+          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : {}),
           patch: patchObj
         });
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
+        if (!res || res.status !== 'success') {
+          showToast('저장 실패: ' + (res?.message || res?.error || '서버 응답 오류'));
+          return false;
+        }
+        markJustSaved(mName, state.selectedDate);
+        return true;
+      } catch (err) {
+        showToast('저장 오류: ' + (err?.message || '네트워크 확인'));
+        return false;
       }
     }
 
@@ -682,16 +704,18 @@
         const res = await postAppsScript({
           member: mName,
           date: state.selectedDate,
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
+          token: state.token || '',
+          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : {}),
           data: fullData || state.record
         });
-        if (res && res.status === 'error') {
-          showToast(res.message || '서버 저장에 실패했어요');
+        if (!res || res.status !== 'success') {
+          showToast('저장 실패: ' + (res?.message || res?.error || '서버 응답 오류'));
           return false;
         }
+        markJustSaved(mName, state.selectedDate);
         return true;
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
+      } catch (err) {
+        showToast('저장 오류: ' + (err?.message || '네트워크 확인'));
         return false;
       }
     }
@@ -2067,7 +2091,9 @@
         return { daily: state.record, history: { previous: {} } };
       }
       const [dRes, hRes] = await Promise.allSettled([
-        postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
+        wasRecentlySaved(memberName, state.selectedDate)
+          ? postAppsScript({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword })
+          : postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
         postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
       ]);
       return {

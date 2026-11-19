@@ -173,6 +173,13 @@ body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
 #trainerView .trainer-workspace-list>button:hover{background:#efedff!important;border-color:#d5cdf7!important}
 #trainerView .trainer-workspace-list>button span:first-child{color:#243953!important;font-size:14px;font-weight:650}
 #trainerView .trainer-workspace-list>button span:last-child{color:#60718a!important;font-size:12px}
+#trainerView .trainer-task-row{display:grid;gap:9px;padding:13px;background:#f6f8fc;border:1px solid #e5eaf4;border-radius:12px}
+#trainerView .trainer-task-row-header{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+#trainerView .trainer-task-row-name{min-width:0;color:#243953;font-size:15px;font-weight:800;overflow-wrap:anywhere}
+#trainerView .trainer-task-new{flex:0 0 auto;border-radius:999px;padding:3px 7px;background:#e8f0ff;color:#17459d;font-size:11px;font-weight:800}
+#trainerView .trainer-task-actions{display:flex;flex-wrap:wrap;gap:6px}
+#trainerView .trainer-task-actions button{min-height:36px;padding:7px 9px;border:1px solid #c8d7ef;border-radius:9px;background:#fff;color:#17459d;font-size:12px;font-weight:750}
+#trainerView .trainer-task-actions button.primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
 #trainerView .trainer-fold{background:#fff;border:1px solid var(--trainer-line);border-radius:20px;overflow:clip}
 #trainerView .trainer-fold>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:70px;padding:20px 22px;color:#243953;font-size:16px;font-weight:700;cursor:pointer;list-style:none}
 #trainerView .trainer-fold>summary::-webkit-details-marker{display:none}
@@ -1369,8 +1376,8 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         </div>
         <div class="trainer-workspace-metrics" aria-live="polite">
           <div class="trainer-workspace-metric"><span>등록 회원</span><i class="fa-solid fa-users"></i><strong id="overviewTotal">-</strong><small>전체 관리 회원</small></div>
-          <div class="trainer-workspace-metric"><span>오늘 기록한 회원</span><i class="fa-solid fa-chart-line"></i><strong id="overviewActive">-</strong><small>선택한 날짜 기준</small></div>
-          <div class="trainer-workspace-metric"><span>기록 피드백 대기</span><i class="fa-regular fa-comment-dots"></i><strong id="overviewPending">-</strong><small>운동 · 식단</small></div>
+          <button type="button" onclick="document.getElementById('fcActiveTodayTaskCard')?.scrollIntoView({behavior:'smooth',block:'start'})" class="trainer-workspace-metric trainer-workspace-metric-button" aria-controls="fcActiveTodayTaskCard"><span>오늘 기록한 회원</span><i class="fa-solid fa-chart-line"></i><strong id="overviewActive">-</strong><small>눌러서 오늘 기록 확인</small></button>
+          <button type="button" onclick="document.getElementById('overviewNeedsAttention')?.scrollIntoView({behavior:'smooth',block:'start'})" class="trainer-workspace-metric trainer-workspace-metric-button" aria-controls="overviewNeedsAttention"><span>기록 피드백 대기</span><i class="fa-regular fa-comment-dots"></i><strong id="overviewPending">-</strong><small>눌러서 답변할 회원 확인</small></button>
           <button type="button" onclick="document.getElementById('fcVideoTaskCard')?.scrollIntoView({behavior:'smooth',block:'start'})" class="trainer-workspace-metric trainer-workspace-metric-button" aria-controls="fcVideoTaskCard"><span>영상 피드백 대기</span><i class="fa-solid fa-play"></i><strong id="overviewVideos">-</strong><small>눌러서 영상 목록 확인</small></button>
         </div>
         <p id="overviewStatus" role="status" class="trainer-workspace-overview-status">트레이너 로그인 후 현황을 불러옵니다.</p>
@@ -1391,6 +1398,11 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
             </section>
           </div>
         </div>
+
+        <section id="fcActiveTodayTaskCard" class="trainer-workspace-activity" hidden>
+          <div class="trainer-workspace-list-heading"><h4>오늘 기록한 회원</h4><span class="trainer-workspace-subtle">운동 · 식단 · 사진</span></div>
+          <div id="overviewActiveToday" class="trainer-workspace-list"></div>
+        </section>
 
         <div class="trainer-workspace-report-grid">
           <section class="trainer-workspace-report-card">
@@ -2063,11 +2075,27 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       document.getElementById('overviewWeeklyRange').textContent=date+'까지 최근 7일 · 기록한 날짜 수';
     }
     let trainerPendingQueue=[],trainerPendingDate='',nextFeedbackReadyKey='';
+    const TRAINER_TASK_SEEN_STORE='fitTrainerTaskSeen:v1:';
+    function trainerTaskFingerprint(member){
+      const parts=[];
+      if(member.pendingWorkout)parts.push('workout');
+      if(member.pendingDiet)parts.push('diet');
+      if(Number(member.pendingVideos)>0)parts.push('video:'+Number(member.pendingVideos));
+      return parts.join('|');
+    }
+    function hasNewTrainerTask(member,date){
+      const fingerprint=trainerTaskFingerprint(member);
+      if(!fingerprint.replaceAll('|',''))return false;
+      try{return localStorage.getItem(TRAINER_TASK_SEEN_STORE+encodeURIComponent(member.name)+'|'+date)!==fingerprint;}catch{return false;}
+    }
+    function markTrainerTaskSeen(member,date){
+      try{localStorage.setItem(TRAINER_TASK_SEEN_STORE+encodeURIComponent(member.name)+'|'+date,trainerTaskFingerprint(member));}catch{}
+    }
     function updateNextPendingButton(){
       const button=document.getElementById('nextPendingMemberButton');if(!button)return;
       const next=trainerPendingDate===selectedDate?trainerPendingQueue.find(m=>m.name!==activeMemberName):null;
       button.hidden=currentMode!=='trainer'||nextFeedbackReadyKey!==workflowContextKey()||!next;
-      button.textContent=next?'다음 확인할 회원 · '+next.name+' →':'다음 확인할 회원';
+      button.textContent=next?'다음 처리할 회원 · '+next.name+' →':'다음 처리할 회원';
     }
     async function openNextPendingMember(){
       const context=workflowContextKey();
@@ -2077,7 +2105,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       await loadTrainerOverview();
       if(workflowContextKey()!==context||currentMode!=='trainer'||nextFeedbackReadyKey!==context)return;
       const next=trainerPendingDate===selectedDate?trainerPendingQueue.find(m=>m.name!==activeMemberName):null;
-      if(next)await openOverviewMember(next,'overviewNeedsAttention');else{updateNextPendingButton();showToast('현재 확인할 다음 회원이 없습니다.');}
+      if(next)await openOverviewMember(next,next._taskSource||'overviewNeedsAttention');else{updateNextPendingButton();showToast('현재 처리할 다음 회원이 없습니다.');}
     }
 
 
@@ -3999,12 +4027,18 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         const recordPending=items.filter(m=>m.pendingWorkout||m.pendingDiet);
         const videoPending=items.filter(m=>Number(m.pendingVideos)>0);
         const videosKnown=!isFast&&supplementalFast.length>0;
-        trainerPendingQueue=pending;trainerPendingDate=date;updateNextPendingButton();
         const inactive = items.filter(m => {
           if (!m.lastDate) return true;
           const elapsed = (Date.parse(date+'T00:00:00')-Date.parse(m.lastDate+'T00:00:00'))/86400000;
           return elapsed >= 7;
         });
+        const orderedTasks=[
+          ...videoPending.map(member=>({...member,_taskSource:'overviewVideoQueue'})),
+          ...recordPending.map(member=>({...member,_taskSource:'overviewNeedsAttention'})),
+          ...inactive.map(member=>({...member,_taskSource:'overviewInactive'}))
+        ];
+        trainerPendingQueue=[...new Map(orderedTasks.map(member=>[member.name,member])).values()];
+        trainerPendingDate=date;updateNextPendingButton();
         document.getElementById('overviewTotal').textContent = items.length+'명';
         document.getElementById('overviewActive').textContent = items.filter(m => m.activeToday).length+'명';
         document.getElementById('overviewPending').textContent = items.filter(m=>m.pendingWorkout||m.pendingDiet).length+'명';
@@ -4016,29 +4050,51 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
           if (elapsed === 0) return '오늘 기록';
           return elapsed+'일 전 기록';
         };
-        const makeRows = (rootId, list, getDetail, empty) => {
+        const makeRows = (rootId, list, getDetail, empty, getActions) => {
           const root=document.getElementById(rootId);root.replaceChildren();
           if(!list.length){const p=document.createElement('p');p.className='text-slate-500 py-2';p.textContent=empty;root.appendChild(p);return;}
           list.forEach(m=>{
-            const button=document.createElement('button');button.type='button';
-            button.className='w-full flex justify-between items-center gap-2 rounded-lg p-2 bg-slate-900 hover:bg-slate-800 text-left';
-            const name=document.createElement('span');name.className='text-slate-100 font-semibold';name.textContent=m.name+' 회원님';
-            const detail=document.createElement('span');detail.className='text-slate-400 text-[11px]';detail.textContent=getDetail(m);
-            button.append(name,detail);
-            button.onclick=()=>openOverviewMember(m,rootId);
-            button.addEventListener('pointerenter',()=>{prefetchTrainerRecord(m.name).catch(()=>{});},{once:true});
-            button.addEventListener('focus',()=>{prefetchTrainerRecord(m.name).catch(()=>{});},{once:true});
-            root.appendChild(button);
+            const row=document.createElement('article');row.className='trainer-task-row';
+            const heading=document.createElement('div');heading.className='trainer-task-row-header';
+            const name=document.createElement('strong');name.className='trainer-task-row-name';name.textContent=m.name+' 회원님';heading.append(name);
+            if(hasNewTrainerTask(m,date)){const badge=document.createElement('span');badge.className='trainer-task-new';badge.textContent='새 기록';heading.append(badge);}
+            const detail=document.createElement('p');detail.className='trainer-workspace-subtle';detail.textContent=getDetail(m);
+            const actions=document.createElement('div');actions.className='trainer-task-actions';
+            const choices=getActions?getActions(m):[['기록 보기','review',true]];
+            choices.forEach(([label,target,primary])=>{
+              const button=document.createElement('button');button.type='button';button.textContent=label;
+              if(primary)button.classList.add('primary');
+              button.onclick=()=>openOverviewMember(m,rootId,target);
+              button.addEventListener('pointerenter',()=>{prefetchTrainerRecord(m.name).catch(()=>{});},{once:true});
+              button.addEventListener('focus',()=>{prefetchTrainerRecord(m.name).catch(()=>{});},{once:true});
+              actions.append(button);
+            });
+            row.append(heading,detail,actions);root.append(row);
           });
         };
         makeRows('overviewNeedsAttention',recordPending,m=>[
           m.pendingWorkout?'운동 답변':'',m.pendingDiet?'식단 답변':''
-        ].filter(Boolean).join(' · '),'확인 대기 중인 기록이 없습니다.');
-        makeRows('overviewVideoQueue',videoPending,m=>'영상 '+Number(m.pendingVideos)+'건 · 확인하기',videosKnown?'확인할 운동 영상이 없습니다.':'영상 목록 일부를 확인 중이에요. 오래 걸리면 새로고침해 주세요.');
+        ].filter(Boolean).join(' · '),'확인 대기 중인 기록이 없습니다.',m=>[
+          ...(m.pendingWorkout?[['운동 답변','workout',true]]:[]),
+          ...(m.pendingDiet?[['식단·사진','photos',false],['식단 답변','diet',true]]:[]),
+          ...(Number(m.pendingVideos)>0?[['영상 보기','video',false]]:[])
+        ]);
+        makeRows('overviewVideoQueue',videoPending,m=>'영상 '+Number(m.pendingVideos)+'건 · 확인하기',videosKnown?'확인할 운동 영상이 없습니다.':'영상 목록 일부를 확인 중이에요. 오래 걸리면 새로고침해 주세요.',m=>[['영상 보기','video',true]]);
         document.getElementById('fcTrainerTaskSummary').textContent='답변할 회원 '+recordPending.length+'명 · '+(videosKnown?'영상 '+videoPending.length+'명':'영상 확인 중')+' · 7일 이상 미기록 '+inactive.length+'명';
         makeRows('overviewFeedbackDone',items.filter(m=>m.feedbackDone&&!m.pendingWorkout&&!m.pendingDiet),
-          ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
-        makeRows('overviewInactive',inactive,m=>lastRecordLabel(m.lastDate),'최근 7일간 미기록 회원이 없습니다.');
+          ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.',()=>[['기록 보기','review',true]]);
+        makeRows('overviewInactive',inactive,m=>lastRecordLabel(m.lastDate),'최근 7일간 미기록 회원이 없습니다.',()=>[['지난 기록 보기','review',true]]);
+        const activeToday=items.filter(m=>m.activeToday);
+        const activeCard=document.getElementById('fcActiveTodayTaskCard');
+        activeCard.hidden=!activeToday.length;
+        makeRows('overviewActiveToday',activeToday,m=>[
+          m.pendingWorkout?'운동 답변 대기':'',m.pendingDiet?'식단 답변 대기':'',Number(m.pendingVideos)>0?'영상 '+Number(m.pendingVideos)+'건':''
+        ].filter(Boolean).join(' · ')||'오늘 기록 확인', '오늘 기록한 회원이 없습니다.',m=>[
+          ...(m.pendingWorkout?[['운동 답변','workout',true]]:[]),
+          ...(m.pendingDiet?[['식단·사진','photos',false],['식단 답변','diet',true]]:[]),
+          ...(Number(m.pendingVideos)>0?[['영상 보기','video',false]]:[]),
+          ...(!m.pendingWorkout&&!m.pendingDiet&&!Number(m.pendingVideos)?[['기록 보기','review',true]]:[])
+        ]);
         status.textContent = isFast
           ? (canonicalFailed ? `${date} 기준 · 운동·식단 현황 표시 · 영상 대기 건수는 구글 연결 복구 후 확인할 수 있습니다.` : `${date} 기준 · 빠른 현황 표시 중 · 영상 대기 건수 등 최신 내용 확인 중...`)
           : `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
@@ -4098,7 +4154,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       if(request!==overviewRequest||date!==selectedDate||currentMode!=='trainer'||!result?.videos?.length)return;
       renderTrainerVideoQueue(result.videos);
     }
-    async function openOverviewMember(member, listId) {
+    async function openOverviewMember(member, listId, targetKind='review') {
       stashWorkflowDraft();
       resetSaveStatus();
       clearRoutineCopyPreview();
@@ -4114,15 +4170,22 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       await loadDataFromCloud(); // 해당 회원의 운동·식단·영상 자료를 함께 갱신
       if(currentMode!=='trainer'||activeMemberName!==member.name||selectedDate!==date)return;
       if (!appData) { showToast('회원 기록을 불러오지 못했습니다.'); return; }
-      const videoOnly = listId === 'overviewVideoQueue' || (listId === 'overviewNeedsAttention' && member.pendingVideos && !member.pendingWorkout && !member.pendingDiet);
-      const target = videoOnly
+      markTrainerTaskSeen(member,date);
+      const target = targetKind==='video'
         ? document.getElementById('trainerFormVideos').closest('section')
-        : document.getElementById('reviewRefGood').closest('.rounded-2xl');
+        : targetKind==='photos'
+          ? document.getElementById('trainerMealPhotos').parentElement
+          : targetKind==='workout'
+            ? document.getElementById('inputFeedbackWorkout')
+            : targetKind==='diet'
+              ? document.getElementById('inputFeedbackDiet')
+              : document.getElementById('reviewRefGood').closest('.rounded-2xl');
       if (target && trainerPage==='feedback') {
         revealTrainerTarget(target);
         target.scrollIntoView({behavior:'smooth',block:'start'});
         target.classList.add('ring-2','ring-brand-500');
         setTimeout(()=>target.classList.remove('ring-2','ring-brand-500'),2400);
+        if(targetKind==='workout'||targetKind==='diet')target.focus({preventScroll:true});
       }
       showToast(`${member.name} 회원님의 ${date} 기록을 열었습니다.`);
     }
@@ -4345,6 +4408,8 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         return !!(String(m.desc||'').trim()||(m.photos||[]).length);
       }).length;
       const photoCount=MEAL_KEYS.reduce((n,k)=>n+(data.diet?.[k]?.photos||[]).length,0);
+      const photoHeading=document.getElementById('trainerMealPhotos').previousElementSibling;
+      if(photoHeading)photoHeading.textContent='회원 식단 사진 · '+photoCount+'장';
       const checkin=readDailyCheckin(data);
       const workoutCheck={done:'운동 했어요',rest:'오늘은 회복'}[checkin.workout]||'미체크';
       const dietCheck={done:'식단 지켰어요',partial:'조절 중'}[checkin.diet]||'미체크';
@@ -4420,6 +4485,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       if(saved) {
         if(isCurrentSaveContext(context))nextFeedbackReadyKey=workflowContextKey();
         await loadTrainerOverview();updateNextPendingButton();
+        showToast('피드백 완료 · 다음 회원을 확인하세요.');
       }
     }
 

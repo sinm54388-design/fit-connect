@@ -2250,7 +2250,7 @@
         <select id="workspace-column-category" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm"><option ${current.category === '트레이닝' ? 'selected' : ''}>트레이닝</option><option ${current.category === '영양/식단' ? 'selected' : ''}>영양/식단</option><option ${current.category === '회복/습관' ? 'selected' : ''}>회복/습관</option></select>
         <input id="workspace-column-title" required minlength="3" maxlength="90" value="${escapeHtml(current.title)}" placeholder="칼럼 제목" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm" />
         <input id="workspace-column-summary" required minlength="10" maxlength="280" value="${escapeHtml(current.summary)}" placeholder="한줄 요약" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm" />
-        <textarea id="workspace-column-content" required rows="6" placeholder="본문을 줄바꿈으로 나눠 입력하세요" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm">${escapeHtml(rows(current.content).join('\n'))}</textarea>
+        <textarea id="workspace-column-content" required rows="6" placeholder="본문을 줄바꿈으로 나눠 입력하세요" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm">${escapeHtml((Array.isArray(current.content) ? current.content : []).join('\n'))}</textarea>
         <button type="submit" class="w-full rounded-xl hero-navy py-3.5 text-sm font-extrabold text-white">${editing ? '수정 저장' : '즉시 발행'}</button></form>`);
       document.getElementById('workspace-column-form').addEventListener('submit', async event => {
         event.preventDefault();

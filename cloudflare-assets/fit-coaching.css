@@ -1,0 +1,90 @@
+.fit-drill-cue,
+.fit-drill-week {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #c6d8f4;
+  border-radius: 12px;
+  background: #edf4ff;
+  color: #142b53;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.fit-drill-cue {
+  margin: 10px 0;
+}
+.fit-drill-cue[hidden],
+.fit-drill-rest[hidden],
+.fit-drill-video-tools[hidden],
+body[data-member-page]:not([data-member-page="workout"]) .fit-drill-rest {
+  display: none;
+}
+.fit-drill-video-tools,
+.fit-drill-comparison {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 8px;
+}
+.fit-drill-comparison {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+}
+.fit-drill-comparison section {
+  min-width: 0;
+}
+.fit-drill-comparison video {
+  max-height: 36dvh;
+  object-fit: contain;
+  background: #0f172a;
+}
+.fit-drill-cue .fit-action,
+.fit-drill-rest .fit-action,
+.fit-drill-video-tools .fit-action,
+.fit-drill-player .fit-action {
+  min-height: 44px;
+  color: #17459d;
+  background: #fff;
+  border: 1px solid #c6d8f4;
+}
+.fit-drill-video-tools label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 6px;
+}
+.fit-drill-video-tools input[type=checkbox] {
+  accent-color: #1d4ed8;
+}
+.fit-drill-actual {
+  margin-block: 8px 2px;
+  min-height: 44px;
+}
+.fit-drill-rest {
+  position: sticky;
+  top: max(116px, env(safe-area-inset-top,0px));
+  z-index: 15;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 6px 10px;
+  border: 1px solid #9bbaf2;
+  border-radius: 12px;
+  color: #142b53;
+  background: #edf4ff;
+  font-variant-numeric: tabular-nums;
+}
+.fit-drill-homework > summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding-block: 10px;
+}
+.fit-drill-homework > label {
+  display: block;
+  margin-bottom: 8px;
+}
+.fit-drill-week h3 {
+  font-weight: 800;
+}

@@ -415,30 +415,35 @@
   async function previousRecord(member,date) {
     const latestHint=member.lastDate&&member.lastDate<date?member.lastDate:'';
     const month=date.slice(0,7);
-    const credentials={action:'workoutHistory',member:member.name,date,month,password:trainerPassword};
+    const priorMonth=iso(timestamp(month+'-01')-86400000).slice(0,7);
+    const credentials={action:'workoutHistory',member:member.name,date,password:trainerPassword};
     let previousDate=latestHint;
-    try{
-      const history=await cachedExtraRead(credentials);
-      const dates=[...(history.days||[]),...Object.values(history.previous||{}).map(x=>x.date)];
-      previousDate=dates.filter(d=>d&&d<date).sort().at(-1)||latestHint;
-    }catch{}
+    for (const candidate of [month,priorMonth]) {
+      try {
+        const history=await cachedExtraRead({...credentials,month:candidate});
+        const dates=[...(history.days||[]),...Object.values(history.previous||{}).map(x=>x.date)];
+        const completed=dates.filter(d=>d&&d<date).sort().at(-1);
+        if (completed) { previousDate=completed; break; }
+      } catch {}
+    }
     if(!previousDate)return null;
     return {date:previousDate,data:await withMember(member.name,previousDate)};
   }
   async function briefing(member) {
     const date=coachDate||selectedDate;
-    const {dialog,content}=sheet(member.name+' · 5분 전 브리핑');
+    const {dialog,content}=sheet(member.name+' · 수업 전 브리핑');
     content.append(make('p','직전 기록을 불러오는 중…'));
     try{
-      const [previous,current]=await Promise.all([previousRecord(member,date),withMember(member.name,date)]);
+      const [previous,current]=await Promise.all([previousRecord(member,date).catch(()=>null),withMember(member.name,date)]);
       if(!dialog.open)return;
       content.replaceChildren();
       const pain=String(previous?.data?.reflection?.bad||'').trim();
       content.append(make('p','지난 회차 특이사항 · '+(pain||'남긴 내용 없음'),'fit-callout'));
-      const goals=(current?.routines||[]).map(r=>r.name+' '+(r.weight?r.weight+'kg':'맨몸')).join(' · ');
+      const goals=(current?.routines||[]).map(r=>r.name+' '+(r.weight?r.weight+'kg':'맨몸')+' × '+r.reps+'회 × '+r.sets+'세트').join(' · ');
       const priorMission=(previous?.data?.routines||[]).find(r=>/미션|숙제/.test(r.note||''));
       content.append(make('p','오늘 목표 중량 · '+(goals||'아직 등록 전')),
         make('p','지난 미션 · '+(priorMission?(priorMission.completedSets||[]).filter(Boolean).length+'/'+priorMission.sets+'세트':'등록 기록 없음')));
+      window.fitCoaching?.briefingDetails(content,member,date,previous,current,dialog);
     }catch{content.replaceChildren(make('p','직전 기록을 불러오지 못했어요.'));}
     if(dialog.open)content.append(button('30초 일지 작성',()=>{dialog.close();publisher(member);},'primary'));
   }
@@ -511,6 +516,7 @@
         if(saved){content.append(button('회원 전용 링크 복사',()=>copyMemberLink(member.name)));loadTrainerOverview();}
       },'primary');
       content.append(presets,note,mission,publish,status,button('기존 루틴 편집기 열기',()=>{dialog.close();openExistingCoachPage(member,'routine');}));
+      window.fitCoaching?.addHomeworkForm(content,member.name,date,mission,note,rows);
     }catch{if(dialog.open)content.replaceChildren(make('p','루틴을 불러오지 못했어요. 다시 열어주세요.'));}
   }
 
@@ -586,7 +592,7 @@
       if(rosterFilter==='pending'&&(!byName.has(member.name)||member.feedbackDone))continue;
       if(rosterFilter==='care'&&(!byName.has(member.name)||!needsCare(member)))continue;
       root.append(row(member,!byName.has(member.name)?'현황 확인 중':member.feedbackDone?'기록 답변 있음':'미발행',[
-        ['성과',()=>outcome(member)],['일지',()=>publisher(member),'primary']
+        ['성과',()=>outcome(member)],['주간 코칭',()=>window.fitCoaching?.weeklyCard(member.name,coachDate||selectedDate)],['일지',()=>publisher(member),'primary']
       ]));
     }
     if(!root.children.length)root.append(make('p','조건에 맞는 회원이 없어요.'));
@@ -603,7 +609,7 @@
     timeline.replaceChildren();
     const upcoming=coachItems.slice().sort((a,b)=>Number(b.activeToday)-Number(a.activeToday)||Number(a.feedbackDone)-Number(b.feedbackDone));
     for(const member of upcoming)timeline.append(row(member,member.feedbackDone?'답변 있음':member.activeToday?'기록 도착':'미발행',[
-      ['5분 전 브리핑',()=>briefing(member)],['30초 발행 ▶',()=>publisher(member),'primary']
+      ['수업 전 브리핑',()=>briefing(member)],['주간 코칭',()=>window.fitCoaching?.weeklyCard(member.name,coachDate||selectedDate)],['30초 발행 ▶',()=>publisher(member),'primary']
     ]));
     if(!timeline.children.length)timeline.append(make('p','회원이 등록되면 일지 작성 카드를 보여드려요.'));
     const diet=id('fitDietQueue');diet.replaceChildren(...dietQueue().map(member=>row(member,'식단 대기',[['식단 확인·답장',()=>foodReply(member),'primary']])));
@@ -679,7 +685,7 @@
     renderCoachNav();
   }
 
-  window.fitExperience={memberData,memberInsights,coachOverview:(items,date)=>{
+  window.fitExperience={memberData,memberInsights,sheet,coachOverview:(items,date)=>{
     if(coachDate!==date){renewalScan=null;id('fitRenewals')?.replaceChildren();}
     coachItems=items;coachDate=date;renderCoach();
   },coachTab};

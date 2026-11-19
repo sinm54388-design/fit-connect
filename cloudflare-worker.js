@@ -301,7 +301,7 @@ async function handleRecords(request,env) {
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','columnList','columnSave'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','columnList','columnSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -420,6 +420,19 @@ async function handleRecords(request,env) {
     }catch(error){
       return failed(error);
     }
+  }
+  // Compact coach queue for the dashboard. It includes who uploaded, the video title and upload time.
+  if(action==='trainerVideoQueue') {
+    try {
+      const [members, videos]=await Promise.all([
+        supaGet('/rest/v1/fit_members?select=id,name&limit=1000','video_queue_members'),
+        supaGet('/rest/v1/fit_direct_videos?select=member_id,name,created_at,feedback&state=eq.ready&order=created_at.desc&limit=1000','video_queue')
+      ]);
+      const names=new Map(members.map(row=>[String(row.id),String(row.name||'').trim()]));
+      const queue=videos.filter(row=>!String(row.feedback||'').trim()&&names.has(String(row.member_id)))
+        .slice(0,12).map(row=>({member:names.get(String(row.member_id)),title:String(row.name||'운동 영상'),createdAt:row.created_at||''}));
+      return json({status:'success',videos:queue},200,{'X-Fit-Function-Region':request.cf?.colo||'cloudflare'});
+    }catch(error){ return failed(error); }
   }
   try {
     const cached=memberCache.get(member);

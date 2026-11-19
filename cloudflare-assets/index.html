@@ -4105,6 +4105,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       queue.classList.add('ring-2','ring-brand-500');
       setTimeout(()=>queue.classList.remove('ring-2','ring-brand-500'),1800);
     }
+    window.openVideoFeedbackQueue = openVideoFeedbackQueue;
     async function openOverviewMember(member, listId) {
       stashWorkflowDraft();
       resetSaveStatus();

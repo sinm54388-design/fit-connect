@@ -186,16 +186,16 @@
     }
 
     const DAILY_COACH_TIPS = [
-      '중량을 올리는 것보다 내려놓는(신장성) 3초를 통제할 때 근섬유 자극이 가장 선명하게 들어갑니다.',
-      '코어 복압을 먼저 채우고 움직이면 허리 개입은 줄고 목표 부위 가동범위가 훨씬 안정적으로 나옵니다.',
-      '하체 루틴 시 엄지·새끼발가락·뒤꿈치 3점 지지를 유지하면 무릎 흔들림 없이 고관절에 정확히 실립니다.',
-      '등·상체 운동 전 어깨를 귀에서 멀리 내린 상태(견갑 하강)를 먼저 고정해야 승모근 과개입을 막을 수 있습니다.',
-      '마지막 2회가 살짝 버겁지만 폼이 무너지지 않는 강도(RIR 2)가 오늘 가장 이상적인 자극입니다.',
-      '근성장은 운동 중이 아니라 수분과 수면이 채워지는 회복 시간에 완성됩니다. 오늘 수분 2L를 꼭 채워주세요.',
-      '본 세트 전 50% 이하 가벼운 무게로 관절 가동범위부터 열어야 본 운동 출력과 안정성이 올라갑니다.',
-      '동작의 끝 지점에서 반동으로 치고 나오기보다 0.5초 멈춰 긴장을 유지하면 적은 중량으로도 충분한 자극이 나옵니다.',
-      '좌우 밸런스가 흔들리는 날엔 무리한 증량보다 한쪽씩 집중하는 편측 동작이나 템포 조절이 훨씬 효과적입니다.',
-      '피로가 누적된 날엔 무게를 10% 낮추고 호흡과 정렬에 집중하세요. 꾸준한 출석이 결국 가장 빠른 증량입니다.'
+      '[운동] 중량을 올리는 것보다 내려놓는(신장성) 3초를 통제할 때 근섬유 자극이 가장 선명하게 들어갑니다.',
+      '[운동] 코어 복압을 먼저 채우고 움직이면 허리 개입은 줄고 목표 부위 가동범위가 훨씬 안정적으로 나옵니다.',
+      '[운동] 하체 루틴 시 엄지·새끼발가락·뒤꿈치 3점 지지를 유지하면 무릎 흔들림 없이 고관절에 정확히 실립니다.',
+      '[운동] 마지막 2회가 살짝 버겁지만 폼이 무너지지 않는 강도(RIR 2)가 오늘 가장 이상적인 자극입니다.',
+      '[다이어트] 식사 전 물 한 컵과 채소부터 먼저 드시면 혈당 스파이크가 완만해져 포만감이 오래 유지됩니다.',
+      '[다이어트] 전날 짠 음식을 드셨다면 끼니를 굶지 말고 수분 2L와 채소 섭취로 나트륨 배출을 도와주세요.',
+      '[다이어트] 단백질은 한 끼에 몰아먹기보다 3~4끼에 나누어 섭취해야 근합성과 포만감을 하루 종일 유지할 수 있습니다.',
+      '[일상] 식후 10~15분 가벼운 산책만으로도 혈당이 근육으로 빠르게 쓰여 체지방 축적을 크게 줄여줍니다.',
+      '[일상] 수면이 6시간 미만이면 식욕 호르몬(그렐린)이 올라가 가짜 허기가 생깁니다. 오늘은 30분 일찍 주무셔보세요.',
+      '[일상] 오래 앉아 있는 날엔 1시간마다 기지개와 흉추 스트레칭으로 굳은 어깨를 풀어줘야 운동 시 부상 위험이 줄어듭니다.'
     ];
 
     function getDailyCoachTip(dateStr) {
@@ -1701,12 +1701,6 @@
       const chk = daily.dailyCheckin || {};
       const handoverText = `[FIT-CONNECT 인수인계] ${memberName} 회원님\n- 최근 코멘트: ${daily.headerMessage || '없음'}\n- 주요 중량: ${Object.entries(prevMap).slice(0, 4).map(([k, v]) => `${k} ${v.weight}kg×${v.reps}`).join(', ') || '기록 없음'}\n- 최근 메모: ${lastMemo}`;
 
-      const workoutPresets = [
-        '자세 흔들림 없이 안정적으로 잘하셨어요 👏',
-        '지난주보다 가동범위가 눈에 띄게 좋아졌어요!',
-        '다음 회차엔 무게 조금 올려봐도 좋겠어요 🔥',
-        '수분 섭취와 단백질도 오늘 잘 챙겨주세요 💧'
-      ];
       const dietPresets = [
         '탄단지 구성 아주 좋아요 👍',
         '저녁엔 단백질 반찬만 조금 더 챙겨요! 🍗',
@@ -1802,18 +1796,21 @@
             <div class="pt-2 border-t border-gray-100 space-y-2">
               <div class="flex items-center justify-between gap-1.5">
                 <span class="text-[12px] font-extrabold text-[#111827]">3. 코치 바로 답글 · 한마디</span>
-                <div class="flex items-center gap-1.5">
-                  <button type="button" id="cd-tip-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#F0FDFA] text-[#0F766E] text-[11px] font-bold">✨ 멘트 추천</button>
-                  <button type="button" id="cd-voice-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold">🎙 음성 입력</button>
-                </div>
+                <button type="button" id="cd-voice-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold">🎙 음성 입력</button>
               </div>
-              <div class="flex flex-wrap gap-1.5">
-                ${workoutPresets.map((wp, idx) => `<button type="button" data-wpidx="${idx}" class="cd-wp-btn tap-scale px-2.5 py-1 rounded-xl bg-[#F4F6F9] text-[#4B5563] text-[11px] font-semibold">+ ${wp.slice(0, 12)}...</button>`).join('')}
-              </div>
+              <select id="cd-tip-select" class="w-full text-[12px] font-bold px-3 py-2.5 rounded-xl bg-[#F0FDFA] text-[#0F766E] focus:outline-none">
+                <option value="">✨ 전문 코칭 멘트 선택하기 (10종)...</option>
+                ${DAILY_COACH_TIPS.map((tip, idx) => `<option value="${idx}">${idx + 1}. ${escapeHtml(tip.slice(0, 32))}...</option>`).join('')}
+              </select>
               <textarea id="cd-reply-msg" rows="2" placeholder="회원님께 보낼 피드백과 오늘의 한마디를 입력하세요" class="w-full text-[13px] p-3 rounded-2xl bg-[#F4F6F9] focus:outline-none">${escapeHtml(replyMsg)}</textarea>
-              <button type="button" id="cd-save-all" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-extrabold shadow-lg">
-                피드백 답글 & 일지 저장하기
-              </button>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="cd-broadcast-all" class="tap-scale py-3.5 rounded-2xl bg-[#F0FDFA] text-[#0F766E] text-[12px] font-extrabold">
+                  📢 전체 회원 통일
+                </button>
+                <button type="button" id="cd-save-all" class="tap-scale py-3.5 rounded-2xl hero-navy text-white text-[12px] font-extrabold shadow-lg">
+                  이 회원만 저장하기
+                </button>
+              </div>
             </div>
           </div>
         `);
@@ -1827,13 +1824,6 @@
           b.addEventListener('click', () => {
             dietMsg = dietPresets[Number(b.dataset.dpidx)];
             document.getElementById('cd-diet-msg').value = dietMsg;
-          });
-        });
-
-        document.querySelectorAll('.cd-wp-btn').forEach(b => {
-          b.addEventListener('click', () => {
-            replyMsg = workoutPresets[Number(b.dataset.wpidx)];
-            document.getElementById('cd-reply-msg').value = replyMsg;
           });
         });
 
@@ -1883,12 +1873,13 @@
           });
         });
 
-        let tipCycleIdx = 0;
-        document.getElementById('cd-tip-btn').addEventListener('click', () => {
-          const picked = DAILY_COACH_TIPS[tipCycleIdx % DAILY_COACH_TIPS.length];
-          tipCycleIdx += 1;
-          replyMsg = picked;
-          document.getElementById('cd-reply-msg').value = picked;
+        document.getElementById('cd-tip-select').addEventListener('change', e => {
+          if (e.target.value === '') return;
+          const picked = DAILY_COACH_TIPS[Number(e.target.value)];
+          if (picked) {
+            replyMsg = picked;
+            document.getElementById('cd-reply-msg').value = picked;
+          }
         });
 
         document.getElementById('cd-voice-btn').addEventListener('click', () => {
@@ -1910,6 +1901,28 @@
             replyMsg = `${memberName}님 오늘 ${routines[0]?.name || '루틴'} ${routines[0]?.weight || ''}kg 안정적으로 완료! 다음 회차도 화이팅입니다.`;
             document.getElementById('cd-reply-msg').value = replyMsg;
             showToast('음성 초안이 자동 입력되었어요');
+          }
+        });
+
+        document.getElementById('cd-broadcast-all').addEventListener('click', async () => {
+          const finalReply = document.getElementById('cd-reply-msg').value.trim();
+          if (!finalReply) {
+            showToast('전체 적용할 코치 한마디를 먼저 선택하거나 입력해 주세요');
+            return;
+          }
+          state.record.headerMessage = finalReply;
+          const members = state.trainerOverview || [];
+          closeModal();
+          triggerConfetti();
+          showToast(`전체 ${members.length || 1}명 회원님께 한마디를 통일 적용 중...`);
+          renderAll();
+          if (state.isLive && members.length) {
+            await Promise.allSettled(
+              members.map(m => savePatchLive({ headerMessage: finalReply }, m.name))
+            );
+            showToast(`전체 ${members.length}명 회원님께 통일 적용 완료!`);
+          } else {
+            showToast('전체 회원 한마디 통일 적용 완료!');
           }
         });
 

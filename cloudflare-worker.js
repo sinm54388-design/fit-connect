@@ -440,21 +440,27 @@ async function handleRecords(request,env) {
       const diet=['done','partial'].includes(raw.diet)?raw.diet:undefined;
       const mood=['good','normal','tired'].includes(raw.mood)?raw.mood:undefined;
       if(!workout&&!diet&&!mood)return json({status:'error',code:'invalid_checkin'},400);
-      const checkin={...(workout?{workout}:{}),...(diet?{diet}:{}),...(mood?{mood}:{}),updatedAt:new Date().toISOString()};
-      const rows=await supaGet('/rest/v1/fit_daily_records?select=id,data&member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=2','daily_checkin_read');
+      const changes={...(workout?{workout}:{}),...(diet?{diet}:{}),...(mood?{mood}:{})};
+      const table='/rest/v1/fit_daily_records';
+      const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
       const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
-      let saved;
-      if(rows.length){
-        const data={...(rows[0].data||{}),dailyCheckin:checkin};
-        const response=await fetch(base+'/rest/v1/fit_daily_records?id=eq.'+encodeURIComponent(rows[0].id),{method:'PATCH',headers,body:JSON.stringify({data,updated_at:new Date().toISOString()}),signal:AbortSignal.timeout(8000)});
+      for(let attempt=0;attempt<3;attempt++){
+        const rows=await supaGet(table+'?select=id,data,updated_at&'+scope+'&limit=2','daily_checkin_read');
+        if(rows.length>1)break;
+        const row=rows[0];
+        const previousVersion=Date.parse(row?.updated_at);
+        const updatedAt=new Date(Math.max(Date.now(),Number.isFinite(previousVersion)?previousVersion+1:0)).toISOString();
+        const data={...row?.data,dailyCheckin:{...row?.data?.dailyCheckin,...changes,updatedAt}};
+        const version=row?.updated_at==null?'is.null':'eq.'+encodeURIComponent(row.updated_at);
+        const target=row?table+'?id=eq.'+encodeURIComponent(row.id)+'&updated_at='+version:table;
+        const payload=row?{data,updated_at:updatedAt}:{member_id:memberId,record_date:date,data,updated_at:updatedAt};
+        const response=await fetch(base+target,{method:row?'PATCH':'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
+        if(!row&&response.status===409)continue;
         if(!response.ok)throw Error('daily_checkin_write_'+response.status);
-        saved=(await response.json())[0]?.data||data;
-      }else{
-        const response=await fetch(base+'/rest/v1/fit_daily_records',{method:'POST',headers,body:JSON.stringify({member_id:memberId,record_date:date,data:{dailyCheckin:checkin}}),signal:AbortSignal.timeout(8000)});
-        if(!response.ok)throw Error('daily_checkin_insert_'+response.status);
-        saved=(await response.json())[0]?.data||{dailyCheckin:checkin};
+        const [saved]=await response.json();
+        if(saved)return json({status:'success',data:saved.data});
       }
-      return json({status:'success',data:saved});
+      return json({status:'error',code:'checkin_conflict'},409);
     }
     if(directVideo){
       const trainer=input.password!==undefined;

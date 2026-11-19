@@ -1825,6 +1825,13 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     let currentMode = 'member';
     let latestLoadRequest = 0;
     let selectedDate = getLocalDateStr();
+    const memberEntry = new URLSearchParams(location.search);
+    const entrySection = memberEntry.get('section');
+    if (activeMemberName && memberToken && ['diet', 'growth', 'feedback'].includes(entrySection)) {
+      const day = memberEntry.get('date') || '';
+      const parsed = /^\d{4}-\d{2}-\d{2}$/.test(day) ? Date.parse(day + 'T00:00:00Z') : NaN;
+      if (Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === day) selectedDate = day;
+    }
     let appData = null;
     let trainerPassword = null; // 비밀번호는 서버에서 확인 (코드에 저장되어 있지 않음)
     let editingRoutineId = null;
@@ -2615,6 +2622,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     document.addEventListener("DOMContentLoaded", async function () {
       if(perfEnabled)document.getElementById('perfDiagnostic').style.display='block';
       arrangeMemberDashboard();
+      if (activeMemberName && memberToken && entrySection) navigateMemberPage(entrySection, false);
       setupHomeRecordCards();
       setupFocusedMemberHome();
       document.getElementById('trainerQuickFeedbackMount').appendChild(document.getElementById('trainerFeedbackPanel'));

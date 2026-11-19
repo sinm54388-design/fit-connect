@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="referrer" content="no-referrer" />
   <title>FIT-CONNECT</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
@@ -14,6 +15,20 @@
       -webkit-font-smoothing: antialiased;
       letter-spacing: -0.02em;
     }
+    :root { --fit-bottom: env(safe-area-inset-bottom, 0px); }
+    #app-header { padding-top: calc(1rem + env(safe-area-inset-top, 0px)); }
+    #app-frame { padding-bottom: calc(8.5rem + var(--fit-bottom)); }
+    #bottom-nav { padding-bottom: calc(0.75rem + var(--fit-bottom)); }
+    #member-fab-wrap { bottom: calc(var(--fit-nav-height, 4rem) + 0.75rem); }
+    #modal-panel, #consent-panel {
+      max-height: 88vh;
+      max-height: min(88dvh, var(--fit-sheet-height, 88dvh));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-bottom: calc(1.5rem + var(--fit-bottom));
+    }
+    #modal-backdrop { bottom: var(--fit-keyboard-offset, 0px); }
+    body.sheet-open { overflow: hidden; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
     .hero-navy {
       background:
@@ -57,7 +72,7 @@
 <body class="min-h-screen bg-[#E2E6EE] text-[#111827]">
 
   <!-- Mobile App Frame -->
-  <div class="mx-auto min-h-screen max-w-[430px] bg-[#F4F6F9] relative flex flex-col pb-28 sm:shadow-[0_12px_40px_rgba(15,23,42,0.12)]">
+  <div id="app-frame" class="mx-auto min-h-screen max-w-[430px] bg-[#F4F6F9] relative flex flex-col pb-28 sm:shadow-[0_12px_40px_rgba(15,23,42,0.12)]">
 
     <!-- Header -->
     <header id="app-header" class="sticky top-0 z-30 bg-[#F4F6F9]/94 backdrop-blur-xl px-5 pt-4 pb-3"></header>
@@ -89,7 +104,7 @@
 
   <!-- Bottom Sheet Modal -->
   <div id="modal-backdrop" class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] hidden items-end sm:items-center justify-center p-0 sm:p-4">
-    <div id="modal-panel" class="w-full max-w-[430px] bg-white rounded-t-[28px] sm:rounded-[28px] p-6 shadow-2xl animate-in max-h-[88vh] overflow-y-auto">
+    <div id="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="w-full max-w-[430px] bg-white rounded-t-[28px] sm:rounded-[28px] p-6 shadow-2xl animate-in max-h-[88vh] overflow-y-auto">
       <div class="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-4 sm:hidden"></div>
       <div class="flex items-center justify-between pb-3">
         <h3 id="modal-title" class="text-[17px] font-bold text-[#111827]"></h3>
@@ -101,7 +116,7 @@
 
   <!-- Privacy Consent Bottom Sheet (1회 노출, localStorage 저장) -->
   <div id="consent-backdrop" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] hidden items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="w-full max-w-[430px] bg-white rounded-t-[28px] sm:rounded-[28px] p-6 shadow-2xl animate-in space-y-4">
+    <div id="consent-panel" class="w-full max-w-[430px] bg-white rounded-t-[28px] sm:rounded-[28px] p-6 shadow-2xl animate-in space-y-4">
       <div class="w-10 h-1 rounded-full bg-gray-200 mx-auto sm:hidden"></div>
       <div class="flex items-center gap-2.5">
         <span class="w-9 h-9 rounded-2xl hero-navy text-white flex items-center justify-center text-sm font-extrabold">✓</span>
@@ -113,7 +128,7 @@
       <div class="p-3.5 rounded-2xl bg-[#F4F6F9] text-[12px] text-[#4B5563] space-y-1.5 leading-relaxed">
         <p>• <b class="text-[#111827]">수집 항목</b>: 운동 루틴 수행 기록, 식단(메뉴·사진·수분), 컨디션 체크 및 코치 소통 메모</p>
         <p>• <b class="text-[#111827]">이용 목적</b>: 담당 코치의 1:1 맞춤 트레이닝 피드백 및 주간 성장 리포트 제공</p>
-        <p>• <b class="text-[#111827]">보관 및 보호</b>: 암호화 세션으로 본인 및 담당 코치만 열람 가능하며 언제든 삭제를 요청할 수 있습니다.</p>
+        <p>• <b class="text-[#111827]">보관 및 보호</b>: 회원 전용 링크와 코치 인증으로 접근을 제어하며 언제든 삭제를 요청할 수 있습니다.</p>
       </div>
       <button type="button" id="btn-consent-agree" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-extrabold shadow-md">
         동의하고 리포트 시작하기
@@ -122,7 +137,7 @@
   </div>
 
   <!-- Toast -->
-  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
+  <div id="toast" role="status" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
 
   <script>
     // --- Date Helpers (KST) ---
@@ -167,15 +182,20 @@
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     // --- Parse URL Query (?name=김윤지&token=...&date=...) ---
     const urlParams = new URLSearchParams(window.location.search);
     const paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
     const paramToken = (urlParams.get('token') || '').trim();
-    const paramDate = /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date') || '') ? urlParams.get('date') : getTodayKST();
-    const isLiveOrigin = window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+    const requestedDate = urlParams.get('date') || '';
+    const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? Date.parse(requestedDate + 'T00:00:00Z') : NaN;
+    const paramDate = Number.isFinite(parsedDate) && new Date(parsedDate).toISOString().slice(0, 10) === requestedDate
+      ? requestedDate : getTodayKST();
+    const isLiveOrigin = ['https:', 'http:'].includes(window.location.protocol) &&
+      !['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
     // --- Exercise 10-Second Form Tips Library ---
     const FORM_TIPS = {
@@ -225,6 +245,12 @@
       };
     }
 
+    const MEALS = ['breakfast', 'lunch', 'dinner', 'snack'];
+    const CHECKIN_PREFIX = '__FIT_DAILY_CHECKIN__:';
+    const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+    const rows = value => Array.isArray(value) ? value.filter(isObject) : [];
+    const number = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
+
     // --- App State ---
     const state = {
       isLive: false,
@@ -232,9 +258,13 @@
       appMode: 'member', // 'member' | 'coach'
       memberTab: 'report', // 'report' | 'lesson' | 'diet' | 'body' | 'feedback'
       coachTab: 'today', // 'today' | 'members' | 'dietReply' | 'dormant'
-      memberName: paramName || '김윤지',
+      memberName: paramName || '회원',
       token: paramToken,
       session: '',
+      sessionExpires: 0,
+      recordDate: '',
+      memberError: '',
+      saving: false,
       trainerPassword: '',
       selectedDate: paramDate,
       weekDays: buildWeekDays(paramDate),
@@ -245,152 +275,146 @@
       activeColumnIdx: 0,
       targetKcal: 2100,
 
-      // Daily Record matching FIT-CONNECT Supabase / Apps Script schema
-      record: {
-        headerMessage: '지난 수업 때 말씀하신 왼쪽 무릎 시큰거림이 발목 워밍업 후 완전히 잡혔어요. 오늘도 무리하지 말고 자세에 집중해 보세요.',
-        routines: [
-          { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '발바닥 3점 지지, 3초 천천히 하강', completedSets: [true, true, true, true] },
-          { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '무릎 고정하고 엉덩이 뒤로 밀기', completedSets: [true, true, true, true] },
-          { id: 3, name: '데드버그 (개인숙제)', weight: '', sets: '3', reps: '12', note: '허리 바닥 밀착 호흡', completedSets: [false, false, false] }
-        ],
-        reflection: { good: '', bad: '' },
-        diet: {
-          breakfast: { desc: '그릭요거트 · 삶은계란 2개 · 사과', cal: '480', carb: '45', prot: '28', fat: '12', photos: [] },
-          lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-          dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-          snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-          water: 1000
-        },
-        feedback: {
-          workout: '',
-          diet: '',
-          time: ''
-        },
-        memos: [
-          { id: 'm1', from: 'trainer', text: '윤지님, 지난 수업일지 정리해 올렸어요. 오늘 데드버그 3세트 가볍게 체크해 주세요!', time: '14:10' }
-        ],
-        dailyCheckin: {
-          workout: '',
-          diet: '',
-          mood: ''
-        }
-      },
-
-      // Insights matching /api/records action:'memberInsights'
-      insights: {
-        careSummary: { workoutDays: 2, dietDays: 3, feedbackDays: 2 },
-        weekly: {
-          current: { days: 2, sets: 16, exercises: 6 },
-          previous: { days: 2, sets: 14, exercises: 5 },
-          improvements: [
-            { name: '고블릿 스쿼트', previous: 12, current: 16 },
-            { name: '루마니안 데드리프트', previous: 25, current: 30 }
-          ]
-        },
-        progress: []
-      },
-
-      // Workout history days for calendar dots & weekly rhythm SVG curve
-      workoutDays: [
-        shiftDateStr(paramDate, -4),
-        shiftDateStr(paramDate, -2),
-        paramDate
-      ],
-      previousWeights: {
-        '고블릿 스쿼트': { date: shiftDateStr(paramDate, -2), weight: '16', reps: '12' },
-        '루마니안 데드리프트': { date: shiftDateStr(paramDate, -2), weight: '30', reps: '10' }
-      },
-
-      // Magazine columns matching /api/records action:'columnList'
-      columns: [
-        {
-          id: 'c1',
-          category: '트레이닝',
-          title: '스쿼트 전 3분 발목 가동성이 무릎 부담을 40% 줄여줘요',
-          summary: '종아리가 뻣뻣하면 무릎이 안쪽으로 모이기 쉽습니다.',
-          content: [
-            '본 운동 전 벽을 보고 서서 무릎으로 벽을 살짝 터치하는 동작을 양쪽 10회씩만 해보세요.',
-            '발목이 부드러워지면 스쿼트 깊이와 엉덩이 자극이 훨씬 좋아집니다.'
-          ],
-          author: '신명진 코치',
-          published_at: paramDate
-        },
-        {
-          id: 'c2',
-          category: '영양/식단',
-          title: '단백질 한 번에 40g 먹으면 나머지는 버려질까요?',
-          summary: '흡수량 제한은 오해! 하루 총량이 더 중요합니다.',
-          content: [
-            '우리 몸은 한 끼에 먹은 단백질을 천천히 모두 흡수합니다.',
-            '근합성 신호를 자주 주려면 하루 총량을 3~4끼로 나누어 드시는 게 가장 효율적이에요.'
-          ],
-          author: '신명진 코치',
-          published_at: paramDate
-        }
-      ],
-
-      // Trainer Overview matching /api/records action:'trainerOverview'
-      trainerOverview: [
-        { name: '김윤지', lastDate: paramDate, activeToday: true, workoutToday: true, dietToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 3, weeklyDietDays: 3 },
-        { name: '이서연', lastDate: paramDate, activeToday: true, workoutToday: false, dietToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 2, weeklyDietDays: 4 },
-        { name: '박민준', lastDate: shiftDateStr(paramDate, -6), activeToday: false, workoutToday: false, dietToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0, weeklyDietDays: 1 },
-        { name: '최수아', lastDate: shiftDateStr(paramDate, -4), activeToday: false, workoutToday: false, dietToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 1, weeklyDietDays: 1 }
-      ],
-      coachMemberCache: {}
+      record: normalizeRecord({}),
+      insights: {},
+      workoutDays: [],
+      previousWeights: {},
+      columns: [],
+      trainerOverview: []
     };
 
-    // --- API Helpers (100% compatible with cloudflare-worker.js) ---
-    async function postRecords(payload) {
-      const res = await fetch('/api/records', {
-        method: 'POST',
+    let sessionRequest;
+    let latestMemberLoad = 0;
+    let privacyAgreed = false;
+    let modalVersion = 0;
+    const canonicalDates = new Set();
+    const photoCache = new Map();
+    let pendingMemberMemo;
+
+    async function post(endpoint, payload) {
+      const response = await fetch(endpoint, {
+        method: 'POST', cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('records_' + res.status);
-      return res.json();
+      const result = await response.json();
+      if (!response.ok || !isObject(result) || ['denied', 'error'].includes(result.status)) {
+        const error = new Error('request_failed');
+        error.code = result?.code || (result?.status === 'denied' ? 'unauthorized' : '');
+        error.status = response.status;
+        throw error;
+      }
+      return result;
     }
 
-    async function postAppsScript(payload) {
-      const res = await fetch('/api/apps-script', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('apps_script_' + res.status);
-      return res.json();
+    const postRecords = payload => post('/api/records', payload);
+    const postAppsScript = payload => post('/api/apps-script', payload);
+
+    async function successful(request) {
+      const result = await request;
+      if (result.status !== 'success') throw new Error('unconfirmed_write');
+      return result;
     }
 
-    // --- Browser Canvas JPEG Compression (<=900px) ---
-    function compressImageToDataUrl(file, maxDim = 900, quality = 0.78) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error('file_read_error'));
-        reader.onload = () => {
+    function ensureMemberSession(date, rejectedSession) {
+      if (rejectedSession && state.session === rejectedSession) {
+        state.session = '';
+        state.sessionExpires = 0;
+      }
+      if (state.session && state.sessionExpires > Date.now() + 30000) return Promise.resolve(state.session);
+      if (!sessionRequest) {
+        sessionRequest = successful(postRecords({ action: 'memberSession', member: state.memberName, token: state.token, date }))
+          .then(result => {
+            if (!result.session || !Number.isFinite(result.exp)) throw new Error('invalid_session_response');
+            state.session = result.session;
+            state.sessionExpires = result.exp;
+            return state.session;
+          }).finally(() => { sessionRequest = null; });
+      }
+      return sessionRequest;
+    }
+
+    async function memberRecords(payload) {
+      const session = await ensureMemberSession(payload.date);
+      try {
+        return await postRecords({ member: state.memberName, ...payload, session });
+      } catch (error) {
+        if (error.code !== 'session_invalid') throw error;
+        const renewed = await ensureMemberSession(payload.date, session);
+        return postRecords({ member: state.memberName, ...payload, session: renewed });
+      }
+    }
+
+    function credentials(date = state.selectedDate, member = state.memberName) {
+      return state.appMode === 'coach'
+        ? { date, member, password: state.trainerPassword }
+        : { date, member, token: state.token };
+    }
+
+    async function readCanonical(auth) {
+      return normalizeRecord(await postAppsScript({ action: 'read', ...auth }));
+    }
+
+    function failureText(error) {
+      if (error?.status === 403 || ['unauthorized', 'session_invalid'].includes(error?.code)) {
+        return '접근 권한을 확인해 주세요. 회원 전용 링크나 코치 로그인을 다시 확인해 주세요.';
+      }
+      return '서버 연결을 확인한 뒤 다시 시도해 주세요.';
+    }
+
+    async function saveAction(work, message, onSuccess = renderAll) {
+      if (state.saving) return false;
+      if (!isLiveOrigin || (state.appMode === 'member' && state.recordDate !== state.selectedDate) ||
+          (state.appMode === 'coach' && !state.trainerPassword)) {
+        showToast('기록을 불러오거나 로그인한 뒤 저장할 수 있어요.');
+        return false;
+      }
+      state.saving = true;
+      showToast('저장 중…');
+      try {
+        await work();
+      } catch (error) {
+        showToast(error.userMessage || '저장을 확인하지 못했어요. ' + failureText(error));
+        return false;
+      } finally {
+        state.saving = false;
+      }
+      onSuccess();
+      showToast(message);
+      return true;
+    }
+
+    const PHOTO_MAX_BYTES = 1400000;
+
+    async function compressMealPhoto(file) {
+      const url = URL.createObjectURL(file);
+      try {
+        const image = await new Promise((resolve, reject) => {
           const img = new Image();
-          img.onerror = () => reject(new Error('img_decode_error'));
-          img.onload = () => {
-            let w = img.width;
-            let h = img.height;
-            if (w > maxDim || h > maxDim) {
-              if (w >= h) {
-                h = Math.round((h * maxDim) / w);
-                w = maxDim;
-              } else {
-                w = Math.round((w * maxDim) / h);
-                h = maxDim;
-              }
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            resolve(canvas.toDataURL('image/jpeg', quality));
-          };
-          img.src = reader.result;
-        };
-        reader.readAsDataURL(file);
-      });
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = url;
+        });
+        const ratio = Math.min(1, 900 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        let blob;
+        for (const quality of [0.78, 0.65, 0.52, 0.4]) {
+          blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+          if (blob && blob.size <= 450000) break;
+        }
+        if (!blob || blob.type !== 'image/jpeg' || blob.size > PHOTO_MAX_BYTES) throw new Error('photo_size');
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } finally {
+        URL.revokeObjectURL(url);
+      }
     }
 
     // --- Clipboard Helper ---
@@ -412,153 +436,190 @@
       }
     }
 
-    // --- Normalize Meal Object ---
-    function normalizeMeal(m) {
-      const obj = m && typeof m === 'object' ? m : {};
-      return {
-        desc: obj.desc || '',
-        cal: obj.cal || '',
-        carb: obj.carb || '',
-        prot: obj.prot || '',
-        fat: obj.fat || '',
-        photos: Array.isArray(obj.photos) ? obj.photos : []
-      };
+    function normalizeMeal(value) {
+      const meal = isObject(value) ? value : {};
+      return { desc: '', cal: '', carb: '', prot: '', fat: '', ...meal,
+        photos: Array.isArray(meal.photos) ? meal.photos.filter(Boolean) : [] };
     }
 
-    // --- Live Initialization ---
+    function isCheckinMemo(memo) {
+      return typeof memo.text === 'string' && memo.text.startsWith(CHECKIN_PREFIX);
+    }
+
+    function normalizeRecord(value) {
+      const record = isObject(value) ? value : {};
+      const memos = rows(record.memos);
+      let dailyCheckin = isObject(record.dailyCheckin) ? record.dailyCheckin : {};
+      for (const memo of memos.filter(isCheckinMemo).reverse()) {
+        try {
+          const parsed = JSON.parse(memo.text.slice(CHECKIN_PREFIX.length));
+          if (isObject(parsed) && (!dailyCheckin.updatedAt || !parsed.updatedAt || parsed.updatedAt >= dailyCheckin.updatedAt)) {
+            dailyCheckin = parsed;
+          }
+          break;
+        } catch {}
+      }
+      const diet = { ...record.diet, water: number(record.diet?.water) };
+      for (const meal of MEALS) diet[meal] = normalizeMeal(diet[meal]);
+      return { ...record, headerMessage: record.headerMessage || '', routines: rows(record.routines).map(routine => ({ ...routine,
+          completedSets: Array.isArray(routine.completedSets) ? routine.completedSets : [] })),
+        reflection: { good: '', bad: '', ...record.reflection }, diet,
+        feedback: { workout: '', diet: '', time: '', ...record.feedback }, memos, dailyCheckin };
+    }
+
     async function initLiveMemberData() {
-      checkPrivacyConsent();
-      if (!isLiveOrigin || !state.memberName || !state.token) {
-        renderAll();
-        return;
-      }
-      state.loading = true;
-      renderAll();
-      try {
-        const sessRes = await postRecords({
-          action: 'memberSession',
-          member: state.memberName,
-          token: state.token,
-          date: state.selectedDate
-        });
-        if (sessRes?.status === 'success' && sessRes.session) {
-          state.session = sessRes.session;
-          state.isLive = true;
+      if (isLiveOrigin && paramName && state.token) {
+        if (checkPrivacyConsent()) await loadMemberDateData(state.selectedDate);
+        else {
+          state.memberError = '개인정보 수집 및 활용 동의를 확인해 주세요.';
+          renderAll();
         }
-        await loadMemberDateData(state.selectedDate);
-      } catch {
-        state.isLive = false;
-        showToast('미리보기 데이터로 표시 중입니다');
-      } finally {
-        state.loading = false;
+      } else {
+        state.memberError = '회원 전용 링크로 접속해 주세요.';
         renderAll();
       }
     }
 
-    async function loadMemberDateData(dateStr) {
-      if (!state.isLive) return;
-      const auth = state.session
-        ? { session: state.session }
-        : { token: state.token };
-      const month = dateStr.slice(0, 7);
-
-      const [daily, ins, cols, hist] = await Promise.allSettled([
-        postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth })
-      ]);
-
-      if (daily.status === 'fulfilled' && daily.value && typeof daily.value === 'object') {
-        const d = daily.value;
-        state.record = {
-          headerMessage: d.headerMessage || '',
-          routines: Array.isArray(d.routines) ? d.routines : [],
-          reflection: d.reflection || { good: '', bad: '' },
-          diet: {
-            breakfast: normalizeMeal(d.diet?.breakfast),
-            lunch: normalizeMeal(d.diet?.lunch),
-            dinner: normalizeMeal(d.diet?.dinner),
-            snack: normalizeMeal(d.diet?.snack),
-            water: Number(d.diet?.water) || 0
-          },
-          feedback: d.feedback || { workout: '', diet: '', time: '' },
-          memos: Array.isArray(d.memos) ? d.memos : [],
-          dailyCheckin: d.dailyCheckin || { workout: '', diet: '', mood: '' }
-        };
-      }
-      if (ins.status === 'fulfilled' && ins.value?.status === 'success') {
-        state.insights = ins.value;
-      }
-      if (cols.status === 'fulfilled' && cols.value?.status === 'success' && Array.isArray(cols.value.columns) && cols.value.columns.length) {
-        state.columns = cols.value.columns;
-      }
-      if (hist.status === 'fulfilled' && hist.value?.status === 'success') {
-        if (Array.isArray(hist.value.days)) state.workoutDays = hist.value.days;
-        if (hist.value.previous && typeof hist.value.previous === 'object') state.previousWeights = hist.value.previous;
+    async function loadMemberDateData(date) {
+      const request = ++latestMemberLoad;
+      state.recordDate = '';
+      state.memberError = '';
+      state.loading = true;
+      state.isLive = false;
+      state.record = normalizeRecord({});
+      state.insights = {};
+      state.columns = [];
+      state.workoutDays = [];
+      state.previousWeights = {};
+      renderAll();
+      const auth = credentials(date);
+      const current = () => request === latestMemberLoad && date === state.selectedDate && state.appMode === 'member';
+      try {
+        const daily = canonicalDates.has(date) ? readCanonical(auth) :
+          memberRecords({ action: 'read', date }).then(normalizeRecord).catch(error => {
+            if (error.status === 403 && error.code !== 'member_not_found') throw error;
+            return readCanonical(auth);
+          });
+        const extras = Promise.allSettled([
+          memberRecords({ action: 'memberInsights', date }),
+          memberRecords({ action: 'columnList', date }),
+          memberRecords({ action: 'workoutHistory', date, month: date.slice(0, 7) })
+        ]).then(([insights, columns, history]) => {
+          if (!current()) return;
+          if (insights.value?.status === 'success') state.insights = insights.value;
+          if (columns.value?.status === 'success') state.columns = rows(columns.value.columns);
+          if (history.value?.status === 'success') {
+            state.workoutDays = Array.isArray(history.value.days) ? history.value.days : [];
+            state.previousWeights = isObject(history.value.previous) ? history.value.previous : {};
+          }
+        });
+        const [record] = await Promise.all([daily, extras]);
+        if (!current()) return;
+        state.record = record;
+        state.recordDate = date;
+        state.isLive = true;
+      } catch (error) {
+        if (current()) state.memberError = '기록을 불러오지 못했어요. ' + failureText(error);
+      } finally {
+        if (current()) {
+          state.loading = false;
+          renderAll();
+        }
       }
     }
 
-    // --- Live Save Wrappers ---
-    async function saveDailyCheckinLive(checkinObj) {
-      if (!state.isLive) return;
-      try {
-        await postRecords({
-          action: 'dailyCheckin',
-          member: state.memberName,
-          date: state.selectedDate,
-          session: state.session,
-          checkin: checkinObj
-        });
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
+    function applyMemberRecord(auth, record) {
+      if (state.appMode === 'member' && auth.member === state.memberName && auth.date === state.recordDate) {
+        state.record = normalizeRecord(record);
       }
     }
 
-    async function savePatchLive(patchObj, targetMember = state.memberName, targetDate = state.selectedDate) {
-      if (!state.isLive) return;
-      try {
-        await postAppsScript({
-          action: 'patchData',
-          member: targetMember,
-          date: targetDate,
-          token: state.token,
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : {}),
-          patch: patchObj
-        });
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
+    async function savePatchLive(patch, auth = credentials()) {
+      const result = await successful(postAppsScript({ action: 'patchData', ...auth, patch }));
+      if (auth.token) canonicalDates.add(auth.date);
+      if (auth.token) applyMemberRecord(auth, isObject(result.data) ? result.data : await readCanonical(auth));
+      return result;
+    }
+
+    async function saveDailyCheckinLive(field, value) {
+      const auth = credentials();
+      const latest = await readCanonical(auth);
+      const checkin = { ...latest.dailyCheckin, [field]: value, updatedAt: new Date().toISOString() };
+      await savePatchLive({ memos: [{ id: 'checkin-' + auth.date + '-' + crypto.randomUUID(), from: 'member',
+        text: CHECKIN_PREFIX + JSON.stringify(checkin), time: nowTimeHHMM() }] }, auth);
+      if (field === 'workout' && value === 'done' && !state.workoutDays.includes(auth.date)) state.workoutDays.push(auth.date);
+      // Sheets is authoritative. The Worker update is a best-effort mirror.
+      void memberRecords({ action: 'dailyCheckin', date: auth.date, checkin: { [field]: value } }).catch(() => {});
+    }
+
+    function setCount(routine) {
+      const count = Number(routine.sets);
+      return Number.isInteger(count) && count >= 1 && count <= 100 ? count : 0;
+    }
+
+    async function saveSetProgress(routine, indexes, checked) {
+      if (routine.id === undefined || !indexes.length) throw new Error('invalid_routine');
+      const auth = credentials();
+      await successful(postAppsScript({ action: 'setProgressBatch', ...auth,
+        changes: indexes.map(index => ({ id: routine.id, index, checked })) }));
+      canonicalDates.add(auth.date);
+      const saved = state.record.routines.find(item => item.id === routine.id);
+      if (saved) {
+        const completed = Array.isArray(saved.completedSets) ? [...saved.completedSets] : [];
+        for (const index of indexes) completed[index] = checked;
+        saved.completedSets = completed;
+        if (checked && !state.workoutDays.includes(auth.date)) state.workoutDays.push(auth.date);
       }
     }
 
-    async function saveFullRecordLive(targetMember = state.memberName, targetDate = state.selectedDate, recordData = state.record) {
-      if (!state.isLive) return;
-      try {
-        await postAppsScript({
-          member: targetMember,
-          date: targetDate,
-          token: state.token,
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : {}),
-          data: recordData
-        });
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
-      }
+    function safePhotoSource(value) {
+      return typeof value === 'string' && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)
+        ? value : '';
+    }
+
+    function hydrateMealPhotos(root, auth) {
+      root.querySelectorAll('img[data-fit-photo-id]').forEach(async img => {
+        const fileId = img.dataset.fitPhotoId;
+        const meal = img.dataset.fitPhotoMeal;
+        const key = JSON.stringify([auth.member, auth.date, meal, fileId]);
+        try {
+          if (!photoCache.has(key)) {
+            if (photoCache.size >= 32) photoCache.delete(photoCache.keys().next().value);
+            photoCache.set(key, successful(postAppsScript({ action: 'photo', ...auth, fileId, meal }))
+              .then(result => {
+                const src = safePhotoSource('data:' + result.mime + ';base64,' + result.base64);
+                if (!src) throw new Error('invalid_photo');
+                return src;
+              }));
+          }
+          const src = await photoCache.get(key);
+          if (img.isConnected) img.src = src;
+        } catch {
+          photoCache.delete(key);
+          if (img.isConnected) img.alt = '식단 사진을 불러오지 못했어요';
+        }
+      });
+    }
+
+    function mealPhotoMarkup(photo, meal, className) {
+      const src = safePhotoSource(photo);
+      const id = isObject(photo) && typeof photo.fileId === 'string' ? photo.fileId : '';
+      if (!src && !id) return '';
+      return `<img ${src ? `src="${escapeHtml(src)}"` :
+        `data-fit-photo-id="${escapeHtml(id)}" data-fit-photo-meal="${escapeHtml(meal)}"`}
+        class="${className}" alt="식단 사진" loading="lazy" />`;
     }
 
     // --- Privacy Consent Check (1회 노출, localStorage 저장) ---
     function checkPrivacyConsent() {
       const key = 'fit_connect_privacy_consent_v2';
-      try {
-        if (localStorage.getItem(key) === 'agreed') return;
-      } catch {
-        return;
-      }
+      try { privacyAgreed ||= localStorage.getItem(key) === 'agreed'; } catch {}
+      if (privacyAgreed) return true;
       const el = document.getElementById('consent-backdrop');
-      if (el) {
-        el.classList.remove('hidden');
-        el.classList.add('flex');
-      }
+      el.classList.remove('hidden');
+      el.classList.add('flex');
+      document.body.classList.add('sheet-open');
+      return false;
     }
 
     // --- UI Helpers ---
@@ -571,7 +632,7 @@
       window.__toastTimer = setTimeout(() => {
         t.classList.remove('opacity-100');
         t.classList.add('opacity-0');
-      }, 2200);
+      }, 4000);
     }
 
     function triggerConfetti() {
@@ -614,6 +675,8 @@
     }
 
     function openModal(title, htmlContent) {
+      modalVersion++;
+      document.body.classList.add('sheet-open');
       document.getElementById('modal-title').textContent = title;
       document.getElementById('modal-body').innerHTML = htmlContent;
       const b = document.getElementById('modal-backdrop');
@@ -622,6 +685,10 @@
     }
 
     function closeModal() {
+      if (state.saving) return;
+      modalVersion++;
+      document.getElementById('modal-body').replaceChildren();
+      document.body.classList.remove('sheet-open');
       const b = document.getElementById('modal-backdrop');
       b.classList.add('hidden');
       b.classList.remove('flex');
@@ -641,14 +708,14 @@
       let kcal = 0, carb = 0, prot = 0, fat = 0, loggedCount = 0, photoCount = 0;
       keys.forEach(k => {
         const m = d[k] || {};
-        const c = Number(m.cal) || 0;
+        const c = number(m.cal);
         const hasPhoto = Array.isArray(m.photos) && m.photos.length > 0;
         if (hasPhoto) photoCount += m.photos.length;
         if (c > 0 || String(m.desc || '').trim() || hasPhoto) loggedCount++;
         kcal += c;
-        carb += Number(m.carb) || 0;
-        prot += Number(m.prot) || 0;
-        fat += Number(m.fat) || 0;
+        carb += number(m.carb);
+        prot += number(m.prot);
+        fat += number(m.fat);
       });
       const macroSum = carb + prot + fat;
       return {
@@ -769,7 +836,7 @@
     function getPrimaryMissionExercise() {
       const rs = state.record.routines || [];
       const hw = rs.find(r => /숙제|개인|데드버그/.test(String(r.name || ''))) || rs.find(r => !(Array.isArray(r.completedSets) && r.completedSets.some(Boolean))) || rs[0];
-      return hw || { name: '데드버그 (개인숙제)', sets: '3', reps: '12', note: '허리 바닥 밀착 호흡', completedSets: [false, false, false] };
+      return hw;
     }
 
     function openFormTipModal(exerciseName) {
@@ -803,7 +870,7 @@
       const imps = state.insights?.weekly?.improvements || [];
       const item = imps[impIndex] || imps[0] || { name: '고블릿 스쿼트', previous: 12, current: 16 };
       const diff = Number(item.current) - Number(item.previous);
-      const shareText = `[FIT-CONNECT 최고 기록 달성]\n🏆 ${state.memberName} 회원님 '${item.name}' 증량 성공!\n• 직전 기록: ${item.previous}kg → 현재 최고: ${item.current}kg (+${diff}kg ▲)\n• 측정일: ${state.selectedDate}\n꾸준한 루틴이 만든 멋진 성장을 응원합니다!`;
+      const shareText = `[FIT-CONNECT 최고 기록 달성]\n🏆 ${state.memberName} 회원님 '${item.name}' 증량 성공!\n• 직전 기록: ${number(item.previous)}kg → 현재 최고: ${number(item.current)}kg (+${diff}kg ▲)\n• 측정일: ${state.selectedDate}\n꾸준한 루틴이 만든 멋진 성장을 응원합니다!`;
 
       openModal('최고 기록(PR) 공유 카드', `
         <div class="space-y-4">
@@ -817,12 +884,12 @@
             <div class="mt-4 p-3.5 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-between">
               <div>
                 <p class="text-[11px] text-white/70">이전 중량</p>
-                <p class="text-[17px] font-bold tabular-nums">${item.previous}kg</p>
+                <p class="text-[17px] font-bold tabular-nums">${number(item.previous)}kg</p>
               </div>
               <span class="text-[18px] font-extrabold text-[#5EEAD4]">→</span>
               <div>
                 <p class="text-[11px] text-[#5EEAD4] font-bold">최고 기록(PR)</p>
-                <p class="text-[24px] font-extrabold tabular-nums text-white">${item.current}kg</p>
+                <p class="text-[24px] font-extrabold tabular-nums text-white">${number(item.current)}kg</p>
               </div>
               <span class="px-3 py-1.5 rounded-full bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold tabular-nums">+${diff}kg ▲</span>
             </div>
@@ -843,6 +910,8 @@
 
     // --- Custom Exercise Add Modal (수업일지 탭 '개인운동 직접 추가') ---
     function openAddExerciseModal() {
+      if (state.recordDate !== state.selectedDate || state.saving) return;
+      const routineId = crypto.randomUUID();
       const quickList = [
         { name: '플랭크 (개인운동)', weight: '', sets: '3', reps: '60', note: '복부 긴장 유지 (초 단위)' },
         { name: '힙 브릿지 (개인운동)', weight: '', sets: '3', reps: '15', note: '상단에서 둔근 2초 수축' },
@@ -884,7 +953,7 @@
         });
       });
 
-      document.getElementById('add-ex-form').addEventListener('submit', e => {
+      document.getElementById('add-ex-form').addEventListener('submit', async e => {
         e.preventDefault();
         const name = document.getElementById('ex-name').value.trim();
         if (!name) return;
@@ -893,7 +962,7 @@
         const reps = document.getElementById('ex-reps').value.trim() || '12';
         const note = document.getElementById('ex-note').value.trim() || '개인 추가 운동';
         const newRoutine = {
-          id: Date.now(),
+          id: routineId,
           name,
           weight,
           sets: String(sets),
@@ -901,134 +970,125 @@
           note,
           completedSets: Array(sets).fill(true)
         };
-        if (!Array.isArray(state.record.routines)) state.record.routines = [];
-        state.record.routines.push(newRoutine);
-        closeModal();
-        triggerConfetti();
-        showToast(`'${name}' 개인운동이 추가되었어요!`);
-        renderAll();
-        saveFullRecordLive();
+        const auth = credentials();
+        await saveAction(async () => {
+          const latest = await readCanonical(auth);
+          const exists = latest.routines.some(routine => routine.id === routineId);
+          const routines = exists ? latest.routines : [...latest.routines, newRoutine];
+          if (!exists) await successful(postAppsScript({ ...auth, data: { routines } }));
+          canonicalDates.add(auth.date);
+          applyMemberRecord(auth, { ...latest, routines });
+        }, '개인운동을 저장했어요.', () => { closeModal(); renderAll(); });
       });
     }
 
-    // --- Meal Modal with 1 Photo Attachment (Canvas <=900px JPEG -> diet[meal].photos) ---
-    function openMealModal(mealKey, mealLabel) {
-      const m = normalizeMeal(state.record.diet[mealKey]);
-      let stagedPhoto = m.photos[0] || '';
+    function openMealModal(meal, mealLabel) {
+      if (state.recordDate !== state.selectedDate || state.saving) return;
+      const auth = credentials();
+      const currentMeal = state.record.diet[meal];
+      let pendingPhoto = '';
+      let compressing = false;
+      let preset = null;
       const presets = [
-        { tag: '클린식', cal: '450', carb: '40', prot: '35', fat: '10', desc: '닭가슴살 · 현미밥 · 샐러드' },
-        { tag: '일반식', cal: '650', carb: '70', prot: '28', fat: '18', desc: '일반 한식 · 단백질 반찬 포함' },
-        { tag: '외식', cal: '820', carb: '85', prot: '25', fat: '32', desc: '외식 메뉴 · 양 조절' },
-        { tag: '단백질·간식', cal: '220', carb: '12', prot: '26', fat: '6', desc: '프로틴 쉐이크 · 견과류' }
+        { label: '가벼운 식사', desc: '닭가슴살 · 채소 · 현미밥', cal: '420', carb: '45', prot: '32', fat: '11' },
+        { label: '일반식', desc: '일반 한식 · 단백질 반찬 포함', cal: '650', carb: '70', prot: '28', fat: '18' },
+        { label: '외식', desc: '외식 메뉴 · 양 조절', cal: '820', carb: '85', prot: '25', fat: '32' },
+        { label: '단백질·간식', desc: '프로틴 쉐이크 · 견과류', cal: '220', carb: '12', prot: '26', fat: '6' }
       ];
-
-      openModal(`${mealLabel} 식단 기록`, `
-        <div class="space-y-4">
-          <!-- Photo Attachment (Canvas <=900px JPEG) -->
-          <div class="p-3.5 rounded-2xl bg-[#F4F6F9] space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-[12px] font-bold text-[#111827]">식단 사진 첨부 (1장 · 자동 900px 압축)</span>
-              <label for="meal-photo-input" class="tap-scale cursor-pointer px-3 py-1.5 rounded-full hero-navy text-white text-[11px] font-bold">
-                📷 사진 선택
-              </label>
-              <input id="meal-photo-input" type="file" accept="image/*" class="hidden" />
-            </div>
-            <div id="meal-photo-preview-wrap" class="${stagedPhoto ? '' : 'hidden'} relative rounded-2xl overflow-hidden bg-black/5">
-              <img id="meal-photo-preview" src="${stagedPhoto}" alt="식단 사진" class="w-full h-40 object-cover rounded-2xl" />
-              <button type="button" id="meal-photo-remove" class="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-black/65 text-white text-[11px] font-bold">삭제</button>
-            </div>
+      openModal(mealLabel + ' 식단 기록', `
+        <form id="meal-form" class="space-y-3">
+          <div class="flex flex-wrap gap-1.5">
+            ${presets.map((item, index) => `<button type="button" data-meal-preset="${index}" class="rounded-full bg-[#EFF6FF] px-3 py-2 text-xs font-bold">${item.label}</button>`).join('')}
           </div>
-
-          <div>
-            <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 태그로 2초 만에 저장</p>
-            <div class="grid grid-cols-2 gap-2">
-              ${presets.map((pr, idx) => `
-                <button type="button" data-pr="${idx}" class="pr-btn tap-scale p-3 rounded-2xl bg-[#F4F6F9] hover:bg-[#EFF6FF] text-left">
-                  <div class="flex items-center justify-between">
-                    <span class="text-[13px] font-bold text-[#111827]">${pr.tag}</span>
-                    <span class="text-[11px] font-bold text-[#0F766E]">~${pr.cal}kcal</span>
-                  </div>
-                  <p class="text-[11px] text-[#6B7280] mt-0.5 truncate">${pr.desc}</p>
-                </button>
-              `).join('')}
-            </div>
+          <div class="grid grid-cols-2 gap-2">
+            ${currentMeal.photos.map(photo => mealPhotoMarkup(photo, meal, 'w-full h-24 object-cover rounded-xl')).join('')}
           </div>
-
-          <form id="meal-form" class="pt-2 border-t border-gray-100 space-y-2.5">
-            <input id="mf-desc" value="${escapeHtml(m.desc)}" placeholder="먹은 메뉴를 입력하세요" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
-            <input id="mf-cal" type="number" min="0" value="${escapeHtml(m.cal)}" placeholder="예상 칼로리 (kcal)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
-            <button type="submit" class="w-full py-3 rounded-2xl hero-navy text-white text-sm font-bold">저장하기</button>
-          </form>
-        </div>
+          <label class="block text-sm font-bold">메뉴
+            <input id="mf-desc" value="${escapeHtml(currentMeal.desc)}" class="block w-full text-base px-3 py-2 rounded-xl bg-[#F4F6F9]" />
+          </label>
+          <label class="block text-sm font-bold">칼로리 (kcal)
+            <input id="mf-cal" type="number" min="0" max="99999" value="${escapeHtml(currentMeal.cal)}" class="block w-full text-base px-3 py-2 rounded-xl bg-[#F4F6F9]" />
+          </label>
+          <label class="block text-sm font-bold">식단 사진 추가
+            <input id="meal-photo-input" type="file" accept="image/*" class="block w-full text-sm" />
+          </label>
+          <img id="meal-photo-preview" alt="추가할 식단 사진" hidden class="w-full max-h-40 object-cover rounded-xl" />
+          <button type="submit" class="w-full py-3 rounded-2xl hero-navy text-white text-sm font-bold disabled:opacity-50">저장하기</button>
+        </form>
       `);
-
-      const fileInput = document.getElementById('meal-photo-input');
-      const previewWrap = document.getElementById('meal-photo-preview-wrap');
-      const previewImg = document.getElementById('meal-photo-preview');
-      const removeBtn = document.getElementById('meal-photo-remove');
-
-      fileInput.addEventListener('change', async e => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-          showToast('사진을 900px JPEG로 압축 중...');
-          stagedPhoto = await compressImageToDataUrl(file, 900, 0.78);
-          previewImg.src = stagedPhoto;
-          previewWrap.classList.remove('hidden');
-          showToast('사진 압축 첨부 완료!');
-        } catch {
-          showToast('사진 처리 중 오류가 발생했어요');
-        }
-      });
-
-      removeBtn.addEventListener('click', () => {
-        stagedPhoto = '';
-        previewImg.src = '';
-        previewWrap.classList.add('hidden');
-      });
-
-      document.querySelectorAll('.pr-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const pr = presets[Number(btn.dataset.pr)];
-          const updated = {
-            desc: `[${pr.tag}] ${pr.desc}`,
-            cal: pr.cal,
-            carb: pr.carb,
-            prot: pr.prot,
-            fat: pr.fat,
-            photos: stagedPhoto ? [stagedPhoto] : []
-          };
-          state.record.diet[mealKey] = updated;
-          closeModal();
-          showToast(`${mealLabel} (${pr.tag}) 저장 완료!`);
-          renderAll();
-          savePatchLive({ diet: { [mealKey]: updated } });
+      const form = document.getElementById('meal-form');
+      const input = document.getElementById('meal-photo-input');
+      const preview = document.getElementById('meal-photo-preview');
+      const button = form.querySelector('button[type="submit"]');
+      hydrateMealPhotos(form, auth);
+      form.querySelectorAll('[data-meal-preset]').forEach(option => {
+        option.addEventListener('click', () => {
+          if (state.saving) return;
+          preset = presets[Number(option.dataset.mealPreset)];
+          document.getElementById('mf-desc').value = preset.desc;
+          document.getElementById('mf-cal').value = preset.cal;
         });
       });
 
-      document.getElementById('meal-form').addEventListener('submit', e => {
-        e.preventDefault();
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        pendingPhoto = '';
+        preview.hidden = true;
+        preview.removeAttribute('src');
+        if (!file) return;
+        compressing = true;
+        input.disabled = button.disabled = true;
+        try {
+          pendingPhoto = await compressMealPhoto(file);
+          if (!form.isConnected) return;
+          preview.src = pendingPhoto;
+          preview.hidden = false;
+        } catch {
+          if (form.isConnected) showToast('사진을 열거나 압축할 수 없어요. JPEG 또는 PNG 사진을 선택해 주세요.');
+          input.value = '';
+        } finally {
+          compressing = false;
+          input.disabled = button.disabled = false;
+        }
+      });
+
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (compressing || state.saving) return;
         const desc = document.getElementById('mf-desc').value.trim();
         const cal = document.getElementById('mf-cal').value.trim();
-        if (!desc && !cal && !stagedPhoto) return;
-        const updated = {
-          ...m,
-          desc,
-          cal,
-          photos: stagedPhoto ? [stagedPhoto] : []
-        };
-        state.record.diet[mealKey] = updated;
-        closeModal();
-        showToast(`${mealLabel} 식단이 저장되었어요`);
-        renderAll();
-        savePatchLive({ diet: { [mealKey]: updated } });
+        input.disabled = button.disabled = true;
+        try {
+          await saveAction(async () => {
+            const latest = await readCanonical(auth);
+            const { carb, prot, fat } = preset?.desc === desc && preset.cal === cal ? preset : latest.diet[meal];
+            if (desc !== String(latest.diet[meal].desc ?? '') || cal !== String(latest.diet[meal].cal ?? '') || preset?.desc === desc) {
+              await savePatchLive({ diet: { [meal]: { desc, cal, carb, prot, fat } } }, auth);
+            }
+            if (pendingPhoto) {
+              try {
+                await successful(postAppsScript({ action: 'uploadPhoto', ...auth, meal,
+                  mime: 'image/jpeg', base64: pendingPhoto.split(',')[1] }));
+              } catch (error) {
+                error.userMessage = '사진 저장을 확인하지 못했어요. 다시 시도하기 전에 같은 사진이 올라갔는지 확인해 주세요.';
+                throw error;
+              }
+              pendingPhoto = '';
+              canonicalDates.add(auth.date);
+              const refreshed = await readCanonical(auth).catch(() => null);
+              if (refreshed) applyMemberRecord(auth, refreshed);
+            }
+          }, mealLabel + ' 기록을 저장했어요.', () => { closeModal(); renderAll(); });
+        } finally {
+          input.disabled = button.disabled = false;
+        }
       });
     }
 
     function openMagazineModal(idx) {
       if (typeof idx === 'number') state.activeColumnIdx = idx;
       const item = state.columns[state.activeColumnIdx] || state.columns[0];
-      if (!item) return;
+      if (!item) { showToast('아직 발행된 칼럼이 없어요.'); return; }
       const lines = Array.isArray(item.content) ? item.content : [String(item.content || '')];
       openModal('FIT-CONNECT MAGAZINE', `
         <div class="space-y-4">
@@ -1057,85 +1117,30 @@
 
     // --- Coach Features: Load Member Context for Briefing / Log / Diet Reply ---
     async function fetchMemberContextForCoach(memberName) {
-      if (state.coachMemberCache[memberName]) return state.coachMemberCache[memberName];
-      if (memberName === state.memberName) {
-        return {
-          record: JSON.parse(JSON.stringify(state.record)),
-          previous: state.previousWeights
-        };
+      const auth = credentials(state.selectedDate, memberName);
+      if (!auth.password) return null;
+      const version = modalVersion;
+      try {
+        const [record, history] = await Promise.all([
+          readCanonical(auth),
+          postRecords({ action: 'workoutHistory', ...auth, month: auth.date.slice(0, 7) }).catch(() => null)
+        ]);
+        if (state.appMode !== 'coach' || auth.password !== state.trainerPassword ||
+            state.selectedDate !== auth.date || version !== modalVersion) return null;
+        return { record, previous: isObject(history?.previous) ? history.previous : {}, auth };
+      } catch (error) {
+        showToast('회원 기록을 불러오지 못했어요. ' + failureText(error));
+        return null;
       }
-      if (state.isLive && state.trainerPassword) {
-        try {
-          const [rec, hist] = await Promise.allSettled([
-            postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
-            postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
-          ]);
-          const rVal = rec.status === 'fulfilled' && rec.value ? rec.value : {};
-          const hVal = hist.status === 'fulfilled' && hist.value?.previous ? hist.value.previous : {};
-          const ctx = {
-            record: {
-              headerMessage: rVal.headerMessage || '',
-              routines: Array.isArray(rVal.routines) && rVal.routines.length ? rVal.routines : [
-                { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '하체 기본 루틴', completedSets: [true, true, true, true] },
-                { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '둔근/햄스트링', completedSets: [true, true, true, true] }
-              ],
-              reflection: rVal.reflection || { good: '', bad: '' },
-              diet: {
-                breakfast: normalizeMeal(rVal.diet?.breakfast),
-                lunch: normalizeMeal(rVal.diet?.lunch),
-                dinner: normalizeMeal(rVal.diet?.dinner),
-                snack: normalizeMeal(rVal.diet?.snack),
-                water: Number(rVal.diet?.water) || 0
-              },
-              feedback: rVal.feedback || { workout: '', diet: '', time: '' },
-              memos: Array.isArray(rVal.memos) ? rVal.memos : [],
-              dailyCheckin: rVal.dailyCheckin || { workout: '', diet: '', mood: '' }
-            },
-            previous: hVal
-          };
-          state.coachMemberCache[memberName] = ctx;
-          return ctx;
-        } catch {
-          // fallback below
-        }
-      }
-      const fallback = {
-        record: {
-          headerMessage: `${memberName} 회원님, 오늘 컨디션에 맞춰 코어와 하체 밸런스에 집중해 진행했어요.`,
-          routines: [
-            { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '발목 가동성 워밍업 후 진행', completedSets: [true, true, true, true] },
-            { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '고관절 힌지 유지', completedSets: [true, true, true, true] },
-            { id: 3, name: '데드버그 (개인숙제)', weight: '0', sets: '3', reps: '12', note: '허리 바닥 밀착', completedSets: [true, true, true] }
-          ],
-          reflection: { good: '', bad: '' },
-          diet: {
-            breakfast: { desc: '단백질 쉐이크 · 바나나 1개', cal: '320', carb: '38', prot: '25', fat: '5', photos: [] },
-            lunch: { desc: '닭가슴살 샐러드 · 현미밥 반 공기', cal: '540', carb: '55', prot: '36', fat: '12', photos: [] },
-            dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-            snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-            water: 1500
-          },
-          feedback: { workout: '', diet: '', time: '' },
-          memos: [
-            { id: 'cm1', from: 'member', text: '코치님! 왼쪽 무릎 시큰거림은 많이 좋아졌고 오늘은 컨디션 좋습니다.', time: '11:20' }
-          ],
-          dailyCheckin: { workout: 'done', diet: 'done', mood: 'good' }
-        },
-        previous: {
-          '고블릿 스쿼트': { date: shiftDateStr(state.selectedDate, -3), weight: '16', reps: '12' },
-          '루마니안 데드리프트': { date: shiftDateStr(state.selectedDate, -3), weight: '30', reps: '10' }
-        }
-      };
-      state.coachMemberCache[memberName] = fallback;
-      return fallback;
     }
 
     // --- Coach Modal 1: 회원별 '5분 전 브리핑' 모달 (직전 중량 · 최근 메모 · 대타용 1장 인수인계 복사) ---
     async function openCoachBriefingModal(memberName) {
       const ctx = await fetchMemberContextForCoach(memberName);
+      if (!ctx) return;
       const routines = ctx.record.routines || [];
-      const memos = ctx.record.memos || [];
-      const lastMemo = memos[memos.length - 1]?.text || ctx.record.headerMessage || '특이 통증/이슈 없음 (발목 워밍업 권장)';
+      const memos = ctx.record.memos.filter(memo => !isCheckinMemo(memo));
+      const lastMemo = memos[memos.length - 1]?.text || ctx.record.headerMessage || '등록된 메모가 없습니다.';
       const weightLines = routines.map(r => `• ${r.name}: ${r.weight ? r.weight + 'kg' : '맨몸'} × ${r.reps || 12}회 (${r.sets || 3}세트)`).join('\n');
       const handoverText = `[FIT-CONNECT 대타/수업 인수인계 1장 요약]\n• 회원명: ${memberName} 회원님 (기준일: ${state.selectedDate})\n• 최근 컨디션/이슈: ${lastMemo}\n• 직전 수행 중량:\n${weightLines}\n• 코칭 포인트: 본 운동 전 발목/고관절 워밍업 3분 진행 후 메인 세트 들어가 주세요.`;
 
@@ -1158,7 +1163,7 @@
                   <p class="text-[13px] font-bold text-[#111827]">${escapeHtml(r.name)}</p>
                   <p class="text-[11px] text-[#6B7280]">${escapeHtml(r.note || '자세 집중')}</p>
                 </div>
-                <span class="text-[13px] font-extrabold text-[#1D4ED8] tabular-nums">${r.weight ? r.weight + 'kg' : '맨몸'} · ${r.reps || 12}회×${r.sets || 3}</span>
+                <span class="text-[13px] font-extrabold text-[#1D4ED8] tabular-nums">${r.weight ? escapeHtml(r.weight) + 'kg' : '맨몸'} · ${escapeHtml(r.reps || 12)}회×${escapeHtml(r.sets || 3)}</span>
               </div>
             `).join('')}
           </div>
@@ -1184,11 +1189,9 @@
     // --- Coach Modal 2: 회원별 '30초 일지 발행' 모달 (+2kg/-2kg 조절, 음성 입력/프리셋 코멘트, 실제 저장) ---
     async function openQuickLogPublishModal(memberName) {
       const ctx = await fetchMemberContextForCoach(memberName);
-      const draftRoutines = (ctx.record.routines && ctx.record.routines.length ? ctx.record.routines : [
-        { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '하체 메인', completedSets: [true, true, true, true] },
-        { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '후면 사슬', completedSets: [true, true, true, true] },
-        { id: 3, name: '데드버그 (개인숙제)', weight: '0', sets: '3', reps: '12', note: '코어 안정화', completedSets: [true, true, true] }
-      ]).map(r => ({ ...r, weight: String(Number(r.weight) || 0) }));
+      if (!ctx) return;
+      const draftRoutines = ctx.record.routines.map(r => ({ ...r, weight: String(number(r.weight)) }));
+      const originalWeights = new Map(draftRoutines.map(r => [String(r.id), r.weight]));
 
       const presetComments = [
         '오늘 중량 +2kg 증량에도 코어 흔들림 없이 완벽했어요! 개인숙제 데드버그만 3세트 챙겨주세요.',
@@ -1205,11 +1208,11 @@
                 <div class="p-3 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
                   <div class="min-w-0">
                     <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(r.name)}</p>
-                    <p class="text-[11px] text-[#6B7280]">${r.sets || 4}세트 × ${r.reps || 12}회</p>
+                    <p class="text-[11px] text-[#6B7280]">${escapeHtml(r.sets || 4)}세트 × ${escapeHtml(r.reps || 12)}회</p>
                   </div>
                   <div class="flex items-center gap-1.5 shrink-0">
                     <button type="button" data-ridx="${idx}" data-delta="-2" class="w-8 h-8 rounded-xl bg-white text-[#111827] font-extrabold text-xs shadow-sm w-delta-btn">-2</button>
-                    <span id="w-val-${idx}" class="w-14 text-center text-[13px] font-extrabold text-[#1D4ED8] tabular-nums">${r.weight}kg</span>
+                    <span id="w-val-${idx}" class="w-14 text-center text-[13px] font-extrabold text-[#1D4ED8] tabular-nums">${escapeHtml(r.weight)}kg</span>
                     <button type="button" data-ridx="${idx}" data-delta="2" class="w-8 h-8 rounded-xl hero-navy text-white font-extrabold text-xs shadow-sm w-delta-btn">+2</button>
                   </div>
                 </div>
@@ -1231,7 +1234,7 @@
                 </button>
               `).join('')}
             </div>
-            <textarea id="qlog-comment" rows="3" placeholder="회원에게 전달할 오늘 수업 총평" class="w-full text-[13px] p-3.5 rounded-2xl bg-[#F4F6F9] focus:outline-none">${escapeHtml(ctx.record.headerMessage || presetComments[0])}</textarea>
+            <textarea id="qlog-comment" rows="3" placeholder="회원에게 전달할 오늘 수업 총평" class="w-full text-[13px] p-3.5 rounded-2xl bg-[#F4F6F9] focus:outline-none">${escapeHtml(ctx.record.headerMessage)}</textarea>
           </div>
 
           <button type="button" id="btn-publish-qlog" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-extrabold shadow-md">
@@ -1283,33 +1286,31 @@
 
       document.getElementById('btn-publish-qlog').addEventListener('click', async () => {
         const msg = document.getElementById('qlog-comment').value.trim();
-        const updatedRoutines = draftRoutines.map(r => {
-          const sCount = Math.max(1, Number(r.sets) || 4);
-          return { ...r, completedSets: Array(sCount).fill(true) };
-        });
-
-        ctx.record.headerMessage = msg;
-        ctx.record.routines = updatedRoutines;
-        ctx.record.feedback = { ...(ctx.record.feedback || {}), workout: msg, time: nowTimeHHMM() };
-
-        if (memberName === state.memberName) {
-          state.record.headerMessage = msg;
-          state.record.routines = updatedRoutines;
-          state.record.feedback.workout = msg;
+        const changes = draftRoutines.filter(r => originalWeights.get(String(r.id)) !== r.weight);
+        if (!msg) {
+          showToast('회원에게 전달할 수업 총평을 입력해 주세요.');
+          return;
         }
-        const ovItem = state.trainerOverview.find(m => m.name === memberName);
-        if (ovItem) {
-          ovItem.pendingWorkout = false;
-          ovItem.feedbackDone = true;
-          ovItem.activeToday = true;
-          ovItem.lastDate = state.selectedDate;
-        }
-
-        closeModal();
-        triggerConfetti();
-        showToast(`${memberName} 회원님 수업일지가 발행·저장되었어요!`);
-        renderAll();
-        await saveFullRecordLive(memberName, state.selectedDate, ctx.record);
+        await saveAction(async () => {
+          const latest = await readCanonical(ctx.auth);
+          const weights = new Map(changes.map(r => [String(r.id), r.weight]));
+          if (changes.some(change => !latest.routines.some(r => String(r.id) === String(change.id) &&
+              String(number(r.weight)) === originalWeights.get(String(r.id))))) {
+            const error = new Error('routine_changed');
+            error.userMessage = '루틴이 다른 화면에서 바뀌었어요. 일지를 다시 열어 최신 중량을 확인해 주세요.';
+            throw error;
+          }
+          const feedback = { ...latest.feedback, workout: msg, time: nowTimeHHMM() };
+          if (weights.size) {
+            const routines = latest.routines.map(r => weights.has(String(r.id)) ? { ...r, weight: weights.get(String(r.id)) } : r);
+            await successful(postAppsScript({ ...ctx.auth, data: { routines, headerMessage: msg, feedback } }));
+          } else {
+            await savePatchLive({ headerMessage: msg, feedback }, ctx.auth);
+          }
+          canonicalDates.add(ctx.auth.date);
+          const item = state.trainerOverview.find(m => m.name === memberName);
+          if (item) { item.pendingWorkout = false; item.feedbackDone = true; }
+        }, '수업일지를 저장했어요.', () => { closeModal(); renderAll(); });
       });
     }
 
@@ -1363,72 +1364,53 @@
 
         const newCol = { category, title, summary, content: rawLines, author, published_at };
 
-        if (state.isLive && state.trainerPassword) {
-          try {
-            const res = await postRecords({
-              action: 'columnSave',
-              password: state.trainerPassword,
-              date: state.selectedDate,
-              column: newCol
-            });
-            if (res?.status === 'success' && res.column) {
-              state.columns.unshift(res.column);
-            } else {
-              state.columns.unshift({ id: 'c-' + Date.now(), ...newCol });
-            }
-          } catch {
-            showToast('칼럼 서버 저장 중 오류가 발생해 로컬에 반영했어요');
-            state.columns.unshift({ id: 'c-' + Date.now(), ...newCol });
-          }
-        } else {
-          state.columns.unshift({ id: 'c-' + Date.now(), ...newCol });
-        }
-
-        closeModal();
-        triggerConfetti();
-        showToast('새 매거진 칼럼이 발행되었어요!');
-        renderAll();
+        await saveAction(async () => {
+          const result = await successful(postRecords({ action: 'columnSave', password: state.trainerPassword,
+            date: state.selectedDate, column: newCol }));
+          if (!isObject(result.column)) throw new Error('unconfirmed_publish');
+          state.columns.unshift(result.column);
+        }, '새 칼럼을 발행했어요.', () => { closeModal(); renderAll(); });
       });
     }
 
     function openTrainerLoginModal() {
+      if (state.saving) return;
       openModal('코치 전용 로그인', `
         <form id="coach-login-form" autocomplete="off" class="space-y-3">
           <p class="text-[12px] text-[#6B7280]">기존 FIT-CONNECT 트레이너 비밀번호를 입력하면 전체 회원 현황을 불러옵니다.</p>
-          <input id="coach-pw" type="password" value="" autocomplete="new-password" required placeholder="트레이너 비밀번호" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
+          <input id="coach-pw" type="password" value="" autocomplete="new-password" required placeholder="트레이너 비밀번호" class="w-full text-base px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
           <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-bold">코치 모드로 전환</button>
         </form>
       `);
-      const pwInput = document.getElementById('coach-pw');
-      if (pwInput) {
-        pwInput.value = '';
-        setTimeout(() => { pwInput.value = ''; }, 50);
-      }
-      document.getElementById('coach-login-form').addEventListener('submit', async e => {
-        e.preventDefault();
-        const pw = document.getElementById('coach-pw').value;
-        if (isLiveOrigin) {
-          try {
-            const v = await postRecords({ action: 'verify', password: pw, date: state.selectedDate });
-            if (v?.status !== 'success') {
-              showToast('비밀번호가 일치하지 않아요');
-              return;
-            }
-            state.trainerPassword = pw;
-            const ov = await postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate });
-            if (ov?.status === 'success' && Array.isArray(ov.members)) {
-              state.trainerOverview = ov.members;
-            }
-            state.isLive = true;
-          } catch {
-            showToast('코치 인증 중 오류가 발생했어요');
-            return;
-          }
+      const form = document.getElementById('coach-login-form');
+      const input = document.getElementById('coach-pw');
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!isLiveOrigin || state.saving) return;
+        const password = input.value;
+        input.value = '';
+        const version = modalVersion;
+        const date = state.selectedDate;
+        state.saving = true;
+        try {
+          await successful(postRecords({ action: 'verify', password, date }));
+          const overview = await successful(postRecords({ action: 'trainerOverview', password, date }));
+          if (!Array.isArray(overview.members)) throw new Error('invalid_overview');
+          if (version !== modalVersion || date !== state.selectedDate) return;
+          state.trainerPassword = password;
+          state.trainerOverview = rows(overview.members);
+          state.appMode = 'coach';
+          state.fabOpen = false;
+          latestMemberLoad++;
+          state.loading = false;
+        } catch (error) {
+          showToast(error.status === 403 ? '비밀번호가 일치하지 않아요.' : '코치 인증 중 오류가 발생했어요.');
+          return;
+        } finally {
+          state.saving = false;
         }
-        state.appMode = 'coach';
-        state.fabOpen = false;
         closeModal();
-        showToast('코치 모드로 전환되었어요');
+        showToast('코치 모드로 전환되었어요.');
         renderAll();
       });
     }
@@ -1466,16 +1448,12 @@
           </div>
         `;
         hdr.querySelectorAll('.day-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
+          btn.addEventListener('click', () => {
+            if (state.saving || !paramName || !state.token || !privacyAgreed) return;
             state.selectedDate = btn.dataset.fdate;
             state.weekDays = buildWeekDays(state.selectedDate);
-            if (state.isLive) {
-              state.loading = true;
-              renderAll();
-              await loadMemberDateData(state.selectedDate);
-              state.loading = false;
-            }
-            renderAll();
+            state.fabOpen = false;
+            void loadMemberDateData(state.selectedDate);
           });
         });
         document.getElementById('btn-ask-coach').addEventListener('click', () => { state.memberTab = 'feedback'; renderAll(); });
@@ -1496,14 +1474,25 @@
             </div>
           </div>
         `;
+        hdr.insertAdjacentHTML('beforeend', '<a href="/" class="mt-2 inline-block text-[12px] font-bold text-[#1D4ED8] underline">기존 코치 화면에서 영상·인바디 관리</a>');
         document.getElementById('btn-new-column').addEventListener('click', openColumnPublishModal);
-        document.getElementById('btn-back-member').addEventListener('click', () => { state.appMode = 'member'; renderAll(); });
+        document.getElementById('btn-back-member').addEventListener('click', () => {
+          if (state.saving) return;
+          state.trainerPassword = '';
+          state.trainerOverview = [];
+          pendingMemberMemo = null;
+          photoCache.clear();
+          closeModal();
+          state.appMode = 'member';
+          void initLiveMemberData();
+        });
       }
     }
 
     function renderBottomNav() {
       const nav = document.getElementById('bottom-nav');
-      document.getElementById('member-fab-wrap').style.display = state.appMode === 'member' ? 'flex' : 'none';
+      document.getElementById('member-fab-wrap').style.display =
+        state.appMode === 'member' && state.recordDate ? 'flex' : 'none';
       if (state.appMode === 'member') {
         nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-5 px-2 pt-2 pb-3';
         const tabs = [
@@ -1517,7 +1506,7 @@
           const act = state.memberTab === t.id;
           return `<button type="button" data-tab="${t.id}" class="m-nav-btn tap-scale flex flex-col items-center justify-center py-0.5 ${act ? 'text-[#1D4ED8]' : 'text-[#9CA3AF]'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="${act ? '2.3' : '1.7'}" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${t.icon}"/></svg><span class="text-[10px] mt-1 ${act ? 'font-bold' : 'font-medium'}">${t.label}</span></button>`;
         }).join('');
-        nav.querySelectorAll('.m-nav-btn').forEach(b => b.addEventListener('click', () => { state.memberTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+        nav.querySelectorAll('.m-nav-btn').forEach(b => b.addEventListener('click', () => { if (state.saving) return; state.memberTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
       } else {
         // Coach 4-Tab Navigation: 오늘현황 · 전체회원 · 식단답장 · 잠수케어
         nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-4 px-2 pt-2 pb-3';
@@ -1531,12 +1520,24 @@
           const act = state.coachTab === t.id;
           return `<button type="button" data-tab="${t.id}" class="c-nav-btn tap-scale flex flex-col items-center justify-center py-0.5 ${act ? 'text-[#1D4ED8]' : 'text-[#9CA3AF]'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="${act ? '2.3' : '1.7'}" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${t.icon}"/></svg><span class="text-[10px] mt-1 ${act ? 'font-bold' : 'font-medium'}">${t.label}</span></button>`;
         }).join('');
-        nav.querySelectorAll('.c-nav-btn').forEach(b => b.addEventListener('click', () => { state.coachTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+        nav.querySelectorAll('.c-nav-btn').forEach(b => b.addEventListener('click', () => { if (state.saving) return; state.coachTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
       }
     }
 
     // --- Member View ---
+    function legacyMemberLink(section) {
+      if (state.recordDate !== state.selectedDate) return '';
+      return escapeHtml('/?' + new URLSearchParams({ name: state.memberName, token: state.token,
+        date: state.selectedDate, section }));
+    }
+
     function renderMemberView() {
+      if (state.memberError) {
+        return `<div class="bg-white rounded-2xl p-5 space-y-3">
+          <p role="alert">${escapeHtml(state.memberError)}</p>
+          ${paramName && state.token && privacyAgreed ? '<button id="btn-retry-record" type="button" class="text-blue-700 font-bold">다시 불러오기</button>' : ''}
+        </div>`;
+      }
       if (state.loading) {
         return `
           <div class="space-y-3.5">
@@ -1555,7 +1556,7 @@
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || '오늘 기록을 남기면 코치님이 확인 후 맞춤 피드백을 보내드려요.';
       const pr = state.insights?.weekly?.improvements?.[0];
       const missionEx = getPrimaryMissionExercise();
-      const missionDone = Array.isArray(missionEx.completedSets) && missionEx.completedSets.some(Boolean);
+      const missionDone = Array.isArray(missionEx?.completedSets) && missionEx.completedSets.some(Boolean);
 
       if (state.memberTab === 'report') {
         return `
@@ -1566,7 +1567,7 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-white">${state.selectedDate}</span>
-                    ${pr ? `<button type="button" id="btn-hero-pr" class="tap-scale text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-[#5EEAD4]/20 text-[#5EEAD4]">🏆 ${escapeHtml(pr.name)} +${pr.current - pr.previous}kg ▲</button>` : ''}
+                    ${pr ? `<button type="button" id="btn-hero-pr" class="tap-scale text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-[#5EEAD4]/20 text-[#5EEAD4]">🏆 ${escapeHtml(pr.name)} +${number(pr.current) - number(pr.previous)}kg ▲</button>` : ''}
                   </div>
                   <h1 class="text-[22px] font-extrabold tracking-tight leading-snug mt-2">${escapeHtml(state.memberName)}님의<br/>오늘 컨디션 리포트</h1>
                   <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[11px] font-bold">
@@ -1616,6 +1617,7 @@
             </div>
 
             <!-- Personal Mission Card & 10-Sec Form Tip Popup -->
+            ${missionEx ? `
             <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
               <div class="flex items-center justify-between">
                 <div>
@@ -1629,13 +1631,15 @@
               <div class="mt-3 p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
                 <div class="min-w-0">
                   <p class="text-[14px] font-extrabold text-[#111827] truncate">${escapeHtml(missionEx.name)}</p>
-                  <p class="text-[12px] text-[#6B7280] mt-0.5">${missionEx.sets || 3}세트 × ${missionEx.reps || 12}회 · ${escapeHtml(missionEx.note || '코어 호흡 유지')}</p>
+                  <p class="text-[12px] text-[#6B7280] mt-0.5">${escapeHtml(missionEx.sets || 3)}세트 × ${escapeHtml(missionEx.reps || 12)}회 · ${escapeHtml(missionEx.note || '코어 호흡 유지')}</p>
                 </div>
                 <button type="button" id="btn-mission-toggle" class="tap-scale shrink-0 px-3.5 py-2 rounded-full text-[12px] font-extrabold ${missionDone ? 'card-teal text-white' : 'hero-navy text-white'}">
                   ${missionDone ? '미션 완료 ✓' : '미션 체크'}
                 </button>
               </div>
             </section>
+
+            ` : ''}
 
             <!-- Weekly Workout Rhythm SVG Curve (workoutDays linked) -->
             ${renderWeeklyRhythmSvg()}
@@ -1659,7 +1663,7 @@
                   return `
                     <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn tap-scale p-3.5 rounded-2xl text-center transition ${logged ? 'card-teal text-white shadow-sm' : 'bg-[#F4F6F9] text-[#111827]'}">
                       <p class="text-[13px] font-bold">${label} ${hasPhoto ? '📷' : ''}</p>
-                      <p class="text-[11px] font-semibold tabular-nums mt-1 ${logged ? 'text-white/90' : 'text-[#0F766E]'}">${logged ? (ml.cal ? ml.cal + 'kcal' : '기록됨') : '원터치 +'}</p>
+                      <p class="text-[11px] font-semibold tabular-nums mt-1 ${logged ? 'text-white/90' : 'text-[#0F766E]'}">${logged ? (ml.cal ? escapeHtml(ml.cal) + 'kcal' : '기록됨') : '원터치 +'}</p>
                     </button>
                   `;
                 }).join('')}
@@ -1712,7 +1716,6 @@
                 </button>
               </div>
               ${rs.length ? rs.map((r, i) => {
-                const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
                 return `
                   <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
                     <div class="min-w-0 flex-1">
@@ -1720,14 +1723,26 @@
                         <p class="text-[14px] font-bold text-[#111827] truncate">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
                         <button type="button" data-tip-ex="${escapeHtml(r.name || '')}" class="btn-form-tip shrink-0 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white text-[#1D4ED8] shadow-sm">10초 팁</button>
                       </div>
-                      <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>
+                      <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? escapeHtml(r.weight) + 'kg · ' : ''}${r.reps ? escapeHtml(r.reps) + '회 ' : ''}${r.sets ? '× ' + escapeHtml(r.sets) + '세트' : ''}</p>
                       ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${escapeHtml(r.note)}</p>` : ''}
                     </div>
-                    <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
+                    <div class="flex flex-wrap gap-1 justify-end max-w-[45%]">
+                      ${Array.from({ length: setCount(r) }, (_, index) => {
+                        const checked = r.completedSets?.[index] === true;
+                        return `<button type="button" data-ridx="${i}" data-set="${index}" aria-pressed="${checked}"
+                          class="routine-toggle tap-scale min-w-9 min-h-9 rounded-full text-[12px] font-bold ${checked ? 'card-blue text-white' : 'bg-white text-[#4B5563]'}">${index + 1}</button>`;
+                      }).join('')}
+                    </div>
                   </div>
                 `;
-              }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단의 '+ 개인운동 직접 추가' 버튼으로 나만의 루틴을 기록해 보세요!</div>`}
+              }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요.</div>`}
             </div>
+            <form id="reflection-form" class="bg-white rounded-[24px] p-5 space-y-2.5">
+              <h2 class="text-[15px] font-bold">운동 소감</h2>
+              <label class="block text-sm">좋았던 점<textarea name="good" maxlength="2000" class="block w-full rounded-xl bg-[#F4F6F9] p-2 text-base">${escapeHtml(state.record.reflection.good)}</textarea></label>
+              <label class="block text-sm">아쉬웠던 점<textarea name="bad" maxlength="2000" class="block w-full rounded-xl bg-[#F4F6F9] p-2 text-base">${escapeHtml(state.record.reflection.bad)}</textarea></label>
+              <button type="submit" class="rounded-full px-4 py-2 hero-navy text-white text-sm font-bold">소감 저장</button>
+            </form>
           </div>
         `;
       }
@@ -1738,6 +1753,7 @@
             <div class="card-teal rounded-[24px] p-5 text-white">
               <p class="text-[12px] font-bold text-white/80">오늘 섭취 칼로리</p>
               <p class="text-[28px] font-extrabold tabular-nums mt-1">${ds.kcal.toLocaleString()} <span class="text-[14px] font-medium text-white/80">/ ${state.targetKcal.toLocaleString()} kcal</span></p>
+              <a href="${legacyMemberLink('diet')}" class="inline-block mt-2 text-sm font-bold underline">음식별 식단 기록 열기</a>
               ${state.record.feedback?.diet ? `<p class="mt-2.5 p-2.5 rounded-xl bg-white/15 text-[12px]">코치 식단 피드백: "${escapeHtml(state.record.feedback.diet)}"</p>` : ''}
             </div>
             ${[['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']].map(([key, label]) => {
@@ -1751,9 +1767,9 @@
                       <p class="text-[15px] font-bold text-[#111827]">${label} ${photo ? '<span class="text-[11px] font-bold text-[#0F766E]">📷 사진 첨부됨</span>' : ''}</p>
                       <p class="text-[12px] text-[#6B7280] mt-0.5 truncate">${escapeHtml(ml.desc || '아직 기록 전이에요')}</p>
                     </div>
-                    <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn shrink-0 px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '사진·기록'}</button>
+                    <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn shrink-0 px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? escapeHtml(ml.cal) + ' kcal' : '사진·기록'}</button>
                   </div>
-                  ${photo ? `<img src="${photo}" alt="${label} 식단 사진" class="w-full h-36 object-cover rounded-2xl" />` : ''}
+                  ${ml.photos.map(item => mealPhotoMarkup(item, key, 'w-full h-36 object-cover rounded-2xl')).join('')}
                 </div>
               `;
             }).join('')}
@@ -1769,10 +1785,11 @@
             ${renderWeeklyRhythmSvg()}
             <div class="bg-white rounded-[24px] p-5 space-y-3">
               <h2 class="text-[16px] font-bold text-[#111827]">이번 주 성장 요약</h2>
+              <a href="${legacyMemberLink('growth')}" class="inline-block text-sm font-bold text-[#1D4ED8] underline">인바디 기록 열기</a>
               <div class="grid grid-cols-3 gap-2 text-center">
-                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">운동 일수</p><p class="text-[18px] font-extrabold text-[#1D4ED8] mt-0.5">${w.days}일</p></div>
-                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">완료 세트</p><p class="text-[18px] font-extrabold text-[#111827] mt-0.5">${w.sets}세트</p></div>
-                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">식단 기록</p><p class="text-[18px] font-extrabold text-[#0F766E] mt-0.5">${state.insights?.careSummary?.dietDays || 0}일</p></div>
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">운동 일수</p><p class="text-[18px] font-extrabold text-[#1D4ED8] mt-0.5">${number(w.days)}일</p></div>
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">완료 세트</p><p class="text-[18px] font-extrabold text-[#111827] mt-0.5">${number(w.sets)}세트</p></div>
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">식단 기록</p><p class="text-[18px] font-extrabold text-[#0F766E] mt-0.5">${number(state.insights?.careSummary?.dietDays || 0)}일</p></div>
               </div>
               ${imps.length ? `
                 <div class="pt-2 space-y-2">
@@ -1785,7 +1802,7 @@
                         <span class="text-[14px] font-extrabold text-[#111827]">${escapeHtml(it.name)}</span>
                         <p class="text-[11px] text-[#1D4ED8] font-bold mt-0.5">PR 공유 카드 열기 · 텍스트 복사 ›</p>
                       </div>
-                      <span class="text-[14px] font-extrabold text-[#1D4ED8] tabular-nums">${it.previous}kg → ${it.current}kg (+${it.current - it.previous}kg)</span>
+                      <span class="text-[14px] font-extrabold text-[#1D4ED8] tabular-nums">${number(it.previous)}kg → ${number(it.current)}kg (+${number(it.current) - number(it.previous)}kg)</span>
                     </button>
                   `).join('')}
                 </div>
@@ -1796,11 +1813,12 @@
       }
 
       // Feedback / Memo tab
-      const memos = state.record.memos || [];
+      const memos = state.record.memos.filter(memo => !isCheckinMemo(memo));
       return `
         <div class="space-y-3.5 animate-in">
           <div class="bg-white rounded-[24px] p-5 space-y-2.5">
             <h2 class="text-[16px] font-bold text-[#111827]">코치 · 회원 메모</h2>
+            <a href="${legacyMemberLink('feedback')}" class="inline-block text-sm font-bold text-[#1D4ED8] underline">운동 영상 업로드·피드백 열기</a>
             ${memos.length ? memos.map(f => `
               <div class="p-3.5 rounded-2xl ${f.from === 'trainer' ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'}">
                 <div class="flex justify-between text-[11px] mb-1">
@@ -1828,7 +1846,7 @@
             <div>
               <div class="flex items-center gap-2">
                 <span class="text-[16px] font-extrabold text-[#111827]">${escapeHtml(m.name)}</span>
-                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">주 ${m.weeklyWorkoutDays || 0}회 운동</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">주 ${number(m.weeklyWorkoutDays || 0)}회 운동</span>
               </div>
               <p class="text-[12px] text-[#6B7280] mt-0.5">최근 기록: ${escapeHtml(m.lastDate || '기록 없음')} ${inactiveDays >= 3 ? `(${inactiveDays}일 전)` : ''}</p>
             </div>
@@ -1875,7 +1893,7 @@
                   <div class="flex items-center justify-between">
                     <div>
                       <span class="text-[15px] font-extrabold text-[#111827]">${escapeHtml(m.name)} 회원님</span>
-                      <span class="ml-1.5 text-[11px] font-bold text-[#0F766E]">주 ${m.weeklyDietDays || 1}일 식단 기록</span>
+                      <span class="ml-1.5 text-[11px] font-bold text-[#0F766E]">주 ${number(m.weeklyDietDays || 1)}일 식단 기록</span>
                     </div>
                     <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ${m.pendingDiet ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">${m.pendingDiet ? '답장 대기' : '답장 완료'}</span>
                   </div>
@@ -1956,6 +1974,24 @@
       `;
     }
 
+    if (window.visualViewport) {
+      const updateSheetViewport = () => {
+        const viewport = window.visualViewport;
+        const style = document.documentElement.style;
+        style.setProperty('--fit-sheet-height', Math.floor(viewport.height * 0.88) + 'px');
+        style.setProperty('--fit-keyboard-offset', Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) + 'px');
+      };
+      window.visualViewport.addEventListener('resize', updateSheetViewport);
+      window.visualViewport.addEventListener('scroll', updateSheetViewport);
+      updateSheetViewport();
+    }
+
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(entries => {
+        document.documentElement.style.setProperty('--fit-nav-height', entries[0].target.offsetHeight + 'px');
+      }).observe(document.getElementById('bottom-nav'));
+    }
+
     function updateFabUI() {
       const menu = document.getElementById('fab-menu');
       const icon = document.getElementById('fab-icon');
@@ -1973,46 +2009,31 @@
     function renderAll() {
       renderHeader();
       renderBottomNav();
-      document.getElementById('main-content').innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
+      const main = document.getElementById('main-content');
+      main.innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
+      if (state.appMode === 'member' && state.recordDate) hydrateMealPhotos(main, credentials());
       updateFabUI();
       bindEvents();
     }
 
     async function sendCoachDietFeedback(memberName, replyText) {
       if (!replyText) return;
-      const fb = { workout: state.record.feedback?.workout || '', diet: replyText, time: nowTimeHHMM() };
-      if (memberName === state.memberName) {
-        state.record.feedback = fb;
-      }
-      if (state.coachMemberCache[memberName]) {
-        state.coachMemberCache[memberName].record.feedback = fb;
-      }
-      const ov = state.trainerOverview.find(m => m.name === memberName);
-      if (ov) {
-        ov.pendingDiet = false;
-        ov.feedbackDone = true;
-      }
-      triggerConfetti();
-      showToast(`${memberName} 회원님 식단 답장이 저장되었어요!`);
-      renderAll();
-      await savePatchLive({ feedback: fb }, memberName, state.selectedDate);
+      const auth = credentials(state.selectedDate, memberName);
+      await saveAction(async () => {
+        const latest = await readCanonical(auth);
+        await savePatchLive({ feedback: { ...latest.feedback, diet: replyText, time: nowTimeHHMM() } }, auth);
+        canonicalDates.add(auth.date);
+        const item = state.trainerOverview.find(m => m.name === memberName);
+        if (item) { item.pendingDiet = false; item.feedbackDone = true; }
+      }, memberName + ' 회원님 식단 답장을 저장했어요.');
     }
 
     function bindEvents() {
-      const vBtn = document.getElementById('btn-verify');
-      if (vBtn) {
-        vBtn.addEventListener('click', () => {
-          const nextVal = state.record.dailyCheckin.workout === 'done' ? 'rest' : 'done';
-          state.record.dailyCheckin.workout = nextVal;
-          if (nextVal === 'done') {
-            if (!state.workoutDays.includes(state.selectedDate)) state.workoutDays.push(state.selectedDate);
-            triggerConfetti();
-          }
-          showToast(nextVal === 'done' ? '오늘 운동 인증 완료!' : '회복 상태로 변경했어요');
-          renderAll();
-          saveDailyCheckinLive({ ...state.record.dailyCheckin, workout: nextVal });
-        });
-      }
+      document.getElementById('btn-retry-record')?.addEventListener('click', () => loadMemberDateData(state.selectedDate));
+      document.getElementById('btn-verify')?.addEventListener('click', () => {
+        const value = state.record.dailyCheckin.workout === 'done' ? 'rest' : 'done';
+        void saveAction(() => saveDailyCheckinLive('workout', value), '운동 상태를 저장했어요.');
+      });
 
       const heroPrBtn = document.getElementById('btn-hero-pr');
       if (heroPrBtn) heroPrBtn.addEventListener('click', () => openPrShareModal(0));
@@ -2025,61 +2046,39 @@
         b.addEventListener('click', () => openFormTipModal(b.dataset.tipEx));
       });
 
-      const missionBtn = document.getElementById('btn-mission-toggle');
-      if (missionBtn) {
-        missionBtn.addEventListener('click', () => {
-          const rs = state.record.routines || [];
-          const target = rs.find(r => /숙제|개인|데드버그/.test(String(r.name || ''))) || rs[0];
-          if (target) {
-            const sCount = Math.max(1, Number(target.sets) || 3);
-            const done = Array.isArray(target.completedSets) && target.completedSets.some(Boolean);
-            target.completedSets = Array(sCount).fill(!done);
-            if (!done) {
-              if (!state.workoutDays.includes(state.selectedDate)) state.workoutDays.push(state.selectedDate);
-              triggerConfetti();
-              showToast('오늘 개인 미션 완료!');
-            } else {
-              showToast('개인 미션 체크를 해제했어요');
-            }
-            renderAll();
-            saveFullRecordLive();
-          }
-        });
-      }
+      document.getElementById('btn-mission-toggle')?.addEventListener('click', () => {
+        const routine = getPrimaryMissionExercise();
+        if (!routine) return;
+        const indexes = Array.from({ length: setCount(routine) }, (_, index) => index);
+        const checked = !routine.completedSets?.some(Boolean);
+        void saveAction(() => saveSetProgress(routine, indexes, checked), '미션 체크를 저장했어요.');
+      });
 
-      document.querySelectorAll('.chk-btn').forEach(b => {
-        b.addEventListener('click', () => {
-          const grp = b.dataset.grp;
-          const val = b.dataset.val;
-          state.record.dailyCheckin[grp] = val;
-          if (grp === 'workout' && val === 'done' && !state.workoutDays.includes(state.selectedDate)) {
-            state.workoutDays.push(state.selectedDate);
-          }
-          showToast('오늘 상태가 저장되었어요');
-          renderAll();
-          saveDailyCheckinLive({ ...state.record.dailyCheckin });
+      document.querySelectorAll('.chk-btn').forEach(button => {
+        button.addEventListener('click', () => {
+          void saveAction(() => saveDailyCheckinLive(button.dataset.grp, button.dataset.val), '오늘 상태를 저장했어요.');
         });
       });
 
-      document.querySelectorAll('.meal-btn').forEach(b => {
-        b.addEventListener('click', () => openMealModal(b.dataset.mkey, b.dataset.mlabel));
+      document.querySelectorAll('.meal-btn').forEach(button => {
+        button.addEventListener('click', () => openMealModal(button.dataset.mkey, button.dataset.mlabel));
       });
 
-      document.querySelectorAll('.routine-toggle').forEach(b => {
-        b.addEventListener('click', () => {
-          const idx = Number(b.dataset.ridx);
-          const r = state.record.routines[idx];
-          if (!r) return;
-          const setsCount = Math.max(1, Number(r.sets) || (Array.isArray(r.completedSets) ? r.completedSets.length : 3));
-          const currentlyDone = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
-          r.completedSets = Array(setsCount).fill(!currentlyDone);
-          if (!currentlyDone) {
-            if (!state.workoutDays.includes(state.selectedDate)) state.workoutDays.push(state.selectedDate);
-            triggerConfetti();
-          }
-          renderAll();
-          saveFullRecordLive();
+      document.querySelectorAll('.routine-toggle').forEach(button => {
+        button.addEventListener('click', () => {
+          const routine = state.record.routines[Number(button.dataset.ridx)];
+          const index = Number(button.dataset.set);
+          if (!routine) return;
+          void saveAction(() => saveSetProgress(routine, [index], routine.completedSets?.[index] !== true), '세트 체크를 저장했어요.');
         });
+      });
+
+      document.getElementById('reflection-form')?.addEventListener('submit', event => {
+        event.preventDefault();
+        const values = new FormData(event.currentTarget);
+        void saveAction(() => savePatchLive({ reflection: {
+          good: String(values.get('good') || '').trim(), bad: String(values.get('bad') || '').trim()
+        } }), '운동 소감을 저장했어요.');
       });
 
       const rest60Btn = document.getElementById('btn-rest-60');
@@ -2093,21 +2092,24 @@
       const magBtn = document.getElementById('btn-open-magazine');
       if (magBtn) magBtn.addEventListener('click', () => openMagazineModal(0));
 
-      const memoForm = document.getElementById('memo-form');
-      if (memoForm) {
-        memoForm.addEventListener('submit', e => {
-          e.preventDefault();
-          const inp = document.getElementById('memo-inp');
-          const txt = inp.value.trim();
-          if (!txt) return;
-          const newMemo = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), from: 'member', text: txt, time: nowTimeHHMM() };
-          state.record.memos.push(newMemo);
-          inp.value = '';
-          showToast('코치님께 메모를 전송했어요');
-          renderAll();
-          savePatchLive({ memos: state.record.memos });
-        });
-      }
+      document.getElementById('memo-form')?.addEventListener('submit', event => {
+        event.preventDefault();
+        const text = document.getElementById('memo-inp').value.trim();
+        if (!text) return;
+        if (text.startsWith(CHECKIN_PREFIX)) {
+          showToast('메모 내용을 다시 확인해 주세요.');
+          return;
+        }
+        if (state.saving) return;
+        const auth = credentials();
+        if (pendingMemberMemo?.date !== auth.date || pendingMemberMemo.memo.text !== text) {
+          pendingMemberMemo = { date: auth.date, memo: { id: 'memo-' + crypto.randomUUID(), from: 'member', text, time: nowTimeHHMM() } };
+        }
+        void saveAction(async () => {
+          await savePatchLive({ memos: [pendingMemberMemo.memo] }, auth);
+          pendingMemberMemo = null;
+        }, '코치님께 메모를 보냈어요.');
+      });
 
       const goL = document.getElementById('go-lesson');
       if (goL) goL.addEventListener('click', () => { state.memberTab = 'lesson'; renderAll(); });
@@ -2142,19 +2144,12 @@
       document.querySelectorAll('.btn-copy-dormant').forEach(b => {
         b.addEventListener('click', () => copyTextToClipboard(b.dataset.msg, '잠수케어 안부 메시지가 복사되었어요!'));
       });
-      document.querySelectorAll('.btn-send-dormant').forEach(b => {
-        b.addEventListener('click', async () => {
-          const mname = b.dataset.mname;
-          const msg = b.dataset.msg;
-          const ctx = await fetchMemberContextForCoach(mname);
-          const memoItem = { id: Date.now() + '-care', from: 'trainer', text: msg, time: nowTimeHHMM() };
-          ctx.record.memos.push(memoItem);
-          if (mname === state.memberName) state.record.memos.push(memoItem);
-          const ov = state.trainerOverview.find(m => m.name === mname);
-          if (ov) ov.lastDate = state.selectedDate;
-          showToast(`${mname} 회원님께 안부 메모를 발송했어요!`);
-          renderAll();
-          await savePatchLive({ memos: ctx.record.memos }, mname, state.selectedDate);
+      document.querySelectorAll('.btn-send-dormant').forEach(button => {
+        button.addEventListener('click', () => {
+          const member = button.dataset.mname;
+          const auth = credentials(state.selectedDate, member);
+          const memo = { id: 'care-' + crypto.randomUUID(), from: 'trainer', text: button.dataset.msg, time: nowTimeHHMM() };
+          void saveAction(() => savePatchLive({ memos: [memo] }, auth), member + ' 회원님께 안부 메모를 보냈어요.');
         });
       });
     }
@@ -2168,10 +2163,12 @@
     });
     document.getElementById('fab-water').addEventListener('click', () => {
       state.fabOpen = false;
-      state.record.diet.water = (Number(state.record.diet.water) || 0) + 500;
-      showToast(`물 500ml 추가됨 (총 ${(state.record.diet.water / 1000).toFixed(1)}L)`);
-      renderAll();
-      savePatchLive({ diet: { water: state.record.diet.water } });
+      updateFabUI();
+      const auth = credentials();
+      void saveAction(async () => {
+        const latest = await readCanonical(auth);
+        await savePatchLive({ diet: { water: latest.diet.water + 500 } }, auth);
+      }, '물 500ml를 추가했어요.');
     });
     document.getElementById('fab-memo').addEventListener('click', () => {
       state.fabOpen = false;
@@ -2192,7 +2189,28 @@
       const el = document.getElementById('consent-backdrop');
       el.classList.add('hidden');
       el.classList.remove('flex');
-      showToast('개인정보 수집 및 활용에 동의하셨습니다');
+      document.body.classList.remove('sheet-open');
+      privacyAgreed = true;
+      void initLiveMemberData();
+    });
+
+    window.addEventListener('pagehide', () => {
+      const password = document.getElementById('coach-pw');
+      if (password) password.value = '';
+      state.trainerPassword = '';
+      state.trainerOverview = [];
+      photoCache.clear();
+      if (state.appMode === 'coach') {
+        state.appMode = 'member';
+        document.getElementById('main-content').replaceChildren();
+        document.getElementById('modal-body').replaceChildren();
+      }
+    });
+    window.addEventListener('pageshow', event => {
+      if (!event.persisted) return;
+      state.saving = false;
+      closeModal();
+      void initLiveMemberData();
     });
 
     initLiveMemberData();

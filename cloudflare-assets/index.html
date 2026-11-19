@@ -1371,7 +1371,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
           <div class="trainer-workspace-metric"><span>등록 회원</span><i class="fa-solid fa-users"></i><strong id="overviewTotal">-</strong><small>전체 관리 회원</small></div>
           <div class="trainer-workspace-metric"><span>오늘 기록한 회원</span><i class="fa-solid fa-chart-line"></i><strong id="overviewActive">-</strong><small>선택한 날짜 기준</small></div>
           <div class="trainer-workspace-metric"><span>기록 피드백 대기</span><i class="fa-regular fa-comment-dots"></i><strong id="overviewPending">-</strong><small>운동 · 식단</small></div>
-          <button type="button" onclick="openVideoFeedbackQueue()" class="trainer-workspace-metric trainer-workspace-metric-button" aria-controls="fcVideoTaskCard"><span>영상 피드백 대기</span><i class="fa-solid fa-play"></i><strong id="overviewVideos">-</strong><small>눌러서 영상 목록 확인</small></button>
+          <button type="button" onclick="document.getElementById('fcVideoTaskCard')?.scrollIntoView({behavior:'smooth',block:'start'})" class="trainer-workspace-metric trainer-workspace-metric-button" aria-controls="fcVideoTaskCard"><span>영상 피드백 대기</span><i class="fa-solid fa-play"></i><strong id="overviewVideos">-</strong><small>눌러서 영상 목록 확인</small></button>
         </div>
         <p id="overviewStatus" role="status" class="trainer-workspace-overview-status">트레이너 로그인 후 현황을 불러옵니다.</p>
 
@@ -4098,14 +4098,6 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       if(request!==overviewRequest||date!==selectedDate||currentMode!=='trainer'||!result?.videos?.length)return;
       renderTrainerVideoQueue(result.videos);
     }
-    function openVideoFeedbackQueue() {
-      const queue=document.getElementById('fcVideoTaskCard');
-      if (!queue) return;
-      queue.scrollIntoView({behavior:'smooth',block:'start'});
-      queue.classList.add('ring-2','ring-brand-500');
-      setTimeout(()=>queue.classList.remove('ring-2','ring-brand-500'),1800);
-    }
-    window.openVideoFeedbackQueue = openVideoFeedbackQueue;
     async function openOverviewMember(member, listId) {
       stashWorkflowDraft();
       resetSaveStatus();

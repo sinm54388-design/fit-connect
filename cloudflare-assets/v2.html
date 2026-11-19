@@ -290,6 +290,43 @@
       } catch {}
     }
 
+    function playTempoTone(freq, dur) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        const ctx = new AC();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.14, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + dur + 0.02);
+      } catch {}
+    }
+
+    function computeTodayVolumeFun() {
+      const rs = state.record.routines || [];
+      let totalKg = 0;
+      rs.forEach(r => {
+        const w = Number(r.weight) || 0;
+        const reps = Number(r.reps) || 10;
+        const doneSets = Array.isArray(r.completedSets) ? r.completedSets.filter(Boolean).length : 0;
+        if (w > 0 && doneSets > 0) totalKg += w * reps * doneSets;
+      });
+      totalKg = Math.round(totalKg);
+      let analogy = '맨몸 · 코어 집중 데이 🔥';
+      if (totalKg >= 3500) analogy = `코끼리 ${(totalKg / 4000).toFixed(1)}마리 🐘`;
+      else if (totalKg >= 1200) analogy = `소형차(아반떼) ${(totalKg / 1300).toFixed(1)}대 🚗`;
+      else if (totalKg >= 400) analogy = `성인 남성 ${Math.max(1, Math.round(totalKg / 70))}명 🏋️`;
+      else if (totalKg >= 100) analogy = `쌀 20kg ${Math.max(1, Math.round(totalKg / 20))}포대 🌾`;
+      else if (totalKg > 0) analogy = `생수 2L ${Math.max(1, Math.round(totalKg / 2))}병 💧`;
+      return { totalKg, analogy };
+    }
+
     // --- URL Params ---
     const urlParams = new URLSearchParams(window.location.search);
     const paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
@@ -334,6 +371,12 @@
       plateCalc: {
         targetWeight: 60,
         barWeight: 20
+      },
+
+      // Body Asset Value State (Fat Loss & Muscle Gain)
+      bodyValue: {
+        fatLostKg: 0,
+        muscleGainedKg: 0
       },
 
       // Member feedback reaction (local persisted per member+date)
@@ -425,6 +468,12 @@
         const wv = localStorage.getItem(wk);
         if (wv !== null && !Number(state.record.diet.water)) {
           state.record.diet.water = Number(wv) || 0;
+        }
+        const bvRaw = localStorage.getItem(`fit_bodyval_${state.memberName}`);
+        if (bvRaw) {
+          const bv = JSON.parse(bvRaw);
+          state.bodyValue.fatLostKg = Number(bv.fatLostKg) || 0;
+          state.bodyValue.muscleGainedKg = Number(bv.muscleGainedKg) || 0;
         }
       } catch {}
     }
@@ -734,157 +783,228 @@
     }
 
     function openTimerModal() {
+      let timerTab = 'rest'; // 'rest' | 'tempo'
+      let tempoRunning = false;
+      let tempoStep = 0; // 0,1,2 = 하강 1,2,3 | 3 = 정지 | 4 = 업!
+      let tempoReps = 0;
+      const tempoLabels = ['하강 1 · 천천히', '하강 2 · 버티기', '하강 3 · 집중', '정점 1초 정지!', '상승 · 힘껏 업! 🔥'];
+
       function renderTimerModalBody() {
         const displaySec = state.timer.remaining > 0 ? state.timer.remaining : getConfiguredTimerSeconds();
-        openModal('운동 · 휴식 타이머 설정기', `
+        openModal('운동 · 휴식 타이머 & 템포', `
           <div class="space-y-4">
-            <div class="p-5 rounded-[24px] hero-navy text-white text-center space-y-2">
-              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.timer.running ? '카운트다운 진행 중' : '설정된 휴식 시간'}</span>
-              <p id="tm-live-display" class="text-[42px] font-extrabold tabular-nums tracking-tight leading-none pt-1">${formatMMSS(displaySec)}</p>
-              <div class="flex items-center justify-center gap-2 pt-2">
-                <button type="button" id="tm-minus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">-10초</button>
-                <button type="button" id="tm-start-btn" class="tap-scale px-5 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold">${state.timer.running ? '일시정지' : '시작하기'}</button>
-                <button type="button" id="tm-plus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">+10초</button>
-              </div>
+            <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[#F4F6F9]">
+              <button type="button" data-ttab="rest" class="tm-tab-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${timerTab === 'rest' ? 'bg-white text-[#1D4ED8] shadow-sm' : 'text-[#6B7280]'}">⏱ 휴식 타이머</button>
+              <button type="button" data-ttab="tempo" class="tm-tab-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${timerTab === 'tempo' ? 'bg-white text-[#0F766E] shadow-sm' : 'text-[#6B7280]'}">🎵 3-1-1 템포 가이드</button>
             </div>
 
-            <div>
-              <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 프리셋</p>
-              <div class="grid grid-cols-4 gap-2">
-                ${[30, 60, 90, 120].map(sec => `
-                  <button type="button" data-tsec="${sec}" class="tm-preset-btn tap-scale py-2.5 rounded-2xl text-[12px] font-bold ${getConfiguredTimerSeconds() === sec ? 'card-blue text-white' : 'bg-[#F4F6F9] text-[#111827]'}">${sec >= 60 && sec % 60 === 0 ? (sec / 60) + '분' : sec + '초'}</button>
-                `).join('')}
+            ${timerTab === 'rest' ? `
+              <div class="p-5 rounded-[24px] hero-navy text-white text-center space-y-2">
+                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.timer.running ? '카운트다운 진행 중' : '설정된 휴식 시간'}</span>
+                <p id="tm-live-display" class="text-[42px] font-extrabold tabular-nums tracking-tight leading-none pt-1">${formatMMSS(displaySec)}</p>
+                <div class="flex items-center justify-center gap-2 pt-2">
+                  <button type="button" id="tm-minus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">-10초</button>
+                  <button type="button" id="tm-start-btn" class="tap-scale px-5 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold">${state.timer.running ? '일시정지' : '시작하기'}</button>
+                  <button type="button" id="tm-plus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">+10초</button>
+                </div>
               </div>
-            </div>
 
-            <div class="grid grid-cols-2 gap-2.5">
-              <div class="p-3 rounded-2xl bg-[#F4F6F9]">
-                <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (분)</label>
-                <input id="tm-min-inp" type="number" min="0" max="30" value="${state.timer.customMin}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
-              </div>
-              <div class="p-3 rounded-2xl bg-[#F4F6F9]">
-                <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (초)</label>
-                <input id="tm-sec-inp" type="number" min="0" max="59" value="${state.timer.customSec}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
-              </div>
-            </div>
-
-            <div class="p-3.5 rounded-2xl bg-[#EFF6FF] flex items-center justify-between">
               <div>
-                <p class="text-[13px] font-bold text-[#111827]">오늘 완료 세트 카운터</p>
-                <p class="text-[11px] text-[#1D4ED8]">운동 체크 시 자동으로 올라가요</p>
+                <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 프리셋</p>
+                <div class="grid grid-cols-4 gap-2">
+                  ${[30, 60, 90, 120].map(sec => `
+                    <button type="button" data-tsec="${sec}" class="tm-preset-btn tap-scale py-2.5 rounded-2xl text-[12px] font-bold ${getConfiguredTimerSeconds() === sec ? 'card-blue text-white' : 'bg-[#F4F6F9] text-[#111827]'}">${sec >= 60 && sec % 60 === 0 ? (sec / 60) + '분' : sec + '초'}</button>
+                  `).join('')}
+                </div>
               </div>
-              <div class="flex items-center gap-2">
-                <button type="button" id="tm-set-dec" class="tap-scale w-8 h-8 rounded-xl bg-white text-[#111827] font-bold shadow-sm">-</button>
-                <span class="text-[16px] font-extrabold text-[#1D4ED8] tabular-nums w-8 text-center">${state.timer.setsDone}</span>
-                <button type="button" id="tm-set-inc" class="tap-scale w-8 h-8 rounded-xl bg-[#1D4ED8] text-white font-bold shadow-sm">+</button>
-              </div>
-            </div>
 
-            <div class="space-y-2">
-              <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
-                <span class="text-[13px] font-semibold text-[#111827]">운동 체크 시 휴식 타이머 자동 시작</span>
-                <input id="tm-auto-chk" type="checkbox" ${state.timer.autoStartOnCheck ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
-              </label>
-              <div class="grid grid-cols-2 gap-2">
-                <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
-                  <span class="text-[12px] font-semibold text-[#111827]">종료 알림음</span>
-                  <input id="tm-sound-chk" type="checkbox" ${state.timer.soundOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
-                </label>
-                <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
-                  <span class="text-[12px] font-semibold text-[#111827]">진동 알림</span>
-                  <input id="tm-vib-chk" type="checkbox" ${state.timer.vibrateOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
-                </label>
+              <div class="grid grid-cols-2 gap-2.5">
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                  <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (분)</label>
+                  <input id="tm-min-inp" type="number" min="0" max="30" value="${state.timer.customMin}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
+                </div>
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                  <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (초)</label>
+                  <input id="tm-sec-inp" type="number" min="0" max="59" value="${state.timer.customSec}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
+                </div>
               </div>
-            </div>
+
+              <div class="p-3.5 rounded-2xl bg-[#EFF6FF] flex items-center justify-between">
+                <div>
+                  <p class="text-[13px] font-bold text-[#111827]">오늘 완료 세트 카운터</p>
+                  <p class="text-[11px] text-[#1D4ED8]">운동 체크 시 자동으로 올라가요</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" id="tm-set-dec" class="tap-scale w-8 h-8 rounded-xl bg-white text-[#111827] font-bold shadow-sm">-</button>
+                  <span class="text-[16px] font-extrabold text-[#1D4ED8] tabular-nums w-8 text-center">${state.timer.setsDone}</span>
+                  <button type="button" id="tm-set-inc" class="tap-scale w-8 h-8 rounded-xl bg-[#1D4ED8] text-white font-bold shadow-sm">+</button>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                  <span class="text-[13px] font-semibold text-[#111827]">운동 체크 시 휴식 타이머 자동 시작</span>
+                  <input id="tm-auto-chk" type="checkbox" ${state.timer.autoStartOnCheck ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+                </label>
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                    <span class="text-[12px] font-semibold text-[#111827]">종료 알림음</span>
+                    <input id="tm-sound-chk" type="checkbox" ${state.timer.soundOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+                  </label>
+                  <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                    <span class="text-[12px] font-semibold text-[#111827]">진동 알림</span>
+                    <input id="tm-vib-chk" type="checkbox" ${state.timer.vibrateOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+                  </label>
+                </div>
+              </div>
+            ` : `
+              <div class="p-6 rounded-[24px] hero-navy text-white text-center space-y-3">
+                <span class="text-[11px] font-bold px-3 py-1 rounded-full bg-white/15 text-[#5EEAD4]">혼자 운동할 때 3-1-1 박자 코치</span>
+                <p id="tp-phase-text" class="text-[24px] font-extrabold pt-1">${tempoRunning ? tempoLabels[tempoStep] : '준비되시면 시작을 누르세요'}</p>
+                <div class="grid grid-cols-5 gap-1.5 pt-1">
+                  ${['1', '2', '3', '정지', '업'].map((lb, idx) => `
+                    <div id="tp-dot-${idx}" class="py-2 rounded-xl text-[11px] font-extrabold transition ${tempoRunning && tempoStep === idx ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/10 text-white/60'}">${lb}</div>
+                  `).join('')}
+                </div>
+                <p id="tp-reps-text" class="text-[14px] font-bold text-[#93C5FD] tabular-nums pt-1">완료 횟수: ${tempoReps}회</p>
+                <div class="flex items-center justify-center gap-2 pt-2">
+                  <button type="button" id="tp-toggle-btn" class="tap-scale px-6 py-2.5 rounded-2xl bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold">${tempoRunning ? '일시정지' : '박자 시작하기'}</button>
+                  <button type="button" id="tp-reset-btn" class="tap-scale px-4 py-2.5 rounded-2xl bg-white/15 text-white text-[13px] font-bold">초기화</button>
+                </div>
+              </div>
+              <p class="text-[12px] text-[#4B5563] bg-[#F4F6F9] p-3.5 rounded-2xl leading-relaxed">
+                트레이너가 옆에서 숫자를 세어주듯 <strong>3초 천천히 내리고 → 1초 정지 → 힘껏 상승</strong> 리듬을 소리와 진동으로 맞춰줍니다.
+              </p>
+            `}
           </div>
         `);
 
-        document.querySelectorAll('.tm-preset-btn').forEach(b => {
+        document.querySelectorAll('.tm-tab-btn').forEach(b => {
           b.addEventListener('click', () => {
-            const s = Number(b.dataset.tsec);
-            state.timer.customMin = Math.floor(s / 60);
-            state.timer.customSec = s % 60;
-            saveTimerPrefsLocal();
-            startTimerCountdown(s);
+            timerTab = b.dataset.ttab;
+            if (timerTab !== 'tempo') { stopTempoPacer(); tempoRunning = false; }
             renderTimerModalBody();
           });
         });
 
-        document.getElementById('tm-minus-10').addEventListener('click', () => {
-          if (state.timer.remaining > 0) {
-            state.timer.remaining = Math.max(5, state.timer.remaining - 10);
-          } else {
-            const next = Math.max(5, getConfiguredTimerSeconds() - 10);
-            state.timer.customMin = Math.floor(next / 60);
-            state.timer.customSec = next % 60;
-            saveTimerPrefsLocal();
-          }
-          updateFloatingTimerUI();
-          renderTimerModalBody();
-        });
-
-        document.getElementById('tm-plus-10').addEventListener('click', () => {
-          if (state.timer.remaining > 0) {
-            state.timer.remaining += 10;
-          } else {
-            const next = getConfiguredTimerSeconds() + 10;
-            state.timer.customMin = Math.floor(next / 60);
-            state.timer.customSec = next % 60;
-            saveTimerPrefsLocal();
-          }
-          updateFloatingTimerUI();
-          renderTimerModalBody();
-        });
-
-        document.getElementById('tm-start-btn').addEventListener('click', () => {
-          if (state.timer.running) {
-            state.timer.running = false;
+        if (timerTab === 'rest') {
+          document.querySelectorAll('.tm-preset-btn').forEach(b => {
+            b.addEventListener('click', () => {
+              const s = Number(b.dataset.tsec);
+              state.timer.customMin = Math.floor(s / 60);
+              state.timer.customSec = s % 60;
+              saveTimerPrefsLocal();
+              startTimerCountdown(s);
+              renderTimerModalBody();
+            });
+          });
+          document.getElementById('tm-minus-10').addEventListener('click', () => {
+            if (state.timer.remaining > 0) state.timer.remaining = Math.max(5, state.timer.remaining - 10);
+            else {
+              const next = Math.max(5, getConfiguredTimerSeconds() - 10);
+              state.timer.customMin = Math.floor(next / 60);
+              state.timer.customSec = next % 60;
+              saveTimerPrefsLocal();
+            }
             updateFloatingTimerUI();
-          } else if (state.timer.remaining > 0) {
-            state.timer.running = true;
-            runTimerTick();
+            renderTimerModalBody();
+          });
+          document.getElementById('tm-plus-10').addEventListener('click', () => {
+            if (state.timer.remaining > 0) state.timer.remaining += 10;
+            else {
+              const next = getConfiguredTimerSeconds() + 10;
+              state.timer.customMin = Math.floor(next / 60);
+              state.timer.customSec = next % 60;
+              saveTimerPrefsLocal();
+            }
             updateFloatingTimerUI();
-          } else {
-            startTimerCountdown(getConfiguredTimerSeconds());
-          }
-          renderTimerModalBody();
-        });
-
-        const applyCustomInputs = () => {
-          const m = Math.max(0, Math.min(30, Number(document.getElementById('tm-min-inp').value) || 0));
-          const s = Math.max(0, Math.min(59, Number(document.getElementById('tm-sec-inp').value) || 0));
-          state.timer.customMin = m;
-          state.timer.customSec = s;
-          saveTimerPrefsLocal();
-          const disp = document.getElementById('tm-live-display');
-          if (disp && state.timer.remaining <= 0) disp.textContent = formatMMSS(getConfiguredTimerSeconds());
-        };
-        document.getElementById('tm-min-inp').addEventListener('input', applyCustomInputs);
-        document.getElementById('tm-sec-inp').addEventListener('input', applyCustomInputs);
-
-        document.getElementById('tm-set-dec').addEventListener('click', () => {
-          state.timer.setsDone = Math.max(0, state.timer.setsDone - 1);
-          updateFloatingTimerUI();
-          renderTimerModalBody();
-        });
-        document.getElementById('tm-set-inc').addEventListener('click', () => {
-          state.timer.setsDone += 1;
-          updateFloatingTimerUI();
-          renderTimerModalBody();
-        });
-
-        document.getElementById('tm-auto-chk').addEventListener('change', e => {
-          state.timer.autoStartOnCheck = e.target.checked;
-          saveTimerPrefsLocal();
-        });
-        document.getElementById('tm-sound-chk').addEventListener('change', e => {
-          state.timer.soundOn = e.target.checked;
-          saveTimerPrefsLocal();
-        });
-        document.getElementById('tm-vib-chk').addEventListener('change', e => {
-          state.timer.vibrateOn = e.target.checked;
-          saveTimerPrefsLocal();
-        });
+            renderTimerModalBody();
+          });
+          document.getElementById('tm-start-btn').addEventListener('click', () => {
+            if (state.timer.running) {
+              state.timer.running = false;
+              updateFloatingTimerUI();
+            } else if (state.timer.remaining > 0) {
+              state.timer.running = true;
+              runTimerTick();
+              updateFloatingTimerUI();
+            } else {
+              startTimerCountdown(getConfiguredTimerSeconds());
+            }
+            renderTimerModalBody();
+          });
+          const applyCustomInputs = () => {
+            const m = Math.max(0, Math.min(30, Number(document.getElementById('tm-min-inp').value) || 0));
+            const s = Math.max(0, Math.min(59, Number(document.getElementById('tm-sec-inp').value) || 0));
+            state.timer.customMin = m;
+            state.timer.customSec = s;
+            saveTimerPrefsLocal();
+            const disp = document.getElementById('tm-live-display');
+            if (disp && state.timer.remaining <= 0) disp.textContent = formatMMSS(getConfiguredTimerSeconds());
+          };
+          document.getElementById('tm-min-inp').addEventListener('input', applyCustomInputs);
+          document.getElementById('tm-sec-inp').addEventListener('input', applyCustomInputs);
+          document.getElementById('tm-set-dec').addEventListener('click', () => {
+            state.timer.setsDone = Math.max(0, state.timer.setsDone - 1);
+            updateFloatingTimerUI();
+            renderTimerModalBody();
+          });
+          document.getElementById('tm-set-inc').addEventListener('click', () => {
+            state.timer.setsDone += 1;
+            updateFloatingTimerUI();
+            renderTimerModalBody();
+          });
+          document.getElementById('tm-auto-chk').addEventListener('change', e => {
+            state.timer.autoStartOnCheck = e.target.checked;
+            saveTimerPrefsLocal();
+          });
+          document.getElementById('tm-sound-chk').addEventListener('change', e => {
+            state.timer.soundOn = e.target.checked;
+            saveTimerPrefsLocal();
+          });
+          document.getElementById('tm-vib-chk').addEventListener('change', e => {
+            state.timer.vibrateOn = e.target.checked;
+            saveTimerPrefsLocal();
+          });
+        } else {
+          document.getElementById('tp-toggle-btn').addEventListener('click', () => {
+            if (tempoRunning) {
+              stopTempoPacer();
+              tempoRunning = false;
+              renderTimerModalBody();
+            } else {
+              tempoRunning = true;
+              const tickTempo = () => {
+                const ph = document.getElementById('tp-phase-text');
+                const rp = document.getElementById('tp-reps-text');
+                if (!ph) { stopTempoPacer(); return; }
+                ph.textContent = tempoLabels[tempoStep];
+                for (let i = 0; i < 5; i++) {
+                  const dot = document.getElementById('tp-dot-' + i);
+                  if (dot) dot.className = `py-2 rounded-xl text-[11px] font-extrabold transition ${tempoStep === i ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/10 text-white/60'}`;
+                }
+                if (state.timer.soundOn) {
+                  playTempoTone(tempoStep === 4 ? 880 : (tempoStep === 3 ? 620 : 440), 0.11);
+                }
+                if (tempoStep === 4) {
+                  tempoReps += 1;
+                  if (rp) rp.textContent = `완료 횟수: ${tempoReps}회`;
+                }
+                tempoStep = (tempoStep + 1) % 5;
+              };
+              renderTimerModalBody();
+              tickTempo();
+              __tempoInterval = setInterval(tickTempo, 1000);
+            }
+          });
+          document.getElementById('tp-reset-btn').addEventListener('click', () => {
+            stopTempoPacer();
+            tempoRunning = false;
+            tempoStep = 0;
+            tempoReps = 0;
+            renderTimerModalBody();
+          });
+        }
       }
       renderTimerModalBody();
     }
@@ -1100,7 +1220,9 @@
       // Member & Day Streak
       ctx.fillStyle = 'rgba(255,255,255,0.68)';
       ctx.font = '600 22px Pretendard, sans-serif';
-      ctx.fillText(`${state.selectedDate}  ·  STREAK DAY ${String(streak).padStart(2, '0')}`, 56, 132);
+      const volFun = computeTodayVolumeFun();
+      const volStr = volFun.totalKg > 0 ? `  ·  ${volFun.totalKg.toLocaleString()}kg (${volFun.analogy})` : `  ·  STREAK DAY ${String(streak).padStart(2, '0')}`;
+      ctx.fillText(`${state.selectedDate}${volStr}`, 56, 132);
 
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '800 44px Pretendard, sans-serif';
@@ -1251,7 +1373,16 @@
       b.classList.add('flex');
     }
 
+    let __tempoInterval = null;
+    function stopTempoPacer() {
+      if (__tempoInterval) {
+        clearInterval(__tempoInterval);
+        __tempoInterval = null;
+      }
+    }
+
     function closeModal() {
+      stopTempoPacer();
       const b = document.getElementById('modal-backdrop');
       b.classList.add('hidden');
       b.classList.remove('flex');
@@ -1834,8 +1965,21 @@
           }
           state.trainerPassword = pw;
           try { localStorage.setItem('fit_coach_pw_v2', pw); } catch {}
-          const ov = await postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate });
-          if (ov?.status === 'success' && Array.isArray(ov.members)) state.trainerOverview = ov.members;
+          const [ovRes, fastRes] = await Promise.allSettled([
+            postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate }),
+            postRecords({ action: 'listMembersFast', password: pw })
+          ]);
+          const ov = ovRes.status === 'fulfilled' ? ovRes.value : null;
+          const fast = fastRes.status === 'fulfilled' ? fastRes.value : null;
+          const tokenMap = {};
+          if (fast?.status === 'success' && Array.isArray(fast.members)) {
+            fast.members.forEach(fm => {
+              if (fm?.name && fm?.token) tokenMap[fm.name] = fm.token;
+            });
+          }
+          if (ov?.status === 'success' && Array.isArray(ov.members)) {
+            state.trainerOverview = ov.members.map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' }));
+          }
           state.isLive = true;
         } catch {
           if (!isAuto) showToast('코치 인증 중 오류가 발생했어요');
@@ -1901,6 +2045,15 @@
       };
     }
 
+    function copyMemberLink(memberName) {
+      const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
+      const base = isLiveOrigin ? window.location.origin : 'https://fit-connect.sinm54388.workers.dev';
+      const tok = mObj?.token || (memberName === state.memberName ? state.token : '');
+      const url = `${base}/v2?name=${encodeURIComponent(memberName)}${tok ? '&token=' + encodeURIComponent(tok) : ''}`;
+      copyTextSafe(url);
+      showToast(tok ? `${memberName} 회원님 전용 링크가 복사되었어요!` : `${memberName} 회원님 기본 링크가 복사되었어요 (토큰 확인 필요)`);
+    }
+
     // One-Stop Member Detail & Immediate Reply Bottom Sheet
     async function openCoachDetailSheet(memberName) {
       openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
@@ -1936,7 +2089,10 @@
                 <span class="text-[10px] font-bold text-[#5EEAD4]">${state.selectedDate} · 체크인 ${chk.workout === 'done' ? '운동완료' : '기록대기'}</span>
                 <p class="text-[13px] font-bold mt-0.5 truncate">최근 메모: ${escapeHtml(lastMemo)}</p>
               </div>
-              <button type="button" id="cd-copy-handover" class="tap-scale shrink-0 px-2.5 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계 복사</button>
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" id="cd-copy-link" class="tap-scale px-2.5 py-1.5 rounded-xl bg-white/15 text-white text-[11px] font-bold">🔗 링크</button>
+                <button type="button" id="cd-copy-handover" class="tap-scale px-2.5 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계</button>
+              </div>
             </div>
             ${(() => {
               const vp = [...memos].reverse().find(m => m.photo);
@@ -1966,8 +2122,9 @@
 
             <!-- Routines + Type Toggle + Add Routine -->
             <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴 (눌러서 PT수업/개인숙제 전환)</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴 (눌러서 전환)</span>
+                <button type="button" id="cd-load-prev-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">📋 직전 루틴 불러오기</button>
               </div>
               ${routines.length ? routines.map((r, i) => {
                 const prev = prevMap[r.name];
@@ -2037,9 +2194,57 @@
           </div>
         `);
 
+        document.getElementById('cd-copy-link').addEventListener('click', () => copyMemberLink(memberName));
+
         document.getElementById('cd-copy-handover').addEventListener('click', () => {
           copyTextSafe(handoverText);
           showToast('인수인계 요약이 복사되었어요');
+        });
+
+        document.getElementById('cd-load-prev-btn').addEventListener('click', async () => {
+          replyMsg = document.getElementById('cd-reply-msg').value;
+          dietMsg = document.getElementById('cd-diet-msg').value;
+          let loaded = [];
+          if (state.isLive && state.trainerPassword) {
+            const prevDays = (Array.isArray(history.days) ? history.days : [])
+              .filter(d => d < state.selectedDate)
+              .sort();
+            const lastDay = prevDays[prevDays.length - 1];
+            if (lastDay) {
+              try {
+                const prevDaily = await postRecords({ action: 'read', member: memberName, date: lastDay, password: state.trainerPassword });
+                if (Array.isArray(prevDaily?.routines) && prevDaily.routines.length) {
+                  loaded = prevDaily.routines.map((r, idx) => ({
+                    ...r,
+                    id: Date.now() + idx,
+                    completedSets: Array(Math.max(1, Number(r.sets) || 3)).fill(false)
+                  }));
+                }
+              } catch {}
+            }
+          }
+          if (!loaded.length) {
+            const entries = Object.entries(prevMap);
+            if (entries.length) {
+              loaded = entries.map(([k, v], idx) => ({
+                id: Date.now() + idx,
+                routineType: 'pt',
+                name: k,
+                weight: String(v?.weight || ''),
+                sets: String(v?.sets || '3'),
+                reps: String(v?.reps || '12'),
+                note: '',
+                completedSets: Array(Math.max(1, Number(v?.sets) || 3)).fill(false)
+              }));
+            }
+          }
+          if (!loaded.length) {
+            showToast('불러올 직전 수업 루틴 기록이 아직 없어요');
+            return;
+          }
+          routines.splice(0, routines.length, ...loaded);
+          showToast(`직전 수업 루틴 ${loaded.length}종목을 불러왔어요!`);
+          renderDetailBody();
         });
 
         document.querySelectorAll('.cd-dp-btn').forEach(b => {
@@ -2679,10 +2884,22 @@
               </div>
               ${weeklyCurveSvg()}
             </section>
+            ${(() => {
+              const vol = computeTodayVolumeFun();
+              return `
+                <div class="hero-navy rounded-[24px] p-5 text-white flex items-center justify-between gap-3">
+                  <div>
+                    <span class="text-[10px] font-extrabold text-[#5EEAD4]">TODAY'S LIFT VOLUME</span>
+                    <p class="text-[20px] font-extrabold mt-0.5 tabular-nums">${vol.totalKg.toLocaleString()}kg 들어 올렸어요</p>
+                    <p class="text-[12px] font-bold text-white/85 mt-0.5">${vol.analogy}</p>
+                  </div>
+                  <button type="button" id="btn-body-ounwan" class="tap-scale shrink-0 px-3 py-2 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">오운완 카드</button>
+                </div>
+              `;
+            })()}
             <div class="bg-white rounded-[24px] p-5 space-y-3">
               <div class="flex items-center justify-between">
                 <h2 class="text-[16px] font-bold text-[#111827]">이번 주 성장 요약</h2>
-                <button type="button" id="btn-body-ounwan" class="tap-scale px-3 py-1 rounded-full hero-navy text-white text-[11px] font-bold">오운완 카드</button>
               </div>
               <div class="grid grid-cols-3 gap-2 text-center">
                 <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">운동 일수</p><p class="text-[18px] font-extrabold text-[#1D4ED8] mt-0.5">${w.days}일</p></div>
@@ -2696,6 +2913,44 @@
                 </div>
               ` : `<div class="py-5 text-center text-[12px] text-[#6B7280] bg-[#F4F6F9] rounded-2xl">꾸준히 중량을 기록하면 지난주 대비 성장 그래프가 자동으로 채워져요!</div>`}
             </div>
+
+            ${(() => {
+              const fatKg = Math.max(0, Number(state.bodyValue.fatLostKg) || 0);
+              const musKg = Math.max(0, Number(state.bodyValue.muscleGainedKg) || 0);
+              const fatVal = Math.round(fatKg * 77); // 만원 단위 (지방 1kg = 7,700kcal → 77만원)
+              const musVal = Math.round(musKg * 150); // 만원 단위 (근육 1kg = 2~3개월 근력·단백질·대사연금 → 150만원)
+              const totalVal = fatVal + musVal;
+              return `
+                <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <div>
+                      <span class="text-[10px] font-extrabold text-[#0F766E] uppercase tracking-wider">BODY ASSET VALUE</span>
+                      <h2 class="text-[16px] font-extrabold text-[#111827] mt-0.5">내 몸 자산 가치 리포트 💰</h2>
+                    </div>
+                    <button type="button" id="btn-copy-bodyval" class="tap-scale px-3 py-1.5 rounded-xl bg-[#F0FDFA] text-[#0F766E] text-[11px] font-extrabold">자랑 복사</button>
+                  </div>
+                  <div class="p-4 rounded-2xl card-teal text-white space-y-1">
+                    <p class="text-[11px] font-bold text-white/85">지방 1kg = 77만원 · 근육 1kg = 150만원 환산</p>
+                    <p id="bv-total-text" class="text-[24px] font-extrabold tabular-nums">총 +${totalVal.toLocaleString()}만원 벌었어요!</p>
+                    <p id="bv-sub-text" class="text-[12px] text-white/90">체지방 -${fatKg}kg (${fatVal.toLocaleString()}만원) · 골격근 +${musKg}kg (${musVal.toLocaleString()}만원)</p>
+                  </div>
+                  <div class="p-3 rounded-2xl bg-[#F0FDFA] text-[11px] text-[#0F766E] space-y-1 leading-relaxed">
+                    <p>• <strong>지방 1kg = 77만원</strong>: 7,700kcal를 참아내고 태워 내 몸에서 덜어낸 2주의 노력 값</p>
+                    <p>• <strong>근육 1kg = 150만원</strong>: 2~3개월 땀으로 만든 지치지 않는 체력 · 대사 엔진</p>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2.5">
+                    <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                      <label class="text-[11px] font-bold text-[#4B5563] block mb-1">감량한 체지방 (kg)</label>
+                      <input id="bv-fat-inp" type="number" step="0.1" min="0" value="${fatKg || ''}" placeholder="예: 1.5" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-extrabold text-[#111827] tabular-nums focus:outline-none" />
+                    </div>
+                    <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                      <label class="text-[11px] font-bold text-[#4B5563] block mb-1">늘어난 골격근 (kg)</label>
+                      <input id="bv-mus-inp" type="number" step="0.1" min="0" value="${musKg || ''}" placeholder="예: 0.8" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-extrabold text-[#1D4ED8] tabular-nums focus:outline-none" />
+                    </div>
+                  </div>
+                </section>
+              `;
+            })()}
           </div>
         `;
       }
@@ -2885,6 +3140,33 @@
       if (ounwanBtn) ounwanBtn.addEventListener('click', openOunwanCardModal);
       const bodyOunwan = document.getElementById('btn-body-ounwan');
       if (bodyOunwan) bodyOunwan.addEventListener('click', openOunwanCardModal);
+
+      const bvFat = document.getElementById('bv-fat-inp');
+      const bvMus = document.getElementById('bv-mus-inp');
+      const updateBodyValueUI = () => {
+        const fk = Math.max(0, Number(bvFat?.value) || 0);
+        const mk = Math.max(0, Number(bvMus?.value) || 0);
+        state.bodyValue = { fatLostKg: fk, muscleGainedKg: mk };
+        try { localStorage.setItem(`fit_bodyval_${state.memberName}`, JSON.stringify(state.bodyValue)); } catch {}
+        const fv = Math.round(fk * 77);
+        const mv = Math.round(mk * 150);
+        const totEl = document.getElementById('bv-total-text');
+        const subEl = document.getElementById('bv-sub-text');
+        if (totEl) totEl.textContent = `총 +${(fv + mv).toLocaleString()}만원 벌었어요!`;
+        if (subEl) subEl.textContent = `체지방 -${fk}kg (${fv.toLocaleString()}만원) · 골격근 +${mk}kg (${mv.toLocaleString()}만원)`;
+      };
+      if (bvFat) bvFat.addEventListener('input', updateBodyValueUI);
+      if (bvMus) bvMus.addEventListener('input', updateBodyValueUI);
+      const bvCopy = document.getElementById('btn-copy-bodyval');
+      if (bvCopy) {
+        bvCopy.addEventListener('click', () => {
+          const fk = state.bodyValue.fatLostKg || 0;
+          const mk = state.bodyValue.muscleGainedKg || 0;
+          const tv = Math.round(fk * 77) + Math.round(mk * 150);
+          copyTextSafe(`[FIT-CONNECT 몸 자산 리포트] ${state.memberName}님 · 체지방 -${fk}kg & 근육 +${mk}kg 달성 = 총 +${tv.toLocaleString()}만원 건강 자산 획득! 💰`);
+          showToast('몸 자산 리포트 문구가 복사되었어요!');
+        });
+      }
 
       document.querySelectorAll('.fb-react-btn').forEach(b => {
         b.addEventListener('click', () => {

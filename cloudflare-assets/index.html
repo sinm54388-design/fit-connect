@@ -153,6 +153,9 @@ body.trainer-light-theme{background:#f3f6fc!important;color:#1c2d49!important}
 #trainerView .trainer-workspace-refresh{border:1px solid #dce4f0;border-radius:10px;padding:9px 12px;color:#526780;white-space:nowrap;background:#fff}
 #trainerView .trainer-workspace-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 #trainerView .trainer-workspace-metric{position:relative;padding:18px 16px;border:1px solid #e3e8f5;border-radius:16px;background:#f7f8fe;min-width:0}
+#trainerView .trainer-workspace-metric-button{width:100%;appearance:none;text-align:left;cursor:pointer;font:inherit}
+#trainerView .trainer-workspace-metric-button:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
+#trainerView .trainer-workspace-metric-button:active{transform:scale(.98)}
 #trainerView .trainer-workspace-metric:nth-child(2){background:#f0f6ff}
 #trainerView .trainer-workspace-metric:nth-child(3){background:#f4f1ff}
 #trainerView .trainer-workspace-metric:nth-child(4){background:#edf8f6}
@@ -911,7 +914,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
 <link rel="stylesheet" href="/member-report.css">
 <link rel="stylesheet" href="/fit-experience.css?v=coach-readability-2">
 <script defer src="/member-report.js?v=reference"></script>
-<script defer src="/fit-experience.js?v=coach-navigation-2"></script>
+<script defer src="/fit-experience.js?v=coach-navigation-3"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
@@ -1368,7 +1371,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
           <div class="trainer-workspace-metric"><span>등록 회원</span><i class="fa-solid fa-users"></i><strong id="overviewTotal">-</strong><small>전체 관리 회원</small></div>
           <div class="trainer-workspace-metric"><span>오늘 기록한 회원</span><i class="fa-solid fa-chart-line"></i><strong id="overviewActive">-</strong><small>선택한 날짜 기준</small></div>
           <div class="trainer-workspace-metric"><span>기록 피드백 대기</span><i class="fa-regular fa-comment-dots"></i><strong id="overviewPending">-</strong><small>운동 · 식단</small></div>
-          <div class="trainer-workspace-metric"><span>영상 피드백 대기</span><i class="fa-solid fa-play"></i><strong id="overviewVideos">-</strong><small>자세 영상 확인</small></div>
+          <button type="button" onclick="openVideoFeedbackQueue()" class="trainer-workspace-metric trainer-workspace-metric-button" aria-controls="fcVideoTaskCard"><span>영상 피드백 대기</span><i class="fa-solid fa-play"></i><strong id="overviewVideos">-</strong><small>눌러서 영상 목록 확인</small></button>
         </div>
         <p id="overviewStatus" role="status" class="trainer-workspace-overview-status">트레이너 로그인 후 현황을 불러옵니다.</p>
 
@@ -4094,6 +4097,13 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       const result=await fastTrainerRequest({action:'trainerVideoQueue',password:trainerPassword,date},'영상 대기 목록 · Supabase');
       if(request!==overviewRequest||date!==selectedDate||currentMode!=='trainer'||!result?.videos?.length)return;
       renderTrainerVideoQueue(result.videos);
+    }
+    function openVideoFeedbackQueue() {
+      const queue=document.getElementById('fcVideoTaskCard');
+      if (!queue) return;
+      queue.scrollIntoView({behavior:'smooth',block:'start'});
+      queue.classList.add('ring-2','ring-brand-500');
+      setTimeout(()=>queue.classList.remove('ring-2','ring-brand-500'),1800);
     }
     async function openOverviewMember(member, listId) {
       stashWorkflowDraft();

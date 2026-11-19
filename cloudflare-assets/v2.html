@@ -634,17 +634,21 @@
       const auth = state.session ? { session: state.session } : { token: state.token };
       const month = dateStr.slice(0, 7);
 
-      const [daily, ins, cols, hist] = await Promise.allSettled([
-        wasRecentlySaved(state.memberName, dateStr)
-          ? postAppsScript({ action: 'read', member: state.memberName, date: dateStr, token: state.token })
-          : postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
+      const [dailyRec, dailyAs, ins, cols, hist] = await Promise.allSettled([
+        postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
+        postAppsScript({ action: 'read', member: state.memberName, date: dateStr, token: state.token }),
         postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
         postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
         postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth })
       ]);
 
-      if (daily.status === 'fulfilled' && daily.value && typeof daily.value === 'object') {
-        const d = unwrapDailyRecord(daily.value);
+      const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
+      const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
+      const asHasData = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos);
+      const chosenDaily = asHasData ? asObj : (recObj || asObj);
+
+      if (chosenDaily && typeof chosenDaily === 'object') {
+        const d = chosenDaily;
         state.record = {
           headerMessage: d.headerMessage || '',
           routines: Array.isArray(d.routines) ? d.routines : [],

@@ -676,17 +676,23 @@
     }
 
     async function saveFullRecordLive(targetMember, fullData) {
-      if (!state.isLive) return;
+      if (!state.isLive) return true;
       const mName = targetMember || state.memberName;
       try {
-        await postAppsScript({
+        const res = await postAppsScript({
           member: mName,
           date: state.selectedDate,
           ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
           data: fullData || state.record
         });
+        if (res && res.status === 'error') {
+          showToast(res.message || '서버 저장에 실패했어요');
+          return false;
+        }
+        return true;
       } catch {
         showToast('저장 중 네트워크 오류가 발생했어요');
+        return false;
       }
     }
 
@@ -2475,19 +2481,55 @@
         });
 
         document.getElementById('cd-save-all').addEventListener('click', async () => {
+          const pendingNameEl = document.getElementById('cd-new-name');
+          const pendingName = pendingNameEl ? pendingNameEl.value.trim() : '';
+          if (pendingName) {
+            const pSets = Math.max(1, Number(document.getElementById('cd-new-sets')?.value) || 3);
+            const pWt = document.getElementById('cd-new-weight')?.value.trim() || '';
+            const pRp = document.getElementById('cd-new-reps')?.value.trim() || '12';
+            routines.push({
+              id: Date.now(),
+              routineType: document.getElementById('cd-new-type')?.value || 'pt',
+              name: pendingName,
+              weight: pWt,
+              sets: String(pSets),
+              reps: pRp,
+              setDetails: Array.from({ length: pSets }, () => ({ weight: pWt, reps: pRp })),
+              note: document.getElementById('cd-new-note')?.value.trim() || '',
+              completedSets: Array(pSets).fill(false)
+            });
+          }
+
           const finalReply = document.getElementById('cd-reply-msg').value.trim();
           const finalDiet = document.getElementById('cd-diet-msg').value.trim();
           const fullPayload = {
-            ...daily,
             headerMessage: finalReply || daily.headerMessage || '',
             routines,
+            reflection: daily.reflection || { good: '', bad: '' },
+            diet: daily.diet || {
+              breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+              lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+              dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+              snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+              water: 0
+            },
             feedback: {
               ...(daily.feedback || {}),
               ...(finalReply ? { workout: finalReply } : {}),
               ...(finalDiet ? { diet: finalDiet } : {}),
               time: nowTimeHHMM()
-            }
+            },
+            memos: Array.isArray(daily.memos) ? daily.memos : [],
+            dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' }
           };
+
+          const saveBtn = document.getElementById('cd-save-all');
+          if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중...'; }
+          const ok = await saveFullRecordLive(memberName, fullPayload);
+          if (!ok) {
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '이 회원만 저장하기'; }
+            return;
+          }
 
           const ovTarget = state.trainerOverview.find(x => x.name === memberName);
           if (ovTarget) {
@@ -2495,15 +2537,13 @@
             if (finalDiet) ovTarget.pendingDiet = false;
           }
           if (memberName === state.memberName) {
-            state.record.headerMessage = fullPayload.headerMessage;
-            state.record.routines = routines;
-            state.record.feedback = fullPayload.feedback;
+            state.record = fullPayload;
+            saveCachedMemberData(state.selectedDate);
           }
           closeModal();
           triggerConfetti();
-          showToast(`${memberName} 회원님 피드백 저장 완료!`);
+          showToast(`${memberName} 회원님 루틴 · 피드백 저장 완료!`);
           renderAll();
-          await saveFullRecordLive(memberName, fullPayload);
         });
       }
       renderDetailBody();

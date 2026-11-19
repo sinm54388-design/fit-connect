@@ -1824,57 +1824,7 @@
     }
 
     // --- Coach Modals (Unified One-Stop Detail & Immediate Reply Sheet) ---
-    async function enterCoachWithPassword(pw, isAuto) {
-      if (isLiveOrigin) {
-        try {
-          const v = await postRecords({ action: 'verify', password: pw, date: state.selectedDate });
-          if (v?.status !== 'success') {
-            if (isAuto) {
-              try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}
-              return false;
-            }
-            showToast('비밀번호가 일치하지 않아요');
-            return false;
-          }
-          state.trainerPassword = pw;
-          try { localStorage.setItem('fit_coach_pw_v2', pw); } catch {}
-          const ov = await postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate });
-          if (ov?.status === 'success' && Array.isArray(ov.members)) state.trainerOverview = ov.members;
-          state.isLive = true;
-        } catch {
-          if (!isAuto) showToast('코치 인증 중 오류가 발생했어요');
-          return false;
-        }
-      } else {
-        state.trainerPassword = pw;
-        try { localStorage.setItem('fit_coach_pw_v2', pw); } catch {}
-        state.trainerOverview = [
-          { name: '김윤지', lastDate: state.selectedDate, activeToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 2 },
-          { name: '이서연', lastDate: state.selectedDate, activeToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 3 },
-          { name: '최민수', lastDate: shiftDateStr(state.selectedDate, -5), activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0 }
-        ];
-      }
-      state.appMode = 'coach';
-      state.coachTab = 'coaching';
-      const hasPending = state.trainerOverview.some(m => m.pendingWorkout || m.pendingDiet);
-      state.coachFilter = hasPending ? 'pending' : 'all';
-      state.fabOpen = false;
-      closeModal();
-      showToast(isAuto ? '저장된 코치 인증으로 바로 입장했어요' : '코치 모드로 전환되었어요');
-      renderAll();
-      return true;
-    }
-
-    async function openTrainerLoginModal() {
-      let savedPw = state.trainerPassword || '';
-      if (!savedPw) {
-        try { savedPw = localStorage.getItem('fit_coach_pw_v2') || ''; } catch {}
-      }
-      if (savedPw) {
-        showToast('코치 인증 확인 중...');
-        const ok = await enterCoachWithPassword(savedPw, true);
-        if (ok) return;
-      }
+    function openTrainerLoginModal() {
       openModal('코치 전용 로그인', `
         <form id="coach-login-form" class="space-y-3">
           <p class="text-[12px] text-[#6B7280]">기존 FIT-CONNECT 트레이너 비밀번호를 입력하면 전체 회원 현황을 불러옵니다.</p>
@@ -1887,7 +1837,33 @@
       document.getElementById('coach-login-form').addEventListener('submit', async e => {
         e.preventDefault();
         const pw = document.getElementById('coach-pw').value;
-        await enterCoachWithPassword(pw, false);
+        if (isLiveOrigin) {
+          try {
+            const v = await postRecords({ action: 'verify', password: pw, date: state.selectedDate });
+            if (v?.status !== 'success') { showToast('비밀번호가 일치하지 않아요'); return; }
+            state.trainerPassword = pw;
+            const ov = await postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate });
+            if (ov?.status === 'success' && Array.isArray(ov.members)) state.trainerOverview = ov.members;
+            state.isLive = true;
+          } catch {
+            showToast('코치 인증 중 오류가 발생했어요');
+            return;
+          }
+        } else {
+          state.trainerOverview = [
+            { name: '김윤지', lastDate: state.selectedDate, activeToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 2 },
+            { name: '이서연', lastDate: state.selectedDate, activeToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 3 },
+            { name: '최민수', lastDate: shiftDateStr(state.selectedDate, -5), activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0 }
+          ];
+        }
+        state.appMode = 'coach';
+        state.coachTab = 'coaching';
+        const hasPending = state.trainerOverview.some(m => m.pendingWorkout || m.pendingDiet);
+        state.coachFilter = hasPending ? 'pending' : 'all';
+        state.fabOpen = false;
+        closeModal();
+        showToast('코치 모드로 전환되었어요');
+        renderAll();
       });
     }
 
@@ -2342,22 +2318,14 @@
               <span class="text-[15px] font-extrabold tracking-tight text-[#0F172A] whitespace-nowrap shrink-0">FIT-CONNECT</span>
               <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#1E3A8A] text-white whitespace-nowrap shrink-0">COACH</span>
             </div>
-            <div class="flex items-center gap-1 shrink-0">
-              <button type="button" id="btn-new-col" class="tap-scale h-7 px-2 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8] whitespace-nowrap shrink-0">+ 칼럼</button>
-              <button type="button" id="btn-back-member" class="tap-scale h-7 px-2 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm whitespace-nowrap shrink-0">회원 화면</button>
-              <button type="button" id="btn-coach-logout" class="tap-scale h-7 px-2 rounded-full bg-gray-200/80 text-[10px] font-bold text-[#4B5563] whitespace-nowrap shrink-0">로그아웃</button>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" id="btn-new-col" class="tap-scale h-7 px-2.5 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8] whitespace-nowrap shrink-0">+ 칼럼</button>
+              <button type="button" id="btn-back-member" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm whitespace-nowrap shrink-0">회원 화면</button>
             </div>
           </div>
         `;
         document.getElementById('btn-new-col').addEventListener('click', openColumnWriteModal);
         document.getElementById('btn-back-member').addEventListener('click', () => { state.appMode = 'member'; renderAll(); });
-        document.getElementById('btn-coach-logout').addEventListener('click', () => {
-          state.trainerPassword = '';
-          try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}
-          state.appMode = 'member';
-          showToast('코치 로그인이 해제되었어요');
-          renderAll();
-        });
       }
     }
 

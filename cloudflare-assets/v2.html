@@ -2114,12 +2114,56 @@
       };
     }
 
+    function extractTokenValue(raw) {
+      const s = String(raw || '').trim();
+      if (!s) return '';
+      try {
+        if (s.includes('token=')) {
+          const u = new URL(s.startsWith('http') ? s : 'https://x.com/?' + s.split('?').pop());
+          return (u.searchParams.get('token') || '').trim();
+        }
+      } catch {}
+      return s;
+    }
+
+    function saveMemberTokenLocal(memberName, tokenVal) {
+      const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
+      if (mObj) mObj.token = tokenVal;
+      try {
+        const prevAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]');
+        const idx = prevAdded.findIndex(x => x.name === memberName);
+        if (idx >= 0) prevAdded[idx].token = tokenVal;
+        else prevAdded.unshift({ name: memberName, lastDate: state.selectedDate, activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0, token: tokenVal });
+        localStorage.setItem('fit_added_members_v2', JSON.stringify(prevAdded));
+      } catch {}
+    }
+
     function copyMemberLink(memberName) {
       const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
       const base = isLiveOrigin ? window.location.origin : 'https://fit-connect.sinm54388.workers.dev';
       const tok = mObj?.token || (memberName === state.memberName ? state.token : '');
       if (!tok) {
-        showToast(`${memberName}님의 토큰이 없어 기존 링크의 ?name=...&token=... 주소를 사용해 주세요`);
+        openModal(`${memberName}님 전용 링크 연결`, `
+          <div class="space-y-3">
+            <p class="text-[12px] text-[#4B5563] leading-relaxed">
+              서버에서 <strong>${escapeHtml(memberName)}</strong>님의 토큰이 아직 조회되지 않았습니다. 기존 관리자 페이지(<code>/</code>) 또는 시트에서 발급된 링크(또는 토큰)를 한 번만 붙여넣으시면 바로 저장되고 복사됩니다.
+            </p>
+            <input id="tk-paste-inp" placeholder="회원 기존 링크 또는 token 문자열 붙여넣기" class="w-full text-[12px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+            <div class="grid grid-cols-2 gap-2">
+              <a href="/" target="_blank" rel="noopener noreferrer" class="tap-scale py-3 rounded-2xl bg-[#F4F6F9] text-[#111827] text-[12px] font-bold text-center">기존 관리자(/) 열기 ↗</a>
+              <button type="button" id="tk-save-copy-btn" class="tap-scale py-3 rounded-2xl hero-navy text-white text-[12px] font-extrabold">저장 후 링크 복사</button>
+            </div>
+          </div>
+        `);
+        document.getElementById('tk-save-copy-btn').addEventListener('click', () => {
+          const parsedTok = extractTokenValue(document.getElementById('tk-paste-inp').value);
+          if (!parsedTok) { showToast('링크 또는 토큰을 붙여넣어 주세요'); return; }
+          saveMemberTokenLocal(memberName, parsedTok);
+          const url = `${base}/v2?name=${encodeURIComponent(memberName)}&token=${encodeURIComponent(parsedTok)}`;
+          copyTextSafe(url);
+          closeModal();
+          showToast(`${memberName}님 전용 링크가 저장·복사되었어요!`);
+        });
         return;
       }
       const url = `${base}/v2?name=${encodeURIComponent(memberName)}&token=${encodeURIComponent(tok)}`;
@@ -2613,6 +2657,7 @@
           <p class="text-[12px] text-[#6B7280]">새 회원님의 이름을 입력하면 오늘 날짜로 초기 운동노트가 생성됩니다.</p>
           <input id="am-name" required minlength="2" maxlength="30" placeholder="회원 이름 (예: 박지훈)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
           <input id="am-msg" placeholder="첫 인사말 (비워두면 오늘의 코칭 팁 자동 적용)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+          <input id="am-token" placeholder="기존 링크 또는 토큰 (선택)" class="w-full text-xs px-4 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
           <button type="submit" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-extrabold">회원 등록하기</button>
         </form>
       `);
@@ -2641,13 +2686,15 @@
           memos: [],
           dailyCheckin: { workout: '', diet: '', mood: '' }
         };
+        const manualTok = extractTokenValue(document.getElementById('am-token')?.value || '');
         const newMemberObj = {
           name: mName,
           lastDate: state.selectedDate,
           activeToday: false,
           pendingWorkout: false,
           pendingDiet: false,
-          weeklyWorkoutDays: 0
+          weeklyWorkoutDays: 0,
+          token: manualTok
         };
         state.trainerOverview.unshift(newMemberObj);
         try {
@@ -2660,10 +2707,12 @@
         showToast(`${mName} 회원님이 등록되었어요!`);
         renderAll();
         if (state.isLive && state.trainerPassword) {
-          await Promise.allSettled([
-            saveFullRecordLive(mName, initialRecord),
-            postRecords({ action: 'addMember', member: mName, password: state.trainerPassword, date: state.selectedDate })
+          const [asAddRes] = await Promise.allSettled([
+            postAppsScript({ action: 'addMember', member: mName, name: mName, password: state.trainerPassword, date: state.selectedDate }),
+            saveFullRecordLive(mName, initialRecord)
           ]);
+          const issuedTok = asAddRes.status === 'fulfilled' ? (asAddRes.value?.token || asAddRes.value?.data?.token || '') : '';
+          if (issuedTok) saveMemberTokenLocal(mName, issuedTok);
         }
       });
     }

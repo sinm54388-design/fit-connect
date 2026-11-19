@@ -301,9 +301,9 @@
       record: {
         headerMessage: '',
         routines: [
-          { id: 1, name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '발바닥 3점 지지, 3초 천천히 하강', completedSets: [true, true, true, true] },
-          { id: 2, name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '무릎 고정하고 엉덩이 뒤로 밀기', completedSets: [true, true, true, true] },
-          { id: 3, name: '데드버그 (개인숙제)', weight: '', sets: '3', reps: '12', note: '허리 바닥 밀착 호흡', completedSets: [false, false, false] }
+          { id: 1, routineType: 'pt', name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '발바닥 3점 지지, 3초 천천히 하강', completedSets: [true, true, true, true] },
+          { id: 2, routineType: 'pt', name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '무릎 고정하고 엉덩이 뒤로 밀기', completedSets: [true, true, true, true] },
+          { id: 3, routineType: 'homework', name: '데드버그', weight: '', sets: '3', reps: '12', note: '허리 바닥 밀착 호흡', completedSets: [false, false, false] }
         ],
         reflection: { good: '', bad: '' },
         diet: {
@@ -915,22 +915,38 @@
       renderPlateModal();
     }
 
-    // --- Ounwan (오늘 운동 완료) Card Image Generator ---
+    // --- Ounwan (오늘 운동 완료) Quest Card Image Generator ---
     function openOunwanCardModal() {
       const wr = getWorkoutRate();
-      const rs = state.record.routines || [];
-      const doneList = rs.filter(r => Array.isArray(r.completedSets) && r.completedSets.some(Boolean));
-      const summaryLine = doneList.length
-        ? doneList.slice(0, 3).map(r => `${r.name}${r.weight ? ' ' + r.weight + 'kg' : ''}`).join(' · ')
-        : '오늘 운동 루틴 완료!';
+      const ds = getDietStats();
+      const chk = state.record.dailyCheckin || {};
       const streak = state.insights?.careSummary?.workoutDays || state.workoutDays.length || 1;
-      const coachMsg = (state.record.headerMessage || state.record.feedback?.workout || '오늘도 한 걸음 더 성장했어요!').slice(0, 62);
-      const shareText = `[FIT-CONNECT 오운완] ${state.memberName} 회원님 · ${state.selectedDate}\n${summaryLine} (${wr.done}/${wr.total} 종목 완료 · 이번 주 ${streak}일 출석)`;
+      const coachMsg = (state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate)).slice(0, 34);
 
-      openModal('오운완 감성 카드 저장', `
+      const q1Done = (wr.total > 0 && wr.done >= wr.total) || chk.workout === 'done';
+      const q2Done = ds.water >= 2000;
+      const q3Done = ds.loggedCount > 0 || chk.diet === 'done';
+      const clearedCount = [q1Done, q2Done, q3Done].filter(Boolean).length;
+
+      // 운동을 완료하면 100% 달성 처리 (수분/식단 미달 시에도 100% 클리어 성취감 제공)
+      const questPct = q1Done ? 100 : (wr.total > 0 ? wr.pct : 0);
+      const isAllClear = questPct >= 100;
+
+      // 아쉬운 점 / 보완 포인트 자동 생성
+      const improvements = [];
+      if (!q1Done) improvements.push(`남은 운동 ${Math.max(1, wr.total - wr.done)}종목 마무리하기`);
+      if (!q2Done) improvements.push(`수분 ${((2000 - ds.water) / 1000).toFixed(1)}L 추가 보충 (부종·피로 완화)`);
+      if (!q3Done) improvements.push('식단 1끼 이상 기록해 영양 밸런스 체크하기');
+      const focusText = improvements.length
+        ? improvements.slice(0, 2).join(' · ')
+        : '운동·수분·식단 밸런스 완벽! 충분한 수면으로 근회복을 마무리하세요.';
+
+      const shareText = `[FIT-CONNECT 퀘스트] ${state.memberName}님 · ${state.selectedDate}\n${isAllClear ? 'QUEST CLEAR 100%!' : `퀘스트 ${questPct}% 진행 중`} (루틴 ${wr.done}/${wr.total} · 수분 ${(ds.water / 1000).toFixed(1)}L · 연속 ${streak}일)`;
+
+      openModal('오늘의 퀘스트 카드 저장', `
         <div class="space-y-4">
-          <div class="rounded-[22px] overflow-hidden shadow-lg bg-[#0B132B]">
-            <canvas id="ounwan-canvas" width="720" height="860" class="w-full h-auto block"></canvas>
+          <div class="rounded-[22px] overflow-hidden shadow-xl bg-[#060B19]">
+            <canvas id="ounwan-canvas" width="720" height="880" class="w-full h-auto block"></canvas>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" id="btn-download-ounwan" class="tap-scale py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">이미지 저장 (PNG)</button>
@@ -941,96 +957,190 @@
 
       const canvas = document.getElementById('ounwan-canvas');
       const ctx = canvas.getContext('2d');
-      const grad = ctx.createLinearGradient(0, 0, 720, 860);
-      grad.addColorStop(0, '#0B132B');
-      grad.addColorStop(0.55, '#1E3A8A');
-      grad.addColorStop(1, '#0F766E');
+
+      // Deep Obsidian Gradient
+      const grad = ctx.createLinearGradient(0, 0, 720, 880);
+      grad.addColorStop(0, '#060B19');
+      grad.addColorStop(0.52, '#0F1E42');
+      grad.addColorStop(1, '#092B34');
       ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 720, 860);
+      ctx.fillRect(0, 0, 720, 880);
 
-      // Decorative glow circles
-      ctx.fillStyle = 'rgba(96, 165, 250, 0.14)';
+      // Subtle HUD Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1;
+      for (let gx = 40; gx < 720; gx += 40) {
+        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 880); ctx.stroke();
+      }
+      for (let gy = 40; gy < 880; gy += 40) {
+        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(720, gy); ctx.stroke();
+      }
+
+      // Ambient Glows
+      const g1 = ctx.createRadialGradient(600, 120, 10, 600, 120, 260);
+      g1.addColorStop(0, 'rgba(59, 130, 246, 0.28)');
+      g1.addColorStop(1, 'rgba(59, 130, 246, 0)');
+      ctx.fillStyle = g1;
+      ctx.fillRect(0, 0, 720, 880);
+
+      const g2 = ctx.createRadialGradient(120, 760, 10, 120, 760, 260);
+      g2.addColorStop(0, 'rgba(20, 184, 166, 0.24)');
+      g2.addColorStop(1, 'rgba(20, 184, 166, 0)');
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, 720, 880);
+
+      // Outer Frame
+      ctx.strokeStyle = 'rgba(96, 165, 250, 0.25)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(600, 140, 180, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(94, 234, 212, 0.12)';
-      ctx.beginPath();
-      ctx.arc(130, 740, 190, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.roundRect(24, 24, 672, 832, 32);
+      ctx.stroke();
 
-      // Badge
-      ctx.fillStyle = 'rgba(255,255,255,0.14)';
-      ctx.beginPath();
-      ctx.roundRect(56, 60, 250, 42, 21);
-      ctx.fill();
-      ctx.fillStyle = '#5EEAD4';
-      ctx.font = 'bold 20px Pretendard, sans-serif';
-      ctx.fillText('FIT-CONNECT · OUNWAN', 78, 88);
+      // Top HUD Header
+      ctx.fillStyle = '#60A5FA';
+      ctx.font = '800 18px Pretendard, sans-serif';
+      ctx.fillText('FIT-CONNECT // DAILY QUEST', 56, 76);
 
-      // Date & Name
-      ctx.fillStyle = 'rgba(255,255,255,0.72)';
-      ctx.font = '600 24px Pretendard, sans-serif';
-      ctx.fillText(state.selectedDate, 56, 154);
+      // Status Pill
+      if (isAllClear) {
+        ctx.fillStyle = '#5EEAD4';
+        ctx.beginPath();
+        ctx.roundRect(472, 48, 192, 40, 20);
+        ctx.fill();
+        ctx.fillStyle = '#06131F';
+        ctx.font = '800 17px Pretendard, sans-serif';
+        ctx.fillText('QUEST CLEAR ✓', 498, 74);
+      } else {
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.22)';
+        ctx.strokeStyle = '#60A5FA';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(458, 48, 206, 40, 20);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#93C5FD';
+        ctx.font = '800 17px Pretendard, sans-serif';
+        ctx.fillText(`IN PROGRESS · ${questPct}%`, 480, 74);
+      }
 
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 52px Pretendard, sans-serif';
-      ctx.fillText(`${state.memberName}님`, 56, 224);
-      ctx.fillStyle = '#93C5FD';
-      ctx.font = '800 44px Pretendard, sans-serif';
-      ctx.fillText('오늘 운동 완료! 🔥', 56, 286);
-
-      // Stat Box
-      ctx.fillStyle = 'rgba(255,255,255,0.12)';
-      ctx.beginPath();
-      ctx.roundRect(56, 340, 608, 170, 28);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      // Member & Day Streak
+      ctx.fillStyle = 'rgba(255,255,255,0.68)';
       ctx.font = '600 22px Pretendard, sans-serif';
-      ctx.fillText('오늘 완료 종목', 92, 392);
-      ctx.fillText('이번 주 출석', 400, 392);
+      ctx.fillText(`${state.selectedDate}  ·  STREAK DAY ${String(streak).padStart(2, '0')}`, 56, 132);
 
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 54px Pretendard, sans-serif';
-      ctx.fillText(`${wr.done}/${wr.total}`, 92, 462);
-      ctx.fillStyle = '#5EEAD4';
-      ctx.fillText(`${streak}일 연속`, 400, 462);
+      ctx.font = '800 44px Pretendard, sans-serif';
+      ctx.fillText(`${state.memberName}님의 오늘 퀘스트`, 56, 192);
 
-      // Workout summary
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.font = '700 26px Pretendard, sans-serif';
-      ctx.fillText('오늘의 루틴', 56, 576);
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.font = '500 24px Pretendard, sans-serif';
-      ctx.fillText(summaryLine.slice(0, 36), 56, 618);
-
-      // Coach note
+      // XP Progress Bar
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
       ctx.beginPath();
-      ctx.roundRect(56, 662, 608, 128, 24);
+      ctx.roundRect(56, 222, 608, 22, 11);
       ctx.fill();
+
+      const barW = Math.max(24, Math.round((608 * questPct) / 100));
+      const barGrad = ctx.createLinearGradient(56, 0, 664, 0);
+      barGrad.addColorStop(0, '#3B82F6');
+      barGrad.addColorStop(1, '#5EEAD4');
+      ctx.fillStyle = barGrad;
+      ctx.beginPath();
+      ctx.roundRect(56, 222, barW, 22, 11);
+      ctx.fill();
+
       ctx.fillStyle = '#5EEAD4';
-      ctx.font = 'bold 20px Pretendard, sans-serif';
-      ctx.fillText('FROM COACH', 84, 704);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '500 22px Pretendard, sans-serif';
-      ctx.fillText(coachMsg.slice(0, 30), 84, 742);
-      if (coachMsg.length > 30) ctx.fillText(coachMsg.slice(30, 62), 84, 772);
+      ctx.font = '800 18px Pretendard, sans-serif';
+      ctx.fillText(`${questPct}% ACHIEVED`, 56, 272);
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = '600 18px Pretendard, sans-serif';
+      ctx.fillText(`${clearedCount} / 3 CHECKPOINTS`, 464, 272);
+
+      // 3 Quest Objective Cards
+      const quests = [
+        { code: 'MAIN QUEST', title: '오늘의 운동 루틴', sub: `${wr.done}/${wr.total} 종목 완료`, done: q1Done },
+        { code: 'SUB QUEST 01', title: '수분 2.0L 채우기', sub: `${(ds.water / 1000).toFixed(1)}L / 2.0L`, done: q2Done },
+        { code: 'SUB QUEST 02', title: '식단 · 컨디션 체크', sub: `${ds.loggedCount}끼 기록`, done: q3Done }
+      ];
+
+      quests.forEach((q, idx) => {
+        const y = 304 + idx * 102;
+        ctx.fillStyle = q.done ? 'rgba(20, 184, 166, 0.12)' : 'rgba(255, 255, 255, 0.05)';
+        ctx.strokeStyle = q.done ? 'rgba(94, 234, 212, 0.45)' : 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(56, y, 608, 86, 20);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = q.done ? '#5EEAD4' : 'rgba(255,255,255,0.1)';
+        ctx.beginPath();
+        ctx.arc(102, y + 43, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = q.done ? '#06131F' : 'rgba(255,255,255,0.45)';
+        ctx.font = '800 18px Pretendard, sans-serif';
+        ctx.fillText(q.done ? '✓' : '·', q.done ? 95 : 99, y + 49);
+
+        ctx.fillStyle = q.done ? '#5EEAD4' : '#60A5FA';
+        ctx.font = '800 13px Pretendard, sans-serif';
+        ctx.fillText(q.code, 138, y + 32);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '800 22px Pretendard, sans-serif';
+        ctx.fillText(q.title, 138, y + 63);
+
+        ctx.fillStyle = q.done ? '#5EEAD4' : 'rgba(255,255,255,0.72)';
+        ctx.font = '700 18px Pretendard, sans-serif';
+        ctx.fillText(q.sub, 500, y + 50);
+      });
+
+      // Next Focus / 보완할 점 Card
+      ctx.fillStyle = improvements.length ? 'rgba(245, 158, 11, 0.10)' : 'rgba(20, 184, 166, 0.14)';
+      ctx.strokeStyle = improvements.length ? 'rgba(251, 191, 36, 0.40)' : 'rgba(94, 234, 212, 0.40)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(56, 622, 608, 102, 20);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = improvements.length ? '#FBBF24' : '#5EEAD4';
+      ctx.font = '800 14px Pretendard, sans-serif';
+      ctx.fillText(improvements.length ? 'NEXT FOCUS · 보완 포인트' : 'ALL CLEAR · 오늘의 피드백', 82, 654);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.94)';
+      ctx.font = '600 19px Pretendard, sans-serif';
+      ctx.fillText(focusText.slice(0, 32), 82, 686);
+      if (focusText.length > 32) ctx.fillText(focusText.slice(32, 64), 82, 712);
+
+      // Bottom Coach Briefing Strip
+      ctx.fillStyle = 'rgba(30, 58, 138, 0.42)';
+      ctx.strokeStyle = 'rgba(96, 165, 250, 0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(56, 738, 608, 92, 20);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#60A5FA';
+      ctx.font = '800 14px Pretendard, sans-serif';
+      ctx.fillText('COACH BRIEFING', 82, 770);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = '500 19px Pretendard, sans-serif';
+      ctx.fillText(coachMsg, 82, 804);
 
       document.getElementById('btn-download-ounwan').addEventListener('click', () => {
         try {
           const link = document.createElement('a');
-          link.download = `fit-connect-ounwan-${state.selectedDate}.png`;
+          link.download = `fit-connect-quest-${state.selectedDate}.png`;
           link.href = canvas.toDataURL('image/png');
           link.click();
-          showToast('오운완 카드 이미지가 저장되었어요!');
+          showToast('퀘스트 카드 이미지가 저장되었어요!');
         } catch {
           showToast('이미지 저장 중 오류가 발생했어요');
         }
       });
       document.getElementById('btn-copy-ounwan').addEventListener('click', () => {
         copyTextSafe(shareText);
-        showToast('오운완 문구가 복사되었어요!');
+        showToast('퀘스트 문구가 복사되었어요!');
       });
     }
 
@@ -1254,26 +1364,176 @@
       });
     }
 
-    function openFormGuideModal(title, note) {
-      openModal(`10초 자세 팁 · ${title}`, `
-        <div class="space-y-4">
-          <div class="p-4 rounded-2xl bg-[#EFF6FF] flex items-center gap-4">
-            <svg class="w-16 h-12 shrink-0 text-[#1D4ED8]" viewBox="0 0 80 48" fill="none">
-              <line x1="6" y1="38" x2="74" y2="38" stroke="#93C5FD" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="16" cy="30" r="5" stroke="currentColor" stroke-width="2.2"/>
-              <path d="M22 33 H50 L56 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M32 33 L32 14" stroke="#0F766E" stroke-width="2.5" stroke-linecap="round"/>
+    function getExerciseProfile(title) {
+      const t = String(title || '');
+      if (/데드버그|플랭크|복근|크런치|코어|레그레이즈/i.test(t)) {
+        return {
+          primary: ['abs'],
+          secondary: ['obliques', 'quads'],
+          primaryLabel: '복직근 · 속근육(코어)',
+          secondaryLabel: '복사근 · 장요근',
+          steps: [
+            '바닥에 등을 대고 누워 허리가 뜨지 않도록 복부를 지그시 눌러줍니다.',
+            '숨을 길게 내쉬며 팔·다리를 천천히 뻗었다가 코어 힘으로 원위치합니다.'
+          ]
+        };
+      }
+      if (/데드|힙|루마니안|백|로우|랫|풀다운/i.test(t)) {
+        return {
+          primary: ['glutes', 'hamstrings', 'lats'],
+          secondary: ['lowerback', 'traps', 'forearms'],
+          primaryLabel: '둔근 · 햄스트링 · 광배근',
+          secondaryLabel: '척추기립근 · 승모근',
+          steps: [
+            '발을 골반 너비로 두고 가슴을 펴 척추 중립 정렬을 맞춥니다.',
+            '고관절을 뒤로 접으며 내려갔다가 발바닥으로 지면을 밀며 일어납니다.'
+          ]
+        };
+      }
+      if (/프레스|벤치|푸쉬업|체스트|가슴|딥스/i.test(t)) {
+        return {
+          primary: ['chest', 'delts'],
+          secondary: ['triceps', 'abs'],
+          primaryLabel: '대흉근 · 전면 삼각근',
+          secondaryLabel: '상완삼두근 · 코어',
+          steps: [
+            '견갑골을 가볍게 모으고 내려 가슴 공간을 열어 자세를 고정합니다.',
+            '호흡을 마시며 천천히 내린 뒤, 내쉬면서 목표 부위 힘으로 밀어 올립니다.'
+          ]
+        };
+      }
+      return {
+        primary: ['quads', 'glutes'],
+        secondary: ['abs', 'calves', 'hamstrings'],
+        primaryLabel: '대퇴사두 · 둔근',
+        secondaryLabel: '코어 · 햄스트링',
+        steps: [
+          '발바닥 3점 지지(엄지·새끼·뒤꿈치)를 고정하고 복압을 가볍게 잡습니다.',
+          '무릎과 발끝 방향을 맞추며 3초간 천천히 내려갔다가 지면을 밀어 올라옵니다.'
+        ]
+      };
+    }
+
+    function buildAnatomicalBodyMap(profile) {
+      const fillFor = m => {
+        if (profile.primary.includes(m)) return '#2563EB';
+        if (profile.secondary.includes(m)) return '#5EEAD4';
+        return '#DCE3EE';
+      };
+      return `
+        <div class="grid grid-cols-2 gap-3 items-center">
+          <!-- FRONT VIEW -->
+          <div class="flex flex-col items-center">
+            <svg viewBox="0 0 140 240" class="w-full max-w-[126px] h-auto" fill="none">
+              <!-- Head & Neck -->
+              <circle cx="70" cy="22" r="13" fill="#CBD5E1"/>
+              <rect x="64" y="34" width="12" height="9" rx="4" fill="#CBD5E1"/>
+              <!-- Traps (front) -->
+              <path d="M52 44 L64 39 L76 39 L88 44 L80 51 L60 51 Z" fill="${fillFor('traps')}"/>
+              <!-- Shoulders / Delts -->
+              <ellipse cx="43" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <ellipse cx="97" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <!-- Chest / Pecs -->
+              <path d="M51 48 Q70 46 89 48 L86 71 Q70 74 54 71 Z" fill="${fillFor('chest')}"/>
+              <!-- Abs / Core -->
+              <rect x="57" y="73" width="26" height="36" rx="7" fill="${fillFor('abs')}"/>
+              <line x1="70" y1="75" x2="70" y2="107" stroke="#F8FAFC" stroke-width="1.5"/>
+              <line x1="59" y1="85" x2="81" y2="85" stroke="#F8FAFC" stroke-width="1.3"/>
+              <line x1="59" y1="96" x2="81" y2="96" stroke="#F8FAFC" stroke-width="1.3"/>
+              <!-- Obliques -->
+              <path d="M51 74 L56 74 L56 106 L49 102 Z" fill="${fillFor('obliques')}"/>
+              <path d="M84 74 L89 74 L91 102 L84 106 Z" fill="${fillFor('obliques')}"/>
+              <!-- Arms -->
+              <rect x="33" y="64" width="11" height="27" rx="5.5" fill="${fillFor('biceps')}"/>
+              <rect x="96" y="64" width="11" height="27" rx="5.5" fill="${fillFor('biceps')}"/>
+              <rect x="31" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
+              <rect x="99" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
+              <!-- Pelvis -->
+              <path d="M50 110 L90 110 L86 124 L54 124 Z" fill="#CBD5E1"/>
+              <!-- Quads -->
+              <path d="M51 124 L68 124 L66 172 L52 172 Z" fill="${fillFor('quads')}"/>
+              <path d="M72 124 L89 124 L88 172 L74 172 Z" fill="${fillFor('quads')}"/>
+              <!-- Calves (front) -->
+              <path d="M53 176 L65 176 L63 218 L55 218 Z" fill="${fillFor('calves')}"/>
+              <path d="M75 176 L87 176 L85 218 L77 218 Z" fill="${fillFor('calves')}"/>
             </svg>
-            <div>
-              <span class="text-[11px] font-bold text-[#1D4ED8]">코치 핵심 큐잉</span>
-              <p class="text-[13px] font-bold text-[#111827] mt-0.5">${escapeHtml(note || '호흡을 일정하게 유지하고 반동 없이 천천히 수행해 보세요.')}</p>
+            <span class="text-[10px] font-extrabold tracking-wider text-[#64748B] mt-1">FRONT</span>
+          </div>
+
+          <!-- BACK VIEW -->
+          <div class="flex flex-col items-center">
+            <svg viewBox="0 0 140 240" class="w-full max-w-[126px] h-auto" fill="none">
+              <!-- Head & Neck -->
+              <circle cx="70" cy="22" r="13" fill="#CBD5E1"/>
+              <rect x="64" y="34" width="12" height="9" rx="4" fill="#CBD5E1"/>
+              <!-- Traps -->
+              <path d="M51 44 L70 38 L89 44 L78 68 L62 68 Z" fill="${fillFor('traps')}"/>
+              <!-- Rear Delts -->
+              <ellipse cx="43" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <ellipse cx="97" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <!-- Lats -->
+              <path d="M49 58 L61 67 L61 95 L51 88 Z" fill="${fillFor('lats')}"/>
+              <path d="M91 58 L79 67 L79 95 L89 88 Z" fill="${fillFor('lats')}"/>
+              <!-- Lower Back -->
+              <rect x="61" y="69" width="18" height="34" rx="6" fill="${fillFor('lowerback')}"/>
+              <!-- Triceps & Forearms -->
+              <rect x="33" y="64" width="11" height="27" rx="5.5" fill="${fillFor('triceps')}"/>
+              <rect x="96" y="64" width="11" height="27" rx="5.5" fill="${fillFor('triceps')}"/>
+              <rect x="31" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
+              <rect x="99" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
+              <!-- Glutes -->
+              <ellipse cx="60" cy="116" rx="11" ry="13" fill="${fillFor('glutes')}"/>
+              <ellipse cx="80" cy="116" rx="11" ry="13" fill="${fillFor('glutes')}"/>
+              <!-- Hamstrings -->
+              <path d="M51 129 L68 129 L66 172 L52 172 Z" fill="${fillFor('hamstrings')}"/>
+              <path d="M72 129 L89 129 L88 172 L74 172 Z" fill="${fillFor('hamstrings')}"/>
+              <!-- Calves -->
+              <path d="M52 176 L66 176 L63 218 L55 218 Z" fill="${fillFor('calves')}"/>
+              <path d="M74 176 L88 176 L85 218 L77 218 Z" fill="${fillFor('calves')}"/>
+            </svg>
+            <span class="text-[10px] font-extrabold tracking-wider text-[#64748B] mt-1">BACK</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function openFormGuideModal(title, note) {
+      const profile = getExerciseProfile(title);
+      openModal(`자극 근육 · 자세 가이드`, `
+        <div class="space-y-4">
+          <div class="p-4 rounded-[24px] bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+            <div class="flex items-center justify-between text-[11px] font-bold">
+              <span class="text-[#111827] text-[13px] font-extrabold">${escapeHtml(title)}</span>
+              <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1 text-[#2563EB]"><span class="w-2.5 h-2.5 rounded-full bg-[#2563EB]"></span>주동근</span>
+                <span class="flex items-center gap-1 text-[#0F766E]"><span class="w-2.5 h-2.5 rounded-full bg-[#5EEAD4]"></span>보조근</span>
+              </div>
+            </div>
+            ${buildAnatomicalBodyMap(profile)}
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
+                <span class="text-[10px] font-bold text-[#2563EB] block">주동근 (Main)</span>
+                <span class="text-[12px] font-extrabold text-[#111827]">${profile.primaryLabel}</span>
+              </div>
+              <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
+                <span class="text-[10px] font-bold text-[#0F766E] block">보조근 (Sub)</span>
+                <span class="text-[12px] font-extrabold text-[#111827]">${profile.secondaryLabel}</span>
+              </div>
             </div>
           </div>
-          <div class="space-y-2 text-[13px] text-[#374151]">
-            <div class="p-3 rounded-xl bg-[#F4F6F9]"><strong class="text-[#1D4ED8]">1.</strong> 시작 자세에서 복압을 가볍게 잡고 허리 중립을 확인해요.</div>
-            <div class="p-3 rounded-xl bg-[#F4F6F9]"><strong class="text-[#1D4ED8]">2.</strong> 내려갈 때 3초, 올라올 때 숨을 내쉬며 자극에 집중해요.</div>
+
+          <div class="p-4 rounded-2xl bg-[#EFF6FF]">
+            <span class="text-[11px] font-bold text-[#1D4ED8]">코치 핵심 큐잉</span>
+            <p class="text-[13px] font-bold text-[#111827] mt-0.5">${escapeHtml(note || '호흡을 일정하게 유지하고 반동 없이 천천히 수행해 보세요.')}</p>
           </div>
-          <button type="button" id="btn-close-guide" class="w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-bold">확인했어요</button>
+
+          <div class="space-y-2 text-[13px] text-[#374151]">
+            ${profile.steps.map((st, idx) => `
+              <div class="p-3 rounded-xl bg-[#F4F6F9]"><strong class="text-[#1D4ED8]">${idx + 1}.</strong> ${st}</div>
+            `).join('')}
+          </div>
+
+          <button type="button" id="btn-close-guide" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-bold">확인했어요</button>
         </div>
       `);
       document.getElementById('btn-close-guide').addEventListener('click', closeModal);
@@ -1489,30 +1749,53 @@
               <input id="cd-diet-msg" value="${escapeHtml(dietMsg)}" placeholder="식단 피드백 한 줄 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
             </div>
 
-            <!-- Routines + Weight Diff -->
+            <!-- Routines + Type Toggle + Add Routine -->
             <div class="space-y-2">
-              <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴 (+2 / -2kg 조절 · 직전 대비)</span>
+              <div class="flex items-center justify-between">
+                <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴 (눌러서 PT수업/개인숙제 전환)</span>
+              </div>
               ${routines.map((r, i) => {
                 const prev = prevMap[r.name];
                 const curW = Number(r.weight) || 0;
                 const diff = prev && prev.weight ? curW - Number(prev.weight) : null;
+                const isHw = r.routineType === 'homework';
                 return `
-                  <div class="p-3 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
-                    <div class="min-w-0">
-                      <div class="flex items-center gap-1.5 flex-wrap">
-                        <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(r.name)}</p>
-                        ${diff !== null && diff !== 0 ? `<span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#1D4ED8]">${diff > 0 ? '+' + diff : diff}kg</span>` : ''}
+                  <div class="p-3 rounded-2xl bg-[#F4F6F9] space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <button type="button" data-ti="${i}" class="cd-type-btn tap-scale text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isHw ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${isHw ? '개인 숙제' : 'PT 수업'}</button>
+                          <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(r.name)}</p>
+                          ${diff !== null && diff !== 0 ? `<span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white text-[#1D4ED8]">${diff > 0 ? '+' + diff : diff}kg</span>` : ''}
+                        </div>
+                        <p class="text-[11px] text-[#6B7280] mt-0.5">${r.reps || '12'}회 × ${r.sets || '3'}세트 ${prev?.weight ? `(직전 ${prev.weight}kg)` : ''}</p>
                       </div>
-                      <p class="text-[11px] text-[#6B7280]">${r.reps || '12'}회 × ${r.sets || '3'}세트 ${prev?.weight ? `(직전 ${prev.weight}kg)` : ''}</p>
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        <button type="button" data-wi="${i}" data-wd="-2" class="cd-wt-btn w-7 h-7 rounded-lg bg-white text-[#4B5563] font-bold text-xs shadow-sm">-</button>
+                        <span class="text-[13px] font-extrabold text-[#1D4ED8] tabular-nums w-11 text-center">${curW}kg</span>
+                        <button type="button" data-wi="${i}" data-wd="2" class="cd-wt-btn w-7 h-7 rounded-lg bg-[#1D4ED8] text-white font-bold text-xs shadow-sm">+</button>
+                      </div>
                     </div>
-                    <div class="flex items-center gap-1.5 shrink-0">
-                      <button type="button" data-wi="${i}" data-wd="-2" class="cd-wt-btn w-7 h-7 rounded-lg bg-white text-[#4B5563] font-bold text-xs shadow-sm">-</button>
-                      <span class="text-[13px] font-extrabold text-[#1D4ED8] tabular-nums w-11 text-center">${curW}kg</span>
-                      <button type="button" data-wi="${i}" data-wd="2" class="cd-wt-btn w-7 h-7 rounded-lg bg-[#1D4ED8] text-white font-bold text-xs shadow-sm">+</button>
-                    </div>
+                    <input type="text" data-ni="${i}" value="${escapeHtml(r.note || '')}" placeholder="코치 핵심 큐잉 입력 (예: 발바닥 3점 지지, 3초 하강)" class="cd-note-inp w-full text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
                   </div>
                 `;
               }).join('')}
+              <div class="p-3 rounded-2xl bg-[#EFF6FF]/70 space-y-2">
+                <div class="flex gap-1.5">
+                  <select id="cd-new-type" class="text-[11px] font-bold px-2 py-2 rounded-xl bg-white text-[#1D4ED8]">
+                    <option value="pt">PT 수업</option>
+                    <option value="homework">개인 숙제</option>
+                  </select>
+                  <input id="cd-new-name" placeholder="새 종목명 (예: 랫풀다운)" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                </div>
+                <input id="cd-new-note" placeholder="핵심 큐잉 메모 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                <div class="flex gap-1.5">
+                  <input id="cd-new-weight" type="number" min="0" placeholder="무게(kg)" class="w-20 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
+                  <input id="cd-new-sets" type="number" min="1" value="3" placeholder="세트" class="w-16 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
+                  <input id="cd-new-reps" type="number" min="1" value="12" placeholder="횟수" class="w-16 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
+                  <button type="button" id="cd-add-routine-btn" class="tap-scale flex-1 py-2 rounded-xl card-blue text-white text-[12px] font-extrabold">+ 종목 추가</button>
+                </div>
+              </div>
             </div>
 
             <!-- Sticky Reply Box -->
@@ -1551,6 +1834,41 @@
           b.addEventListener('click', () => {
             replyMsg = workoutPresets[Number(b.dataset.wpidx)];
             document.getElementById('cd-reply-msg').value = replyMsg;
+          });
+        });
+
+        document.querySelectorAll('.cd-type-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            const idx = Number(b.dataset.ti);
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            routines[idx].routineType = routines[idx].routineType === 'homework' ? 'pt' : 'homework';
+            renderDetailBody();
+          });
+        });
+
+        document.getElementById('cd-add-routine-btn').addEventListener('click', () => {
+          const name = document.getElementById('cd-new-name').value.trim();
+          if (!name) { showToast('종목 이름을 입력해 주세요'); return; }
+          replyMsg = document.getElementById('cd-reply-msg').value;
+          dietMsg = document.getElementById('cd-diet-msg').value;
+          const sets = Math.max(1, Number(document.getElementById('cd-new-sets').value) || 3);
+          routines.push({
+            id: Date.now(),
+            routineType: document.getElementById('cd-new-type').value,
+            name,
+            weight: document.getElementById('cd-new-weight').value.trim(),
+            sets: String(sets),
+            reps: document.getElementById('cd-new-reps').value.trim() || '12',
+            note: document.getElementById('cd-new-note').value.trim(),
+            completedSets: Array(sets).fill(false)
+          });
+          renderDetailBody();
+        });
+
+        document.querySelectorAll('.cd-note-inp').forEach(inp => {
+          inp.addEventListener('input', e => {
+            routines[Number(inp.dataset.ni)].note = e.target.value;
           });
         });
 
@@ -1786,12 +2104,14 @@
           <div class="flex items-center justify-between gap-2">
             <div>
               <h2 class="text-[16px] font-bold text-[#111827]">오늘 수분 채우기</h2>
-              <p class="text-[12px] text-[#6B7280] mt-0.5 tabular-nums">${(ds.water / 1000).toFixed(2)}L / 2.0L (${cups}/8잔)</p>
+              <p class="text-[12px] text-[#6B7280] mt-0.5 tabular-nums">${(ds.water / 1000).toFixed(2)}L / 2.0L (${waterPct}%)</p>
             </div>
-            <div class="flex items-center gap-1.5">
-              <button type="button" id="btn-water-minus" class="tap-scale w-8 h-8 rounded-xl bg-[#F4F6F9] text-[#4B5563] text-[13px] font-bold">-</button>
-              <button type="button" id="btn-water-plus" class="tap-scale px-3.5 py-2 rounded-xl card-blue text-white text-[12px] font-extrabold shadow-sm">💧 +250ml</button>
-            </div>
+            <button type="button" id="btn-water-minus" class="tap-scale px-2.5 py-1.5 rounded-xl bg-[#F4F6F9] text-[#4B5563] text-[11px] font-bold">-250ml</button>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" data-wml="250" class="w-add-btn tap-scale py-2 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] text-[12px] font-extrabold">💧 +250ml <span class="font-medium opacity-75">1컵</span></button>
+            <button type="button" data-wml="500" class="w-add-btn tap-scale py-2 rounded-xl card-blue text-white text-[12px] font-extrabold shadow-sm">💧 +500ml <span class="font-medium opacity-85">1병</span></button>
+            <button type="button" data-wml="1000" class="w-add-btn tap-scale py-2 rounded-xl card-teal text-white text-[12px] font-extrabold shadow-sm">💧 +1L <span class="font-medium opacity-85">텀블러</span></button>
           </div>
           <div class="grid grid-cols-8 gap-1.5">
             ${Array.from({ length: 8 }).map((_, i) => `
@@ -1818,10 +2138,15 @@
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
+      const hasRoutines = (state.record.routines || []).length > 0;
       const pendingRoutine = (state.record.routines || []).find(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
-      const missionTitle = pendingRoutine ? pendingRoutine.name : '데드버그 (코어 미션)';
-      const missionNote = pendingRoutine ? pendingRoutine.note : '허리가 바닥에서 뜨지 않게 호흡을 길게 내뱉어 보세요.';
-      const missionDone = !pendingRoutine && (state.record.routines || []).length > 0;
+      const missionDone = hasRoutines && !pendingRoutine;
+      const missionTitle = pendingRoutine
+        ? pendingRoutine.name
+        : (missionDone ? '오늘 배정된 루틴 모두 완료!' : '오늘 배정된 루틴이 없어요');
+      const missionNote = pendingRoutine
+        ? pendingRoutine.note
+        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : '코치님이 루틴을 등록하면 이곳에 바로 표시됩니다.');
 
       if (state.memberTab === 'report') {
         return `
@@ -1925,7 +2250,7 @@
                   </div>
                   <div class="min-w-0">
                     <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
-                    <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${missionDone ? '오늘 루틴 모두 완료!' : '터치해서 완료 체크 (+타이머)'}</p>
+                    <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${missionDone ? '수업일지 전체 보기 ›' : (hasRoutines ? '터치해서 완료 체크 (+타이머)' : '휴식 · 회복일')}</p>
                   </div>
                 </button>
                 <button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold ${missionDone ? 'bg-white/20 text-white' : 'bg-white text-[#1D4ED8] shadow-sm'}">자세 팁 ▶</button>
@@ -1987,11 +2312,15 @@
                 const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
                 return `
                   <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
-                    <div>
-                      <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
+                    <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${r.routineType === 'homework' ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${r.routineType === 'homework' ? '개인 숙제' : 'PT 수업'}</span>
+                        <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
+                        <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">자세 · 부위 ›</span>
+                      </div>
                       <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>
                       ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${escapeHtml(r.note)}</p>` : ''}
-                    </div>
+                    </button>
                     <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
                   </div>
                 `;
@@ -2284,8 +2613,9 @@
       const hgBtn = document.getElementById('btn-home-guide');
       if (hgBtn) hgBtn.addEventListener('click', () => openFormGuideModal(hgBtn.dataset.gtitle, hgBtn.dataset.gnote));
 
-      const wPlus = document.getElementById('btn-water-plus');
-      if (wPlus) wPlus.addEventListener('click', () => addWaterCup(250));
+      document.querySelectorAll('.w-add-btn').forEach(b => {
+        b.addEventListener('click', () => addWaterCup(Number(b.dataset.wml)));
+      });
       const wMinus = document.getElementById('btn-water-minus');
       if (wMinus) wMinus.addEventListener('click', () => addWaterCup(-250));
 
@@ -2316,6 +2646,10 @@
           renderAll();
           saveFullRecordLive();
         });
+      });
+
+      document.querySelectorAll('.routine-guide-btn').forEach(b => {
+        b.addEventListener('click', () => openFormGuideModal(b.dataset.gtitle, b.dataset.gnote));
       });
 
       const addR = document.getElementById('btn-add-routine');

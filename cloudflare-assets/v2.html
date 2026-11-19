@@ -45,6 +45,8 @@
       to { opacity: 1; transform: translateY(0); }
     }
     .animate-in { animation: fadeUp 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .coach-member-row { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.95fr); gap: 0.65rem; align-items: center; }
+    .coach-member-row:active { background: #EFF6FF; }
     .confetti-dot {
       position: fixed;
       width: 7px;
@@ -257,8 +259,12 @@
       loading: false,
       appMode: 'member', // 'member' | 'coach'
       memberTab: 'report', // 'report' | 'lesson' | 'diet' | 'body' | 'feedback'
-      coachTab: 'today', // 'today' | 'members' | 'dietReply' | 'dormant'
+      coachTab: 'workspace', // 'workspace' | 'members' | 'columns'
       coachSearch: '',
+      coachFilter: 'attention',
+      coachSelected: '',
+      coachContext: null,
+      coachDraft: null,
       memberName: paramName || '회원',
       token: paramToken,
       session: '',
@@ -1135,6 +1141,26 @@
       }
     }
 
+    // The overview response is intentionally small. Hydrate only the check-in
+    // indicator afterwards so the scan list can show each member's condition.
+    async function hydrateCoachCheckins() {
+      const date = state.selectedDate;
+      const password = state.trainerPassword;
+      const members = [...state.trainerOverview];
+      const results = await Promise.all(members.map(async member => {
+        try {
+          const record = await readCanonical({ date, member: member.name, password });
+          return { name: member.name, dailyCheckin: record.dailyCheckin || {} };
+        } catch { return null; }
+      }));
+      if (state.appMode !== 'coach' || state.selectedDate !== date || state.trainerPassword !== password) return;
+      results.filter(Boolean).forEach(result => {
+        const member = state.trainerOverview.find(item => item.name === result.name);
+        if (member) member.dailyCheckin = result.dailyCheckin;
+      });
+      renderAll();
+    }
+
     // --- Coach Modal 1: 회원별 '5분 전 브리핑' 모달 (직전 중량 · 최근 메모 · 대타용 1장 인수인계 복사) ---
     async function openCoachBriefingModal(memberName) {
       const ctx = await fetchMemberContextForCoach(memberName);
@@ -1413,6 +1439,7 @@
         closeModal();
         showToast('코치 모드로 전환되었어요.');
         renderAll();
+        void hydrateCoachCheckins();
       });
     }
 
@@ -1509,16 +1536,13 @@
         }).join('');
         nav.querySelectorAll('.m-nav-btn').forEach(b => b.addEventListener('click', () => { if (state.saving) return; state.memberTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
       } else {
-        // Coach workspace: review the highest-priority member first, then clear the queue.
-        nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-4 px-2 pt-2 pb-3';
+        nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-2 px-2 pt-2 pb-3';
         const tabs = [
-          { id: 'today', label: '확인할 회원', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-          { id: 'members', label: '전체회원', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-          { id: 'dietReply', label: '식단답장', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
-          { id: 'dormant', label: '잠수케어', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
+          { id: 'members', label: '회원관리', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+          { id: 'columns', label: '칼럼관리', icon: 'M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm4 3h8m-8 4h8m-8 4h5' }
         ];
         nav.innerHTML = tabs.map(t => {
-          const act = state.coachTab === t.id;
+          const act = state.coachTab === t.id || (t.id === 'members' && state.coachTab === 'workspace');
           return `<button type="button" data-tab="${t.id}" class="c-nav-btn tap-scale flex flex-col items-center justify-center py-0.5 ${act ? 'text-[#1D4ED8]' : 'text-[#9CA3AF]'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="${act ? '2.3' : '1.7'}" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${t.icon}"/></svg><span class="text-[10px] mt-1 ${act ? 'font-bold' : 'font-medium'}">${t.label}</span></button>`;
         }).join('');
         nav.querySelectorAll('.c-nav-btn').forEach(b => b.addEventListener('click', () => { if (state.saving) return; state.coachTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
@@ -2032,6 +2056,81 @@
       `;
     }
 
+    // --- Coach workspace replacement: dashboard → member detail → publish ---
+    function coachDormantDays(member) {
+      return member.lastDate ? daysBetween(member.lastDate, state.selectedDate) : 99;
+    }
+
+    function coachMemberChips(member) {
+      const checkin = String(member.dailyCheckin?.mood || member.dailyCheckin?.workout || '미체크');
+      return `
+        <span class="rounded-lg px-2 py-1 text-[10px] font-bold ${member.pendingWorkout ? 'bg-amber-50 text-amber-700' : member.activeToday ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-500'}">운동 ${member.pendingWorkout ? '대기' : member.activeToday ? '완료' : '미기록'}</span>
+        <span class="rounded-lg px-2 py-1 text-[10px] font-bold ${member.pendingDiet ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}">식단 ${member.pendingDiet ? '답장대기' : member.dietToday ? '완료' : '미기록'}</span>
+        <span class="rounded-lg px-2 py-1 text-[10px] font-bold bg-violet-50 text-violet-700">체크인 ${escapeHtml(checkin)}</span>`;
+    }
+
+    async function openCoachWorkspace(memberName) {
+      if (state.saving) return;
+      state.coachSelected = memberName;
+      state.coachContext = null;
+      state.coachDraft = null;
+      state.coachTab = 'workspace';
+      renderAll();
+      const context = await fetchMemberContextForCoach(memberName);
+      if (!context || state.coachSelected !== memberName) return;
+      state.coachContext = context;
+      state.coachDraft = { routines: context.record.routines.map(item => ({ ...item, weight: String(number(item.weight)) })) };
+      renderAll();
+    }
+
+    function renderCoachMemberDetail() {
+      const context = state.coachContext;
+      if (!context) return `<div class="bg-white rounded-[24px] p-6 text-center text-[13px] text-[#6B7280]">${escapeHtml(state.coachSelected)} 회원님의 기록을 불러오는 중이에요.</div>`;
+      const record = context.record;
+      const checkin = record.dailyCheckin || {};
+      const completedSets = record.routines.reduce((sum, item) => sum + (item.completedSets || []).filter(Boolean).length, 0);
+      const meals = MEALS.map(key => record.diet?.[key]).filter(meal => meal && (meal.desc || meal.photos?.length));
+      const memberMemos = record.memos.filter(memo => !isCheckinMemo(memo));
+      const draft = state.coachDraft || { routines: record.routines };
+      return `<div class="space-y-3.5 animate-in pb-20">
+        <section class="hero-navy rounded-[26px] p-5 text-white"><button id="btn-coach-detail-close" type="button" class="text-[12px] font-bold text-white/80">‹ 회원 목록</button><h1 class="mt-2 text-[22px] font-extrabold">${escapeHtml(state.coachSelected)} 회원님</h1><p class="mt-1 text-[12px] text-white/80">오늘 리포트 확인 후 피드백을 한 번에 발행하세요.</p></section>
+        <section class="bg-white rounded-[22px] p-4 shadow-sm space-y-3"><div class="flex items-center justify-between"><h2 class="text-[15px] font-extrabold">오늘 회원 리포트</h2><span class="text-[11px] text-[#6B7280]">${escapeHtml(state.selectedDate)}</span></div>
+          <div class="grid grid-cols-3 gap-2 text-center"><div class="rounded-xl bg-[#F4F6F9] p-2"><p class="text-[10px] text-[#6B7280]">컨디션</p><p class="mt-1 text-[13px] font-extrabold">${escapeHtml(checkin.mood || '미체크')}</p></div><div class="rounded-xl bg-[#EFF6FF] p-2"><p class="text-[10px] text-[#6B7280]">완료 세트</p><p class="mt-1 text-[13px] font-extrabold text-[#1D4ED8]">${completedSets}세트</p></div><div class="rounded-xl bg-[#F0FDFA] p-2"><p class="text-[10px] text-[#6B7280]">식단</p><p class="mt-1 text-[13px] font-extrabold text-[#0F766E]">${meals.length}끼니</p></div></div>
+          <div class="rounded-xl bg-[#F8FAFC] p-3 text-[12px] text-[#374151]"><b>식단</b> ${meals.length ? meals.map(meal => escapeHtml(meal.desc || '사진 첨부')).join(' · ') : '기록 없음'}${meals.some(meal => meal.photos?.length) ? ' · 사진 첨부' : ''}</div>
+          <div class="rounded-xl bg-[#F8FAFC] p-3 text-[12px] text-[#374151]"><b>회원 메모</b> ${escapeHtml(memberMemos.filter(item => item.from !== 'trainer').slice(-1)[0]?.text || record.reflection?.good || '남긴 메모가 없습니다.')}</div>
+        </section>
+        <section class="bg-white rounded-[22px] p-4 shadow-sm space-y-3"><h2 class="text-[15px] font-extrabold">코치 원터치 피드백 · 일지</h2>
+          <div class="space-y-2"><div class="flex items-center justify-between"><label class="text-[12px] font-bold">운동 피드백</label><button id="btn-coach-voice" type="button" class="text-[11px] font-extrabold text-[#1D4ED8]">🎙️ 음성 입력</button></div><div class="flex flex-wrap gap-1.5"><button type="button" data-coach-preset="오늘 컨디션에 맞춰 자세와 호흡을 안정적으로 잘 잡았어요." class="coach-preset rounded-lg bg-[#EFF6FF] px-2 py-1.5 text-[10px] font-bold text-[#1D4ED8]">자세 안정</button><button type="button" data-coach-preset="다음 수업에는 중량을 조금 올려도 좋겠습니다." class="coach-preset rounded-lg bg-[#EFF6FF] px-2 py-1.5 text-[10px] font-bold text-[#1D4ED8]">다음 중량</button></div><textarea id="coach-workout-feedback" rows="3" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-[13px]" placeholder="오늘 운동 피드백">${escapeHtml(record.feedback?.workout || record.headerMessage || '')}</textarea></div>
+          <div class="space-y-2"><label class="text-[12px] font-bold">루틴 중량</label>${draft.routines.map((routine, index) => `<div class="flex items-center justify-between rounded-xl bg-[#F8FAFC] p-2.5"><span class="text-[12px] font-bold">${escapeHtml(routine.name)}</span><div class="flex items-center gap-2"><button type="button" data-routine-delta="-2" data-routine-index="${index}" class="coach-weight rounded-lg bg-white px-2 py-1 text-[11px] font-bold">-2kg</button><span class="w-12 text-center text-[12px] font-extrabold text-[#1D4ED8]">${escapeHtml(routine.weight)}kg</span><button type="button" data-routine-delta="2" data-routine-index="${index}" class="coach-weight rounded-lg hero-navy px-2 py-1 text-[11px] font-bold text-white">+2kg</button></div></div>`).join('')}</div>
+          <div class="space-y-2"><label class="text-[12px] font-bold">식단 피드백</label><div class="flex flex-wrap gap-1.5"><button type="button" data-diet-preset="단백질과 수분 섭취를 다음 끼니에도 이어가 주세요." class="coach-diet-preset rounded-lg bg-[#F0FDFA] px-2 py-1.5 text-[10px] font-bold text-[#0F766E]">단백질·수분</button><button type="button" data-diet-preset="다음 끼니는 채소와 단백질 위주로 가볍게 구성해 볼까요?" class="coach-diet-preset rounded-lg bg-[#F0FDFA] px-2 py-1.5 text-[10px] font-bold text-[#0F766E]">다음 끼니</button></div><textarea id="coach-diet-feedback" rows="2" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-[13px]" placeholder="식단 피드백">${escapeHtml(record.feedback?.diet || '')}</textarea></div>
+          <div class="space-y-2"><label class="text-[12px] font-bold">회원 메모 답장</label><input id="coach-memo-reply" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-[13px]" placeholder="필요할 때만 답장을 남겨 주세요" /></div>
+        </section>
+        <div class="sticky bottom-[76px] space-y-2"><button id="btn-coach-save-detail" type="button" class="w-full rounded-2xl hero-navy py-4 text-[14px] font-extrabold text-white shadow-lg">피드백 저장 및 발행</button><button id="btn-coach-next" type="button" class="w-full rounded-2xl bg-white py-3 text-[13px] font-extrabold text-[#1D4ED8] shadow-sm">다음 피드백 대기 회원 ›</button></div>
+      </div>`;
+    }
+
+    function renderCoachWorkspace() {
+      const list = state.trainerOverview || [];
+      if (state.coachSelected) return renderCoachMemberDetail();
+      const pending = list.filter(item => item.pendingWorkout || item.pendingDiet);
+      const active = list.filter(item => item.activeToday);
+      const dormant = list.filter(item => coachDormantDays(item) >= 4);
+      const query = String(state.coachSearch || '').trim().toLowerCase();
+      const filtered = coachQueue(list.filter(item => (!query || String(item.name || '').toLowerCase().includes(query)) && (state.coachFilter === 'attention' ? (item.pendingWorkout || item.pendingDiet) : state.coachFilter === 'active' ? item.activeToday : state.coachFilter === 'dormant' ? coachDormantDays(item) >= 4 : true)));
+      return `<div class="space-y-3.5 animate-in"><section class="hero-navy rounded-[26px] p-5 text-white"><p class="text-[11px] font-bold text-[#5EEAD4]">COACH WORKSPACE</p><h1 class="mt-1 text-[21px] font-extrabold">오늘의 코칭 현황</h1><p class="mt-1 text-[12px] text-white/80">회원 한 명을 열어 리포트부터 발행까지 끝내세요.</p></section>
+        <section class="grid grid-cols-3 gap-2"><button data-coach-filter="attention" class="coach-kpi rounded-2xl bg-white p-3 text-left shadow-sm"><p class="text-[10px] text-[#6B7280]">피드백 대기</p><p class="mt-1 text-[21px] font-extrabold text-[#1D4ED8]">${pending.length}명</p></button><button data-coach-filter="active" class="coach-kpi rounded-2xl bg-white p-3 text-left shadow-sm"><p class="text-[10px] text-[#6B7280]">오늘 활동</p><p class="mt-1 text-[21px] font-extrabold text-[#0F766E]">${active.length}명</p></button><button data-coach-filter="dormant" class="coach-kpi rounded-2xl bg-white p-3 text-left shadow-sm"><p class="text-[10px] text-[#6B7280]">4일+ 미접속</p><p class="mt-1 text-[21px] font-extrabold text-rose-600">${dormant.length}명</p></button></section>
+        <section class="bg-white rounded-[22px] p-3 shadow-sm space-y-2"><div class="flex gap-1 overflow-x-auto">${[['attention','처리 필요'],['active','오늘 기록'],['dormant','잠수 주의'],['all','전체']].map(([id,label]) => `<button data-coach-filter="${id}" class="coach-filter shrink-0 rounded-full px-3 py-2 text-[11px] font-extrabold ${state.coachFilter === id ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'}">${label}</button>`).join('')}</div><input id="coach-workspace-search" value="${escapeHtml(state.coachSearch)}" placeholder="회원 이름 검색" class="w-full rounded-xl bg-[#F4F6F9] px-3 py-2.5 text-[13px] outline-none" /></section>
+        <section class="space-y-2"><div class="grid grid-cols-[1.2fr_1.7fr] px-3 text-[10px] font-bold text-[#9CA3AF]"><span>회원 · 최근 기록</span><span>운동 · 식단 · 체크인</span></div>${filtered.length ? filtered.map(item => `<button type="button" data-coach-member="${escapeHtml(item.name)}" class="coach-member-row w-full rounded-2xl bg-white p-3 text-left shadow-sm"><div class="min-w-0"><p class="truncate text-[14px] font-extrabold text-[#111827]">${escapeHtml(item.name)}</p><p class="mt-0.5 text-[10px] text-[#6B7280]">최근 ${escapeHtml(item.lastDate || '기록 없음')}${coachDormantDays(item) >= 4 ? ' · ' + coachDormantDays(item) + '일 전' : ''}</p></div><div class="flex flex-wrap justify-end gap-1">${coachMemberChips(item)}</div></button>`).join('') : '<div class="rounded-2xl bg-white p-6 text-center text-[13px] text-[#6B7280]">조건에 맞는 회원이 없습니다.</div>'}</section></div>`;
+    }
+
+    function renderCoachColumns() {
+      return `<div class="space-y-3.5 animate-in"><section class="hero-navy rounded-[26px] p-5 text-white"><p class="text-[11px] font-bold text-[#5EEAD4]">FIT-CONNECT MAGAZINE</p><h1 class="mt-1 text-[21px] font-extrabold">칼럼 관리</h1><p class="mt-1 text-[12px] text-white/80">발행한 칼럼을 수정하거나 새 칼럼을 작성하세요.</p></section><button id="btn-workspace-new-column" type="button" class="w-full rounded-2xl bg-[#1D4ED8] py-3.5 text-[13px] font-extrabold text-white">+ 새 칼럼 발행</button><section class="space-y-2">${state.columns.length ? state.columns.map((column, index) => `<button data-column-edit="${index}" class="w-full rounded-2xl bg-white p-4 text-left shadow-sm"><div class="flex items-center justify-between gap-2"><span class="rounded-full bg-[#EFF6FF] px-2 py-1 text-[10px] font-bold text-[#1D4ED8]">${escapeHtml(column.category || '트레이닝')}</span><span class="text-[10px] text-[#6B7280]">${escapeHtml(column.published_at || '')}</span></div><p class="mt-2 text-[15px] font-extrabold text-[#111827]">${escapeHtml(column.title || '')}</p><p class="mt-1 line-clamp-2 text-[12px] text-[#6B7280]">${escapeHtml(column.summary || '')}</p><p class="mt-2 text-[11px] font-bold text-[#1D4ED8]">수정하기 ›</p></button>`).join('') : '<div class="rounded-2xl bg-white p-6 text-center text-[13px] text-[#6B7280]">발행한 칼럼이 없습니다.</div>'}</section></div>`;
+    }
+
+    function renderCoachView() {
+      return state.coachTab === 'columns' ? renderCoachColumns() : renderCoachWorkspace();
+    }
+
     if (window.visualViewport) {
       const updateSheetViewport = () => {
         const viewport = window.visualViewport;
@@ -2114,6 +2213,61 @@
         const item = state.trainerOverview.find(m => m.name === memberName);
         if (item) { item.pendingDiet = false; item.feedbackDone = true; }
       }, memberName + ' 회원님 식단 답장을 저장했어요.');
+    }
+
+    async function saveCoachWorkspaceDetail() {
+      const context = state.coachContext;
+      if (!context || !state.coachDraft) return;
+      const workout = document.getElementById('coach-workout-feedback')?.value.trim() || '';
+      const diet = document.getElementById('coach-diet-feedback')?.value.trim() || '';
+      const memoText = document.getElementById('coach-memo-reply')?.value.trim() || '';
+      await saveAction(async () => {
+        const latest = await readCanonical(context.auth);
+        const feedback = { ...latest.feedback, workout, diet, time: nowTimeHHMM() };
+        const changed = state.coachDraft.routines.some((item, index) => String(item.weight) !== String(latest.routines[index]?.weight ?? ''));
+        const memo = memoText ? { id: 'coach-' + crypto.randomUUID(), from: 'trainer', text: memoText, time: nowTimeHHMM() } : null;
+        if (changed) {
+          const data = { routines: state.coachDraft.routines, headerMessage: workout, feedback };
+          if (memo) data.memos = [...latest.memos, memo];
+          await successful(postAppsScript({ ...context.auth, data }));
+        } else {
+          const patch = { headerMessage: workout, feedback };
+          if (memo) patch.memos = [memo];
+          await savePatchLive(patch, context.auth);
+        }
+        canonicalDates.add(context.auth.date);
+        const item = state.trainerOverview.find(member => member.name === state.coachSelected);
+        if (item) { item.pendingWorkout = false; item.pendingDiet = false; item.feedbackDone = true; }
+        state.coachContext.record = normalizeRecord({ ...latest, headerMessage: workout, feedback,
+          routines: state.coachDraft.routines, memos: memo ? [...latest.memos, memo] : latest.memos });
+      }, state.coachSelected + ' 회원님 피드백을 발행했어요.', renderAll);
+    }
+
+    function openCoachColumnEditor(column) {
+      const editing = isObject(column);
+      const current = editing ? column : { category: '트레이닝', title: '', summary: '', content: [], author: '신명진 코치', published_at: state.selectedDate };
+      openModal(editing ? '매거진 칼럼 수정' : '새 매거진 칼럼 발행', `<form id="workspace-column-form" class="space-y-3">
+        <select id="workspace-column-category" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm"><option ${current.category === '트레이닝' ? 'selected' : ''}>트레이닝</option><option ${current.category === '영양/식단' ? 'selected' : ''}>영양/식단</option><option ${current.category === '회복/습관' ? 'selected' : ''}>회복/습관</option></select>
+        <input id="workspace-column-title" required minlength="3" maxlength="90" value="${escapeHtml(current.title)}" placeholder="칼럼 제목" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm" />
+        <input id="workspace-column-summary" required minlength="10" maxlength="280" value="${escapeHtml(current.summary)}" placeholder="한줄 요약" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm" />
+        <textarea id="workspace-column-content" required rows="6" placeholder="본문을 줄바꿈으로 나눠 입력하세요" class="w-full rounded-xl bg-[#F4F6F9] p-3 text-sm">${escapeHtml(rows(current.content).join('\n'))}</textarea>
+        <button type="submit" class="w-full rounded-xl hero-navy py-3.5 text-sm font-extrabold text-white">${editing ? '수정 저장' : '즉시 발행'}</button></form>`);
+      document.getElementById('workspace-column-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const title = document.getElementById('workspace-column-title').value.trim();
+        const summary = document.getElementById('workspace-column-summary').value.trim();
+        const content = document.getElementById('workspace-column-content').value.split('\n').map(value => value.trim()).filter(Boolean).slice(0, 6);
+        if (title.length < 3 || summary.length < 10 || !content.length) return showToast('제목, 요약, 본문을 확인해 주세요.');
+        const saved = await saveAction(async () => {
+          const result = await successful(postRecords({ action: 'columnSave', password: state.trainerPassword, date: state.selectedDate,
+            column: { ...current, category: document.getElementById('workspace-column-category').value, title, summary, content,
+              author: current.author || '신명진 코치', published_at: current.published_at || state.selectedDate } }));
+          if (!isObject(result.column)) throw new Error('column_save_failed');
+          const index = state.columns.findIndex(item => item.id === result.column.id);
+          if (index >= 0) state.columns.splice(index, 1, result.column); else state.columns.unshift(result.column);
+        }, editing ? '칼럼을 수정했어요.' : '새 칼럼을 발행했어요.', () => { closeModal(); renderAll(); });
+        return saved;
+      });
     }
 
     function bindEvents() {
@@ -2207,6 +2361,54 @@
       if (goD) goD.addEventListener('click', () => { state.memberTab = 'diet'; renderAll(); });
       const goD2 = document.getElementById('go-diet-2');
       if (goD2) goD2.addEventListener('click', () => { state.memberTab = 'diet'; renderAll(); });
+
+      // Two-stage coach workspace actions
+      document.querySelectorAll('[data-coach-filter]').forEach(button => {
+        button.addEventListener('click', () => { state.coachFilter = button.dataset.coachFilter; state.coachTab = 'workspace'; renderAll(); });
+      });
+      document.getElementById('coach-workspace-search')?.addEventListener('input', event => {
+        state.coachSearch = event.target.value;
+        renderAll();
+        document.getElementById('coach-workspace-search')?.focus();
+      });
+      document.querySelectorAll('[data-coach-member]').forEach(button => {
+        button.addEventListener('click', () => openCoachWorkspace(button.dataset.coachMember));
+      });
+      document.getElementById('btn-coach-detail-close')?.addEventListener('click', () => {
+        state.coachSelected = ''; state.coachContext = null; state.coachDraft = null; renderAll();
+      });
+      document.querySelectorAll('.coach-weight').forEach(button => {
+        button.addEventListener('click', () => {
+          const index = Number(button.dataset.routineIndex);
+          const routine = state.coachDraft?.routines[index];
+          if (!routine) return;
+          routine.weight = String(Math.max(0, number(routine.weight) + Number(button.dataset.routineDelta)));
+          renderAll();
+        });
+      });
+      document.querySelectorAll('.coach-preset').forEach(button => {
+        button.addEventListener('click', () => { const input = document.getElementById('coach-workout-feedback'); if (input) input.value = button.dataset.coachPreset; });
+      });
+      document.querySelectorAll('.coach-diet-preset').forEach(button => {
+        button.addEventListener('click', () => { const input = document.getElementById('coach-diet-feedback'); if (input) input.value = button.dataset.dietPreset; });
+      });
+      document.getElementById('btn-coach-voice')?.addEventListener('click', () => {
+        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const target = document.getElementById('coach-workout-feedback');
+        if (!Recognition || !target) return showToast('이 브라우저에서는 음성 입력을 지원하지 않아요.');
+        const recognition = new Recognition(); recognition.lang = 'ko-KR'; recognition.interimResults = false;
+        recognition.onresult = event => { target.value = (target.value + ' ' + (event.results?.[0]?.[0]?.transcript || '')).trim(); };
+        recognition.onerror = () => showToast('음성 입력에 실패했어요.'); recognition.start();
+      });
+      document.getElementById('btn-coach-save-detail')?.addEventListener('click', () => { void saveCoachWorkspaceDetail(); });
+      document.getElementById('btn-coach-next')?.addEventListener('click', () => {
+        const next = coachQueue((state.trainerOverview || []).filter(item => item.name !== state.coachSelected && (item.pendingWorkout || item.pendingDiet)))[0];
+        if (next) openCoachWorkspace(next.name); else { state.coachSelected = ''; state.coachContext = null; renderAll(); showToast('남은 피드백 대기 회원이 없어요.'); }
+      });
+      document.getElementById('btn-workspace-new-column')?.addEventListener('click', () => openCoachColumnEditor());
+      document.querySelectorAll('[data-column-edit]').forEach(button => {
+        button.addEventListener('click', () => openCoachColumnEditor(state.columns[Number(button.dataset.columnEdit)]));
+      });
 
       // Coach Actions
       document.querySelectorAll('.btn-coach-brief').forEach(b => {

@@ -1,0 +1,2986 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIT-CONNECT</title>
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <style>
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      background-color: #E2E6EE;
+      color: #111827;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.02em;
+    }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .hero-navy {
+      background:
+        radial-gradient(circle at 88% 18%, rgba(56, 189, 248, 0.25) 0%, transparent 45%),
+        radial-gradient(circle at 12% 90%, rgba(20, 184, 166, 0.18) 0%, transparent 40%),
+        linear-gradient(135deg, #0B132B 0%, #1E3A8A 58%, #2563EB 100%);
+    }
+    .card-blue { background: linear-gradient(145deg, #1D4ED8 0%, #3B82F6 100%); }
+    .card-teal { background: linear-gradient(145deg, #0F766E 0%, #14B8A6 100%); }
+    .tap-scale { transition: transform 0.13s ease, background-color 0.16s ease, box-shadow 0.16s ease; }
+    .tap-scale:active { transform: scale(0.975); }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in { animation: fadeUp 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .confetti-dot {
+      position: fixed;
+      width: 7px;
+      height: 7px;
+      border-radius: 9999px;
+      pointer-events: none;
+      z-index: 60;
+      animation: confettiFall 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes confettiFall {
+      0% { opacity: 1; transform: translate(0, 0) scale(1); }
+      100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.4); }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #E5E7EB 25%, #F3F4F6 50%, #E5E7EB 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#E2E6EE] text-[#111827]">
+
+  <!-- Mobile App Frame -->
+  <div class="mx-auto min-h-screen max-w-[430px] bg-[#F4F6F9] relative flex flex-col pb-32 sm:shadow-[0_12px_40px_rgba(15,23,42,0.12)]">
+    <header id="app-header" class="sticky top-0 z-30 bg-[#F4F6F9]/94 backdrop-blur-xl px-5 pt-4 pb-3"></header>
+    <main id="main-content" class="flex-1 px-4 pt-1 space-y-3.5"></main>
+
+    <!-- Floating Mini Rest Timer Bar (Member Mode) -->
+    <div id="floating-timer-bar" class="hidden fixed bottom-[72px] left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[398px] z-35 rounded-2xl hero-navy text-white px-4 py-2.5 shadow-[0_10px_28px_rgba(11,19,43,0.38)] flex items-center justify-between gap-2 animate-in">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="w-2.5 h-2.5 rounded-full bg-[#5EEAD4] animate-pulse shrink-0"></span>
+        <div class="min-w-0">
+          <p id="ft-time" class="text-[16px] font-extrabold tabular-nums leading-none">01:00</p>
+          <p id="ft-sub" class="text-[10px] text-white/75 mt-0.5 truncate">휴식 타이머 · 0세트 완료</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button type="button" id="ft-minus" class="tap-scale px-2 py-1 rounded-lg bg-white/15 text-[11px] font-bold">-10s</button>
+        <button type="button" id="ft-plus" class="tap-scale px-2 py-1 rounded-lg bg-white/15 text-[11px] font-bold">+10s</button>
+        <button type="button" id="ft-toggle" class="tap-scale px-2.5 py-1 rounded-lg bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">일시정지</button>
+        <button type="button" id="ft-open" class="tap-scale px-2 py-1 rounded-lg bg-white/10 text-white text-[11px] font-bold">설정</button>
+        <button type="button" id="ft-stop" class="tap-scale w-6 h-6 rounded-lg bg-white/10 text-white/80 text-[11px] font-bold flex items-center justify-center" aria-label="타이머 닫기">✕</button>
+      </div>
+    </div>
+
+    <!-- Member Floating Action Button (+) -->
+    <div id="member-fab-wrap" class="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-[430px] pointer-events-none z-40 px-4 flex flex-col items-end">
+      <div id="fab-menu" class="hidden flex-col items-end gap-2 mb-2.5 pointer-events-auto animate-in">
+        <button type="button" id="fab-timer" class="tap-scale px-4 py-2.5 rounded-full bg-white text-[#111827] text-[13px] font-bold shadow-[0_6px_20px_rgba(15,23,42,0.14)] flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#2563EB]"></span> 타이머 설정기
+        </button>
+        <button type="button" id="fab-plate" class="tap-scale px-4 py-2.5 rounded-full bg-white text-[#111827] text-[13px] font-bold shadow-[0_6px_20px_rgba(15,23,42,0.14)] flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#0B132B]"></span> 바벨 원판 계산기
+        </button>
+        <button type="button" id="fab-ounwan" class="tap-scale px-4 py-2.5 rounded-full bg-white text-[#111827] text-[13px] font-bold shadow-[0_6px_20px_rgba(15,23,42,0.14)] flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#14B8A6]"></span> 오운완 카드 저장
+        </button>
+        <button type="button" id="fab-diet" class="tap-scale px-4 py-2.5 rounded-full bg-white text-[#111827] text-[13px] font-bold shadow-[0_6px_20px_rgba(15,23,42,0.14)] flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#0F766E]"></span> 식단 빠른 기록
+        </button>
+        <button type="button" id="fab-water" class="tap-scale px-4 py-2.5 rounded-full bg-white text-[#111827] text-[13px] font-bold shadow-[0_6px_20px_rgba(15,23,42,0.14)] flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#3B82F6]"></span> 물 250ml (1잔) 추가
+        </button>
+        <button type="button" id="fab-memo" class="tap-scale px-4 py-2.5 rounded-full bg-white text-[#111827] text-[13px] font-bold shadow-[0_6px_20px_rgba(15,23,42,0.14)] flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#1E3A8A]"></span> 코치에게 메모
+        </button>
+      </div>
+      <button type="button" id="fab-toggle" class="pointer-events-auto tap-scale w-12 h-12 rounded-full hero-navy text-white shadow-[0_8px_24px_rgba(30,58,138,0.42)] flex items-center justify-center" aria-label="빠른 기록">
+        <svg id="fab-icon" class="w-6 h-6 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+
+    <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 px-2 pt-2 pb-3"></nav>
+  </div>
+
+  <!-- Bottom Sheet Modal -->
+  <div id="modal-backdrop" class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] hidden items-end sm:items-center justify-center p-0 sm:p-4">
+    <div id="modal-panel" class="w-full max-w-[430px] bg-white rounded-t-[28px] sm:rounded-[28px] p-6 shadow-2xl animate-in max-h-[88vh] overflow-y-auto">
+      <div class="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-4 sm:hidden"></div>
+      <div class="flex items-center justify-between pb-3">
+        <h3 id="modal-title" class="text-[17px] font-bold text-[#111827]"></h3>
+        <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-sm font-bold">✕</button>
+      </div>
+      <div id="modal-body" class="pt-2"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
+
+  <script>
+    // --- Date & Clipboard Helpers ---
+    function getTodayKST() {
+      const now = new Date();
+      return new Date(now.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+    }
+    function shiftDateStr(dateStr, offset) {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + offset);
+      return d.toISOString().slice(0, 10);
+    }
+    function daysBetween(olderStr, newerStr) {
+      if (!olderStr) return 99;
+      const a = new Date(olderStr + 'T00:00:00Z').getTime();
+      const b = new Date(newerStr + 'T00:00:00Z').getTime();
+      return Math.floor((b - a) / 86400000);
+    }
+    function nowTimeHHMM() {
+      const d = new Date();
+      return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+    function formatMMSS(sec) {
+      const s = Math.max(0, Math.floor(sec));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
+    }
+    function buildWeekDays(anchorDate) {
+      const d = new Date(anchorDate + 'T00:00:00Z');
+      const sun = shiftDateStr(anchorDate, -d.getUTCDay());
+      const labels = ['일', '월', '화', '수', '목', '금', '토'];
+      return labels.map((day, i) => {
+        const full = shiftDateStr(sun, i);
+        return { day, date: Number(full.slice(8, 10)), fullDate: full };
+      });
+    }
+    function copyTextSafe(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
+    }
+    function fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch {}
+      ta.remove();
+    }
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    const DAILY_COACH_TIPS = [
+      '[운동] 중량을 올리는 것보다 내려놓는(신장성) 3초를 통제할 때 근섬유 자극이 가장 선명하게 들어갑니다.',
+      '[운동] 코어 복압을 먼저 채우고 움직이면 허리 개입은 줄고 목표 부위 가동범위가 훨씬 안정적으로 나옵니다.',
+      '[운동] 하체 루틴 시 엄지·새끼발가락·뒤꿈치 3점 지지를 유지하면 무릎 흔들림 없이 고관절에 정확히 실립니다.',
+      '[운동] 마지막 2회가 살짝 버겁지만 폼이 무너지지 않는 강도(RIR 2)가 오늘 가장 이상적인 자극입니다.',
+      '[다이어트] 식사 전 물 한 컵과 채소부터 먼저 드시면 혈당 스파이크가 완만해져 포만감이 오래 유지됩니다.',
+      '[다이어트] 전날 짠 음식을 드셨다면 끼니를 굶지 말고 수분 2L와 채소 섭취로 나트륨 배출을 도와주세요.',
+      '[다이어트] 단백질은 한 끼에 몰아먹기보다 3~4끼에 나누어 섭취해야 근합성과 포만감을 하루 종일 유지할 수 있습니다.',
+      '[일상] 식후 10~15분 가벼운 산책만으로도 혈당이 근육으로 빠르게 쓰여 체지방 축적을 크게 줄여줍니다.',
+      '[일상] 수면이 6시간 미만이면 식욕 호르몬(그렐린)이 올라가 가짜 허기가 생깁니다. 오늘은 30분 일찍 주무셔보세요.',
+      '[일상] 오래 앉아 있는 날엔 1시간마다 기지개와 흉추 스트레칭으로 굳은 어깨를 풀어줘야 운동 시 부상 위험이 줄어듭니다.'
+    ];
+
+    function getDailyCoachTip(dateStr) {
+      const s = String(dateStr || getTodayKST());
+      let sum = 0;
+      for (let i = 0; i < s.length; i++) sum += s.charCodeAt(i) * (i + 1);
+      return DAILY_COACH_TIPS[sum % DAILY_COACH_TIPS.length];
+    }
+
+    // Client-side Image Compression (<= 900px JPEG for fast mobile upload)
+    function compressImageFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 900;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.72));
+          };
+          img.onerror = reject;
+          img.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function compressAndWatermarkPhoto(file, memberName) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 900;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // Timestamp watermark bar at bottom
+            const barH = Math.max(44, Math.round(h * 0.085));
+            ctx.fillStyle = 'rgba(11, 19, 43, 0.72)';
+            ctx.fillRect(0, h - barH, w, barH);
+            ctx.fillStyle = '#5EEAD4';
+            ctx.font = `800 ${Math.max(13, Math.round(barH * 0.36))}px Pretendard, sans-serif`;
+            ctx.fillText('FIT-CONNECT VERIFIED', 16, h - Math.round(barH * 0.34));
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = `700 ${Math.max(13, Math.round(barH * 0.34))}px Pretendard, sans-serif`;
+            const stamp = `${memberName} · ${getTodayKST()} ${nowTimeHHMM()}`;
+            const tw = ctx.measureText(stamp).width;
+            ctx.fillText(stamp, Math.max(16, w - tw - 16), h - Math.round(barH * 0.34));
+
+            resolve(canvas.toDataURL('image/jpeg', 0.74));
+          };
+          img.onerror = reject;
+          img.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Web Audio API Beep for Timer End
+    function playTimerBeep() {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        const ctx = new AC();
+        [0, 0.22, 0.44].forEach(offset => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, ctx.currentTime + offset);
+          gain.gain.setValueAtTime(0.16, ctx.currentTime + offset);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.16);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + offset);
+          osc.stop(ctx.currentTime + offset + 0.17);
+        });
+      } catch {}
+    }
+
+    // --- URL Params ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
+    const paramToken = (urlParams.get('token') || '').trim();
+    const paramDate = /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date') || '') ? urlParams.get('date') : getTodayKST();
+    const isLiveOrigin = window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+
+    // --- App State ---
+    const state = {
+      isLive: false,
+      loading: false,
+      appMode: 'member', // 'member' | 'coach'
+      memberTab: 'report', // 'report' | 'lesson' | 'diet' | 'body' | 'feedback'
+      coachTab: 'coaching', // 'coaching' | 'members'
+      coachFilter: 'pending', // 'pending' | 'today' | 'dormant' | 'all'
+      coachSearch: '',
+      memberName: paramName || '김윤지',
+      token: paramToken,
+      session: '',
+      trainerPassword: '',
+      selectedDate: paramDate,
+      weekDays: buildWeekDays(paramDate),
+      fabOpen: false,
+      activeColumnIdx: 0,
+      targetKcal: 2100,
+
+      // Custom Timer State
+      timer: {
+        remaining: 0,
+        total: 60,
+        running: false,
+        interval: null,
+        setsDone: 0,
+        soundOn: true,
+        vibrateOn: true,
+        autoStartOnCheck: true,
+        customMin: 1,
+        customSec: 0
+      },
+
+      // Plate Calculator State
+      plateCalc: {
+        targetWeight: 60,
+        barWeight: 20
+      },
+
+      // Member feedback reaction (local persisted per member+date)
+      feedbackReaction: '',
+
+      record: {
+        headerMessage: '',
+        routines: [
+          { id: 1, routineType: 'pt', name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '발바닥 3점 지지, 3초 천천히 하강', completedSets: [true, true, true, true] },
+          { id: 2, routineType: 'pt', name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '무릎 고정하고 엉덩이 뒤로 밀기', completedSets: [true, true, true, true] },
+          { id: 3, routineType: 'homework', name: '데드버그', weight: '', sets: '3', reps: '12', note: '허리 바닥 밀착 호흡', completedSets: [false, false, false] }
+        ],
+        reflection: { good: '', bad: '' },
+        diet: {
+          breakfast: { desc: '그릭요거트 · 삶은계란 2개 · 사과', cal: '480', carb: '45', prot: '28', fat: '12', photos: [] },
+          lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+          dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+          snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+          water: 1000
+        },
+        feedback: { workout: '', diet: '', time: '' },
+        memos: [
+          { id: 'm1', from: 'trainer', text: '지난 수업일지 정리해 올렸어요. 오늘 개인 루틴 체크 후 특이사항이 있으면 남겨주세요.', time: '14:10' }
+        ],
+        dailyCheckin: { workout: '', diet: '', mood: '' }
+      },
+
+      insights: {
+        careSummary: { workoutDays: 2, dietDays: 3, feedbackDays: 2 },
+        weekly: { current: { days: 2, sets: 16, exercises: 6 }, previous: { days: 2, sets: 14, exercises: 5 }, improvements: [] },
+        progress: []
+      },
+
+      workoutDays: [shiftDateStr(paramDate, -2), shiftDateStr(paramDate, -1)],
+
+      columns: [
+        {
+          id: 'c1',
+          category: '트레이닝',
+          title: '개인 운동 20분, 핵심 루틴 잡는 법',
+          summary: '시간이 부족한 날엔 유산소보다 대근육 1종목의 정확한 자극이 우선입니다.',
+          content: [
+            '수업 외 개인 운동 시 루틴이 길어지면 집중력이 떨어져 자세가 무너지기 쉽습니다.',
+            '지난 수업 메인 종목 1가지(워킹세트 3~4세트)와 코어 안정화 동작 1가지만 정해진 템포로 마치고 가셔도 근신경 유지에 충분합니다.'
+          ],
+          author: '명진 트레이너',
+          published_at: paramDate
+        },
+        {
+          id: 'c2',
+          category: '영양 · 회복',
+          title: '외식·과식 다음 날, 굶지 말고 이렇게 조절하세요',
+          summary: '갑작스러운 단식은 체수분 손실과 근손실만 유발하고 반동 폭식으로 이어집니다.',
+          content: [
+            '염분과 탄수화물 섭취가 많았던 다음 날 체중 증가는 대부분 체지방이 아닌 수분 정체입니다.',
+            '끼니를 거르기보다 평소보다 수분을 500ml 이상 늘려 나트륨 배출을 돕고, 점심·저녁은 순수 단백질과 채소 비중을 높여 24시간 내에 밸런스를 되돌리는 편이 훨씬 효율적입니다.'
+          ],
+          author: '명진 트레이너',
+          published_at: paramDate
+        },
+        {
+          id: 'c3',
+          category: '컨디션 관리',
+          title: '증량보다 중요한 건 관절 정렬과 피로도 체크입니다',
+          summary: '컨디션이 떨어진 상태에서 무리한 중량 증가는 보상 작용과 부상 위험을 높입니다.',
+          content: [
+            '수면 부족이나 근육통이 남은 날엔 중량을 10~15% 낮추고 가동범위와 호흡 컨트롤에 집중하는 디로딩(Deloading)이 필요합니다.',
+            '수업 전 뻐근하거나 불편한 부위가 있다면 메모에 먼저 남겨주세요. 당일 워밍업과 강도를 바로 조정해 드리겠습니다.'
+          ],
+          author: '명진 트레이너',
+          published_at: paramDate
+        }
+      ],
+
+      trainerOverview: []
+    };
+
+    // Load local preferences (timer prefs, reaction, water fallback)
+    function loadLocalMemberExtras() {
+      try {
+        const tp = localStorage.getItem('fit_timer_prefs_v2');
+        if (tp) {
+          const parsed = JSON.parse(tp);
+          if (typeof parsed.customMin === 'number') state.timer.customMin = parsed.customMin;
+          if (typeof parsed.customSec === 'number') state.timer.customSec = parsed.customSec;
+          if (typeof parsed.soundOn === 'boolean') state.timer.soundOn = parsed.soundOn;
+          if (typeof parsed.vibrateOn === 'boolean') state.timer.vibrateOn = parsed.vibrateOn;
+          if (typeof parsed.autoStartOnCheck === 'boolean') state.timer.autoStartOnCheck = parsed.autoStartOnCheck;
+        }
+        const rk = `fit_react_${state.memberName}_${state.selectedDate}`;
+        state.feedbackReaction = localStorage.getItem(rk) || '';
+        const wk = `fit_water_${state.memberName}_${state.selectedDate}`;
+        const wv = localStorage.getItem(wk);
+        if (wv !== null && !Number(state.record.diet.water)) {
+          state.record.diet.water = Number(wv) || 0;
+        }
+      } catch {}
+    }
+
+    function saveTimerPrefsLocal() {
+      try {
+        localStorage.setItem('fit_timer_prefs_v2', JSON.stringify({
+          customMin: state.timer.customMin,
+          customSec: state.timer.customSec,
+          soundOn: state.timer.soundOn,
+          vibrateOn: state.timer.vibrateOn,
+          autoStartOnCheck: state.timer.autoStartOnCheck
+        }));
+      } catch {}
+    }
+
+    // --- API Helpers ---
+    async function postRecords(payload) {
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+      try {
+        const res = await fetch('/api/records', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          ...(ctrl ? { signal: ctrl.signal } : {})
+        });
+        if (!res.ok) throw new Error('records_' + res.status);
+        return res.json();
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    }
+
+    async function postAppsScript(payload) {
+      const res = await fetch('/api/apps-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('apps_script_' + res.status);
+      return res.json();
+    }
+
+    function applyCachedMemberData(dateStr) {
+      try {
+        const raw = localStorage.getItem(`fit_cache_v2_${state.memberName}_${dateStr}`);
+        if (!raw) return false;
+        const cached = JSON.parse(raw);
+        if (cached.record) state.record = cached.record;
+        if (cached.insights) state.insights = cached.insights;
+        if (Array.isArray(cached.columns) && cached.columns.length) state.columns = cached.columns;
+        if (Array.isArray(cached.workoutDays)) state.workoutDays = cached.workoutDays;
+        return true;
+      } catch { return false; }
+    }
+
+    function saveCachedMemberData(dateStr) {
+      try {
+        localStorage.setItem(`fit_cache_v2_${state.memberName}_${dateStr}`, JSON.stringify({
+          record: state.record,
+          insights: state.insights,
+          columns: state.columns,
+          workoutDays: state.workoutDays
+        }));
+      } catch {}
+    }
+
+    // --- Live Initialization (Parallel + Instant Cache) ---
+    async function initLiveMemberData() {
+      loadLocalMemberExtras();
+      if (!isLiveOrigin || !state.memberName || !state.token) {
+        renderAll();
+        return;
+      }
+      const hadCache = applyCachedMemberData(state.selectedDate);
+      state.isLive = true;
+      state.loading = !hadCache;
+      renderAll();
+      try {
+        const [sessRes] = await Promise.all([
+          postRecords({
+            action: 'memberSession',
+            member: state.memberName,
+            token: state.token,
+            date: state.selectedDate
+          }).catch(() => null),
+          loadMemberDateData(state.selectedDate)
+        ]);
+        if (sessRes?.status === 'success' && sessRes.session) {
+          state.session = sessRes.session;
+        }
+        saveCachedMemberData(state.selectedDate);
+        loadLocalMemberExtras();
+        maybeShowPrivacyConsent();
+      } catch {
+        state.isLive = false;
+        if (!hadCache) showToast('미리보기 데이터로 표시 중입니다');
+      } finally {
+        state.loading = false;
+        renderAll();
+      }
+    }
+
+    function maybeShowPrivacyConsent() {
+      try {
+        if (localStorage.getItem('fit_connect_consent_v2')) return;
+      } catch { return; }
+      openModal('개인정보 수집 · 이용 안내', `
+        <div class="space-y-4">
+          <p class="text-[13px] text-[#4B5563] leading-relaxed">
+            <strong>FIT-CONNECT (명진 트레이너의 운동노트)</strong>는 맞춤 운동·식단 피드백 제공을 위해 회원님이 입력하는 운동 기록, 식단, 컨디션 체크 정보를 안전하게 보관합니다.
+          </p>
+          <div class="p-3.5 rounded-2xl bg-[#F4F6F9] text-[12px] text-[#4B5563] space-y-1">
+            <p>• 수집 항목: 운동 세트 기록, 식단·수분, 컨디션 체크</p>
+            <p>• 이용 목적: PT 수업일지 및 1:1 코칭 피드백 제공</p>
+          </div>
+          <button type="button" id="btn-consent-ok" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-bold">
+            동의하고 리포트 시작하기
+          </button>
+        </div>
+      `);
+      document.getElementById('btn-consent-ok').addEventListener('click', () => {
+        try { localStorage.setItem('fit_connect_consent_v2', '1'); } catch {}
+        closeModal();
+        showToast('환영합니다! 오늘 리포트를 확인해 보세요');
+      });
+    }
+
+    async function loadMemberDateData(dateStr) {
+      if (!state.isLive) return;
+      const auth = state.session ? { session: state.session } : { token: state.token };
+      const month = dateStr.slice(0, 7);
+
+      const [daily, ins, cols, hist] = await Promise.allSettled([
+        postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
+        postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
+        postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
+        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth })
+      ]);
+
+      if (daily.status === 'fulfilled' && daily.value && typeof daily.value === 'object') {
+        const d = daily.value;
+        state.record = {
+          headerMessage: d.headerMessage || '',
+          routines: Array.isArray(d.routines) ? d.routines : [],
+          reflection: d.reflection || { good: '', bad: '' },
+          diet: {
+            breakfast: d.diet?.breakfast || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            lunch: d.diet?.lunch || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            dinner: d.diet?.dinner || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            snack: d.diet?.snack || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+            water: Number(d.diet?.water) || 0
+          },
+          feedback: d.feedback || { workout: '', diet: '', time: '' },
+          memos: Array.isArray(d.memos) ? d.memos : [],
+          dailyCheckin: d.dailyCheckin || { workout: '', diet: '', mood: '' }
+        };
+      }
+      if (ins.status === 'fulfilled' && ins.value?.status === 'success') state.insights = ins.value;
+      if (cols.status === 'fulfilled' && cols.value?.status === 'success' && Array.isArray(cols.value.columns) && cols.value.columns.length) {
+        state.columns = cols.value.columns;
+      }
+      if (hist.status === 'fulfilled' && hist.value?.status === 'success' && Array.isArray(hist.value.days)) {
+        state.workoutDays = hist.value.days;
+      }
+    }
+
+    // --- Live Save Wrappers ---
+    async function saveDailyCheckinLive(checkinObj) {
+      if (!state.isLive) return;
+      try {
+        await postRecords({ action: 'dailyCheckin', member: state.memberName, date: state.selectedDate, session: state.session, checkin: checkinObj });
+      } catch {
+        showToast('체크인 저장 중 네트워크 오류가 발생했어요');
+      }
+    }
+
+    async function savePatchLive(patchObj, targetMember) {
+      if (!state.isLive) return;
+      const mName = targetMember || state.memberName;
+      try {
+        await postAppsScript({
+          action: 'patchData',
+          member: mName,
+          date: state.selectedDate,
+          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
+          patch: patchObj
+        });
+      } catch {
+        showToast('저장 중 네트워크 오류가 발생했어요');
+      }
+    }
+
+    async function saveFullRecordLive(targetMember, fullData) {
+      if (!state.isLive) return;
+      const mName = targetMember || state.memberName;
+      try {
+        await postAppsScript({
+          member: mName,
+          date: state.selectedDate,
+          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
+          data: fullData || state.record
+        });
+      } catch {
+        showToast('저장 중 네트워크 오류가 발생했어요');
+      }
+    }
+
+    // --- UI Feedback ---
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.remove('opacity-0');
+      t.classList.add('opacity-100');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => {
+        t.classList.remove('opacity-100');
+        t.classList.add('opacity-0');
+      }, 2200);
+    }
+
+    function triggerConfetti() {
+      const colors = ['#3B82F6', '#2DD4BF', '#60A5FA', '#F59E0B', '#FFFFFF'];
+      for (let i = 0; i < 20; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'confetti-dot';
+        dot.style.background = colors[i % colors.length];
+        dot.style.left = (45 + (Math.random() * 10 - 5)) + '%';
+        dot.style.top = '18%';
+        dot.style.setProperty('--tx', ((Math.random() - 0.5) * 220) + 'px');
+        dot.style.setProperty('--ty', (Math.random() * 160 - 40) + 'px');
+        document.body.appendChild(dot);
+        setTimeout(() => dot.remove(), 950);
+      }
+    }
+
+    // --- Custom Timer Engine & Floating Bar ---
+    function getConfiguredTimerSeconds() {
+      const total = (Number(state.timer.customMin) || 0) * 60 + (Number(state.timer.customSec) || 0);
+      return Math.max(5, total);
+    }
+
+    function updateFloatingTimerUI() {
+      const bar = document.getElementById('floating-timer-bar');
+      if (!bar) return;
+      if (state.appMode !== 'member' || state.timer.remaining <= 0) {
+        bar.classList.add('hidden');
+        return;
+      }
+      bar.classList.remove('hidden');
+      document.getElementById('ft-time').textContent = formatMMSS(state.timer.remaining);
+      document.getElementById('ft-sub').textContent = `휴식 타이머 · ${state.timer.setsDone}세트 완료`;
+      document.getElementById('ft-toggle').textContent = state.timer.running ? '일시정지' : '재개';
+    }
+
+    function startTimerCountdown(sec) {
+      if (state.timer.interval) {
+        clearInterval(state.timer.interval);
+        state.timer.interval = null;
+      }
+      const targetSec = typeof sec === 'number' ? Math.max(5, sec) : getConfiguredTimerSeconds();
+      state.timer.total = targetSec;
+      state.timer.remaining = targetSec;
+      state.timer.running = true;
+      runTimerTick();
+      updateFloatingTimerUI();
+      const badge = document.getElementById('rest-timer-badge');
+      if (badge) badge.textContent = `⏱ ${formatMMSS(state.timer.remaining)}`;
+    }
+
+    function runTimerTick() {
+      if (state.timer.interval) clearInterval(state.timer.interval);
+      state.timer.interval = setInterval(() => {
+        if (!state.timer.running) return;
+        state.timer.remaining -= 1;
+        if (state.timer.remaining <= 0) {
+          clearInterval(state.timer.interval);
+          state.timer.interval = null;
+          state.timer.remaining = 0;
+          state.timer.running = false;
+          if (state.timer.soundOn) playTimerBeep();
+          if (state.timer.vibrateOn && navigator.vibrate) {
+            try { navigator.vibrate([180, 90, 180]); } catch {}
+          }
+          showToast('휴식 완료! 다음 세트 시작해볼까요? 💪');
+          triggerConfetti();
+        }
+        updateFloatingTimerUI();
+        const badge = document.getElementById('rest-timer-badge');
+        if (badge) badge.textContent = state.timer.remaining > 0 ? `⏱ ${formatMMSS(state.timer.remaining)}` : '⏱ 타이머';
+        const modalTime = document.getElementById('tm-live-display');
+        if (modalTime) modalTime.textContent = formatMMSS(state.timer.remaining > 0 ? state.timer.remaining : getConfiguredTimerSeconds());
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (state.timer.interval) {
+        clearInterval(state.timer.interval);
+        state.timer.interval = null;
+      }
+      state.timer.running = false;
+      state.timer.remaining = 0;
+      updateFloatingTimerUI();
+      const badge = document.getElementById('rest-timer-badge');
+      if (badge) badge.textContent = '⏱ 타이머';
+    }
+
+    function openTimerModal() {
+      function renderTimerModalBody() {
+        const displaySec = state.timer.remaining > 0 ? state.timer.remaining : getConfiguredTimerSeconds();
+        openModal('운동 · 휴식 타이머 설정기', `
+          <div class="space-y-4">
+            <div class="p-5 rounded-[24px] hero-navy text-white text-center space-y-2">
+              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.timer.running ? '카운트다운 진행 중' : '설정된 휴식 시간'}</span>
+              <p id="tm-live-display" class="text-[42px] font-extrabold tabular-nums tracking-tight leading-none pt-1">${formatMMSS(displaySec)}</p>
+              <div class="flex items-center justify-center gap-2 pt-2">
+                <button type="button" id="tm-minus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">-10초</button>
+                <button type="button" id="tm-start-btn" class="tap-scale px-5 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold">${state.timer.running ? '일시정지' : '시작하기'}</button>
+                <button type="button" id="tm-plus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">+10초</button>
+              </div>
+            </div>
+
+            <div>
+              <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 프리셋</p>
+              <div class="grid grid-cols-4 gap-2">
+                ${[30, 60, 90, 120].map(sec => `
+                  <button type="button" data-tsec="${sec}" class="tm-preset-btn tap-scale py-2.5 rounded-2xl text-[12px] font-bold ${getConfiguredTimerSeconds() === sec ? 'card-blue text-white' : 'bg-[#F4F6F9] text-[#111827]'}">${sec >= 60 && sec % 60 === 0 ? (sec / 60) + '분' : sec + '초'}</button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (분)</label>
+                <input id="tm-min-inp" type="number" min="0" max="30" value="${state.timer.customMin}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
+              </div>
+              <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (초)</label>
+                <input id="tm-sec-inp" type="number" min="0" max="59" value="${state.timer.customSec}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
+              </div>
+            </div>
+
+            <div class="p-3.5 rounded-2xl bg-[#EFF6FF] flex items-center justify-between">
+              <div>
+                <p class="text-[13px] font-bold text-[#111827]">오늘 완료 세트 카운터</p>
+                <p class="text-[11px] text-[#1D4ED8]">운동 체크 시 자동으로 올라가요</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button type="button" id="tm-set-dec" class="tap-scale w-8 h-8 rounded-xl bg-white text-[#111827] font-bold shadow-sm">-</button>
+                <span class="text-[16px] font-extrabold text-[#1D4ED8] tabular-nums w-8 text-center">${state.timer.setsDone}</span>
+                <button type="button" id="tm-set-inc" class="tap-scale w-8 h-8 rounded-xl bg-[#1D4ED8] text-white font-bold shadow-sm">+</button>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                <span class="text-[13px] font-semibold text-[#111827]">운동 체크 시 휴식 타이머 자동 시작</span>
+                <input id="tm-auto-chk" type="checkbox" ${state.timer.autoStartOnCheck ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+              </label>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                  <span class="text-[12px] font-semibold text-[#111827]">종료 알림음</span>
+                  <input id="tm-sound-chk" type="checkbox" ${state.timer.soundOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+                </label>
+                <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                  <span class="text-[12px] font-semibold text-[#111827]">진동 알림</span>
+                  <input id="tm-vib-chk" type="checkbox" ${state.timer.vibrateOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+                </label>
+              </div>
+            </div>
+          </div>
+        `);
+
+        document.querySelectorAll('.tm-preset-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            const s = Number(b.dataset.tsec);
+            state.timer.customMin = Math.floor(s / 60);
+            state.timer.customSec = s % 60;
+            saveTimerPrefsLocal();
+            startTimerCountdown(s);
+            renderTimerModalBody();
+          });
+        });
+
+        document.getElementById('tm-minus-10').addEventListener('click', () => {
+          if (state.timer.remaining > 0) {
+            state.timer.remaining = Math.max(5, state.timer.remaining - 10);
+          } else {
+            const next = Math.max(5, getConfiguredTimerSeconds() - 10);
+            state.timer.customMin = Math.floor(next / 60);
+            state.timer.customSec = next % 60;
+            saveTimerPrefsLocal();
+          }
+          updateFloatingTimerUI();
+          renderTimerModalBody();
+        });
+
+        document.getElementById('tm-plus-10').addEventListener('click', () => {
+          if (state.timer.remaining > 0) {
+            state.timer.remaining += 10;
+          } else {
+            const next = getConfiguredTimerSeconds() + 10;
+            state.timer.customMin = Math.floor(next / 60);
+            state.timer.customSec = next % 60;
+            saveTimerPrefsLocal();
+          }
+          updateFloatingTimerUI();
+          renderTimerModalBody();
+        });
+
+        document.getElementById('tm-start-btn').addEventListener('click', () => {
+          if (state.timer.running) {
+            state.timer.running = false;
+            updateFloatingTimerUI();
+          } else if (state.timer.remaining > 0) {
+            state.timer.running = true;
+            runTimerTick();
+            updateFloatingTimerUI();
+          } else {
+            startTimerCountdown(getConfiguredTimerSeconds());
+          }
+          renderTimerModalBody();
+        });
+
+        const applyCustomInputs = () => {
+          const m = Math.max(0, Math.min(30, Number(document.getElementById('tm-min-inp').value) || 0));
+          const s = Math.max(0, Math.min(59, Number(document.getElementById('tm-sec-inp').value) || 0));
+          state.timer.customMin = m;
+          state.timer.customSec = s;
+          saveTimerPrefsLocal();
+          const disp = document.getElementById('tm-live-display');
+          if (disp && state.timer.remaining <= 0) disp.textContent = formatMMSS(getConfiguredTimerSeconds());
+        };
+        document.getElementById('tm-min-inp').addEventListener('input', applyCustomInputs);
+        document.getElementById('tm-sec-inp').addEventListener('input', applyCustomInputs);
+
+        document.getElementById('tm-set-dec').addEventListener('click', () => {
+          state.timer.setsDone = Math.max(0, state.timer.setsDone - 1);
+          updateFloatingTimerUI();
+          renderTimerModalBody();
+        });
+        document.getElementById('tm-set-inc').addEventListener('click', () => {
+          state.timer.setsDone += 1;
+          updateFloatingTimerUI();
+          renderTimerModalBody();
+        });
+
+        document.getElementById('tm-auto-chk').addEventListener('change', e => {
+          state.timer.autoStartOnCheck = e.target.checked;
+          saveTimerPrefsLocal();
+        });
+        document.getElementById('tm-sound-chk').addEventListener('change', e => {
+          state.timer.soundOn = e.target.checked;
+          saveTimerPrefsLocal();
+        });
+        document.getElementById('tm-vib-chk').addEventListener('change', e => {
+          state.timer.vibrateOn = e.target.checked;
+          saveTimerPrefsLocal();
+        });
+      }
+      renderTimerModalBody();
+    }
+
+    // --- Barbell Plate Calculator Modal ---
+    function computePlatesPerSide(targetWeight, barWeight) {
+      const plates = [20, 15, 10, 5, 2.5, 1.25];
+      let perSide = Math.max(0, (targetWeight - barWeight) / 2);
+      const result = [];
+      plates.forEach(p => {
+        while (perSide >= p - 0.001) {
+          result.push(p);
+          perSide -= p;
+        }
+      });
+      return { plates: result, remainder: Math.round(perSide * 100) / 100 };
+    }
+
+    function openPlateCalcModal() {
+      function renderPlateModal() {
+        const { targetWeight, barWeight } = state.plateCalc;
+        const { plates, remainder } = computePlatesPerSide(targetWeight, barWeight);
+        const grouped = {};
+        plates.forEach(p => { grouped[p] = (grouped[p] || 0) + 1; });
+        const plateColor = p => p >= 20 ? '#1E3A8A' : p >= 15 ? '#0F766E' : p >= 10 ? '#2563EB' : p >= 5 ? '#14B8A6' : '#64748B';
+        const plateHeight = p => p >= 20 ? 58 : p >= 15 ? 50 : p >= 10 ? 42 : p >= 5 ? 34 : 26;
+
+        openModal('바벨 원판(플레이트) 계산기', `
+          <div class="space-y-4">
+            <div class="p-4 rounded-[22px] bg-[#F4F6F9] space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-[12px] font-bold text-[#4B5563]">목표 총 무게</span>
+                <div class="flex gap-1">
+                  ${[20, 15].map(bw => `
+                    <button type="button" data-bw="${bw}" class="pc-bar-btn px-2.5 py-1 rounded-full text-[11px] font-bold ${barWeight === bw ? 'hero-navy text-white' : 'bg-white text-[#4B5563]'}">바벨 ${bw}kg</button>
+                  `).join('')}
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <button type="button" id="pc-minus" class="tap-scale w-11 h-11 rounded-2xl bg-white text-[#111827] text-[15px] font-extrabold shadow-sm">-2.5</button>
+                <div class="flex-1 text-center">
+                  <input id="pc-target-inp" type="number" step="2.5" min="15" max="300" value="${targetWeight}" class="w-28 text-center text-[30px] font-extrabold text-[#1E3A8A] tabular-nums bg-transparent focus:outline-none" />
+                  <span class="text-[15px] font-bold text-[#6B7280]">kg</span>
+                </div>
+                <button type="button" id="pc-plus" class="tap-scale w-11 h-11 rounded-2xl bg-[#1D4ED8] text-white text-[15px] font-extrabold shadow-sm">+2.5</button>
+              </div>
+              <div class="flex justify-center gap-1.5 flex-wrap">
+                ${[40, 60, 80, 100].map(w => `
+                  <button type="button" data-qw="${w}" class="pc-quick-btn px-3 py-1 rounded-full bg-white text-[11px] font-bold text-[#1D4ED8] shadow-sm">${w}kg</button>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Visual Barbell -->
+            <div class="p-5 rounded-[22px] hero-navy text-white space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold text-[#5EEAD4]">한쪽당 꽂을 원판</span>
+                <span class="text-[11px] text-white/75">빈 바 ${barWeight}kg 기준</span>
+              </div>
+              <div class="h-20 flex items-center justify-center overflow-hidden">
+                <div class="flex items-center">
+                  ${[...plates].reverse().map(p => `<div style="height:${plateHeight(p)}px;background:${plateColor(p)}" class="w-3 rounded-sm border border-white/40 mx-[1px]"></div>`).join('')}
+                  <div class="w-24 h-2.5 bg-white/80 rounded-full mx-1"></div>
+                  ${plates.map(p => `<div style="height:${plateHeight(p)}px;background:${plateColor(p)}" class="w-3 rounded-sm border border-white/40 mx-[1px]"></div>`).join('')}
+                </div>
+              </div>
+              <p class="text-center text-[14px] font-extrabold">
+                ${plates.length ? Object.entries(grouped).map(([p, c]) => `${p}kg × ${c}장`).join(' + ') : '빈 바만 사용 (추가 원판 없음)'}
+              </p>
+              ${remainder > 0 ? `<p class="text-center text-[11px] text-[#FDE68A]">남는 무게: 양쪽 합 ${(remainder * 2).toFixed(1)}kg (최소 원판 1.25kg)</p>` : ''}
+            </div>
+          </div>
+        `);
+
+        document.querySelectorAll('.pc-bar-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            state.plateCalc.barWeight = Number(b.dataset.bw);
+            renderPlateModal();
+          });
+        });
+        document.querySelectorAll('.pc-quick-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            state.plateCalc.targetWeight = Number(b.dataset.qw);
+            renderPlateModal();
+          });
+        });
+        document.getElementById('pc-minus').addEventListener('click', () => {
+          state.plateCalc.targetWeight = Math.max(state.plateCalc.barWeight, state.plateCalc.targetWeight - 2.5);
+          renderPlateModal();
+        });
+        document.getElementById('pc-plus').addEventListener('click', () => {
+          state.plateCalc.targetWeight = Math.min(300, state.plateCalc.targetWeight + 2.5);
+          renderPlateModal();
+        });
+        document.getElementById('pc-target-inp').addEventListener('change', e => {
+          state.plateCalc.targetWeight = Math.max(0, Number(e.target.value) || state.plateCalc.barWeight);
+          renderPlateModal();
+        });
+      }
+      renderPlateModal();
+    }
+
+    // --- Ounwan (오늘 운동 완료) Quest Card Image Generator ---
+    function openOunwanCardModal() {
+      const wr = getWorkoutRate();
+      const ds = getDietStats();
+      const chk = state.record.dailyCheckin || {};
+      const streak = state.insights?.careSummary?.workoutDays || state.workoutDays.length || 1;
+      const coachMsg = (state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate)).slice(0, 62);
+
+      const q1Done = (wr.total > 0 && wr.done >= wr.total) || chk.workout === 'done';
+      const q2Done = ds.water >= 2000;
+      const q3Done = ds.loggedCount > 0 || chk.diet === 'done';
+      const clearedCount = [q1Done, q2Done, q3Done].filter(Boolean).length;
+
+      // 운동을 완료하면 100% 달성 처리 (수분/식단 미달 시에도 100% 클리어 성취감 제공)
+      const questPct = q1Done ? 100 : (wr.total > 0 ? wr.pct : 0);
+      const isAllClear = questPct >= 100;
+
+      // 아쉬운 점 / 보완 포인트 자동 생성
+      const improvements = [];
+      if (!q1Done) improvements.push(`남은 운동 ${Math.max(1, wr.total - wr.done)}종목 마무리하기`);
+      if (!q2Done) improvements.push(`수분 ${((2000 - ds.water) / 1000).toFixed(1)}L 추가 보충 (부종·피로 완화)`);
+      if (!q3Done) improvements.push('식단 1끼 이상 기록해 영양 밸런스 체크하기');
+      const focusText = improvements.length
+        ? improvements.slice(0, 2).join(' · ')
+        : '운동·수분·식단 밸런스 완벽! 충분한 수면으로 근회복을 마무리하세요.';
+
+      const shareText = `[FIT-CONNECT 퀘스트] ${state.memberName}님 · ${state.selectedDate}\n${isAllClear ? 'QUEST CLEAR 100%!' : `퀘스트 ${questPct}% 진행 중`} (루틴 ${wr.done}/${wr.total} · 수분 ${(ds.water / 1000).toFixed(1)}L · 연속 ${streak}일)`;
+
+      openModal('오늘의 퀘스트 카드 저장', `
+        <div class="space-y-4">
+          <div class="rounded-[22px] overflow-hidden shadow-xl bg-[#060B19]">
+            <canvas id="ounwan-canvas" width="720" height="880" class="hidden"></canvas>
+            <img id="ounwan-img-preview" alt="오운완 퀘스트 카드" class="w-full h-auto block" />
+          </div>
+          <p class="text-[11px] text-center text-[#6B7280]">아이폰·카톡에서는 위 이미지를 꾹 눌러서도 바로 저장할 수 있어요</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="btn-download-ounwan" class="tap-scale py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">이미지 저장 · 공유</button>
+            <button type="button" id="btn-copy-ounwan" class="tap-scale py-3.5 rounded-2xl card-teal text-white text-[13px] font-extrabold">문구 복사하기</button>
+          </div>
+        </div>
+      `);
+
+      const canvas = document.getElementById('ounwan-canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Deep Obsidian Gradient
+      const grad = ctx.createLinearGradient(0, 0, 720, 880);
+      grad.addColorStop(0, '#060B19');
+      grad.addColorStop(0.52, '#0F1E42');
+      grad.addColorStop(1, '#092B34');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 720, 880);
+
+      // Subtle HUD Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1;
+      for (let gx = 40; gx < 720; gx += 40) {
+        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 880); ctx.stroke();
+      }
+      for (let gy = 40; gy < 880; gy += 40) {
+        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(720, gy); ctx.stroke();
+      }
+
+      // Ambient Glows
+      const g1 = ctx.createRadialGradient(600, 120, 10, 600, 120, 260);
+      g1.addColorStop(0, 'rgba(59, 130, 246, 0.28)');
+      g1.addColorStop(1, 'rgba(59, 130, 246, 0)');
+      ctx.fillStyle = g1;
+      ctx.fillRect(0, 0, 720, 880);
+
+      const g2 = ctx.createRadialGradient(120, 760, 10, 120, 760, 260);
+      g2.addColorStop(0, 'rgba(20, 184, 166, 0.24)');
+      g2.addColorStop(1, 'rgba(20, 184, 166, 0)');
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, 720, 880);
+
+      // Outer Frame
+      ctx.strokeStyle = 'rgba(96, 165, 250, 0.25)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(24, 24, 672, 832, 32);
+      ctx.stroke();
+
+      // Top HUD Header
+      ctx.fillStyle = '#60A5FA';
+      ctx.font = '800 18px Pretendard, sans-serif';
+      ctx.fillText('FIT-CONNECT // DAILY QUEST', 56, 76);
+
+      // Status Pill
+      if (isAllClear) {
+        ctx.fillStyle = '#5EEAD4';
+        ctx.beginPath();
+        ctx.roundRect(472, 48, 192, 40, 20);
+        ctx.fill();
+        ctx.fillStyle = '#06131F';
+        ctx.font = '800 17px Pretendard, sans-serif';
+        ctx.fillText('QUEST CLEAR ✓', 498, 74);
+      } else {
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.22)';
+        ctx.strokeStyle = '#60A5FA';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(458, 48, 206, 40, 20);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#93C5FD';
+        ctx.font = '800 17px Pretendard, sans-serif';
+        ctx.fillText(`IN PROGRESS · ${questPct}%`, 480, 74);
+      }
+
+      // Member & Day Streak
+      ctx.fillStyle = 'rgba(255,255,255,0.68)';
+      ctx.font = '600 22px Pretendard, sans-serif';
+      ctx.fillText(`${state.selectedDate}  ·  STREAK DAY ${String(streak).padStart(2, '0')}`, 56, 132);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 44px Pretendard, sans-serif';
+      ctx.fillText(`${state.memberName}님의 오늘 퀘스트`, 56, 192);
+
+      // XP Progress Bar
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      ctx.beginPath();
+      ctx.roundRect(56, 222, 608, 22, 11);
+      ctx.fill();
+
+      const barW = Math.max(24, Math.round((608 * questPct) / 100));
+      const barGrad = ctx.createLinearGradient(56, 0, 664, 0);
+      barGrad.addColorStop(0, '#3B82F6');
+      barGrad.addColorStop(1, '#5EEAD4');
+      ctx.fillStyle = barGrad;
+      ctx.beginPath();
+      ctx.roundRect(56, 222, barW, 22, 11);
+      ctx.fill();
+
+      ctx.fillStyle = '#5EEAD4';
+      ctx.font = '800 18px Pretendard, sans-serif';
+      ctx.fillText(`${questPct}% ACHIEVED`, 56, 272);
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = '600 18px Pretendard, sans-serif';
+      ctx.fillText(`${clearedCount} / 3 CHECKPOINTS`, 464, 272);
+
+      // 3 Quest Objective Cards
+      const quests = [
+        { code: 'MAIN QUEST', title: '오늘의 운동 루틴', sub: `${wr.done}/${wr.total} 종목 완료`, done: q1Done },
+        { code: 'SUB QUEST 01', title: '수분 2.0L 채우기', sub: `${(ds.water / 1000).toFixed(1)}L / 2.0L`, done: q2Done },
+        { code: 'SUB QUEST 02', title: '식단 · 컨디션 체크', sub: `${ds.loggedCount}끼 기록`, done: q3Done }
+      ];
+
+      quests.forEach((q, idx) => {
+        const y = 304 + idx * 102;
+        ctx.fillStyle = q.done ? 'rgba(20, 184, 166, 0.12)' : 'rgba(255, 255, 255, 0.05)';
+        ctx.strokeStyle = q.done ? 'rgba(94, 234, 212, 0.45)' : 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(56, y, 608, 86, 20);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = q.done ? '#5EEAD4' : 'rgba(255,255,255,0.1)';
+        ctx.beginPath();
+        ctx.arc(102, y + 43, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = q.done ? '#06131F' : 'rgba(255,255,255,0.45)';
+        ctx.font = '800 18px Pretendard, sans-serif';
+        ctx.fillText(q.done ? '✓' : '·', q.done ? 95 : 99, y + 49);
+
+        ctx.fillStyle = q.done ? '#5EEAD4' : '#60A5FA';
+        ctx.font = '800 13px Pretendard, sans-serif';
+        ctx.fillText(q.code, 138, y + 32);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '800 22px Pretendard, sans-serif';
+        ctx.fillText(q.title, 138, y + 63);
+
+        ctx.fillStyle = q.done ? '#5EEAD4' : 'rgba(255,255,255,0.72)';
+        ctx.font = '700 18px Pretendard, sans-serif';
+        ctx.fillText(q.sub, 500, y + 50);
+      });
+
+      // Next Focus / 보완할 점 Card
+      ctx.fillStyle = improvements.length ? 'rgba(245, 158, 11, 0.10)' : 'rgba(20, 184, 166, 0.14)';
+      ctx.strokeStyle = improvements.length ? 'rgba(251, 191, 36, 0.40)' : 'rgba(94, 234, 212, 0.40)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(56, 622, 608, 102, 20);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = improvements.length ? '#FBBF24' : '#5EEAD4';
+      ctx.font = '800 14px Pretendard, sans-serif';
+      ctx.fillText(improvements.length ? 'NEXT FOCUS · 보완 포인트' : 'ALL CLEAR · 오늘의 피드백', 82, 654);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.94)';
+      ctx.font = '600 19px Pretendard, sans-serif';
+      ctx.fillText(focusText.slice(0, 32), 82, 686);
+      if (focusText.length > 32) ctx.fillText(focusText.slice(32, 64), 82, 712);
+
+      // Bottom Coach Briefing Strip
+      ctx.fillStyle = 'rgba(30, 58, 138, 0.42)';
+      ctx.strokeStyle = 'rgba(96, 165, 250, 0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(56, 738, 608, 92, 20);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#60A5FA';
+      ctx.font = '800 14px Pretendard, sans-serif';
+      ctx.fillText('COACH BRIEFING', 82, 770);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = '500 18px Pretendard, sans-serif';
+      ctx.fillText(coachMsg.slice(0, 32), 82, 795);
+      if (coachMsg.length > 32) ctx.fillText(coachMsg.slice(32, 62), 82, 818);
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const prevImg = document.getElementById('ounwan-img-preview');
+      if (prevImg) prevImg.src = dataUrl;
+
+      document.getElementById('btn-download-ounwan').addEventListener('click', async () => {
+        try {
+          if (navigator.share && canvas.toBlob) {
+            const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+            if (blob) {
+              const file = new File([blob], `fit-connect-quest-${state.selectedDate}.png`, { type: 'image/png' });
+              if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: 'FIT-CONNECT 오늘의 퀘스트' });
+                return;
+              }
+            }
+          }
+          const link = document.createElement('a');
+          link.download = `fit-connect-quest-${state.selectedDate}.png`;
+          link.href = dataUrl;
+          link.click();
+          showToast('퀘스트 카드 이미지가 저장되었어요!');
+        } catch {
+          showToast('위 이미지를 꾹 눌러 사진첩에 저장해 보세요');
+        }
+      });
+      document.getElementById('btn-copy-ounwan').addEventListener('click', () => {
+        copyTextSafe(shareText);
+        showToast('퀘스트 문구가 복사되었어요!');
+      });
+    }
+
+    function addWaterCup(mlDelta) {
+      state.record.diet.water = Math.max(0, (Number(state.record.diet.water) || 0) + mlDelta);
+      try {
+        localStorage.setItem(`fit_water_${state.memberName}_${state.selectedDate}`, String(state.record.diet.water));
+      } catch {}
+      showToast(mlDelta > 0 ? `물 ${mlDelta}ml 추가! (총 ${(state.record.diet.water / 1000).toFixed(2)}L)` : `수분 기록 조정 (${(state.record.diet.water / 1000).toFixed(2)}L)`);
+      renderAll();
+      savePatchLive({ diet: { water: state.record.diet.water } });
+    }
+
+    function openModal(title, htmlContent) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-body').innerHTML = htmlContent;
+      const b = document.getElementById('modal-backdrop');
+      b.classList.remove('hidden');
+      b.classList.add('flex');
+    }
+
+    function closeModal() {
+      const b = document.getElementById('modal-backdrop');
+      b.classList.add('hidden');
+      b.classList.remove('flex');
+    }
+
+    // --- Metrics & Visual SVGs ---
+    function getWorkoutRate() {
+      const rs = state.record.routines || [];
+      if (!rs.length) return { done: 0, total: 0, pct: 0 };
+      const done = rs.filter(r => Array.isArray(r.completedSets) && r.completedSets.some(Boolean)).length;
+      return { done, total: rs.length, pct: Math.round((done / rs.length) * 100) };
+    }
+
+    function getDietStats() {
+      const d = state.record.diet || {};
+      const keys = ['breakfast', 'lunch', 'dinner', 'snack'];
+      let kcal = 0, carb = 0, prot = 0, fat = 0, loggedCount = 0;
+      keys.forEach(k => {
+        const m = d[k] || {};
+        const c = Number(m.cal) || 0;
+        const hasPhotos = Array.isArray(m.photos) && m.photos.length > 0;
+        if (c > 0 || String(m.desc || '').trim() || hasPhotos) loggedCount++;
+        kcal += c;
+        carb += Number(m.carb) || 0;
+        prot += Number(m.prot) || 0;
+        fat += Number(m.fat) || 0;
+      });
+      const macroSum = carb + prot + fat;
+      return {
+        kcal,
+        pct: Math.min(100, Math.round((kcal / state.targetKcal) * 100)),
+        loggedCount,
+        carbPct: macroSum ? Math.round((carb / macroSum) * 100) : 45,
+        protPct: macroSum ? Math.round((prot / macroSum) * 100) : 35,
+        fatPct: macroSum ? Math.round((fat / macroSum) * 100) : 20,
+        water: Number(d.water) || 0
+      };
+    }
+
+    function computeCareScore() {
+      const wr = getWorkoutRate();
+      const ds = getDietStats();
+      const chk = state.record.dailyCheckin || {};
+      const weekDays = state.insights?.careSummary?.workoutDays || 0;
+      let score = 55 + Math.min(20, weekDays * 6) + Math.round(wr.pct * 0.15);
+      if (chk.workout === 'done') score += 5;
+      if (chk.diet === 'done') score += 4;
+      if (ds.loggedCount > 0) score += 3;
+      return Math.min(100, score);
+    }
+
+    function heroRingsSvg(scorePct, kcalPct, routinePct) {
+      const rings = [
+        { r: 44, pct: scorePct, color: '#60A5FA', track: 'rgba(255,255,255,0.16)' },
+        { r: 33, pct: Math.max(8, kcalPct), color: '#5EEAD4', track: 'rgba(255,255,255,0.14)' },
+        { r: 22, pct: Math.max(8, routinePct), color: '#FFFFFF', track: 'rgba(255,255,255,0.12)' }
+      ];
+      return `
+        <svg width="106" height="106" class="-rotate-90" viewBox="0 0 106 106">
+          ${rings.map(ring => {
+            const circ = 2 * Math.PI * ring.r;
+            const offset = circ - (Math.min(100, ring.pct) / 100) * circ;
+            return `
+              <circle cx="53" cy="53" r="${ring.r}" fill="none" stroke="${ring.track}" stroke-width="7.5"/>
+              <circle cx="53" cy="53" r="${ring.r}" fill="none" stroke="${ring.color}" stroke-width="7.5" stroke-linecap="round"
+                stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}" class="transition-all duration-500"/>
+            `;
+          }).join('')}
+        </svg>
+      `;
+    }
+
+    function miniRing(pct) {
+      const r = 16;
+      const c = 2 * Math.PI * r;
+      const offset = c - (Math.min(100, pct) / 100) * c;
+      return `
+        <svg width="42" height="42" class="-rotate-90" viewBox="0 0 42 42">
+          <circle cx="21" cy="21" r="${r}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="4.5"/>
+          <circle cx="21" cy="21" r="${r}" fill="none" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round"
+            stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}" class="transition-all duration-500"/>
+        </svg>
+      `;
+    }
+
+    function weeklyCurveSvg() {
+      const wr = getWorkoutRate();
+      const pts = state.weekDays.map((d, i) => {
+        const isSel = d.fullDate === state.selectedDate;
+        const worked = state.workoutDays.includes(d.fullDate);
+        let val = worked ? 82 : 24;
+        if (isSel) val = Math.max(val, wr.pct > 0 ? wr.pct : (state.record.dailyCheckin.workout === 'done' ? 85 : 35));
+        const x = 16 + i * 52;
+        const y = 74 - (val / 100) * 56;
+        return { x, y, day: d.day, isSel, worked };
+      });
+      let pathD = `M ${pts[0].x} ${pts[0].y}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const cpX = (pts[i].x + pts[i + 1].x) / 2;
+        pathD += ` C ${cpX} ${pts[i].y}, ${cpX} ${pts[i + 1].y}, ${pts[i + 1].x} ${pts[i + 1].y}`;
+      }
+      const areaD = `${pathD} L ${pts[pts.length - 1].x} 82 L ${pts[0].x} 82 Z`;
+      return `
+        <svg viewBox="0 0 344 96" class="w-full h-24 overflow-visible">
+          <defs>
+            <linearGradient id="liveCurve" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#1D4ED8"/><stop offset="100%" stop-color="#14B8A6"/></linearGradient>
+            <linearGradient id="liveFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2563EB" stop-opacity="0.20"/><stop offset="100%" stop-color="#14B8A6" stop-opacity="0.0"/></linearGradient>
+          </defs>
+          <path d="${areaD}" fill="url(#liveFill)"/>
+          <path d="${pathD}" fill="none" stroke="url(#liveCurve)" stroke-width="2.8" stroke-linecap="round"/>
+          ${pts.map(pt => `
+            <circle cx="${pt.x}" cy="${pt.y}" r="${pt.isSel ? 5.5 : 3.5}" fill="${pt.isSel ? '#14B8A6' : (pt.worked ? '#1D4ED8' : '#CBD5E1')}" stroke="#FFFFFF" stroke-width="2"/>
+            <text x="${pt.x}" y="95" text-anchor="middle" font-size="10" font-weight="${pt.isSel ? '800' : '600'}" fill="${pt.isSel ? '#1D4ED8' : '#9CA3AF'}">${pt.day}</text>
+          `).join('')}
+        </svg>
+      `;
+    }
+
+    // --- Member Modals ---
+    function openWorkoutVerifyModal() {
+      const wr = getWorkoutRate();
+      const missions = [
+        '오늘 사용한 기구 또는 덤벨과 함께 찍기 🏋️',
+        '운동 후 물통이나 타올과 함께 브이(✌️) 인증하기',
+        '헬스장 거울 또는 매트 위에서 현장 인증하기 💪'
+      ];
+      const missionIdx = state.selectedDate.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % missions.length;
+      const dailyMission = missions[missionIdx];
+      let verifiedPhoto = '';
+      let intensity = '적당함';
+
+      openModal('오늘 운동 현장 인증', `
+        <div class="space-y-4">
+          <div class="p-3.5 rounded-2xl hero-navy text-white space-y-1">
+            <span class="text-[10px] font-extrabold text-[#5EEAD4]">TODAY'S VERIFY MISSION</span>
+            <p class="text-[13px] font-bold">${dailyMission}</p>
+            <p class="text-[11px] text-white/75">현재 루틴 완료: ${wr.done}/${wr.total}종목</p>
+          </div>
+
+          <div>
+            <label class="tap-scale w-full py-3.5 px-4 rounded-2xl border-2 border-dashed border-[#3B82F6] bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center gap-2 text-[13px] font-extrabold cursor-pointer">
+              <input id="wv-camera-input" type="file" accept="image/*" capture="environment" class="hidden" />
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span id="wv-photo-label">카메라로 현장 인증 찍기 (시각 자동 각인)</span>
+            </label>
+            <p id="wv-old-warn" class="hidden text-[11px] text-amber-600 font-semibold mt-1.5 px-1">⚠️ 이전에 저장된 사진일 수 있어요. 가능하면 지금 카메라로 바로 촬영해 주세요.</p>
+            <img id="wv-photo-prev" src="" alt="운동 인증 사진" class="hidden mt-2.5 w-full h-44 object-cover rounded-2xl shadow-sm" />
+          </div>
+
+          <div>
+            <p class="text-[12px] font-bold text-[#4B5563] mb-1.5">오늘 운동 강도</p>
+            <div class="grid grid-cols-3 gap-1.5">
+              ${['가벼움', '적당함', '불태움 🔥'].map(lv => `
+                <button type="button" data-ilv="${lv}" class="wv-int-btn tap-scale py-2 rounded-xl text-[12px] font-bold ${lv === intensity ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'}">${lv}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <button type="button" id="wv-submit-btn" class="tap-scale w-full py-3.5 rounded-2xl card-teal text-white text-[14px] font-extrabold shadow-md">
+            운동 인증 완료하고 코치에게 알리기
+          </button>
+        </div>
+      `);
+
+      document.getElementById('wv-camera-input').addEventListener('change', async e => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const warnEl = document.getElementById('wv-old-warn');
+        if (f.lastModified && (Date.now() - f.lastModified > 3600000)) {
+          warnEl.classList.remove('hidden');
+        } else {
+          warnEl.classList.add('hidden');
+        }
+        try {
+          verifiedPhoto = await compressAndWatermarkPhoto(f, state.memberName);
+          const prev = document.getElementById('wv-photo-prev');
+          prev.src = verifiedPhoto;
+          prev.classList.remove('hidden');
+          document.getElementById('wv-photo-label').textContent = '실시간 워터마크 합성 완료 ✓ (다시 찍기)';
+          showToast('현재 시각 워터마크가 합성되었어요');
+        } catch {
+          showToast('사진을 처리하지 못했어요');
+        }
+      });
+
+      document.querySelectorAll('.wv-int-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          intensity = b.dataset.ilv;
+          document.querySelectorAll('.wv-int-btn').forEach(x => {
+            const act = x.dataset.ilv === intensity;
+            x.className = `wv-int-btn tap-scale py-2 rounded-xl text-[12px] font-bold ${act ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'}`;
+          });
+        });
+      });
+
+      document.getElementById('wv-submit-btn').addEventListener('click', async () => {
+        if (wr.total > 0 && wr.done === 0 && !verifiedPhoto) {
+          showToast('루틴 1개 이상 체크 또는 현장 사진을 찍어주세요!');
+          return;
+        }
+        state.record.dailyCheckin.workout = 'done';
+        const vMemo = {
+          id: 'verify-' + state.selectedDate,
+          from: 'member',
+          text: `[운동 인증 ${nowTimeHHMM()}] 강도: ${intensity} · 완료 ${wr.done}/${wr.total}종목${verifiedPhoto ? ' (현장 사진 첨부)' : ''}`,
+          time: nowTimeHHMM(),
+          ...(verifiedPhoto ? { photo: verifiedPhoto } : {})
+        };
+        const memos = Array.isArray(state.record.memos) ? state.record.memos.filter(m => m.id !== vMemo.id) : [];
+        memos.push(vMemo);
+        state.record.memos = memos;
+
+        closeModal();
+        triggerConfetti();
+        showToast('오늘 운동 인증이 완료되었어요! 💪');
+        renderAll();
+        await Promise.allSettled([
+          saveDailyCheckinLive({ ...state.record.dailyCheckin, workout: 'done' }),
+          savePatchLive({ memos: state.record.memos })
+        ]);
+      });
+    }
+
+    function openMealModal(mealKey, mealLabel) {
+      const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
+      const presets = [
+        { tag: '클린식', cal: '450', carb: '40', prot: '35', fat: '10', desc: '닭가슴살 · 현미밥 · 샐러드' },
+        { tag: '일반식', cal: '650', carb: '70', prot: '28', fat: '18', desc: '일반 한식 · 단백질 반찬 포함' },
+        { tag: '외식', cal: '820', carb: '85', prot: '25', fat: '32', desc: '외식 메뉴 · 양 조절' },
+        { tag: '단백질·간식', cal: '220', carb: '12', prot: '26', fat: '6', desc: '프로틴 쉐이크 · 견과류' }
+      ];
+      let compressedPhoto = Array.isArray(m.photos) && m.photos[0] ? m.photos[0] : '';
+
+      openModal(`${mealLabel} 식단 기록`, `
+        <div class="space-y-4">
+          <div>
+            <label class="tap-scale w-full py-3 px-4 rounded-2xl border-2 border-dashed ${compressedPhoto ? 'border-[#0F766E] bg-[#F0FDFA] text-[#0F766E]' : 'border-gray-200 bg-[#F4F6F9] text-[#4B5563]'} flex items-center justify-center gap-2 text-[13px] font-bold cursor-pointer">
+              <input id="meal-photo-input" type="file" accept="image/*" class="hidden" />
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span id="photo-status-txt">${compressedPhoto ? '식단 사진 준비됨 ✓ (변경하려면 터치)' : '사진 1장 첨부 (자동 압축)'}</span>
+            </label>
+            <img id="meal-photo-preview" src="${compressedPhoto}" alt="식단 사진" class="${compressedPhoto ? '' : 'hidden'} mt-2 w-full h-36 object-cover rounded-2xl" />
+          </div>
+
+          <div>
+            <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 태그로 2초 만에 저장</p>
+            <div class="grid grid-cols-2 gap-2">
+              ${presets.map((pr, idx) => `
+                <button type="button" data-pr="${idx}" class="pr-btn tap-scale p-3 rounded-2xl bg-[#F4F6F9] hover:bg-[#EFF6FF] text-left">
+                  <div class="flex items-center justify-between"><span class="text-[13px] font-bold text-[#111827]">${pr.tag}</span><span class="text-[11px] font-bold text-[#0F766E]">~${pr.cal}kcal</span></div>
+                  <p class="text-[11px] text-[#6B7280] mt-0.5 truncate">${pr.desc}</p>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <form id="meal-form" class="pt-2 border-t border-gray-100 space-y-2.5">
+            <input id="mf-desc" value="${escapeHtml(m.desc || '')}" placeholder="먹은 메뉴를 입력하세요" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <input id="mf-cal" type="number" min="0" value="${escapeHtml(m.cal || '')}" placeholder="예상 칼로리 (kcal)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <button type="submit" class="w-full py-3 rounded-2xl hero-navy text-white text-sm font-bold">저장하기</button>
+          </form>
+        </div>
+      `);
+
+      document.getElementById('meal-photo-input').addEventListener('change', async e => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        try {
+          compressedPhoto = await compressImageFile(f);
+          const prev = document.getElementById('meal-photo-preview');
+          prev.src = compressedPhoto;
+          prev.classList.remove('hidden');
+          document.getElementById('photo-status-txt').textContent = '사진 압축 완료 ✓';
+          showToast('사진이 가볍게 압축되었어요');
+        } catch {
+          showToast('사진을 불러오지 못했어요');
+        }
+      });
+
+      document.querySelectorAll('.pr-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pr = presets[Number(btn.dataset.pr)];
+          const updated = { desc: `[${pr.tag}] ${pr.desc}`, cal: pr.cal, carb: pr.carb, prot: pr.prot, fat: pr.fat, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
+          state.record.diet[mealKey] = updated;
+          closeModal();
+          showToast(`${mealLabel} (${pr.tag}) 저장 완료!`);
+          renderAll();
+          savePatchLive({ diet: { [mealKey]: updated } });
+        });
+      });
+
+      document.getElementById('meal-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const desc = document.getElementById('mf-desc').value.trim();
+        const cal = document.getElementById('mf-cal').value.trim();
+        if (!desc && !cal && !compressedPhoto) return;
+        const updated = { ...m, desc: desc || '사진 기록', cal, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
+        state.record.diet[mealKey] = updated;
+        closeModal();
+        showToast(`${mealLabel} 식단이 저장되었어요`);
+        renderAll();
+        savePatchLive({ diet: { [mealKey]: updated } });
+      });
+    }
+
+    function getExerciseProfile(title) {
+      const t = String(title || '');
+      if (/데드버그|플랭크|복근|크런치|코어|레그레이즈/i.test(t)) {
+        return {
+          primary: ['abs'],
+          secondary: ['obliques', 'quads'],
+          primaryLabel: '복직근 · 속근육(코어)',
+          secondaryLabel: '복사근 · 장요근',
+          steps: [
+            '바닥에 등을 대고 누워 허리가 뜨지 않도록 복부를 지그시 눌러줍니다.',
+            '숨을 길게 내쉬며 팔·다리를 천천히 뻗었다가 코어 힘으로 원위치합니다.'
+          ]
+        };
+      }
+      if (/데드|힙|루마니안|백|로우|랫|풀다운/i.test(t)) {
+        return {
+          primary: ['glutes', 'hamstrings', 'lats'],
+          secondary: ['lowerback', 'traps', 'forearms'],
+          primaryLabel: '둔근 · 햄스트링 · 광배근',
+          secondaryLabel: '척추기립근 · 승모근',
+          steps: [
+            '발을 골반 너비로 두고 가슴을 펴 척추 중립 정렬을 맞춥니다.',
+            '고관절을 뒤로 접으며 내려갔다가 발바닥으로 지면을 밀며 일어납니다.'
+          ]
+        };
+      }
+      if (/프레스|벤치|푸쉬업|체스트|가슴|딥스/i.test(t)) {
+        return {
+          primary: ['chest', 'delts'],
+          secondary: ['triceps', 'abs'],
+          primaryLabel: '대흉근 · 전면 삼각근',
+          secondaryLabel: '상완삼두근 · 코어',
+          steps: [
+            '견갑골을 가볍게 모으고 내려 가슴 공간을 열어 자세를 고정합니다.',
+            '호흡을 마시며 천천히 내린 뒤, 내쉬면서 목표 부위 힘으로 밀어 올립니다.'
+          ]
+        };
+      }
+      return {
+        primary: ['quads', 'glutes'],
+        secondary: ['abs', 'calves', 'hamstrings'],
+        primaryLabel: '대퇴사두 · 둔근',
+        secondaryLabel: '코어 · 햄스트링',
+        steps: [
+          '발바닥 3점 지지(엄지·새끼·뒤꿈치)를 고정하고 복압을 가볍게 잡습니다.',
+          '무릎과 발끝 방향을 맞추며 3초간 천천히 내려갔다가 지면을 밀어 올라옵니다.'
+        ]
+      };
+    }
+
+    function buildAnatomicalBodyMap(profile) {
+      const fillFor = m => {
+        if (profile.primary.includes(m)) return '#2563EB';
+        if (profile.secondary.includes(m)) return '#5EEAD4';
+        return '#DCE3EE';
+      };
+      return `
+        <div class="grid grid-cols-2 gap-3 items-center">
+          <!-- FRONT VIEW -->
+          <div class="flex flex-col items-center">
+            <svg viewBox="0 0 140 240" class="w-full max-w-[126px] h-auto" fill="none">
+              <!-- Head & Neck -->
+              <circle cx="70" cy="22" r="13" fill="#CBD5E1"/>
+              <rect x="64" y="34" width="12" height="9" rx="4" fill="#CBD5E1"/>
+              <!-- Traps (front) -->
+              <path d="M52 44 L64 39 L76 39 L88 44 L80 51 L60 51 Z" fill="${fillFor('traps')}"/>
+              <!-- Shoulders / Delts -->
+              <ellipse cx="43" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <ellipse cx="97" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <!-- Chest / Pecs -->
+              <path d="M51 48 Q70 46 89 48 L86 71 Q70 74 54 71 Z" fill="${fillFor('chest')}"/>
+              <!-- Abs / Core -->
+              <rect x="57" y="73" width="26" height="36" rx="7" fill="${fillFor('abs')}"/>
+              <line x1="70" y1="75" x2="70" y2="107" stroke="#F8FAFC" stroke-width="1.5"/>
+              <line x1="59" y1="85" x2="81" y2="85" stroke="#F8FAFC" stroke-width="1.3"/>
+              <line x1="59" y1="96" x2="81" y2="96" stroke="#F8FAFC" stroke-width="1.3"/>
+              <!-- Obliques -->
+              <path d="M51 74 L56 74 L56 106 L49 102 Z" fill="${fillFor('obliques')}"/>
+              <path d="M84 74 L89 74 L91 102 L84 106 Z" fill="${fillFor('obliques')}"/>
+              <!-- Arms -->
+              <rect x="33" y="64" width="11" height="27" rx="5.5" fill="${fillFor('biceps')}"/>
+              <rect x="96" y="64" width="11" height="27" rx="5.5" fill="${fillFor('biceps')}"/>
+              <rect x="31" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
+              <rect x="99" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
+              <!-- Pelvis -->
+              <path d="M50 110 L90 110 L86 124 L54 124 Z" fill="#CBD5E1"/>
+              <!-- Quads -->
+              <path d="M51 124 L68 124 L66 172 L52 172 Z" fill="${fillFor('quads')}"/>
+              <path d="M72 124 L89 124 L88 172 L74 172 Z" fill="${fillFor('quads')}"/>
+              <!-- Calves (front) -->
+              <path d="M53 176 L65 176 L63 218 L55 218 Z" fill="${fillFor('calves')}"/>
+              <path d="M75 176 L87 176 L85 218 L77 218 Z" fill="${fillFor('calves')}"/>
+            </svg>
+            <span class="text-[10px] font-extrabold tracking-wider text-[#64748B] mt-1">FRONT</span>
+          </div>
+
+          <!-- BACK VIEW -->
+          <div class="flex flex-col items-center">
+            <svg viewBox="0 0 140 240" class="w-full max-w-[126px] h-auto" fill="none">
+              <!-- Head & Neck -->
+              <circle cx="70" cy="22" r="13" fill="#CBD5E1"/>
+              <rect x="64" y="34" width="12" height="9" rx="4" fill="#CBD5E1"/>
+              <!-- Traps -->
+              <path d="M51 44 L70 38 L89 44 L78 68 L62 68 Z" fill="${fillFor('traps')}"/>
+              <!-- Rear Delts -->
+              <ellipse cx="43" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <ellipse cx="97" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <!-- Lats -->
+              <path d="M49 58 L61 67 L61 95 L51 88 Z" fill="${fillFor('lats')}"/>
+              <path d="M91 58 L79 67 L79 95 L89 88 Z" fill="${fillFor('lats')}"/>
+              <!-- Lower Back -->
+              <rect x="61" y="69" width="18" height="34" rx="6" fill="${fillFor('lowerback')}"/>
+              <!-- Triceps & Forearms -->
+              <rect x="33" y="64" width="11" height="27" rx="5.5" fill="${fillFor('triceps')}"/>
+              <rect x="96" y="64" width="11" height="27" rx="5.5" fill="${fillFor('triceps')}"/>
+              <rect x="31" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
+              <rect x="99" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
+              <!-- Glutes -->
+              <ellipse cx="60" cy="116" rx="11" ry="13" fill="${fillFor('glutes')}"/>
+              <ellipse cx="80" cy="116" rx="11" ry="13" fill="${fillFor('glutes')}"/>
+              <!-- Hamstrings -->
+              <path d="M51 129 L68 129 L66 172 L52 172 Z" fill="${fillFor('hamstrings')}"/>
+              <path d="M72 129 L89 129 L88 172 L74 172 Z" fill="${fillFor('hamstrings')}"/>
+              <!-- Calves -->
+              <path d="M52 176 L66 176 L63 218 L55 218 Z" fill="${fillFor('calves')}"/>
+              <path d="M74 176 L88 176 L85 218 L77 218 Z" fill="${fillFor('calves')}"/>
+            </svg>
+            <span class="text-[10px] font-extrabold tracking-wider text-[#64748B] mt-1">BACK</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function openFormGuideModal(title, note) {
+      const profile = getExerciseProfile(title);
+      openModal(`자극 근육 · 자세 가이드`, `
+        <div class="space-y-4">
+          <div class="p-4 rounded-[24px] bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+            <div class="flex items-center justify-between text-[11px] font-bold">
+              <span class="text-[#111827] text-[13px] font-extrabold">${escapeHtml(title)}</span>
+              <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1 text-[#2563EB]"><span class="w-2.5 h-2.5 rounded-full bg-[#2563EB]"></span>주동근</span>
+                <span class="flex items-center gap-1 text-[#0F766E]"><span class="w-2.5 h-2.5 rounded-full bg-[#5EEAD4]"></span>보조근</span>
+              </div>
+            </div>
+            ${buildAnatomicalBodyMap(profile)}
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
+                <span class="text-[10px] font-bold text-[#2563EB] block">주동근 (Main)</span>
+                <span class="text-[12px] font-extrabold text-[#111827]">${profile.primaryLabel}</span>
+              </div>
+              <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
+                <span class="text-[10px] font-bold text-[#0F766E] block">보조근 (Sub)</span>
+                <span class="text-[12px] font-extrabold text-[#111827]">${profile.secondaryLabel}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-[#EFF6FF]">
+            <span class="text-[11px] font-bold text-[#1D4ED8]">코치 핵심 큐잉</span>
+            <p class="text-[13px] font-bold text-[#111827] mt-0.5">${escapeHtml(note || '호흡을 일정하게 유지하고 반동 없이 천천히 수행해 보세요.')}</p>
+          </div>
+
+          <div class="space-y-2 text-[13px] text-[#374151]">
+            ${profile.steps.map((st, idx) => `
+              <div class="p-3 rounded-xl bg-[#F4F6F9]"><strong class="text-[#1D4ED8]">${idx + 1}.</strong> ${st}</div>
+            `).join('')}
+          </div>
+
+          <button type="button" id="btn-close-guide" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-bold">확인했어요</button>
+        </div>
+      `);
+      document.getElementById('btn-close-guide').addEventListener('click', closeModal);
+    }
+
+    function openAddRoutineModal() {
+      openModal('개인운동 직접 추가', `
+        <form id="add-routine-form" class="space-y-3">
+          <input id="ar-name" required placeholder="운동 이름 (예: 힙 쓰러스트)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
+          <div class="grid grid-cols-3 gap-2">
+            <input id="ar-weight" placeholder="무게(kg)" class="w-full text-sm px-3 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <input id="ar-sets" type="number" min="1" value="3" placeholder="세트" class="w-full text-sm px-3 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+            <input id="ar-reps" type="number" min="1" value="12" placeholder="횟수" class="w-full text-sm px-3 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+          </div>
+          <input id="ar-note" placeholder="메모 (선택)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
+          <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-bold">수업일지에 추가</button>
+        </form>
+      `);
+      document.getElementById('add-routine-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const name = document.getElementById('ar-name').value.trim();
+        if (!name) return;
+        const sets = Math.max(1, Number(document.getElementById('ar-sets').value) || 3);
+        state.record.routines.push({
+          id: Date.now(),
+          name,
+          weight: document.getElementById('ar-weight').value.trim(),
+          sets: String(sets),
+          reps: document.getElementById('ar-reps').value.trim() || '12',
+          note: document.getElementById('ar-note').value.trim(),
+          completedSets: Array(sets).fill(true)
+        });
+        closeModal();
+        triggerConfetti();
+        showToast('개인운동이 추가되었어요!');
+        renderAll();
+        saveFullRecordLive();
+      });
+    }
+
+    function openPRShareModal(pr) {
+      const shareText = `[FIT-CONNECT 신기록 달성!] ${state.memberName} 회원님 · ${pr.name} ${pr.previous}kg → ${pr.current}kg (+${pr.current - pr.previous}kg 증량 성공!)`;
+      openModal('최고 기록(PR) 달성 카드', `
+        <div class="space-y-4">
+          <div class="p-6 rounded-[24px] hero-navy text-white text-center space-y-2 shadow-lg">
+            <span class="text-[11px] font-bold px-3 py-1 rounded-full bg-white/15 text-[#5EEAD4]">NEW PERSONAL RECORD</span>
+            <h4 class="text-[22px] font-extrabold mt-2">${escapeHtml(pr.name)}</h4>
+            <p class="text-[32px] font-extrabold tabular-nums text-[#60A5FA]">${pr.current}kg</p>
+            <p class="text-[13px] text-white/85">지난주 ${pr.previous}kg 대비 <strong>+${pr.current - pr.previous}kg</strong> 성장!</p>
+            <p class="text-[11px] text-white/60 pt-2">FIT-CONNECT · ${state.memberName} · ${state.selectedDate}</p>
+          </div>
+          <button type="button" id="btn-copy-pr" class="tap-scale w-full py-3.5 rounded-2xl card-teal text-white text-[14px] font-bold">
+            기록 텍스트 복사해서 공유하기
+          </button>
+        </div>
+      `);
+      document.getElementById('btn-copy-pr').addEventListener('click', () => {
+        copyTextSafe(shareText);
+        showToast('신기록 문구가 복사되었어요! 카톡에 붙여넣어 보세요');
+      });
+    }
+
+    function openMagazineModal(idx) {
+      if (typeof idx === 'number') state.activeColumnIdx = idx;
+      const item = state.columns[state.activeColumnIdx] || state.columns[0];
+      if (!item) return;
+      const lines = Array.isArray(item.content) ? item.content : [String(item.content || '')];
+      openModal('FIT-CONNECT MAGAZINE', `
+        <div class="space-y-4">
+          <div class="flex gap-1.5 overflow-x-auto pb-1">
+            ${state.columns.map((c, i) => `
+              <button type="button" data-cidx="${i}" class="col-tab-btn shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold transition ${i === state.activeColumnIdx ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'}">
+                #${escapeHtml(c.category || '인사이트')}
+              </button>
+            `).join('')}
+          </div>
+          <div class="p-4 rounded-2xl hero-navy text-white space-y-1.5">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${escapeHtml(item.category || '코치 칼럼')}</span>
+            <h4 class="text-[17px] font-extrabold leading-snug">${escapeHtml(item.title)}</h4>
+            <p class="text-[12px] text-white/80">${escapeHtml(item.summary || '')}</p>
+          </div>
+          <div class="space-y-2.5 text-[13px] text-[#374151] leading-relaxed px-1">
+            ${lines.map(line => `<p>${escapeHtml(line)}</p>`).join('')}
+          </div>
+          <p class="text-[11px] text-[#9CA3AF] px-1">작성: ${escapeHtml(item.author || '담당 코치')} · ${escapeHtml(item.published_at || '')}</p>
+        </div>
+      `);
+      document.querySelectorAll('.col-tab-btn').forEach(b => {
+        b.addEventListener('click', () => openMagazineModal(Number(b.dataset.cidx)));
+      });
+    }
+
+    // --- Coach Modals (Unified One-Stop Detail & Immediate Reply Sheet) ---
+    function openTrainerLoginModal() {
+      openModal('코치 전용 로그인', `
+        <form id="coach-login-form" class="space-y-3">
+          <p class="text-[12px] text-[#6B7280]">기존 FIT-CONNECT 트레이너 비밀번호를 입력하면 전체 회원 현황을 불러옵니다.</p>
+          <input id="coach-pw" name="coach-pin-manual" type="password" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" value="" required placeholder="트레이너 비밀번호 직접 입력" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
+          <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-bold">코치 모드로 전환</button>
+        </form>
+      `);
+      const pwEl = document.getElementById('coach-pw');
+      if (pwEl) pwEl.value = '';
+      document.getElementById('coach-login-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const pw = document.getElementById('coach-pw').value;
+        if (isLiveOrigin) {
+          try {
+            const v = await postRecords({ action: 'verify', password: pw, date: state.selectedDate });
+            if (v?.status !== 'success') { showToast('비밀번호가 일치하지 않아요'); return; }
+            state.trainerPassword = pw;
+            const ov = await postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate });
+            if (ov?.status === 'success' && Array.isArray(ov.members)) state.trainerOverview = ov.members;
+            state.isLive = true;
+          } catch {
+            showToast('코치 인증 중 오류가 발생했어요');
+            return;
+          }
+        } else {
+          state.trainerOverview = [
+            { name: '김윤지', lastDate: state.selectedDate, activeToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 2 },
+            { name: '이서연', lastDate: state.selectedDate, activeToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 3 },
+            { name: '최민수', lastDate: shiftDateStr(state.selectedDate, -5), activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0 }
+          ];
+        }
+        state.appMode = 'coach';
+        state.coachTab = 'coaching';
+        const hasPending = state.trainerOverview.some(m => m.pendingWorkout || m.pendingDiet);
+        state.coachFilter = hasPending ? 'pending' : 'all';
+        state.fabOpen = false;
+        closeModal();
+        showToast('코치 모드로 전환되었어요');
+        renderAll();
+      });
+    }
+
+    async function fetchMemberForCoach(memberName) {
+      if (!state.isLive || !state.trainerPassword) {
+        return { daily: state.record, history: { previous: { '고블릿 스쿼트': { weight: 14, reps: 12, date: shiftDateStr(state.selectedDate, -3) } } } };
+      }
+      const [dRes, hRes] = await Promise.allSettled([
+        postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
+        postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
+      ]);
+      return {
+        daily: (dRes.status === 'fulfilled' && dRes.value && typeof dRes.value === 'object') ? dRes.value : {},
+        history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} }
+      };
+    }
+
+    // One-Stop Member Detail & Immediate Reply Bottom Sheet
+    async function openCoachDetailSheet(memberName) {
+      openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
+      const { daily, history } = await fetchMemberForCoach(memberName);
+      const routines = Array.isArray(daily.routines) && daily.routines.length
+        ? daily.routines.map(r => ({ ...r }))
+        : [{ id: Date.now(), name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '', completedSets: [true, true, true, true] }];
+
+      const prevMap = history.previous || {};
+      const dietObj = daily.diet || {};
+      const mealList = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']]
+        .map(([k, label]) => ({ key: k, label, ...(dietObj[k] || {}) }))
+        .filter(m => m.desc || m.cal || (Array.isArray(m.photos) && m.photos.length));
+
+      const memos = Array.isArray(daily.memos) ? daily.memos : [];
+      const lastMemo = memos.length ? memos[memos.length - 1].text : '최근 메모 없음';
+      const chk = daily.dailyCheckin || {};
+      const handoverText = `[FIT-CONNECT 인수인계] ${memberName} 회원님\n- 최근 코멘트: ${daily.headerMessage || '없음'}\n- 주요 중량: ${Object.entries(prevMap).slice(0, 4).map(([k, v]) => `${k} ${v.weight}kg×${v.reps}`).join(', ') || '기록 없음'}\n- 최근 메모: ${lastMemo}`;
+
+      const dietPresets = [
+        '탄단지 구성 아주 좋아요 👍',
+        '저녁엔 단백질 반찬만 조금 더 챙겨요! 🍗',
+        '물 2L 챙기면서 가볍게 유지해 보세요 💧'
+      ];
+
+      let replyMsg = daily.headerMessage || daily.feedback?.workout || '';
+      let dietMsg = daily.feedback?.diet || '';
+
+      function renderDetailBody() {
+        openModal(`${memberName} 회원님 · 상세 & 바로 답글`, `
+          <div class="space-y-4">
+            <!-- Quick Status & Handover -->
+            <div class="p-3.5 rounded-2xl hero-navy text-white flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <span class="text-[10px] font-bold text-[#5EEAD4]">${state.selectedDate} · 체크인 ${chk.workout === 'done' ? '운동완료' : '기록대기'}</span>
+                <p class="text-[13px] font-bold mt-0.5 truncate">최근 메모: ${escapeHtml(lastMemo)}</p>
+              </div>
+              <button type="button" id="cd-copy-handover" class="tap-scale shrink-0 px-2.5 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계 복사</button>
+            </div>
+            ${(() => {
+              const vp = [...memos].reverse().find(m => m.photo);
+              return vp ? `<div class="p-3 rounded-2xl bg-[#EFF6FF] space-y-1.5"><span class="text-[11px] font-extrabold text-[#1D4ED8]">📸 회원 현장 인증 사진</span><img src="${vp.photo}" alt="현장 인증" class="w-full h-36 object-cover rounded-xl" /></div>` : '';
+            })()}
+
+            <!-- Today's Diet & Photos -->
+            <div class="p-3.5 rounded-2xl bg-[#F0FDFA] space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[12px] font-extrabold text-[#0F766E]">1. 오늘 식단 기록 (${mealList.length}끼)</span>
+                <span class="text-[11px] font-bold text-[#0F766E]">수분 ${((Number(dietObj.water) || 0) / 1000).toFixed(1)}L</span>
+              </div>
+              ${mealList.length ? mealList.map(m => `
+                <div class="p-2.5 rounded-xl bg-white space-y-1.5">
+                  <div class="flex items-center justify-between text-[12px]">
+                    <span class="font-bold text-[#111827]">${m.label}: ${escapeHtml(m.desc || '사진 기록')}</span>
+                    ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${m.cal}kcal</span>` : ''}
+                  </div>
+                  ${Array.isArray(m.photos) && m.photos[0] ? `<img src="${m.photos[0]}" alt="${m.label} 식단" class="w-full h-32 object-cover rounded-lg" />` : ''}
+                </div>
+              `).join('') : '<p class="text-[12px] text-[#6B7280]">아직 오늘 올라온 식단이 없습니다.</p>'}
+              <div class="flex flex-wrap gap-1 pt-1">
+                ${dietPresets.map((dp, idx) => `<button type="button" data-dpidx="${idx}" class="cd-dp-btn tap-scale px-2 py-1 rounded-lg bg-white text-[#0F766E] text-[11px] font-bold shadow-sm">+ ${dp.slice(0, 11)}</button>`).join('')}
+              </div>
+              <input id="cd-diet-msg" value="${escapeHtml(dietMsg)}" placeholder="식단 피드백 한 줄 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+            </div>
+
+            <!-- Routines + Type Toggle + Add Routine -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴 (눌러서 PT수업/개인숙제 전환)</span>
+              </div>
+              ${routines.map((r, i) => {
+                const prev = prevMap[r.name];
+                const curW = Number(r.weight) || 0;
+                const diff = prev && prev.weight ? curW - Number(prev.weight) : null;
+                const isHw = r.routineType === 'homework';
+                return `
+                  <div class="p-3 rounded-2xl bg-[#F4F6F9] space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <button type="button" data-ti="${i}" class="cd-type-btn tap-scale text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isHw ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${isHw ? '개인 숙제' : 'PT 수업'}</button>
+                          <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(r.name)}</p>
+                          ${diff !== null && diff !== 0 ? `<span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white text-[#1D4ED8]">${diff > 0 ? '+' + diff : diff}kg</span>` : ''}
+                        </div>
+                        <p class="text-[11px] text-[#6B7280] mt-0.5">${r.reps || '12'}회 × ${r.sets || '3'}세트 ${prev?.weight ? `(직전 ${prev.weight}kg)` : ''}</p>
+                      </div>
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        <button type="button" data-wi="${i}" data-wd="-2" class="cd-wt-btn w-7 h-7 rounded-lg bg-white text-[#4B5563] font-bold text-xs shadow-sm">-</button>
+                        <span class="text-[13px] font-extrabold text-[#1D4ED8] tabular-nums w-11 text-center">${curW}kg</span>
+                        <button type="button" data-wi="${i}" data-wd="2" class="cd-wt-btn w-7 h-7 rounded-lg bg-[#1D4ED8] text-white font-bold text-xs shadow-sm">+</button>
+                      </div>
+                    </div>
+                    <input type="text" data-ni="${i}" value="${escapeHtml(r.note || '')}" placeholder="코치 핵심 큐잉 입력 (예: 발바닥 3점 지지, 3초 하강)" class="cd-note-inp w-full text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
+                  </div>
+                `;
+              }).join('')}
+              <div class="p-3 rounded-2xl bg-[#EFF6FF]/70 space-y-2">
+                <div class="flex gap-1.5">
+                  <select id="cd-new-type" class="text-[11px] font-bold px-2 py-2 rounded-xl bg-white text-[#1D4ED8]">
+                    <option value="pt">PT 수업</option>
+                    <option value="homework">개인 숙제</option>
+                  </select>
+                  <input id="cd-new-name" placeholder="새 종목명 (예: 랫풀다운)" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                </div>
+                <input id="cd-new-note" placeholder="핵심 큐잉 메모 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                <div class="flex gap-1.5">
+                  <input id="cd-new-weight" type="number" min="0" placeholder="무게(kg)" class="w-20 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
+                  <input id="cd-new-sets" type="number" min="1" value="3" placeholder="세트" class="w-16 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
+                  <input id="cd-new-reps" type="number" min="1" value="12" placeholder="횟수" class="w-16 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
+                  <button type="button" id="cd-add-routine-btn" class="tap-scale flex-1 py-2 rounded-xl card-blue text-white text-[12px] font-extrabold">+ 종목 추가</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sticky Reply Box -->
+            <div class="pt-2 border-t border-gray-100 space-y-2">
+              <div class="flex items-center justify-between gap-1.5">
+                <span class="text-[12px] font-extrabold text-[#111827]">3. 코치 바로 답글 · 한마디</span>
+                <button type="button" id="cd-voice-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold">🎙 음성 입력</button>
+              </div>
+              <select id="cd-tip-select" class="w-full text-[12px] font-bold px-3 py-2.5 rounded-xl bg-[#F0FDFA] text-[#0F766E] focus:outline-none">
+                <option value="">✨ 전문 코칭 멘트 선택하기 (10종)...</option>
+                ${DAILY_COACH_TIPS.map((tip, idx) => `<option value="${idx}">${idx + 1}. ${escapeHtml(tip.slice(0, 32))}...</option>`).join('')}
+              </select>
+              <textarea id="cd-reply-msg" rows="2" placeholder="회원님께 보낼 피드백과 오늘의 한마디를 입력하세요" class="w-full text-[13px] p-3 rounded-2xl bg-[#F4F6F9] focus:outline-none">${escapeHtml(replyMsg)}</textarea>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="cd-broadcast-all" class="tap-scale py-3.5 rounded-2xl bg-[#F0FDFA] text-[#0F766E] text-[12px] font-extrabold">
+                  📢 전체 회원 통일
+                </button>
+                <button type="button" id="cd-save-all" class="tap-scale py-3.5 rounded-2xl hero-navy text-white text-[12px] font-extrabold shadow-lg">
+                  이 회원만 저장하기
+                </button>
+              </div>
+            </div>
+          </div>
+        `);
+
+        document.getElementById('cd-copy-handover').addEventListener('click', () => {
+          copyTextSafe(handoverText);
+          showToast('인수인계 요약이 복사되었어요');
+        });
+
+        document.querySelectorAll('.cd-dp-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            dietMsg = dietPresets[Number(b.dataset.dpidx)];
+            document.getElementById('cd-diet-msg').value = dietMsg;
+          });
+        });
+
+        document.querySelectorAll('.cd-type-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            const idx = Number(b.dataset.ti);
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            routines[idx].routineType = routines[idx].routineType === 'homework' ? 'pt' : 'homework';
+            renderDetailBody();
+          });
+        });
+
+        document.getElementById('cd-add-routine-btn').addEventListener('click', () => {
+          const name = document.getElementById('cd-new-name').value.trim();
+          if (!name) { showToast('종목 이름을 입력해 주세요'); return; }
+          replyMsg = document.getElementById('cd-reply-msg').value;
+          dietMsg = document.getElementById('cd-diet-msg').value;
+          const sets = Math.max(1, Number(document.getElementById('cd-new-sets').value) || 3);
+          routines.push({
+            id: Date.now(),
+            routineType: document.getElementById('cd-new-type').value,
+            name,
+            weight: document.getElementById('cd-new-weight').value.trim(),
+            sets: String(sets),
+            reps: document.getElementById('cd-new-reps').value.trim() || '12',
+            note: document.getElementById('cd-new-note').value.trim(),
+            completedSets: Array(sets).fill(false)
+          });
+          renderDetailBody();
+        });
+
+        document.querySelectorAll('.cd-note-inp').forEach(inp => {
+          inp.addEventListener('input', e => {
+            routines[Number(inp.dataset.ni)].note = e.target.value;
+          });
+        });
+
+        document.querySelectorAll('.cd-wt-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            const idx = Number(b.dataset.wi);
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            const cur = Number(routines[idx].weight) || 0;
+            routines[idx].weight = String(Math.max(0, cur + Number(b.dataset.wd)));
+            renderDetailBody();
+          });
+        });
+
+        document.getElementById('cd-tip-select').addEventListener('change', e => {
+          if (e.target.value === '') return;
+          const picked = DAILY_COACH_TIPS[Number(e.target.value)];
+          if (picked) {
+            replyMsg = picked;
+            document.getElementById('cd-reply-msg').value = picked;
+          }
+        });
+
+        document.getElementById('cd-voice-btn').addEventListener('click', () => {
+          const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (SR) {
+            const rec = new SR();
+            rec.lang = 'ko-KR';
+            showToast('말씀해 주세요... 🎙');
+            rec.onresult = ev => {
+              const spoken = ev.results?.[0]?.[0]?.transcript || '';
+              if (spoken) {
+                replyMsg = spoken;
+                document.getElementById('cd-reply-msg').value = spoken;
+                showToast('음성이 답글로 입력되었어요');
+              }
+            };
+            rec.start();
+          } else {
+            replyMsg = `${memberName}님 오늘 ${routines[0]?.name || '루틴'} ${routines[0]?.weight || ''}kg 안정적으로 완료! 다음 회차도 화이팅입니다.`;
+            document.getElementById('cd-reply-msg').value = replyMsg;
+            showToast('음성 초안이 자동 입력되었어요');
+          }
+        });
+
+        document.getElementById('cd-broadcast-all').addEventListener('click', async () => {
+          const finalReply = document.getElementById('cd-reply-msg').value.trim();
+          if (!finalReply) {
+            showToast('전체 적용할 코치 한마디를 먼저 선택하거나 입력해 주세요');
+            return;
+          }
+          state.record.headerMessage = finalReply;
+          const members = state.trainerOverview || [];
+          closeModal();
+          triggerConfetti();
+          showToast(`전체 ${members.length || 1}명 회원님께 한마디를 통일 적용 중...`);
+          renderAll();
+          if (state.isLive && members.length) {
+            await Promise.allSettled(
+              members.map(m => savePatchLive({ headerMessage: finalReply }, m.name))
+            );
+            showToast(`전체 ${members.length}명 회원님께 통일 적용 완료!`);
+          } else {
+            showToast('전체 회원 한마디 통일 적용 완료!');
+          }
+        });
+
+        document.getElementById('cd-save-all').addEventListener('click', async () => {
+          const finalReply = document.getElementById('cd-reply-msg').value.trim();
+          const finalDiet = document.getElementById('cd-diet-msg').value.trim();
+          const fullPayload = {
+            ...daily,
+            headerMessage: finalReply || daily.headerMessage || '',
+            routines,
+            feedback: {
+              ...(daily.feedback || {}),
+              ...(finalReply ? { workout: finalReply } : {}),
+              ...(finalDiet ? { diet: finalDiet } : {}),
+              time: nowTimeHHMM()
+            }
+          };
+
+          const ovTarget = state.trainerOverview.find(x => x.name === memberName);
+          if (ovTarget) {
+            if (finalReply) ovTarget.pendingWorkout = false;
+            if (finalDiet) ovTarget.pendingDiet = false;
+          }
+          if (memberName === state.memberName) {
+            state.record.headerMessage = fullPayload.headerMessage;
+            state.record.routines = routines;
+            state.record.feedback = fullPayload.feedback;
+          }
+          closeModal();
+          triggerConfetti();
+          showToast(`${memberName} 회원님 피드백 저장 완료!`);
+          renderAll();
+          await saveFullRecordLive(memberName, fullPayload);
+        });
+      }
+      renderDetailBody();
+    }
+
+    function openColumnWriteModal() {
+      openModal('새 코치 인사이트 칼럼 발행', `
+        <form id="col-write-form" class="space-y-3">
+          <select id="cw-cat" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] font-bold">
+            <option value="트레이닝">트레이닝</option>
+            <option value="영양/식단">영양/식단</option>
+            <option value="회복/습관">회복/습관</option>
+          </select>
+          <input id="cw-title" required minlength="3" maxlength="90" placeholder="제목 (예: 하체 운동 전 3분 스트레칭)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+          <input id="cw-summary" required minlength="10" maxlength="280" placeholder="한 줄 요약 (10자 이상)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+          <textarea id="cw-body" required rows="3" placeholder="본문 내용을 입력하세요 (줄바꿈으로 문단 구분)" class="w-full text-sm p-3.5 rounded-2xl bg-[#F4F6F9]"></textarea>
+          <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-bold">매거진 발행하기</button>
+        </form>
+      `);
+      document.getElementById('col-write-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const colObj = {
+          category: document.getElementById('cw-cat').value,
+          title: document.getElementById('cw-title').value.trim(),
+          summary: document.getElementById('cw-summary').value.trim(),
+          content: document.getElementById('cw-body').value.split('\n').map(v => v.trim()).filter(Boolean),
+          author: '명진 트레이너',
+          published_at: state.selectedDate
+        };
+        if (state.isLive && state.trainerPassword) {
+          try {
+            const res = await postRecords({ action: 'columnSave', password: state.trainerPassword, date: state.selectedDate, column: colObj });
+            if (res?.status !== 'success') { showToast('칼럼 형식을 다시 확인해 주세요'); return; }
+          } catch {
+            showToast('칼럼 발행 중 오류가 발생했어요');
+            return;
+          }
+        }
+        state.columns.unshift(colObj);
+        closeModal();
+        showToast('새 매거진 칼럼이 발행되었어요!');
+        renderAll();
+      });
+    }
+
+    // --- Render Header & Nav ---
+    function renderHeader() {
+      const hdr = document.getElementById('app-header');
+      if (state.appMode === 'member') {
+        hdr.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <div class="w-6 h-6 rounded-lg hero-navy flex items-center justify-center shadow-sm shrink-0">
+                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <span class="text-[15px] font-extrabold tracking-tight text-[#0F172A] whitespace-nowrap shrink-0">FIT-CONNECT</span>
+              ${state.isLive ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#1D4ED8] whitespace-nowrap shrink-0">LIVE</span>' : '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 whitespace-nowrap shrink-0">미리보기</span>'}
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" id="btn-hdr-timer" class="tap-scale h-7 px-2 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8] whitespace-nowrap shrink-0">⏱ 타이머</button>
+              <button type="button" id="btn-coach-switch" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm whitespace-nowrap shrink-0">코치</button>
+              <button type="button" id="btn-ask-coach" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#1D4ED8] shadow-sm whitespace-nowrap shrink-0">질문</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-7 gap-1 mt-3.5">
+            ${state.weekDays.map(d => {
+              const sel = d.fullDate === state.selectedDate;
+              const worked = state.workoutDays.includes(d.fullDate);
+              return `
+                <button type="button" data-fdate="${d.fullDate}" class="day-btn tap-scale flex flex-col items-center py-1.5 rounded-2xl transition ${sel ? 'hero-navy text-white shadow-md' : 'text-[#4B5563] hover:bg-white'}">
+                  <span class="text-[10px] font-medium ${sel ? 'text-white/75' : 'text-gray-400'}">${d.day}</span>
+                  <span class="text-[13px] font-bold tabular-nums mt-0.5">${d.date}</span>
+                  <span class="w-1 h-1 rounded-full mt-1 ${sel ? 'bg-[#60A5FA]' : (worked ? 'bg-[#14B8A6]' : 'bg-transparent')}"></span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        `;
+        hdr.querySelectorAll('.day-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            state.selectedDate = btn.dataset.fdate;
+            state.weekDays = buildWeekDays(state.selectedDate);
+            if (state.isLive) {
+              const hadCache = applyCachedMemberData(state.selectedDate);
+              state.loading = !hadCache;
+              renderAll();
+              await loadMemberDateData(state.selectedDate);
+              saveCachedMemberData(state.selectedDate);
+              state.loading = false;
+            }
+            loadLocalMemberExtras();
+            renderAll();
+          });
+        });
+        document.getElementById('btn-hdr-timer').addEventListener('click', openTimerModal);
+        document.getElementById('btn-ask-coach').addEventListener('click', () => { state.memberTab = 'feedback'; renderAll(); });
+        document.getElementById('btn-coach-switch').addEventListener('click', openTrainerLoginModal);
+      } else {
+        hdr.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <div class="w-6 h-6 rounded-lg hero-navy flex items-center justify-center shadow-sm shrink-0">
+                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <span class="text-[15px] font-extrabold tracking-tight text-[#0F172A] whitespace-nowrap shrink-0">FIT-CONNECT</span>
+              <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#1E3A8A] text-white whitespace-nowrap shrink-0">COACH</span>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" id="btn-new-col" class="tap-scale h-7 px-2.5 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8] whitespace-nowrap shrink-0">+ 칼럼</button>
+              <button type="button" id="btn-back-member" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm whitespace-nowrap shrink-0">회원 화면</button>
+            </div>
+          </div>
+        `;
+        document.getElementById('btn-new-col').addEventListener('click', openColumnWriteModal);
+        document.getElementById('btn-back-member').addEventListener('click', () => { state.appMode = 'member'; renderAll(); });
+      }
+    }
+
+    function renderBottomNav() {
+      const nav = document.getElementById('bottom-nav');
+      document.getElementById('member-fab-wrap').style.display = state.appMode === 'member' ? 'flex' : 'none';
+      if (state.appMode === 'member') {
+        nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-5 px-2 pt-2 pb-3';
+        const tabs = [
+          { id: 'report', label: '홈', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+          { id: 'lesson', label: '수업일지', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+          { id: 'diet', label: '식단', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+          { id: 'body', label: '성장', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
+          { id: 'feedback', label: '메모', icon: 'M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z' }
+        ];
+        nav.innerHTML = tabs.map(t => {
+          const act = state.memberTab === t.id;
+          return `<button type="button" data-tab="${t.id}" class="m-nav-btn tap-scale flex flex-col items-center justify-center py-0.5 ${act ? 'text-[#1D4ED8]' : 'text-[#9CA3AF]'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="${act ? '2.3' : '1.7'}" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${t.icon}"/></svg><span class="text-[10px] mt-1 ${act ? 'font-bold' : 'font-medium'}">${t.label}</span></button>`;
+        }).join('');
+        nav.querySelectorAll('.m-nav-btn').forEach(b => b.addEventListener('click', () => { state.memberTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+      } else {
+        nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-2 px-6 pt-2 pb-3';
+        const tabs = [
+          { id: 'coaching', label: '오늘의 코칭', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2m-6 9l2 2 4-4' },
+          { id: 'members', label: '회원 · 매거진', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' }
+        ];
+        nav.innerHTML = tabs.map(t => {
+          const act = state.coachTab === t.id;
+          return `<button type="button" data-tab="${t.id}" class="c-nav-btn tap-scale flex flex-col items-center justify-center py-0.5 ${act ? 'text-[#1D4ED8]' : 'text-[#9CA3AF]'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="${act ? '2.3' : '1.7'}" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${t.icon}"/></svg><span class="text-[11px] mt-1 ${act ? 'font-extrabold' : 'font-medium'}">${t.label}</span></button>`;
+        }).join('');
+        nav.querySelectorAll('.c-nav-btn').forEach(b => b.addEventListener('click', () => { state.coachTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+      }
+    }
+
+    // --- Member View ---
+    function renderCompactWaterBar(ds) {
+      const waterPct = Math.min(100, Math.round((ds.water / 2000) * 100));
+      return `
+        <section class="bg-white rounded-[22px] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-[14px] font-bold text-[#111827]">💧 수분</span>
+              <span class="text-[12px] font-extrabold text-[#1D4ED8] tabular-nums">${(ds.water / 1000).toFixed(2)}L / 2.0L</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" id="btn-water-minus" class="tap-scale px-2 py-1 rounded-lg bg-[#F4F6F9] text-[#4B5563] text-[11px] font-bold">-250</button>
+              <button type="button" data-wml="250" class="w-add-btn tap-scale px-2.5 py-1 rounded-lg bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">+250</button>
+              <button type="button" data-wml="500" class="w-add-btn tap-scale px-2.5 py-1 rounded-lg card-blue text-white text-[11px] font-extrabold">+500</button>
+              <button type="button" data-wml="1000" class="w-add-btn tap-scale px-2.5 py-1 rounded-lg card-teal text-white text-[11px] font-extrabold">+1L</button>
+            </div>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-[#EFF6FF] overflow-hidden">
+            <div class="h-full card-teal transition-all duration-300" style="width:${waterPct}%"></div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderWaterWidget(ds) {
+      const cups = Math.min(8, Math.floor(ds.water / 250));
+      const waterPct = Math.min(100, Math.round((ds.water / 2000) * 100));
+      const waterTip = cups >= 8
+        ? '일일 권장 수분(2L) 충족 — 근섬유 회복과 체내 노폐물 대사에 최적의 상태입니다.'
+        : (cups >= 4
+          ? '충분한 수분 섭취는 나트륨 배출을 도와 부종을 줄이고, 가짜 허기를 완화하는 데 효과적입니다.'
+          : '근육 내 수분 보유량이 떨어지면 퍼포먼스와 회복 속도가 함께 저하됩니다. (부종·가짜 허기 예방)');
+      return `
+        <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h2 class="text-[16px] font-bold text-[#111827]">오늘 수분 채우기</h2>
+              <p class="text-[12px] text-[#6B7280] mt-0.5 tabular-nums">${(ds.water / 1000).toFixed(2)}L / 2.0L (${waterPct}%)</p>
+            </div>
+            <button type="button" id="btn-water-minus" class="tap-scale px-2.5 py-1.5 rounded-xl bg-[#F4F6F9] text-[#4B5563] text-[11px] font-bold">-250ml</button>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" data-wml="250" class="w-add-btn tap-scale py-2 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] text-[12px] font-extrabold">💧 +250ml <span class="font-medium opacity-75">1컵</span></button>
+            <button type="button" data-wml="500" class="w-add-btn tap-scale py-2 rounded-xl card-blue text-white text-[12px] font-extrabold shadow-sm">💧 +500ml <span class="font-medium opacity-85">1병</span></button>
+            <button type="button" data-wml="1000" class="w-add-btn tap-scale py-2 rounded-xl card-teal text-white text-[12px] font-extrabold shadow-sm">💧 +1L <span class="font-medium opacity-85">텀블러</span></button>
+          </div>
+          <div class="grid grid-cols-8 gap-1.5">
+            ${Array.from({ length: 8 }).map((_, i) => `
+              <div class="h-3 rounded-full transition-all duration-300 ${i < cups ? 'bg-[#3B82F6]' : 'bg-[#EFF6FF]'}"></div>
+            `).join('')}
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-[#F4F6F9] overflow-hidden">
+            <div class="h-full card-teal transition-all duration-300" style="width:${waterPct}%"></div>
+          </div>
+          <p class="text-[12px] text-[#1D4ED8] bg-[#EFF6FF] px-3 py-2 rounded-xl font-medium leading-snug">${waterTip}</p>
+        </section>
+      `;
+    }
+
+    function renderMemberView() {
+      if (state.loading) {
+        return `<div class="space-y-3.5"><div class="h-60 rounded-[26px] skeleton"></div><div class="grid grid-cols-2 gap-3"><div class="h-32 rounded-[22px] skeleton"></div><div class="h-32 rounded-[22px] skeleton"></div></div><div class="h-40 rounded-[24px] skeleton"></div></div>`;
+      }
+
+      const wr = getWorkoutRate();
+      const ds = getDietStats();
+      const score = computeCareScore();
+      const chk = state.record.dailyCheckin || {};
+      const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
+      const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
+      const pr = state.insights?.weekly?.improvements?.[0];
+      const hasRoutines = (state.record.routines || []).length > 0;
+      const pendingRoutine = (state.record.routines || []).find(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
+      const missionDone = hasRoutines && !pendingRoutine;
+      const missionTitle = pendingRoutine
+        ? pendingRoutine.name
+        : (missionDone ? '오늘 배정된 루틴 모두 완료!' : '오늘 배정된 루틴이 없어요');
+      const missionNote = pendingRoutine
+        ? pendingRoutine.note
+        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : '코치님이 루틴을 등록하면 이곳에 바로 표시됩니다.');
+
+      if (state.memberTab === 'report') {
+        return `
+          <div class="space-y-3.5 animate-in">
+            <!-- Hero Card -->
+            <section class="hero-navy rounded-[26px] p-5 text-white shadow-[0_14px_30px_rgba(30,58,138,0.28)]">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-white">${state.selectedDate}</span>
+                    ${pr ? `<button type="button" id="btn-open-pr" class="tap-scale text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#5EEAD4]/20 text-[#5EEAD4]">🏆 ${escapeHtml(pr.name)} +${pr.current - pr.previous}kg ›</button>` : ''}
+                  </div>
+                  <h1 class="text-[22px] font-extrabold tracking-tight leading-snug mt-2">${escapeHtml(state.memberName)}님의<br/>오늘 운동노트</h1>
+                  <p class="text-[11px] font-semibold text-white/70 mt-1">명진 트레이너의 1:1 PT 케어</p>
+                  <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[11px] font-bold">
+                    <span class="flex items-center gap-1 text-[#60A5FA]"><span class="w-2 h-2 rounded-full bg-[#60A5FA]"></span>관리 ${score}</span>
+                    <span class="flex items-center gap-1 text-[#5EEAD4]"><span class="w-2 h-2 rounded-full bg-[#5EEAD4]"></span>식단 ${ds.pct}%</span>
+                    <span class="flex items-center gap-1 text-white"><span class="w-2 h-2 rounded-full bg-white"></span>루틴 ${wr.pct}%</span>
+                  </div>
+                </div>
+                <div class="relative shrink-0 flex items-center justify-center">
+                  ${heroRingsSvg(score, ds.pct, wr.pct)}
+                  <div class="absolute text-center"><span class="text-[19px] font-extrabold text-white tabular-nums">${score}</span></div>
+                </div>
+              </div>
+
+              <div class="mt-4 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-bold text-white/90">FROM 명진 트레이너</span>
+                  <button type="button" id="go-lesson" class="text-[11px] font-bold text-[#60A5FA]">수업일지 ›</button>
+                </div>
+                <p class="text-[13px] text-white/95 leading-relaxed">${escapeHtml(coachNote)}</p>
+                <div class="flex items-center gap-2 pt-0.5">
+                  <button type="button" data-rval="확인했어요 👍" class="fb-react-btn tap-scale px-3 py-1 rounded-full text-[11px] font-bold transition ${state.feedbackReaction === '확인했어요 👍' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white/90'}">확인했어요 👍</button>
+                  <button type="button" data-rval="불태웠어요 🔥" class="fb-react-btn tap-scale px-3 py-1 rounded-full text-[11px] font-bold transition ${state.feedbackReaction === '불태웠어요 🔥' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white/90'}">불태웠어요 🔥</button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2 mt-3.5">
+                <button type="button" id="btn-verify" class="col-span-2 tap-scale py-3.5 rounded-2xl text-[14px] font-extrabold transition flex items-center justify-center gap-1.5 shadow-md ${chk.workout === 'done' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white text-[#1E3A8A]'}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  <span>${chk.workout === 'done' ? '오늘 운동 인증 완료!' : '오늘 운동 인증하기'}</span>
+                </button>
+                <button type="button" id="btn-open-ounwan" class="tap-scale py-3.5 rounded-2xl bg-white/15 text-white text-[12px] font-extrabold flex items-center justify-center">오운완 카드</button>
+              </div>
+            </section>
+
+            <!-- High-Visibility FIT-CONNECT MAGAZINE -->
+            <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">NEW</span>
+                  <span class="text-[12px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
+                </div>
+                <button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>
+              </div>
+              <div class="space-y-2">
+                ${state.columns.slice(0, 1).map((col, idx) => `
+                  <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
+                      <p class="text-[14px] font-extrabold text-[#111827] mt-1.5 leading-snug line-clamp-1">${escapeHtml(col.title)}</p>
+                      <p class="text-[11px] text-[#4B5563] mt-0.5 truncate">${escapeHtml(col.summary || '')}</p>
+                    </div>
+                    <span class="w-8 h-8 rounded-full bg-white text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">›</span>
+                  </button>
+                `).join('')}
+              </div>
+            </section>
+
+            <!-- 2-Col Bento -->
+            <div class="grid grid-cols-2 gap-3">
+              <button type="button" id="go-lesson-2" class="card-blue tap-scale rounded-[22px] p-4 text-left text-white shadow-[0_8px_20px_rgba(37,99,235,0.20)] flex flex-col justify-between">
+                <div class="flex items-center justify-between w-full"><span class="text-[11px] font-bold text-white/80">운동 달성률</span>${miniRing(wr.pct)}</div>
+                <div class="mt-2"><p class="text-[26px] font-extrabold tabular-nums leading-none">${wr.pct}%</p><p class="text-[11px] font-semibold text-white/85 mt-1.5">${wr.done}/${wr.total} 종목 완료 ›</p></div>
+              </button>
+              <button type="button" id="go-diet" class="card-teal tap-scale rounded-[22px] p-4 text-left text-white shadow-[0_8px_20px_rgba(15,118,110,0.20)] flex flex-col justify-between">
+                <div class="flex items-center justify-between w-full"><span class="text-[11px] font-bold text-white/80">오늘 칼로리</span><span class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-white/20">${ds.pct}%</span></div>
+                <div class="mt-2">
+                  <p class="text-[26px] font-extrabold tabular-nums leading-none">${ds.kcal.toLocaleString()}</p>
+                  <div class="w-full h-1.5 rounded-full bg-white/20 mt-2.5 overflow-hidden flex gap-0.5">
+                    <div class="h-full bg-white rounded-l-full" style="width:${ds.carbPct}%"></div>
+                    <div class="h-full bg-[#FDE68A]" style="width:${ds.protPct}%"></div>
+                    <div class="h-full bg-[#99F6E4] rounded-r-full" style="width:${ds.fatPct}%"></div>
+                  </div>
+                  <p class="text-[10px] font-semibold text-white/85 mt-1.5">수분 ${(ds.water / 1000).toFixed(1)}L ›</p>
+                </div>
+              </button>
+            </div>
+
+            <!-- Compact Today's Mission -->
+            <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
+              <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
+                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${missionDone ? '수업일지 전체 보기 ›' : (hasRoutines ? '터치해서 완료 체크 (+타이머)' : '휴식 · 회복일')}</p>
+                </div>
+              </button>
+              <button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold ${missionDone ? 'bg-white/20 text-white' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">자세 팁 ▶</button>
+            </div>
+
+            <!-- Compact 1-Line Water Bar -->
+            ${renderCompactWaterBar(ds)}
+
+            <!-- Compact Today Check -->
+            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
+              <div class="flex items-center justify-between"><h2 class="text-[16px] font-bold text-[#111827]">오늘 상태 체크</h2><span class="text-[12px] font-bold text-[#1D4ED8]">${checkedCount}/3</span></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">운동</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="workout" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'done' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">했어요</button><button type="button" data-grp="workout" data-val="rest" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'rest' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">회복</button></div></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">식단</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="diet" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'done' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">지켰어요</button><button type="button" data-grp="diet" data-val="partial" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'partial' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">조절 중</button></div></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">컨디션</span><div class="grid grid-cols-3 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="mood" data-val="good" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'good' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">좋음</button><button type="button" data-grp="mood" data-val="normal" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'normal' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">보통</button><button type="button" data-grp="mood" data-val="tired" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'tired' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">피곤</button></div></div>
+            </section>
+
+          </div>
+        `;
+      }
+
+      if (state.memberTab === 'lesson') {
+        const rs = state.record.routines || [];
+        return `
+          <div class="space-y-3.5 animate-in">
+            <div class="hero-navy rounded-[24px] p-5 text-white">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <span class="text-[12px] font-bold text-[#60A5FA]">${state.selectedDate} 수업일지</span>
+                <div class="flex gap-1.5">
+                  <button type="button" id="btn-open-timer-lesson" class="tap-scale px-2.5 py-1 rounded-full bg-white/15 text-[#5EEAD4] text-[11px] font-extrabold"><span id="rest-timer-badge">${state.timer.remaining > 0 ? '⏱ ' + formatMMSS(state.timer.remaining) : '⏱ 타이머 설정'}</span></button>
+                  <button type="button" id="btn-open-plate-lesson" class="tap-scale px-2.5 py-1 rounded-full bg-white/10 text-white text-[11px] font-bold">🏋️ 원판 계산</button>
+                </div>
+              </div>
+              <p class="text-[13px] text-white/90 mt-2.5 leading-relaxed">${escapeHtml(coachNote)}</p>
+            </div>
+
+            <div class="bg-white rounded-[24px] p-5 space-y-2.5">
+              <div class="flex items-center justify-between mb-1">
+                <h3 class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
+                <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
+              </div>
+              ${rs.length ? rs.map((r, i) => {
+                const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
+                return `
+                  <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
+                    <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${r.routineType === 'homework' ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${r.routineType === 'homework' ? '개인 숙제' : 'PT 수업'}</span>
+                        <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
+                        <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">자세 · 부위 ›</span>
+                      </div>
+                      <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>
+                      ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${escapeHtml(r.note)}</p>` : ''}
+                    </button>
+                    <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
+                  </div>
+                `;
+              }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}
+            </div>
+          </div>
+        `;
+      }
+
+      if (state.memberTab === 'diet') {
+        return `
+          <div class="space-y-3.5 animate-in">
+            <div class="card-teal rounded-[24px] p-5 text-white">
+              <p class="text-[12px] font-bold text-white/80">오늘 섭취 칼로리</p>
+              <p class="text-[28px] font-extrabold tabular-nums mt-1">${ds.kcal.toLocaleString()} <span class="text-[14px] font-medium text-white/80">/ ${state.targetKcal.toLocaleString()} kcal</span></p>
+              ${state.record.feedback?.diet ? `<p class="mt-2.5 p-2.5 rounded-xl bg-white/15 text-[12px]">코치 식단 피드백: "${escapeHtml(state.record.feedback.diet)}"</p>` : ''}
+            </div>
+            ${renderWaterWidget(ds)}
+            ${[['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']].map(([key, label]) => {
+              const ml = state.record.diet[key] || {};
+              const hasPhoto = Array.isArray(ml.photos) && ml.photos.length > 0;
+              const logged = !!(String(ml.desc || '').trim() || Number(ml.cal) > 0 || hasPhoto);
+              return `
+                <div class="bg-white rounded-[22px] p-4 space-y-2.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <div>
+                      <p class="text-[15px] font-bold text-[#111827]">${label}</p>
+                      <p class="text-[12px] text-[#6B7280] mt-0.5">${escapeHtml(ml.desc || '아직 기록 전이에요')}</p>
+                    </div>
+                    <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
+                  </div>
+                  ${hasPhoto ? `<img src="${ml.photos[0]}" alt="${label} 식단" class="w-full h-32 object-cover rounded-xl" />` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }
+
+      if (state.memberTab === 'body') {
+        const w = state.insights?.weekly?.current || { days: 0, sets: 0, exercises: 0 };
+        const imps = state.insights?.weekly?.improvements || [];
+        return `
+          <div class="space-y-3.5 animate-in">
+            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
+              <div class="flex items-center justify-between">
+                <div><h2 class="text-[16px] font-bold text-[#111827]">주간 운동 리듬</h2><p class="text-[11px] text-[#6B7280] mt-0.5">이번 주 출석 ${state.insights?.careSummary?.workoutDays || 0}일 기록됨</p></div>
+                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">${w.sets || 0}세트 누적</span>
+              </div>
+              ${weeklyCurveSvg()}
+            </section>
+            <div class="bg-white rounded-[24px] p-5 space-y-3">
+              <div class="flex items-center justify-between">
+                <h2 class="text-[16px] font-bold text-[#111827]">이번 주 성장 요약</h2>
+                <button type="button" id="btn-body-ounwan" class="tap-scale px-3 py-1 rounded-full hero-navy text-white text-[11px] font-bold">오운완 카드</button>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">운동 일수</p><p class="text-[18px] font-extrabold text-[#1D4ED8] mt-0.5">${w.days}일</p></div>
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">완료 세트</p><p class="text-[18px] font-extrabold text-[#111827] mt-0.5">${w.sets}세트</p></div>
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">식단 기록</p><p class="text-[18px] font-extrabold text-[#0F766E] mt-0.5">${state.insights?.careSummary?.dietDays || 0}일</p></div>
+              </div>
+              ${imps.length ? `
+                <div class="pt-2 space-y-1.5">
+                  <p class="text-[12px] font-bold text-[#1D4ED8]">지난주 대비 증량 성공 (눌러서 공유 카드)</p>
+                  ${imps.map((it, idx) => `<button type="button" data-pridx="${idx}" class="pr-item-btn tap-scale w-full p-3 rounded-xl bg-[#EFF6FF] flex justify-between text-[13px]"><span class="font-bold text-[#111827]">🏆 ${escapeHtml(it.name)}</span><span class="font-bold text-[#1D4ED8]">${it.previous}kg → ${it.current}kg ›</span></button>`).join('')}
+                </div>
+              ` : `<div class="py-5 text-center text-[12px] text-[#6B7280] bg-[#F4F6F9] rounded-2xl">꾸준히 중량을 기록하면 지난주 대비 성장 그래프가 자동으로 채워져요!</div>`}
+            </div>
+          </div>
+        `;
+      }
+
+      const memos = state.record.memos || [];
+      return `
+        <div class="space-y-3.5 animate-in">
+          <div class="bg-white rounded-[24px] p-5 space-y-2.5">
+            <h2 class="text-[16px] font-bold text-[#111827]">코치 · 회원 메모</h2>
+            ${memos.length ? memos.map(f => `
+              <div class="p-3.5 rounded-2xl ${f.from === 'trainer' ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'}">
+                <div class="flex justify-between text-[11px] mb-1">
+                  <span class="font-bold ${f.from === 'trainer' ? 'text-[#1D4ED8]' : 'text-[#111827]'}">${f.from === 'trainer' ? '명진 트레이너' : escapeHtml(state.memberName) + ' 회원님'}</span>
+                  <span class="text-[#9CA3AF]">${escapeHtml(f.time || '')}</span>
+                </div>
+                <p class="text-[13px] text-[#374151]">${escapeHtml(f.text || '')}</p>
+              </div>
+            `).join('') : '<p class="text-[13px] text-[#6B7280] py-4 text-center">코치님께 궁금한 점을 편하게 남겨보세요.</p>'}
+            <form id="memo-form" class="pt-2 flex gap-2">
+              <input id="memo-inp" type="text" placeholder="코치님께 질문을 남겨보세요" class="flex-1 text-[13px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+              <button type="submit" class="px-4 py-2.5 rounded-2xl hero-navy text-white text-[13px] font-bold">전송</button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    // --- Coach View (Slim 2-Tab Cockpit) ---
+    function renderCoachView() {
+      const list = state.trainerOverview || [];
+      const isPending = m => Boolean(m.pendingWorkout || m.pendingDiet);
+      const isDormant = m => daysBetween(m.lastDate, state.selectedDate) >= 4;
+
+      const pendingList = list.filter(isPending);
+      const todayList = list.filter(m => m.activeToday);
+      const dormantList = list.filter(isDormant);
+
+      if (state.coachTab === 'coaching') {
+        let filtered = list;
+        if (state.coachFilter === 'pending') filtered = pendingList;
+        else if (state.coachFilter === 'today') filtered = todayList;
+        else if (state.coachFilter === 'dormant') filtered = dormantList;
+
+        // Sort so pending feedback members always come first
+        const sorted = [...filtered].sort((a, b) => {
+          const ap = isPending(a) ? 1 : 0;
+          const bp = isPending(b) ? 1 : 0;
+          if (ap !== bp) return bp - ap;
+          return (b.activeToday ? 1 : 0) - (a.activeToday ? 1 : 0);
+        });
+
+        return `
+          <div class="space-y-3.5 animate-in">
+            <section class="hero-navy rounded-[26px] p-5 text-white space-y-3.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.selectedDate} 코칭 브리핑</span>
+                <span class="text-[11px] font-semibold text-white/75">전체 ${list.length}명</span>
+              </div>
+              <h1 class="text-[21px] font-extrabold leading-snug">
+                ${pendingList.length ? `피드백 대기 ${pendingList.length}명부터<br/>바로 확인해 보세요` : `오늘 피드백 대기가 모두 완료되었어요 👍`}
+              </h1>
+              <div class="grid grid-cols-4 gap-1.5">
+                ${[
+                  ['pending', '피드백 대기', pendingList.length],
+                  ['today', '오늘 활동', todayList.length],
+                  ['dormant', '휴면 4일+', dormantList.length],
+                  ['all', '전체', list.length]
+                ].map(([fid, label, cnt]) => `
+                  <button type="button" data-cfilter="${fid}" class="c-filter-btn tap-scale py-2 px-1 rounded-2xl text-center transition ${state.coachFilter === fid ? 'bg-white text-[#1E3A8A] shadow-md' : 'bg-white/10 text-white'}">
+                    <p class="text-[16px] font-extrabold tabular-nums leading-none">${cnt}</p>
+                    <p class="text-[10px] font-bold mt-1 opacity-85">${label}</p>
+                  </button>
+                `).join('')}
+              </div>
+            </section>
+
+            <div class="space-y-2.5">
+              ${sorted.length ? sorted.map(m => {
+                const pending = isPending(m);
+                const gapDays = daysBetween(m.lastDate, state.selectedDate);
+                const badges = [];
+                if (m.pendingDiet) badges.push('식단 미답변');
+                if (m.pendingWorkout) badges.push('운동 피드백');
+                if (gapDays >= 4) badges.push(`${gapDays}일 미접속`);
+                return `
+                  <button type="button" data-cname="${escapeHtml(m.name)}" class="c-detail-btn tap-scale w-full bg-white rounded-[22px] p-4 shadow-sm text-left flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-[15px] font-extrabold text-[#111827]">${escapeHtml(m.name)}</span>
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">주 ${m.weeklyWorkoutDays || 0}회</span>
+                        ${badges.map(bg => `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${bg.includes('미접속') ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}">${bg}</span>`).join('')}
+                      </div>
+                      <p class="text-[12px] text-[#6B7280] mt-1">최근 기록: ${escapeHtml(m.lastDate || '없음')}</p>
+                    </div>
+                    <span class="shrink-0 px-3 py-2 rounded-xl ${pending ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'} text-[11px] font-extrabold">
+                      ${pending ? '바로 답글 ›' : '상세 ›'}
+                    </span>
+                  </button>
+                `;
+              }).join('') : `<div class="bg-white rounded-[22px] p-6 text-center text-[13px] text-[#6B7280]">해당 조건의 회원이 없습니다 👍</div>`}
+            </div>
+          </div>
+        `;
+      }
+
+      // Second Coach Tab: '회원 · 매거진'
+      const matchedMembers = list.filter(m => !state.coachSearch || m.name.includes(state.coachSearch));
+      return `
+        <div class="space-y-3.5 animate-in">
+          <!-- Magazine Management Card -->
+          <section class="bg-white rounded-[24px] p-5 shadow-sm space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <h2 class="text-[16px] font-extrabold text-[#111827]">FIT-CONNECT 매거진</h2>
+                <p class="text-[11px] text-[#6B7280] mt-0.5">회원 홈 상단에 노출 중인 칼럼 ${state.columns.length}건</p>
+              </div>
+              <button type="button" id="btn-coach-tab-col" class="tap-scale px-3.5 py-2 rounded-xl hero-navy text-white text-[12px] font-extrabold">+ 칼럼 발행</button>
+            </div>
+            <div class="space-y-1.5">
+              ${state.columns.slice(0, 3).map((c, idx) => `
+                <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3 rounded-2xl bg-[#F4F6F9] text-left flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <span class="text-[10px] font-bold text-[#1D4ED8]">#${escapeHtml(c.category || '인사이트')}</span>
+                    <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(c.title)}</p>
+                  </div>
+                  <span class="text-[12px] font-bold text-[#6B7280]">›</span>
+                </button>
+              `).join('')}
+            </div>
+          </section>
+
+          <!-- All Members Search & List -->
+          <section class="space-y-2.5">
+            <input id="coach-search-inp" value="${escapeHtml(state.coachSearch)}" placeholder="전체 회원 이름 검색 (${list.length}명)..." class="w-full text-[13px] px-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none" />
+            ${matchedMembers.map(m => `
+              <button type="button" data-cname="${escapeHtml(m.name)}" class="c-detail-btn tap-scale w-full bg-white rounded-[22px] p-4 shadow-sm text-left flex items-center justify-between gap-2">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[15px] font-bold text-[#111827]">${escapeHtml(m.name)}</span>
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">주 ${m.weeklyWorkoutDays || 0}회</span>
+                  </div>
+                  <p class="text-[12px] text-[#6B7280] mt-0.5">최근 기록: ${escapeHtml(m.lastDate || '없음')}</p>
+                </div>
+                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${isPending(m) ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">${isPending(m) ? '피드백 대기 ›' : '상세 보기 ›'}</span>
+              </button>
+            `).join('')}
+          </section>
+        </div>
+      `;
+    }
+
+    function updateFabUI() {
+      const menu = document.getElementById('fab-menu');
+      const icon = document.getElementById('fab-icon');
+      if (state.fabOpen) { menu.classList.remove('hidden'); menu.classList.add('flex'); icon.style.transform = 'rotate(45deg)'; }
+      else { menu.classList.add('hidden'); menu.classList.remove('flex'); icon.style.transform = 'rotate(0deg)'; }
+    }
+
+    function renderAll() {
+      renderHeader();
+      renderBottomNav();
+      document.getElementById('main-content').innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
+      updateFabUI();
+      updateFloatingTimerUI();
+      bindEvents();
+    }
+
+    function bindEvents() {
+      const vBtn = document.getElementById('btn-verify');
+      if (vBtn) {
+        vBtn.addEventListener('click', () => {
+          if (state.record.dailyCheckin.workout === 'done') {
+            state.record.dailyCheckin.workout = 'rest';
+            showToast('회복 상태로 변경했어요');
+            renderAll();
+            saveDailyCheckinLive({ ...state.record.dailyCheckin, workout: 'rest' });
+          } else {
+            openWorkoutVerifyModal();
+          }
+        });
+      }
+
+      const ounwanBtn = document.getElementById('btn-open-ounwan');
+      if (ounwanBtn) ounwanBtn.addEventListener('click', openOunwanCardModal);
+      const bodyOunwan = document.getElementById('btn-body-ounwan');
+      if (bodyOunwan) bodyOunwan.addEventListener('click', openOunwanCardModal);
+
+      document.querySelectorAll('.fb-react-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          const val = b.dataset.rval;
+          state.feedbackReaction = state.feedbackReaction === val ? '' : val;
+          try {
+            localStorage.setItem(`fit_react_${state.memberName}_${state.selectedDate}`, state.feedbackReaction);
+          } catch {}
+          const reactId = 'react-' + state.selectedDate;
+          const memos = Array.isArray(state.record.memos) ? state.record.memos.filter(m => m.id !== reactId) : [];
+          if (state.feedbackReaction) {
+            memos.push({ id: reactId, from: 'member', text: `[한마디 확인] ${state.feedbackReaction}`, time: nowTimeHHMM() });
+            showToast(`코치님께 '${state.feedbackReaction}' 반응을 보냈어요`);
+          } else {
+            showToast('반응을 취소했어요');
+          }
+          state.record.memos = memos;
+          renderAll();
+          savePatchLive({ memos: state.record.memos });
+        });
+      });
+
+      const prBtn = document.getElementById('btn-open-pr');
+      if (prBtn && state.insights?.weekly?.improvements?.[0]) {
+        prBtn.addEventListener('click', () => openPRShareModal(state.insights.weekly.improvements[0]));
+      }
+      document.querySelectorAll('.pr-item-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          const it = state.insights?.weekly?.improvements?.[Number(b.dataset.pridx)];
+          if (it) openPRShareModal(it);
+        });
+      });
+
+      const hmBtn = document.getElementById('btn-home-mission');
+      if (hmBtn) {
+        hmBtn.addEventListener('click', () => {
+          const idx = (state.record.routines || []).findIndex(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
+          if (idx >= 0) {
+            const r = state.record.routines[idx];
+            r.completedSets = Array(Math.max(1, Number(r.sets) || 3)).fill(true);
+            state.timer.setsDone += 1;
+            triggerConfetti();
+            showToast(`${r.name} 완료 체크!`);
+            if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
+            renderAll();
+            saveFullRecordLive();
+          } else {
+            state.memberTab = 'lesson';
+            renderAll();
+          }
+        });
+      }
+
+      const hgBtn = document.getElementById('btn-home-guide');
+      if (hgBtn) hgBtn.addEventListener('click', () => openFormGuideModal(hgBtn.dataset.gtitle, hgBtn.dataset.gnote));
+
+      document.querySelectorAll('.w-add-btn').forEach(b => {
+        b.addEventListener('click', () => addWaterCup(Number(b.dataset.wml)));
+      });
+      const wMinus = document.getElementById('btn-water-minus');
+      if (wMinus) wMinus.addEventListener('click', () => addWaterCup(-250));
+
+      document.querySelectorAll('.chk-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          state.record.dailyCheckin[b.dataset.grp] = b.dataset.val;
+          showToast('오늘 상태가 저장되었어요');
+          renderAll();
+          saveDailyCheckinLive({ ...state.record.dailyCheckin });
+        });
+      });
+
+      document.querySelectorAll('.meal-btn').forEach(b => b.addEventListener('click', () => openMealModal(b.dataset.mkey, b.dataset.mlabel)));
+
+      document.querySelectorAll('.routine-toggle').forEach(b => {
+        b.addEventListener('click', () => {
+          const idx = Number(b.dataset.ridx);
+          const r = state.record.routines[idx];
+          if (!r) return;
+          const setsCount = Math.max(1, Number(r.sets) || (Array.isArray(r.completedSets) ? r.completedSets.length : 3));
+          const currentlyDone = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
+          r.completedSets = Array(setsCount).fill(!currentlyDone);
+          if (!currentlyDone) {
+            state.timer.setsDone += 1;
+            triggerConfetti();
+            if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
+          }
+          renderAll();
+          saveFullRecordLive();
+        });
+      });
+
+      document.querySelectorAll('.routine-guide-btn').forEach(b => {
+        b.addEventListener('click', () => openFormGuideModal(b.dataset.gtitle, b.dataset.gnote));
+      });
+
+      const addR = document.getElementById('btn-add-routine');
+      if (addR) addR.addEventListener('click', openAddRoutineModal);
+
+      const timerLessonBtn = document.getElementById('btn-open-timer-lesson');
+      if (timerLessonBtn) timerLessonBtn.addEventListener('click', openTimerModal);
+      const plateLessonBtn = document.getElementById('btn-open-plate-lesson');
+      if (plateLessonBtn) plateLessonBtn.addEventListener('click', openPlateCalcModal);
+
+      const magBtn = document.getElementById('btn-open-magazine');
+      if (magBtn) magBtn.addEventListener('click', () => openMagazineModal(0));
+      document.querySelectorAll('.mag-item-btn').forEach(b => {
+        b.addEventListener('click', () => openMagazineModal(Number(b.dataset.colidx)));
+      });
+
+      const memoForm = document.getElementById('memo-form');
+      if (memoForm) {
+        memoForm.addEventListener('submit', e => {
+          e.preventDefault();
+          const inp = document.getElementById('memo-inp');
+          const txt = inp.value.trim();
+          if (!txt) return;
+          state.record.memos.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), from: 'member', text: txt, time: nowTimeHHMM() });
+          inp.value = '';
+          showToast('코치님께 메모를 전송했어요');
+          renderAll();
+          savePatchLive({ memos: state.record.memos });
+        });
+      }
+
+      const goL = document.getElementById('go-lesson');
+      if (goL) goL.addEventListener('click', () => { state.memberTab = 'lesson'; renderAll(); });
+      const goL2 = document.getElementById('go-lesson-2');
+      if (goL2) goL2.addEventListener('click', () => { state.memberTab = 'lesson'; renderAll(); });
+      const goD = document.getElementById('go-diet');
+      if (goD) goD.addEventListener('click', () => { state.memberTab = 'diet'; renderAll(); });
+
+      // Coach events
+      document.querySelectorAll('.c-filter-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          state.coachFilter = b.dataset.cfilter;
+          renderAll();
+        });
+      });
+
+      document.querySelectorAll('.c-detail-btn').forEach(b => {
+        b.addEventListener('click', () => openCoachDetailSheet(b.dataset.cname));
+      });
+
+      const coachColBtn = document.getElementById('btn-coach-tab-col');
+      if (coachColBtn) coachColBtn.addEventListener('click', openColumnWriteModal);
+
+      const csInp = document.getElementById('coach-search-inp');
+      if (csInp) {
+        csInp.addEventListener('input', e => {
+          state.coachSearch = e.target.value.trim();
+          renderAll();
+          const n = document.getElementById('coach-search-inp');
+          if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+        });
+      }
+    }
+
+    // Floating Timer Bar Listeners
+    document.getElementById('ft-minus').addEventListener('click', () => {
+      state.timer.remaining = Math.max(5, state.timer.remaining - 10);
+      updateFloatingTimerUI();
+    });
+    document.getElementById('ft-plus').addEventListener('click', () => {
+      state.timer.remaining += 10;
+      updateFloatingTimerUI();
+    });
+    document.getElementById('ft-toggle').addEventListener('click', () => {
+      state.timer.running = !state.timer.running;
+      if (state.timer.running) runTimerTick();
+      updateFloatingTimerUI();
+    });
+    document.getElementById('ft-open').addEventListener('click', openTimerModal);
+    document.getElementById('ft-stop').addEventListener('click', stopTimer);
+
+    // FAB Listeners
+    document.getElementById('fab-toggle').addEventListener('click', () => { state.fabOpen = !state.fabOpen; updateFabUI(); });
+    document.getElementById('fab-timer').addEventListener('click', () => { state.fabOpen = false; updateFabUI(); openTimerModal(); });
+    document.getElementById('fab-plate').addEventListener('click', () => { state.fabOpen = false; updateFabUI(); openPlateCalcModal(); });
+    document.getElementById('fab-ounwan').addEventListener('click', () => { state.fabOpen = false; updateFabUI(); openOunwanCardModal(); });
+    document.getElementById('fab-diet').addEventListener('click', () => { state.fabOpen = false; updateFabUI(); openMealModal('lunch', '점심'); });
+    document.getElementById('fab-water').addEventListener('click', () => { state.fabOpen = false; addWaterCup(250); });
+    document.getElementById('fab-memo').addEventListener('click', () => { state.fabOpen = false; state.memberTab = 'feedback'; renderAll(); });
+
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-backdrop').addEventListener('click', e => { if (e.target.id === 'modal-backdrop') closeModal(); });
+
+    initLiveMemberData();
+  </script>
+</body>
+</html>

@@ -340,7 +340,7 @@
             '수업 외 개인 운동 시 루틴이 길어지면 집중력이 떨어져 자세가 무너지기 쉽습니다.',
             '지난 수업 메인 종목 1가지(워킹세트 3~4세트)와 코어 안정화 동작 1가지만 정해진 템포로 마치고 가셔도 근신경 유지에 충분합니다.'
           ],
-          author: '신명진 코치',
+          author: '명진 트레이너',
           published_at: paramDate
         },
         {
@@ -352,7 +352,7 @@
             '염분과 탄수화물 섭취가 많았던 다음 날 체중 증가는 대부분 체지방이 아닌 수분 정체입니다.',
             '끼니를 거르기보다 평소보다 수분을 500ml 이상 늘려 나트륨 배출을 돕고, 점심·저녁은 순수 단백질과 채소 비중을 높여 24시간 내에 밸런스를 되돌리는 편이 훨씬 효율적입니다.'
           ],
-          author: '신명진 코치',
+          author: '명진 트레이너',
           published_at: paramDate
         },
         {
@@ -364,7 +364,7 @@
             '수면 부족이나 근육통이 남은 날엔 중량을 10~15% 낮추고 가동범위와 호흡 컨트롤에 집중하는 디로딩(Deloading)이 필요합니다.',
             '수업 전 뻐근하거나 불편한 부위가 있다면 메모에 먼저 남겨주세요. 당일 워밍업과 강도를 바로 조정해 드리겠습니다.'
           ],
-          author: '신명진 코치',
+          author: '명진 트레이너',
           published_at: paramDate
         }
       ],
@@ -501,7 +501,7 @@
       openModal('개인정보 수집 · 이용 안내', `
         <div class="space-y-4">
           <p class="text-[13px] text-[#4B5563] leading-relaxed">
-            <strong>FIT-CONNECT</strong>는 담당 코치의 맞춤 운동·식단 피드백 제공을 위해 회원님이 입력하는 운동 기록, 식단, 컨디션 체크 정보를 안전하게 보관합니다.
+            <strong>FIT-CONNECT (명진 트레이너의 운동노트)</strong>는 맞춤 운동·식단 피드백 제공을 위해 회원님이 입력하는 운동 기록, 식단, 컨디션 체크 정보를 안전하게 보관합니다.
           </p>
           <div class="p-3.5 rounded-2xl bg-[#F4F6F9] text-[12px] text-[#4B5563] space-y-1">
             <p>• 수집 항목: 운동 세트 기록, 식단·수분, 컨디션 체크</p>
@@ -2021,7 +2021,7 @@
           title: document.getElementById('cw-title').value.trim(),
           summary: document.getElementById('cw-summary').value.trim(),
           content: document.getElementById('cw-body').value.split('\n').map(v => v.trim()).filter(Boolean),
-          author: '신명진 코치',
+          author: '명진 트레이너',
           published_at: state.selectedDate
         };
         if (state.isLive && state.trainerPassword) {
@@ -2213,7 +2213,8 @@
                     <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-white">${state.selectedDate}</span>
                     ${pr ? `<button type="button" id="btn-open-pr" class="tap-scale text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#5EEAD4]/20 text-[#5EEAD4]">🏆 ${escapeHtml(pr.name)} +${pr.current - pr.previous}kg ›</button>` : ''}
                   </div>
-                  <h1 class="text-[22px] font-extrabold tracking-tight leading-snug mt-2">${escapeHtml(state.memberName)}님의<br/>오늘 컨디션 리포트</h1>
+                  <h1 class="text-[22px] font-extrabold tracking-tight leading-snug mt-2">${escapeHtml(state.memberName)}님의<br/>오늘 운동노트</h1>
+                  <p class="text-[11px] font-semibold text-white/70 mt-1">명진 트레이너의 1:1 PT 케어</p>
                   <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[11px] font-bold">
                     <span class="flex items-center gap-1 text-[#60A5FA]"><span class="w-2 h-2 rounded-full bg-[#60A5FA]"></span>관리 ${score}</span>
                     <span class="flex items-center gap-1 text-[#5EEAD4]"><span class="w-2 h-2 rounded-full bg-[#5EEAD4]"></span>식단 ${ds.pct}%</span>
@@ -2228,7 +2229,7 @@
 
               <div class="mt-4 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 space-y-2.5">
                 <div class="flex items-center justify-between">
-                  <span class="text-[11px] font-bold text-white/90">FROM COACH</span>
+                  <span class="text-[11px] font-bold text-white/90">FROM 명진 트레이너</span>
                   <button type="button" id="go-lesson" class="text-[11px] font-bold text-[#60A5FA]">수업일지 ›</button>
                 </div>
                 <p class="text-[13px] text-white/95 leading-relaxed">${escapeHtml(coachNote)}</p>
@@ -2448,7 +2449,7 @@
             ${memos.length ? memos.map(f => `
               <div class="p-3.5 rounded-2xl ${f.from === 'trainer' ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'}">
                 <div class="flex justify-between text-[11px] mb-1">
-                  <span class="font-bold ${f.from === 'trainer' ? 'text-[#1D4ED8]' : 'text-[#111827]'}">${f.from === 'trainer' ? '담당 코치' : escapeHtml(state.memberName) + ' 회원님'}</span>
+                  <span class="font-bold ${f.from === 'trainer' ? 'text-[#1D4ED8]' : 'text-[#111827]'}">${f.from === 'trainer' ? '명진 트레이너' : escapeHtml(state.memberName) + ' 회원님'}</span>
                   <span class="text-[#9CA3AF]">${escapeHtml(f.time || '')}</span>
                 </div>
                 <p class="text-[13px] text-[#374151]">${escapeHtml(f.text || '')}</p>

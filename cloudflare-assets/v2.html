@@ -230,6 +230,45 @@
       });
     }
 
+    function compressAndWatermarkPhoto(file, memberName) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 900;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // Timestamp watermark bar at bottom
+            const barH = Math.max(44, Math.round(h * 0.085));
+            ctx.fillStyle = 'rgba(11, 19, 43, 0.72)';
+            ctx.fillRect(0, h - barH, w, barH);
+            ctx.fillStyle = '#5EEAD4';
+            ctx.font = `800 ${Math.max(13, Math.round(barH * 0.36))}px Pretendard, sans-serif`;
+            ctx.fillText('FIT-CONNECT VERIFIED', 16, h - Math.round(barH * 0.34));
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = `700 ${Math.max(13, Math.round(barH * 0.34))}px Pretendard, sans-serif`;
+            const stamp = `${memberName} · ${getTodayKST()} ${nowTimeHHMM()}`;
+            const tw = ctx.measureText(stamp).width;
+            ctx.fillText(stamp, Math.max(16, w - tw - 16), h - Math.round(barH * 0.34));
+
+            resolve(canvas.toDataURL('image/jpeg', 0.74));
+          };
+          img.onerror = reject;
+          img.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
     // Web Audio API Beep for Timer End
     function playTimerBeep() {
       try {
@@ -958,7 +997,7 @@
       const ds = getDietStats();
       const chk = state.record.dailyCheckin || {};
       const streak = state.insights?.careSummary?.workoutDays || state.workoutDays.length || 1;
-      const coachMsg = (state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate)).slice(0, 34);
+      const coachMsg = (state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate)).slice(0, 62);
 
       const q1Done = (wr.total > 0 && wr.done >= wr.total) || chk.workout === 'done';
       const q2Done = ds.water >= 2000;
@@ -983,10 +1022,12 @@
       openModal('오늘의 퀘스트 카드 저장', `
         <div class="space-y-4">
           <div class="rounded-[22px] overflow-hidden shadow-xl bg-[#060B19]">
-            <canvas id="ounwan-canvas" width="720" height="880" class="w-full h-auto block"></canvas>
+            <canvas id="ounwan-canvas" width="720" height="880" class="hidden"></canvas>
+            <img id="ounwan-img-preview" alt="오운완 퀘스트 카드" class="w-full h-auto block" />
           </div>
+          <p class="text-[11px] text-center text-[#6B7280]">아이폰·카톡에서는 위 이미지를 꾹 눌러서도 바로 저장할 수 있어요</p>
           <div class="grid grid-cols-2 gap-2">
-            <button type="button" id="btn-download-ounwan" class="tap-scale py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">이미지 저장 (PNG)</button>
+            <button type="button" id="btn-download-ounwan" class="tap-scale py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">이미지 저장 · 공유</button>
             <button type="button" id="btn-copy-ounwan" class="tap-scale py-3.5 rounded-2xl card-teal text-white text-[13px] font-extrabold">문구 복사하기</button>
           </div>
         </div>
@@ -1161,18 +1202,33 @@
       ctx.font = '800 14px Pretendard, sans-serif';
       ctx.fillText('COACH BRIEFING', 82, 770);
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.font = '500 19px Pretendard, sans-serif';
-      ctx.fillText(coachMsg, 82, 804);
+      ctx.font = '500 18px Pretendard, sans-serif';
+      ctx.fillText(coachMsg.slice(0, 32), 82, 795);
+      if (coachMsg.length > 32) ctx.fillText(coachMsg.slice(32, 62), 82, 818);
 
-      document.getElementById('btn-download-ounwan').addEventListener('click', () => {
+      const dataUrl = canvas.toDataURL('image/png');
+      const prevImg = document.getElementById('ounwan-img-preview');
+      if (prevImg) prevImg.src = dataUrl;
+
+      document.getElementById('btn-download-ounwan').addEventListener('click', async () => {
         try {
+          if (navigator.share && canvas.toBlob) {
+            const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+            if (blob) {
+              const file = new File([blob], `fit-connect-quest-${state.selectedDate}.png`, { type: 'image/png' });
+              if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: 'FIT-CONNECT 오늘의 퀘스트' });
+                return;
+              }
+            }
+          }
           const link = document.createElement('a');
           link.download = `fit-connect-quest-${state.selectedDate}.png`;
-          link.href = canvas.toDataURL('image/png');
+          link.href = dataUrl;
           link.click();
           showToast('퀘스트 카드 이미지가 저장되었어요!');
         } catch {
-          showToast('이미지 저장 중 오류가 발생했어요');
+          showToast('위 이미지를 꾹 눌러 사진첩에 저장해 보세요');
         }
       });
       document.getElementById('btn-copy-ounwan').addEventListener('click', () => {
@@ -1319,6 +1375,110 @@
     }
 
     // --- Member Modals ---
+    function openWorkoutVerifyModal() {
+      const wr = getWorkoutRate();
+      const missions = [
+        '오늘 사용한 기구 또는 덤벨과 함께 찍기 🏋️',
+        '운동 후 물통이나 타올과 함께 브이(✌️) 인증하기',
+        '헬스장 거울 또는 매트 위에서 현장 인증하기 💪'
+      ];
+      const missionIdx = state.selectedDate.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % missions.length;
+      const dailyMission = missions[missionIdx];
+      let verifiedPhoto = '';
+      let intensity = '적당함';
+
+      openModal('오늘 운동 현장 인증', `
+        <div class="space-y-4">
+          <div class="p-3.5 rounded-2xl hero-navy text-white space-y-1">
+            <span class="text-[10px] font-extrabold text-[#5EEAD4]">TODAY'S VERIFY MISSION</span>
+            <p class="text-[13px] font-bold">${dailyMission}</p>
+            <p class="text-[11px] text-white/75">현재 루틴 완료: ${wr.done}/${wr.total}종목</p>
+          </div>
+
+          <div>
+            <label class="tap-scale w-full py-3.5 px-4 rounded-2xl border-2 border-dashed border-[#3B82F6] bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center gap-2 text-[13px] font-extrabold cursor-pointer">
+              <input id="wv-camera-input" type="file" accept="image/*" capture="environment" class="hidden" />
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span id="wv-photo-label">카메라로 현장 인증 찍기 (시각 자동 각인)</span>
+            </label>
+            <p id="wv-old-warn" class="hidden text-[11px] text-amber-600 font-semibold mt-1.5 px-1">⚠️ 이전에 저장된 사진일 수 있어요. 가능하면 지금 카메라로 바로 촬영해 주세요.</p>
+            <img id="wv-photo-prev" src="" alt="운동 인증 사진" class="hidden mt-2.5 w-full h-44 object-cover rounded-2xl shadow-sm" />
+          </div>
+
+          <div>
+            <p class="text-[12px] font-bold text-[#4B5563] mb-1.5">오늘 운동 강도</p>
+            <div class="grid grid-cols-3 gap-1.5">
+              ${['가벼움', '적당함', '불태움 🔥'].map(lv => `
+                <button type="button" data-ilv="${lv}" class="wv-int-btn tap-scale py-2 rounded-xl text-[12px] font-bold ${lv === intensity ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'}">${lv}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <button type="button" id="wv-submit-btn" class="tap-scale w-full py-3.5 rounded-2xl card-teal text-white text-[14px] font-extrabold shadow-md">
+            운동 인증 완료하고 코치에게 알리기
+          </button>
+        </div>
+      `);
+
+      document.getElementById('wv-camera-input').addEventListener('change', async e => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const warnEl = document.getElementById('wv-old-warn');
+        if (f.lastModified && (Date.now() - f.lastModified > 3600000)) {
+          warnEl.classList.remove('hidden');
+        } else {
+          warnEl.classList.add('hidden');
+        }
+        try {
+          verifiedPhoto = await compressAndWatermarkPhoto(f, state.memberName);
+          const prev = document.getElementById('wv-photo-prev');
+          prev.src = verifiedPhoto;
+          prev.classList.remove('hidden');
+          document.getElementById('wv-photo-label').textContent = '실시간 워터마크 합성 완료 ✓ (다시 찍기)';
+          showToast('현재 시각 워터마크가 합성되었어요');
+        } catch {
+          showToast('사진을 처리하지 못했어요');
+        }
+      });
+
+      document.querySelectorAll('.wv-int-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          intensity = b.dataset.ilv;
+          document.querySelectorAll('.wv-int-btn').forEach(x => {
+            const act = x.dataset.ilv === intensity;
+            x.className = `wv-int-btn tap-scale py-2 rounded-xl text-[12px] font-bold ${act ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'}`;
+          });
+        });
+      });
+
+      document.getElementById('wv-submit-btn').addEventListener('click', async () => {
+        if (wr.total > 0 && wr.done === 0 && !verifiedPhoto) {
+          showToast('루틴 1개 이상 체크 또는 현장 사진을 찍어주세요!');
+          return;
+        }
+        state.record.dailyCheckin.workout = 'done';
+        const vMemo = {
+          id: 'verify-' + state.selectedDate,
+          from: 'member',
+          text: `[운동 인증 ${nowTimeHHMM()}] 강도: ${intensity} · 완료 ${wr.done}/${wr.total}종목${verifiedPhoto ? ' (현장 사진 첨부)' : ''}`,
+          time: nowTimeHHMM(),
+          ...(verifiedPhoto ? { photo: verifiedPhoto } : {})
+        };
+        const memos = Array.isArray(state.record.memos) ? state.record.memos.filter(m => m.id !== vMemo.id) : [];
+        memos.push(vMemo);
+        state.record.memos = memos;
+
+        closeModal();
+        triggerConfetti();
+        showToast('오늘 운동 인증이 완료되었어요! 💪');
+        renderAll();
+        await Promise.allSettled([
+          saveDailyCheckinLive({ ...state.record.dailyCheckin, workout: 'done' }),
+          savePatchLive({ memos: state.record.memos })
+        ]);
+      });
+    }
+
     function openMealModal(mealKey, mealLabel) {
       const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
       const presets = [
@@ -1760,6 +1920,10 @@
               </div>
               <button type="button" id="cd-copy-handover" class="tap-scale shrink-0 px-2.5 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계 복사</button>
             </div>
+            ${(() => {
+              const vp = [...memos].reverse().find(m => m.photo);
+              return vp ? `<div class="p-3 rounded-2xl bg-[#EFF6FF] space-y-1.5"><span class="text-[11px] font-extrabold text-[#1D4ED8]">📸 회원 현장 인증 사진</span><img src="${vp.photo}" alt="현장 인증" class="w-full h-36 object-cover rounded-xl" /></div>` : '';
+            })()}
 
             <!-- Today's Diet & Photos -->
             <div class="p-3.5 rounded-2xl bg-[#F0FDFA] space-y-2">
@@ -2045,18 +2209,18 @@
       const hdr = document.getElementById('app-header');
       if (state.appMode === 'member') {
         hdr.innerHTML = `
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-xl hero-navy flex items-center justify-center shadow-sm">
-                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <div class="w-6 h-6 rounded-lg hero-navy flex items-center justify-center shadow-sm shrink-0">
+                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
               </div>
-              <span class="text-[17px] font-extrabold tracking-tight text-[#0F172A]">FIT-CONNECT</span>
-              ${state.isLive ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#1D4ED8]">LIVE</span>' : '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">미리보기</span>'}
+              <span class="text-[15px] font-extrabold tracking-tight text-[#0F172A] whitespace-nowrap shrink-0">FIT-CONNECT</span>
+              ${state.isLive ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#1D4ED8] whitespace-nowrap shrink-0">LIVE</span>' : '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 whitespace-nowrap shrink-0">미리보기</span>'}
             </div>
-            <div class="flex items-center gap-1.5">
-              <button type="button" id="btn-hdr-timer" class="tap-scale h-7 px-2.5 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8]">⏱ 타이머</button>
-              <button type="button" id="btn-coach-switch" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">코치</button>
-              <button type="button" id="btn-ask-coach" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#1D4ED8] shadow-sm">질문</button>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" id="btn-hdr-timer" class="tap-scale h-7 px-2 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8] whitespace-nowrap shrink-0">⏱ 타이머</button>
+              <button type="button" id="btn-coach-switch" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm whitespace-nowrap shrink-0">코치</button>
+              <button type="button" id="btn-ask-coach" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#1D4ED8] shadow-sm whitespace-nowrap shrink-0">질문</button>
             </div>
           </div>
           <div class="grid grid-cols-7 gap-1 mt-3.5">
@@ -2094,17 +2258,17 @@
         document.getElementById('btn-coach-switch').addEventListener('click', openTrainerLoginModal);
       } else {
         hdr.innerHTML = `
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-xl hero-navy flex items-center justify-center shadow-sm">
-                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <div class="w-6 h-6 rounded-lg hero-navy flex items-center justify-center shadow-sm shrink-0">
+                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
               </div>
-              <span class="text-[16px] font-extrabold tracking-tight text-[#0F172A]">FIT-CONNECT</span>
-              <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#1E3A8A] text-white">COACH</span>
+              <span class="text-[15px] font-extrabold tracking-tight text-[#0F172A] whitespace-nowrap shrink-0">FIT-CONNECT</span>
+              <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#1E3A8A] text-white whitespace-nowrap shrink-0">COACH</span>
             </div>
-            <div class="flex items-center gap-1.5">
-              <button type="button" id="btn-new-col" class="tap-scale h-7 px-2.5 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8]">+ 칼럼</button>
-              <button type="button" id="btn-back-member" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">회원 화면</button>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" id="btn-new-col" class="tap-scale h-7 px-2.5 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8] whitespace-nowrap shrink-0">+ 칼럼</button>
+              <button type="button" id="btn-back-member" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm whitespace-nowrap shrink-0">회원 화면</button>
             </div>
           </div>
         `;
@@ -2145,6 +2309,29 @@
     }
 
     // --- Member View ---
+    function renderCompactWaterBar(ds) {
+      const waterPct = Math.min(100, Math.round((ds.water / 2000) * 100));
+      return `
+        <section class="bg-white rounded-[22px] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-[14px] font-bold text-[#111827]">💧 수분</span>
+              <span class="text-[12px] font-extrabold text-[#1D4ED8] tabular-nums">${(ds.water / 1000).toFixed(2)}L / 2.0L</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" id="btn-water-minus" class="tap-scale px-2 py-1 rounded-lg bg-[#F4F6F9] text-[#4B5563] text-[11px] font-bold">-250</button>
+              <button type="button" data-wml="250" class="w-add-btn tap-scale px-2.5 py-1 rounded-lg bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">+250</button>
+              <button type="button" data-wml="500" class="w-add-btn tap-scale px-2.5 py-1 rounded-lg card-blue text-white text-[11px] font-extrabold">+500</button>
+              <button type="button" data-wml="1000" class="w-add-btn tap-scale px-2.5 py-1 rounded-lg card-teal text-white text-[11px] font-extrabold">+1L</button>
+            </div>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-[#EFF6FF] overflow-hidden">
+            <div class="h-full card-teal transition-all duration-300" style="width:${waterPct}%"></div>
+          </div>
+        </section>
+      `;
+    }
+
     function renderWaterWidget(ds) {
       const cups = Math.min(8, Math.floor(ds.water / 250));
       const waterPct = Math.min(100, Math.round((ds.water / 2000) * 100));
@@ -2258,7 +2445,7 @@
                 <button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>
               </div>
               <div class="space-y-2">
-                ${state.columns.slice(0, 2).map((col, idx) => `
+                ${state.columns.slice(0, 1).map((col, idx) => `
                   <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
                     <div class="min-w-0">
                       <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
@@ -2291,29 +2478,22 @@
               </button>
             </div>
 
-            <!-- Weekly Rhythm Curve + Personal Mission & 10-Sec Form Tip -->
-            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-4">
-              <div class="flex items-center justify-between">
-                <div><h2 class="text-[16px] font-bold text-[#111827]">주간 운동 리듬</h2><p class="text-[11px] text-[#6B7280] mt-0.5">이번 주 출석 ${state.insights?.careSummary?.workoutDays || 0}일 기록됨</p></div>
-                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">${state.insights?.weekly?.current?.sets || 0}세트 누적</span>
-              </div>
-              ${weeklyCurveSvg()}
-              <div class="p-4 rounded-2xl transition flex items-center justify-between gap-2 ${missionDone ? 'card-teal text-white shadow-md' : 'bg-[#EFF6FF] text-[#111827]'}">
-                <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
-                  <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                  </div>
-                  <div class="min-w-0">
-                    <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
-                    <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${missionDone ? '수업일지 전체 보기 ›' : (hasRoutines ? '터치해서 완료 체크 (+타이머)' : '휴식 · 회복일')}</p>
-                  </div>
-                </button>
-                <button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold ${missionDone ? 'bg-white/20 text-white' : 'bg-white text-[#1D4ED8] shadow-sm'}">자세 팁 ▶</button>
-              </div>
-            </section>
+            <!-- Compact Today's Mission -->
+            <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
+              <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
+                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${missionDone ? '수업일지 전체 보기 ›' : (hasRoutines ? '터치해서 완료 체크 (+타이머)' : '휴식 · 회복일')}</p>
+                </div>
+              </button>
+              <button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold ${missionDone ? 'bg-white/20 text-white' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">자세 팁 ▶</button>
+            </div>
 
-            <!-- Water 250ml Cup Widget -->
-            ${renderWaterWidget(ds)}
+            <!-- Compact 1-Line Water Bar -->
+            ${renderCompactWaterBar(ds)}
 
             <!-- Compact Today Check -->
             <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
@@ -2323,22 +2503,6 @@
               <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">컨디션</span><div class="grid grid-cols-3 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="mood" data-val="good" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'good' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">좋음</button><button type="button" data-grp="mood" data-val="normal" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'normal' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">보통</button><button type="button" data-grp="mood" data-val="tired" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'tired' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">피곤</button></div></div>
             </section>
 
-            <!-- Meals 3-Col -->
-            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
-              <div class="flex items-center justify-between mb-3"><h2 class="text-[16px] font-bold text-[#111827]">오늘의 식단</h2><button type="button" id="go-diet-2" class="text-[12px] font-bold text-[#0F766E]">자세히 ›</button></div>
-              <div class="grid grid-cols-3 gap-2.5">
-                ${[['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁']].map(([key, label]) => {
-                  const ml = state.record.diet[key] || {};
-                  const logged = !!(String(ml.desc || '').trim() || Number(ml.cal) > 0 || (Array.isArray(ml.photos) && ml.photos.length));
-                  return `
-                    <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn tap-scale p-3.5 rounded-2xl text-center transition ${logged ? 'card-teal text-white shadow-sm' : 'bg-[#F4F6F9] text-[#111827]'}">
-                      <p class="text-[13px] font-bold">${label}</p>
-                      <p class="text-[11px] font-semibold tabular-nums mt-1 ${logged ? 'text-white/90' : 'text-[#0F766E]'}">${logged ? (ml.cal ? ml.cal + 'kcal' : '사진기록') : '원터치 +'}</p>
-                    </button>
-                  `;
-                }).join('')}
-              </div>
-            </section>
           </div>
         `;
       }
@@ -2420,6 +2584,13 @@
         const imps = state.insights?.weekly?.improvements || [];
         return `
           <div class="space-y-3.5 animate-in">
+            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
+              <div class="flex items-center justify-between">
+                <div><h2 class="text-[16px] font-bold text-[#111827]">주간 운동 리듬</h2><p class="text-[11px] text-[#6B7280] mt-0.5">이번 주 출석 ${state.insights?.careSummary?.workoutDays || 0}일 기록됨</p></div>
+                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">${w.sets || 0}세트 누적</span>
+              </div>
+              ${weeklyCurveSvg()}
+            </section>
             <div class="bg-white rounded-[24px] p-5 space-y-3">
               <div class="flex items-center justify-between">
                 <h2 class="text-[16px] font-bold text-[#111827]">이번 주 성장 요약</h2>
@@ -2608,12 +2779,14 @@
       const vBtn = document.getElementById('btn-verify');
       if (vBtn) {
         vBtn.addEventListener('click', () => {
-          const nextVal = state.record.dailyCheckin.workout === 'done' ? 'rest' : 'done';
-          state.record.dailyCheckin.workout = nextVal;
-          if (nextVal === 'done') triggerConfetti();
-          showToast(nextVal === 'done' ? '오늘 운동 인증 완료!' : '회복 상태로 변경했어요');
-          renderAll();
-          saveDailyCheckinLive({ ...state.record.dailyCheckin, workout: nextVal });
+          if (state.record.dailyCheckin.workout === 'done') {
+            state.record.dailyCheckin.workout = 'rest';
+            showToast('회복 상태로 변경했어요');
+            renderAll();
+            saveDailyCheckinLive({ ...state.record.dailyCheckin, workout: 'rest' });
+          } else {
+            openWorkoutVerifyModal();
+          }
         });
       }
 
@@ -2629,8 +2802,17 @@
           try {
             localStorage.setItem(`fit_react_${state.memberName}_${state.selectedDate}`, state.feedbackReaction);
           } catch {}
-          if (state.feedbackReaction) showToast(`코치님께 '${state.feedbackReaction}' 반응을 보냈어요`);
+          const reactId = 'react-' + state.selectedDate;
+          const memos = Array.isArray(state.record.memos) ? state.record.memos.filter(m => m.id !== reactId) : [];
+          if (state.feedbackReaction) {
+            memos.push({ id: reactId, from: 'member', text: `[한마디 확인] ${state.feedbackReaction}`, time: nowTimeHHMM() });
+            showToast(`코치님께 '${state.feedbackReaction}' 반응을 보냈어요`);
+          } else {
+            showToast('반응을 취소했어요');
+          }
+          state.record.memos = memos;
           renderAll();
+          savePatchLive({ memos: state.record.memos });
         });
       });
 
@@ -2742,8 +2924,6 @@
       if (goL2) goL2.addEventListener('click', () => { state.memberTab = 'lesson'; renderAll(); });
       const goD = document.getElementById('go-diet');
       if (goD) goD.addEventListener('click', () => { state.memberTab = 'diet'; renderAll(); });
-      const goD2 = document.getElementById('go-diet-2');
-      if (goD2) goD2.addEventListener('click', () => { state.memberTab = 'diet'; renderAll(); });
 
       // Coach events
       document.querySelectorAll('.c-filter-btn').forEach(b => {

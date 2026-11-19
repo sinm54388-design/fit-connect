@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FIT-CONNECT</title>
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <style>
@@ -406,13 +408,20 @@
 
     // --- API Helpers ---
     async function postRecords(payload) {
-      const res = await fetch('/api/records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('records_' + res.status);
-      return res.json();
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+      try {
+        const res = await fetch('/api/records', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          ...(ctrl ? { signal: ctrl.signal } : {})
+        });
+        if (!res.ok) throw new Error('records_' + res.status);
+        return res.json();
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     }
 
     async function postAppsScript(payload) {
@@ -425,32 +434,60 @@
       return res.json();
     }
 
-    // --- Live Initialization ---
+    function applyCachedMemberData(dateStr) {
+      try {
+        const raw = localStorage.getItem(`fit_cache_v2_${state.memberName}_${dateStr}`);
+        if (!raw) return false;
+        const cached = JSON.parse(raw);
+        if (cached.record) state.record = cached.record;
+        if (cached.insights) state.insights = cached.insights;
+        if (Array.isArray(cached.columns) && cached.columns.length) state.columns = cached.columns;
+        if (Array.isArray(cached.workoutDays)) state.workoutDays = cached.workoutDays;
+        return true;
+      } catch { return false; }
+    }
+
+    function saveCachedMemberData(dateStr) {
+      try {
+        localStorage.setItem(`fit_cache_v2_${state.memberName}_${dateStr}`, JSON.stringify({
+          record: state.record,
+          insights: state.insights,
+          columns: state.columns,
+          workoutDays: state.workoutDays
+        }));
+      } catch {}
+    }
+
+    // --- Live Initialization (Parallel + Instant Cache) ---
     async function initLiveMemberData() {
       loadLocalMemberExtras();
       if (!isLiveOrigin || !state.memberName || !state.token) {
         renderAll();
         return;
       }
-      state.loading = true;
+      const hadCache = applyCachedMemberData(state.selectedDate);
+      state.isLive = true;
+      state.loading = !hadCache;
       renderAll();
       try {
-        const sessRes = await postRecords({
-          action: 'memberSession',
-          member: state.memberName,
-          token: state.token,
-          date: state.selectedDate
-        });
+        const [sessRes] = await Promise.all([
+          postRecords({
+            action: 'memberSession',
+            member: state.memberName,
+            token: state.token,
+            date: state.selectedDate
+          }).catch(() => null),
+          loadMemberDateData(state.selectedDate)
+        ]);
         if (sessRes?.status === 'success' && sessRes.session) {
           state.session = sessRes.session;
-          state.isLive = true;
         }
-        await loadMemberDateData(state.selectedDate);
+        saveCachedMemberData(state.selectedDate);
         loadLocalMemberExtras();
         maybeShowPrivacyConsent();
       } catch {
         state.isLive = false;
-        showToast('미리보기 데이터로 표시 중입니다');
+        if (!hadCache) showToast('미리보기 데이터로 표시 중입니다');
       } finally {
         state.loading = false;
         renderAll();
@@ -1631,10 +1668,12 @@
       openModal('코치 전용 로그인', `
         <form id="coach-login-form" class="space-y-3">
           <p class="text-[12px] text-[#6B7280]">기존 FIT-CONNECT 트레이너 비밀번호를 입력하면 전체 회원 현황을 불러옵니다.</p>
-          <input id="coach-pw" type="password" required placeholder="트레이너 비밀번호" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
+          <input id="coach-pw" name="coach-pin-manual" type="password" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" value="" required placeholder="트레이너 비밀번호 직접 입력" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
           <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-bold">코치 모드로 전환</button>
         </form>
       `);
+      const pwEl = document.getElementById('coach-pw');
+      if (pwEl) pwEl.value = '';
       document.getElementById('coach-login-form').addEventListener('submit', async e => {
         e.preventDefault();
         const pw = document.getElementById('coach-pw').value;
@@ -2039,9 +2078,11 @@
             state.selectedDate = btn.dataset.fdate;
             state.weekDays = buildWeekDays(state.selectedDate);
             if (state.isLive) {
-              state.loading = true;
+              const hadCache = applyCachedMemberData(state.selectedDate);
+              state.loading = !hadCache;
               renderAll();
               await loadMemberDateData(state.selectedDate);
+              saveCachedMemberData(state.selectedDate);
               state.loading = false;
             }
             loadLocalMemberExtras();

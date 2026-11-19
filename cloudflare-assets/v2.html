@@ -1977,9 +1977,21 @@
               if (fm?.name && fm?.token) tokenMap[fm.name] = fm.token;
             });
           }
+          let serverMembers = [];
           if (ov?.status === 'success' && Array.isArray(ov.members)) {
-            state.trainerOverview = ov.members.map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' }));
+            serverMembers = ov.members.map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' }));
           }
+          let localAdded = [];
+          try {
+            localAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]');
+          } catch {}
+          const merged = [...serverMembers];
+          localAdded.forEach(lm => {
+            if (lm?.name && !merged.some(sm => sm.name === lm.name)) {
+              merged.unshift(lm);
+            }
+          });
+          state.trainerOverview = merged;
           state.isLive = true;
         } catch {
           if (!isAuto) showToast('코치 인증 중 오류가 발생했어요');
@@ -1988,11 +2000,17 @@
       } else {
         state.trainerPassword = pw;
         try { localStorage.setItem('fit_coach_pw_v2', pw); } catch {}
-        state.trainerOverview = [
+        const baseMock = [
           { name: '김윤지', lastDate: state.selectedDate, activeToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 2 },
           { name: '이서연', lastDate: state.selectedDate, activeToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 3 },
           { name: '최민수', lastDate: shiftDateStr(state.selectedDate, -5), activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0 }
         ];
+        let localAdded = [];
+        try { localAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]'); } catch {}
+        localAdded.forEach(lm => {
+          if (lm?.name && !baseMock.some(sm => sm.name === lm.name)) baseMock.unshift(lm);
+        });
+        state.trainerOverview = baseMock;
       }
       state.appMode = 'coach';
       state.coachTab = 'coaching';
@@ -2431,20 +2449,29 @@
           memos: [],
           dailyCheckin: { workout: '', diet: '', mood: '' }
         };
-        state.trainerOverview.unshift({
+        const newMemberObj = {
           name: mName,
           lastDate: state.selectedDate,
           activeToday: false,
           pendingWorkout: false,
           pendingDiet: false,
           weeklyWorkoutDays: 0
-        });
+        };
+        state.trainerOverview.unshift(newMemberObj);
+        try {
+          const prevAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]');
+          const nextAdded = [newMemberObj, ...prevAdded.filter(x => x.name !== mName)];
+          localStorage.setItem('fit_added_members_v2', JSON.stringify(nextAdded));
+        } catch {}
         closeModal();
         triggerConfetti();
         showToast(`${mName} 회원님이 등록되었어요!`);
         renderAll();
         if (state.isLive && state.trainerPassword) {
-          await saveFullRecordLive(mName, initialRecord);
+          await Promise.allSettled([
+            saveFullRecordLive(mName, initialRecord),
+            postRecords({ action: 'addMember', member: mName, password: state.trainerPassword, date: state.selectedDate })
+          ]);
         }
       });
     }

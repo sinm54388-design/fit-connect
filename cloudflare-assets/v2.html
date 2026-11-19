@@ -537,6 +537,13 @@
       } catch { return false; }
     }
 
+    function unwrapDailyRecord(res) {
+      if (!res || typeof res !== 'object') return {};
+      if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) return res.data;
+      if (res.record && typeof res.record === 'object' && !Array.isArray(res.record)) return res.record;
+      return res;
+    }
+
     function applyCachedMemberData(dateStr) {
       try {
         const raw = localStorage.getItem(`fit_cache_v2_${state.memberName}_${dateStr}`);
@@ -637,7 +644,7 @@
       ]);
 
       if (daily.status === 'fulfilled' && daily.value && typeof daily.value === 'object') {
-        const d = daily.value;
+        const d = unwrapDailyRecord(daily.value);
         state.record = {
           headerMessage: d.headerMessage || '',
           routines: Array.isArray(d.routines) ? d.routines : [],
@@ -2097,7 +2104,7 @@
         postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
       ]);
       return {
-        daily: (dRes.status === 'fulfilled' && dRes.value && typeof dRes.value === 'object') ? dRes.value : {},
+        daily: (dRes.status === 'fulfilled') ? unwrapDailyRecord(dRes.value) : {},
         history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} }
       };
     }
@@ -2293,7 +2300,8 @@
             const lastDay = prevDays[prevDays.length - 1];
             if (lastDay) {
               try {
-                const prevDaily = await postRecords({ action: 'read', member: memberName, date: lastDay, password: state.trainerPassword });
+                const prevRaw = await postRecords({ action: 'read', member: memberName, date: lastDay, password: state.trainerPassword });
+                const prevDaily = unwrapDailyRecord(prevRaw);
                 if (Array.isArray(prevDaily?.routines) && prevDaily.routines.length) {
                   loaded = prevDaily.routines.map((r, idx) => ({
                     ...r,

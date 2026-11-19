@@ -351,7 +351,7 @@
     memberData(appData);
   }
 
-  const coachPages=[['today','오늘수업','fa-clipboard-list'],['members','회원관리','fa-user-group'],['diet','식단','fa-utensils'],['care','잠수·재등록','fa-calendar-check']];
+  const coachPages=[['today','오늘 할 일','fa-clipboard-list'],['members','회원','fa-user-group'],['diet','식단 피드백','fa-utensils'],['care','미접속 회원','fa-calendar-check']];
   const coachAliases={overview:'today',members:'members',routine:'today',feedback:'today',growth:'members'};
   let coachPage='today';
   let rosterFilter='all';
@@ -379,7 +379,7 @@
       item.classList.toggle('selected',active);
       if(active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
       const key=item.dataset.coachTab;
-      item.querySelector('span').textContent=coachPages.find(row=>row[0]===key)[1]+(key==='diet'&&dietQueue().length?' '+dietQueue().length:'');
+      item.querySelector('span').textContent=coachPages.find(row=>row[0]===key)[1];
     }
     for(const key of ['today','diet','care']){
       const panel=id('fitCoach-'+key);
@@ -650,7 +650,7 @@
     const diet=make('section','');diet.id='fitCoach-diet';diet.hidden=true;
     diet.innerHTML='<h2>식단 피드백</h2><div id="fitDietQueue"></div>';
     const care=make('section','');care.id='fitCoach-care';care.hidden=true;
-    care.innerHTML='<h2>잠수·재등록</h2><p class="fit-context-note">최근 4일 이상 운동·식단 미기록 기준</p><div id="fitCareQueue"></div><h2>수업 종료 임박</h2><div id="fitRenewals"></div>';
+    care.innerHTML='<h2>미접속 회원</h2><p class="fit-context-note">최근 4일 이상 운동·식단 미기록 기준</p><div id="fitCareQueue"></div><h2>수업 종료 임박</h2><div id="fitRenewals"></div>';
     care.insertBefore(button('잔여 2회 이하 회원 조회',scanRenewals),care.querySelector('#fitRenewals'));
     work.append(today,diet,care);
     const dashboard=id('trainerDashboardSection');dashboard.closest('[data-trainer-page]').before(work);

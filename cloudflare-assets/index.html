@@ -4006,6 +4006,13 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         document.getElementById('overviewActive').textContent = items.filter(m => m.activeToday).length+'명';
         document.getElementById('overviewPending').textContent = items.filter(m=>m.pendingWorkout||m.pendingDiet).length+'명';
         document.getElementById('overviewVideos').textContent = videosKnown ? items.reduce((n,m)=>n+(Number(m.pendingVideos)||0),0)+'건' : '확인 중';
+        const lastRecordLabel = lastDate => {
+          if (!lastDate) return '운동·식단 기록 없음';
+          const elapsed = Math.floor((Date.parse(date+'T00:00:00') - Date.parse(lastDate+'T00:00:00')) / 86400000);
+          if (!Number.isFinite(elapsed) || elapsed < 0) return '마지막 기록 '+lastDate;
+          if (elapsed === 0) return '오늘 기록';
+          return elapsed+'일 전 기록';
+        };
         const makeRows = (rootId, list, getDetail, empty) => {
           const root=document.getElementById(rootId);root.replaceChildren();
           if(!list.length){const p=document.createElement('p');p.className='text-slate-500 py-2';p.textContent=empty;root.appendChild(p);return;}
@@ -4028,7 +4035,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         document.getElementById('fcTrainerTaskSummary').textContent='답변할 회원 '+recordPending.length+'명 · '+(videosKnown?'영상 '+videoPending.length+'명':'영상 확인 중')+' · 7일 이상 미기록 '+inactive.length+'명';
         makeRows('overviewFeedbackDone',items.filter(m=>m.feedbackDone&&!m.pendingWorkout&&!m.pendingDiet),
           ()=>'✓ 기록 확인 완료','아직 피드백을 완료한 회원이 없습니다.');
-        makeRows('overviewInactive',inactive,m=>m.lastDate?'마지막 기록 '+m.lastDate:'운동·식단 기록 없음','최근 7일간 미기록 회원이 없습니다.');
+        makeRows('overviewInactive',inactive,m=>lastRecordLabel(m.lastDate),'최근 7일간 미기록 회원이 없습니다.');
         status.textContent = isFast
           ? (canonicalFailed ? `${date} 기준 · 운동·식단 현황 표시 · 영상 대기 건수는 구글 연결 복구 후 확인할 수 있습니다.` : `${date} 기준 · 빠른 현황 표시 중 · 영상 대기 건수 등 최신 내용 확인 중...`)
           : `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;

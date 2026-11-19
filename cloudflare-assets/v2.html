@@ -312,10 +312,17 @@
       const rs = state.record.routines || [];
       let totalKg = 0;
       rs.forEach(r => {
-        const w = Number(r.weight) || 0;
-        const reps = Number(r.reps) || 10;
-        const doneSets = Array.isArray(r.completedSets) ? r.completedSets.filter(Boolean).length : 0;
-        if (w > 0 && doneSets > 0) totalKg += w * reps * doneSets;
+        if (Array.isArray(r.setDetails) && r.setDetails.length) {
+          r.setDetails.forEach((sd, idx) => {
+            const isDone = Array.isArray(r.completedSets) ? Boolean(r.completedSets[idx]) : false;
+            if (isDone) totalKg += (Number(sd.weight) || 0) * (Number(sd.reps) || 10);
+          });
+        } else {
+          const w = Number(r.weight) || 0;
+          const reps = Number(r.reps) || 10;
+          const doneSets = Array.isArray(r.completedSets) ? r.completedSets.filter(Boolean).length : 0;
+          if (w > 0 && doneSets > 0) totalKg += w * reps * doneSets;
+        }
       });
       totalKg = Math.round(totalKg);
       let analogy = '맨몸 · 코어 집중 데이 🔥';
@@ -2077,6 +2084,7 @@
       openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
       const { daily, history } = await fetchMemberForCoach(memberName);
       const routines = Array.isArray(daily.routines) ? daily.routines.map(r => ({ ...r })) : [];
+      const expandedSets = {};
 
       const prevMap = history.previous || {};
       const dietObj = daily.diet || {};
@@ -2149,6 +2157,11 @@
                 const curW = Number(r.weight) || 0;
                 const diff = prev && prev.weight ? curW - Number(prev.weight) : null;
                 const isHw = r.routineType === 'homework';
+                const setsCount = Math.max(1, Number(r.sets) || 3);
+                if (!Array.isArray(r.setDetails) || !r.setDetails.length) {
+                  r.setDetails = Array.from({ length: setsCount }, () => ({ weight: String(r.weight || ''), reps: String(r.reps || '12') }));
+                }
+                const isExp = Boolean(expandedSets[i]);
                 return `
                   <div class="p-3 rounded-2xl bg-[#F4F6F9] space-y-2">
                     <div class="flex items-center justify-between gap-2">
@@ -2158,7 +2171,10 @@
                           <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(r.name)}</p>
                           ${diff !== null && diff !== 0 ? `<span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white text-[#1D4ED8]">${diff > 0 ? '+' + diff : diff}kg</span>` : ''}
                         </div>
-                        <p class="text-[11px] text-[#6B7280] mt-0.5">${r.reps || '12'}회 × ${r.sets || '3'}세트 ${prev?.weight ? `(직전 ${prev.weight}kg)` : ''}</p>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          <p class="text-[11px] text-[#6B7280]">${r.setDetails.length}세트 ${prev?.weight ? `(직전 ${prev.weight}kg)` : ''}</p>
+                          <button type="button" data-si="${i}" class="cd-set-toggle text-[11px] font-extrabold text-[#1D4ED8] underline">${isExp ? '세트 접기 ▲' : '세트별 무게·횟수 ▾'}</button>
+                        </div>
                       </div>
                       <div class="flex items-center gap-1 shrink-0">
                         <button type="button" data-wi="${i}" data-wd="-2" class="cd-wt-btn w-7 h-7 rounded-lg bg-white text-[#4B5563] font-bold text-xs shadow-sm">-</button>
@@ -2167,6 +2183,21 @@
                         <button type="button" data-di="${i}" class="cd-del-btn w-7 h-7 rounded-lg bg-red-50 text-red-500 font-bold text-xs ml-0.5" aria-label="종목 삭제">✕</button>
                       </div>
                     </div>
+                    ${isExp ? `
+                      <div class="space-y-1.5 pt-1 border-t border-gray-200/70">
+                        ${r.setDetails.map((sd, sIdx) => `
+                          <div class="flex items-center gap-1.5">
+                            <span class="text-[11px] font-bold text-[#4B5563] w-10">${sIdx + 1}세트</span>
+                            <input type="number" step="0.5" min="0" data-ri="${i}" data-si="${sIdx}" value="${escapeHtml(sd.weight || '')}" placeholder="kg" class="cd-sd-wt w-20 text-[12px] font-bold px-2.5 py-1.5 rounded-xl bg-white text-center tabular-nums" />
+                            <span class="text-[11px] text-[#6B7280]">kg ×</span>
+                            <input type="number" min="1" data-ri="${i}" data-si="${sIdx}" value="${escapeHtml(sd.reps || '12')}" placeholder="회" class="cd-sd-rp w-16 text-[12px] font-bold px-2 py-1.5 rounded-xl bg-white text-center tabular-nums" />
+                            <span class="text-[11px] text-[#6B7280]">회</span>
+                            ${r.setDetails.length > 1 ? `<button type="button" data-ri="${i}" data-si="${sIdx}" class="cd-sd-del ml-auto w-6 h-6 rounded-lg bg-white text-red-500 text-[11px] font-bold">✕</button>` : ''}
+                          </div>
+                        `).join('')}
+                        <button type="button" data-ri="${i}" class="cd-sd-add tap-scale w-full py-1.5 rounded-xl bg-white text-[#1D4ED8] text-[11px] font-extrabold shadow-sm">+ 세트 추가</button>
+                      </div>
+                    ` : ''}
                     <input type="text" data-ni="${i}" value="${escapeHtml(r.note || '')}" placeholder="코치 핵심 큐잉 입력 (예: 발바닥 3점 지지, 3초 하강)" class="cd-note-inp w-full text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
                   </div>
                 `;
@@ -2316,13 +2347,76 @@
           });
         });
 
+        document.querySelectorAll('.cd-set-toggle').forEach(b => {
+          b.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            const idx = Number(b.dataset.si);
+            expandedSets[idx] = !expandedSets[idx];
+            renderDetailBody();
+          });
+        });
+
+        document.querySelectorAll('.cd-sd-wt').forEach(inp => {
+          inp.addEventListener('input', e => {
+            const ri = Number(inp.dataset.ri);
+            const si = Number(inp.dataset.si);
+            routines[ri].setDetails[si].weight = e.target.value;
+            const maxW = Math.max(...routines[ri].setDetails.map(x => Number(x.weight) || 0));
+            routines[ri].weight = String(maxW || '');
+          });
+        });
+
+        document.querySelectorAll('.cd-sd-rp').forEach(inp => {
+          inp.addEventListener('input', e => {
+            const ri = Number(inp.dataset.ri);
+            const si = Number(inp.dataset.si);
+            routines[ri].setDetails[si].reps = e.target.value;
+            routines[ri].reps = String(routines[ri].setDetails[0]?.reps || '12');
+          });
+        });
+
+        document.querySelectorAll('.cd-sd-del').forEach(b => {
+          b.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            const ri = Number(b.dataset.ri);
+            const si = Number(b.dataset.si);
+            routines[ri].setDetails.splice(si, 1);
+            routines[ri].sets = String(routines[ri].setDetails.length);
+            if (Array.isArray(routines[ri].completedSets)) routines[ri].completedSets.splice(si, 1);
+            renderDetailBody();
+          });
+        });
+
+        document.querySelectorAll('.cd-sd-add').forEach(b => {
+          b.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            const ri = Number(b.dataset.ri);
+            const last = routines[ri].setDetails[routines[ri].setDetails.length - 1] || { weight: routines[ri].weight || '', reps: routines[ri].reps || '12' };
+            routines[ri].setDetails.push({ weight: String(last.weight || ''), reps: String(last.reps || '12') });
+            routines[ri].sets = String(routines[ri].setDetails.length);
+            if (!Array.isArray(routines[ri].completedSets)) routines[ri].completedSets = [];
+            routines[ri].completedSets.push(false);
+            renderDetailBody();
+          });
+        });
+
         document.querySelectorAll('.cd-wt-btn').forEach(b => {
           b.addEventListener('click', () => {
             const idx = Number(b.dataset.wi);
+            const delta = Number(b.dataset.wd);
             replyMsg = document.getElementById('cd-reply-msg').value;
             dietMsg = document.getElementById('cd-diet-msg').value;
             const cur = Number(routines[idx].weight) || 0;
-            routines[idx].weight = String(Math.max(0, cur + Number(b.dataset.wd)));
+            const nextW = String(Math.max(0, cur + delta));
+            routines[idx].weight = nextW;
+            if (Array.isArray(routines[idx].setDetails)) {
+              routines[idx].setDetails.forEach(sd => {
+                sd.weight = String(Math.max(0, (Number(sd.weight) || 0) + delta));
+              });
+            }
             renderDetailBody();
           });
         });
@@ -2857,7 +2951,9 @@
                         <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
                         <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">자세 · 부위 ›</span>
                       </div>
-                      <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>
+                      ${Array.isArray(r.setDetails) && r.setDetails.length
+                        ? `<div class="flex flex-wrap gap-1 mt-1">${r.setDetails.map((sd, sIdx) => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white text-[#4B5563] tabular-nums">${sIdx + 1}set ${sd.weight ? sd.weight + 'kg×' : ''}${sd.reps || r.reps || '12'}회</span>`).join('')}</div>`
+                        : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
                       ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${escapeHtml(r.note)}</p>` : ''}
                     </button>
                     <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>

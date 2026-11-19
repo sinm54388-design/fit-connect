@@ -924,6 +924,8 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
 <script defer src="/fit-experience.js?v=coaching-workflow-1"></script>
 <script defer src="/fit-coaching.js?v=1"></script>
 <link rel="stylesheet" href="/fit-coaching.css?v=1">
+<script defer src="/fit-motion.js?v=1"></script>
+<link rel="stylesheet" href="/fit-motion.css?v=1">
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
   <div id="fcSkeleton" aria-live="polite" aria-label="회원 기록을 불러오는 중">
@@ -1552,6 +1554,11 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
                 <div><label class="block text-[11px] text-slate-400 mb-1">목표 횟수</label><input type="number" id="exReps" placeholder="12" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
               </div>
               <div><label class="block text-[11px] text-slate-400 mb-1">트레이너 팁</label><input type="text" id="exNote" placeholder="예: 견갑 고정" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white"></div>
+              <div class="fit-motion-picker">
+                <label for="fitMotionPick">동작 모형</label>
+                <select id="fitMotionPick"><option value="">운동 이름으로 자동 연결</option><option value="none">모형 표시 안 함</option></select>
+                <button type="button">미리보기</button>
+              </div>
               <div class="flex gap-2">
                 <button type="submit" id="exSubmitBtn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs cursor-pointer">운동 추가하기</button>
                 <button type="button" id="exCancelBtn" onclick="resetRoutineForms()" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs cursor-pointer">취소</button>
@@ -1988,6 +1995,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
     function switchWorkflowDraftContext(){
       const key=workflowContextKey();if(key===workflowKey)return;
       window.fitMemberReport?.closeMeal();
+      window.fitMotion?.close();
       workflowKey=key;workflowReadyKey='';workflowDraft={fields:{},meals:{}};workflowRestored=false;
       dirtyMealDrafts.clear();mealEditorOpen.clear();
       ['memberMemoInput','trainerMemoInput'].forEach(id=>{document.getElementById(id).value='';});
@@ -3323,6 +3331,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         document.getElementById(ids.btn).innerText = ids.addText;
         document.getElementById(ids.cancel).classList.add('hidden');
       });
+      window.fitMotion?.selectModel('');
     }
 
     function startEditRoutine(id) {
@@ -3337,6 +3346,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       document.getElementById(ids.sets).value = ex.sets || '';
       document.getElementById(ids.reps).value = ex.reps || '';
       document.getElementById(ids.note).value = ex.note || '';
+      if (currentMode==='trainer') window.fitMotion?.selectModel(ex.demoKey);
       document.getElementById(ids.btn).innerText = '수정 저장하기';
       document.getElementById(ids.cancel).classList.remove('hidden');
       document.getElementById(ids.name).scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3350,6 +3360,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       const sets = document.getElementById(ids.sets).value;
       const reps = document.getElementById(ids.reps).value;
       const note = document.getElementById(ids.note).value.trim();
+      const demoKey = currentMode==='trainer' ? document.getElementById('fitMotionPick').value : null;
       const setNum = Number(sets);
 
       if (!name || !(setNum >= 1 && setNum <= 20) || !(Number(reps) >= 1)) {
@@ -3363,11 +3374,13 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
           if (ex) {
             const old = Array.isArray(ex.completedSets) ? ex.completedSets : [];
             ex.name = name; ex.weight = weight; ex.sets = sets; ex.reps = reps; ex.note = note;
+            if (demoKey) ex.demoKey=demoKey;
+            else if (demoKey==='') delete ex.demoKey;
             ex.completedSets = Array.from({ length: setNum }, (_, i) => !!old[i]);
             return;
           }
         }
-        d.routines.push({ id: Date.now(), name, weight, sets, reps, note, completedSets: Array(setNum).fill(false) });
+        d.routines.push({ id: Date.now(), name, weight, sets, reps, note, ...(demoKey?{demoKey}:{}), completedSets: Array(setNum).fill(false) });
       });
       if (ok) {
         resetRoutineForms();
@@ -3424,6 +3437,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
               </div>
             </div>
             ${ex.note ? `<p class="text-xs text-brand-400 mb-2"><i class="fa-solid fa-lightbulb"></i> ${esc(ex.note)}</p>` : ''}
+            <div data-motion-slot="${exIdx}"></div>
             ${(()=>{const v=exerciseVideos.find(v=>String(v.name||'').replace(/\s/g,'').toLowerCase()===String(ex.name||'').replace(/\s/g,'').toLowerCase());return v?`<div class="mt-2">${videoLink(v)}</div>`:'';})()}
             <div data-posture-exercise="${esc(ex.name)}" class="fit-drill-cue" hidden></div>
             <button type="button" class="fit-action fit-drill-actual" data-actual-routine="${esc(ex.id)}">중량·횟수 기록</button>
@@ -3434,6 +3448,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
       for (const button of container.querySelectorAll('[data-actual-routine]'))
         button.onclick=()=>window.fitCoaching?.actualWorkout(button.dataset.actualRoutine);
       window.fitCoaching?.renderRoutinePrompts();
+      window.fitMotion?.mount(container,routines);
       updateWorkoutProgress(completedSets, totalSets);
     }
 
@@ -4363,7 +4378,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         if(!routines.length){clearRoutineCopyPreview(`${source}에 등록된 운동 루틴이 없습니다.`);return;}
         routineCopySelection={member,target,source,routines:routines.map(r=>({
           name:String(r.name||''),weight:String(r.weight||''),sets:Number(r.sets)||0,
-          reps:String(r.reps||''),note:String(r.note||'')
+          reps:String(r.reps||''),note:String(r.note||''),demoKey:r.demoKey
         })).filter(r=>r.name&&r.sets>=1&&r.sets<=20)};
         if(!routineCopySelection.routines.length){clearRoutineCopyPreview('복사할 수 있는 운동이 없습니다.');return;}
         const list=document.getElementById('routineCopyItems');list.replaceChildren();
@@ -4392,7 +4407,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
         if(!Array.isArray(d.routines))d.routines=[];
         d.routines.push(...copy.routines.map((r,i)=>({
           id:baseId+i,name:r.name,weight:r.weight,sets:String(r.sets),reps:r.reps,
-          note:r.note,completedSets:Array(r.sets).fill(false)
+          note:r.note,...(r.demoKey?{demoKey:r.demoKey}:{}),completedSets:Array(r.sets).fill(false)
         })));
       });
       if(saved){

@@ -1,0 +1,102 @@
+.fit-motion-preview,
+.fit-motion-dialog button,
+#trainerView .fit-motion-picker button {
+  min-height: 44px;
+  padding: 7px 12px;
+  color: #17459d;
+  background: #edf4ff;
+  border: 1px solid #aac3eb;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+#memberView .fit-motion-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 3px 12px 3px 3px;
+  color: #17459d !important;
+  background: #edf4ff !important;
+}
+.fit-motion-preview img {
+  width: 64px;
+  height: 48px;
+  border-radius: 7px;
+  object-fit: contain;
+}
+.fit-motion-picker {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: end;
+  gap: 6px 8px;
+}
+.fit-motion-picker label {
+  grid-column: 1 / -1;
+  color: #405575;
+  font-size: 13px;
+  font-weight: 700;
+}
+#trainerView .fit-motion-picker select {
+  width: 100%;
+  min-height: 44px;
+  padding: 7px;
+  color: #142b53;
+  background: #edf4ff;
+  border: 1px solid #aac3eb;
+  border-radius: 10px;
+}
+.fit-motion-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(500px,calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  margin: auto;
+  padding: 16px;
+  overflow: auto;
+  color: #142b53;
+  background: #fff;
+  border: 1px solid #b5c9e4;
+  border-radius: 19px;
+}
+.fit-motion-dialog::backdrop {
+  background: #121e37aa;
+}
+.fit-motion-dialog header,
+.fit-motion-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fit-motion-dialog header {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.fit-motion-dialog h2 {
+  font-size: 19px;
+  font-weight: 800;
+}
+.fit-motion-dialog canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+.fit-motion-controls {
+  margin-top: 10px;
+}
+.fit-motion-controls [aria-pressed="true"] {
+  color: #fff;
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+.fit-motion-note {
+  margin-top: 12px;
+  padding: 10px;
+  background: #edf4ff;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

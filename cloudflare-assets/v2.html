@@ -580,18 +580,16 @@
       state.loading = !hadCache;
       renderAll();
       try {
-        const [sessRes] = await Promise.all([
-          postRecords({
-            action: 'memberSession',
-            member: state.memberName,
-            token: state.token,
-            date: state.selectedDate
-          }).catch(() => null),
-          loadMemberDateData(state.selectedDate)
-        ]);
+        const sessRes = await postRecords({
+          action: 'memberSession',
+          member: state.memberName,
+          token: state.token,
+          date: state.selectedDate
+        }).catch(() => null);
         if (sessRes?.status === 'success' && sessRes.session) {
           state.session = sessRes.session;
         }
+        await loadMemberDateData(state.selectedDate);
         saveCachedMemberData(state.selectedDate);
         loadLocalMemberExtras();
         maybeShowPrivacyConsent();
@@ -2758,7 +2756,15 @@
           </div>
         `;
         document.getElementById('btn-new-col').addEventListener('click', openColumnWriteModal);
-        document.getElementById('btn-back-member').addEventListener('click', () => { state.appMode = 'member'; renderAll(); });
+        document.getElementById('btn-back-member').addEventListener('click', async () => {
+          state.appMode = 'member';
+          renderAll();
+          if (state.isLive && (state.session || state.token)) {
+            await loadMemberDateData(state.selectedDate);
+            saveCachedMemberData(state.selectedDate);
+            renderAll();
+          }
+        });
         document.getElementById('btn-coach-logout').addEventListener('click', () => {
           state.trainerPassword = '';
           try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}

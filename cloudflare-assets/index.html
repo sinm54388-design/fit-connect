@@ -899,6 +899,16 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
 #trainerDashboardSection .trainer-workspace-list button>span:first-child{font-size:14px!important}
 #trainerDashboardSection .trainer-workspace-list button>span:last-child{font-size:12px!important;text-align:right;max-width:52%;line-height:1.5}
 #fcTrainerDetails .trainer-workspace-metrics{margin:0 0 16px}#fcTrainerDetails section{margin:14px 0}
+#fcVideoTaskCard{background:#fff!important;border:1px solid #dce6f3!important;box-shadow:0 8px 24px rgba(32,61,100,.07)}
+#fcVideoTaskCard .trainer-workspace-list{display:grid;gap:8px}
+#fcVideoTaskCard .fc-video-queue-item{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center!important;gap:12px!important;min-height:76px!important;margin:0!important;padding:12px!important;background:#f7faff!important;border:1px solid #e0e9f4!important}
+#fcVideoTaskCard .fc-video-queue-copy{min-width:0;display:grid;gap:4px}
+#fcVideoTaskCard .fc-video-queue-member{font-size:13px!important;font-weight:800!important;color:#203854!important}
+#fcVideoTaskCard .fc-video-queue-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#172b45;font-size:14px;font-weight:750}
+#fcVideoTaskCard .fc-video-queue-meta{color:#6a7e97;font-size:11px;line-height:1.35}
+#fcVideoTaskCard .fc-video-queue-open{border-radius:999px;background:#eaf1ff;color:#3066cf;font-size:12px;font-weight:750;padding:8px 10px;white-space:nowrap}
+#fcVideoTaskCard .fc-video-queue-empty{padding:6px 2px;color:#73849a;font-size:13px}
+@media(max-width:480px){#fcVideoTaskCard .fc-video-queue-item{min-height:72px!important}#fcVideoTaskCard .fc-video-queue-open{padding:7px 8px;font-size:11px}}
 @media(prefers-reduced-motion:reduce){.fc-focus-fold *{scroll-behavior:auto!important}}
 </style>
 <style id="fc-member-safety-style">
@@ -4027,6 +4037,7 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
           : `${date} 기준 · 새로고침하면 최신 기록을 확인할 수 있습니다.`;
       };
       const stillCurrent = () => request === overviewRequest && date === selectedDate && currentMode === 'trainer';
+      loadTrainerVideoQueue(request,date).catch(e=>console.warn('영상 대기 목록 조회 오류',e));
       if (fastDbPilot) {
         fastTrainerRequest({action:'trainerOverview',password:trainerPassword,date}, '트레이너 현황 · Supabase')
           .then(fast => {
@@ -4051,6 +4062,34 @@ body:not(.trainer-light-theme) #memberView #memberHomePage .member-goal-hero{ord
           ? `${date} 기준 · 운동·식단 현황 표시 · 영상 대기 건수는 구글 연결 복구 후 확인할 수 있습니다.`
           : '현황을 불러오지 못했습니다: '+e.message;
       }
+    }
+    function formatTrainerVideoTime(value) {
+      const time=Date.parse(value||'');
+      if(!Number.isFinite(time))return '업로드 시간 확인 중';
+      return new Intl.DateTimeFormat('ko-KR',{month:'long',day:'numeric',hour:'numeric',minute:'2-digit'}).format(time)+' 업로드';
+    }
+    function renderTrainerVideoQueue(videos) {
+      const root=document.getElementById('overviewVideoQueue');
+      if(!root||!Array.isArray(videos)||!videos.length)return;
+      root.replaceChildren();
+      videos.slice(0,3).forEach(video=>{
+        const button=document.createElement('button');button.type='button';button.className='fc-video-queue-item';
+        const copy=document.createElement('span');copy.className='fc-video-queue-copy';
+        const member=document.createElement('span');member.className='fc-video-queue-member';member.textContent=String(video.member||'회원')+' 회원님';
+        const title=document.createElement('span');title.className='fc-video-queue-title';title.textContent=String(video.title||'운동 영상');
+        const meta=document.createElement('span');meta.className='fc-video-queue-meta';meta.textContent=formatTrainerVideoTime(video.createdAt)+' · 피드백 대기';
+        copy.append(member,title,meta);
+        const open=document.createElement('span');open.className='fc-video-queue-open';open.textContent='확인하기';
+        button.append(copy,open);
+        button.onclick=()=>openOverviewMember({name:video.member,pendingVideos:1},'overviewVideoQueue');
+        root.append(button);
+      });
+      if(videos.length>3){const more=document.createElement('p');more.className='fc-video-queue-empty';more.textContent='최근 영상 3건을 표시하고 있어요.';root.append(more);}
+    }
+    async function loadTrainerVideoQueue(request,date) {
+      const result=await fastTrainerRequest({action:'trainerVideoQueue',password:trainerPassword,date},'영상 대기 목록 · Supabase');
+      if(request!==overviewRequest||date!==selectedDate||currentMode!=='trainer'||!result?.videos?.length)return;
+      renderTrainerVideoQueue(result.videos);
     }
     async function openOverviewMember(member, listId) {
       stashWorkflowDraft();

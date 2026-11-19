@@ -258,6 +258,7 @@
       appMode: 'member', // 'member' | 'coach'
       memberTab: 'report', // 'report' | 'lesson' | 'diet' | 'body' | 'feedback'
       coachTab: 'today', // 'today' | 'members' | 'dietReply' | 'dormant'
+      coachSearch: '',
       memberName: paramName || '회원',
       token: paramToken,
       session: '',
@@ -1508,10 +1509,10 @@
         }).join('');
         nav.querySelectorAll('.m-nav-btn').forEach(b => b.addEventListener('click', () => { if (state.saving) return; state.memberTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
       } else {
-        // Coach 4-Tab Navigation: 오늘현황 · 전체회원 · 식단답장 · 잠수케어
+        // Coach workspace: review the highest-priority member first, then clear the queue.
         nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-4 px-2 pt-2 pb-3';
         const tabs = [
-          { id: 'today', label: '오늘현황', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+          { id: 'today', label: '확인할 회원', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
           { id: 'members', label: '전체회원', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
           { id: 'dietReply', label: '식단답장', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
           { id: 'dormant', label: '잠수케어', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
@@ -1838,31 +1839,62 @@
     }
 
     // --- Coach View (4 Tabs: 오늘현황 · 전체회원 · 식단답장 · 잠수케어) ---
-    function renderCoachMemberCard(m) {
+    function coachPriority(member) {
+      const workout = Boolean(member.pendingWorkout);
+      const diet = Boolean(member.pendingDiet);
+      const gap = member.lastDate ? daysBetween(member.lastDate, state.selectedDate) : 99;
+      const score = (workout ? 8 : 0) + (diet ? 5 : 0) + (member.activeToday ? 2 : 0) + Math.min(gap, 4);
+      const actions = [workout ? '수업 피드백' : '', diet ? '식단 답장' : ''].filter(Boolean);
+      return {
+        score,
+        gap,
+        actions,
+        label: actions.length ? actions.join(' · ') + ' 필요' : member.activeToday ? '오늘 기록 확인' : '확인 완료',
+        tone: actions.length ? 'bg-amber-50 text-amber-700' : member.activeToday ? 'bg-[#EFF6FF] text-[#1D4ED8]' : 'bg-[#F0FDFA] text-[#0F766E]'
+      };
+    }
+
+    function coachQueue(members) {
+      return [...members].sort((a, b) => {
+        const priority = coachPriority(b).score - coachPriority(a).score;
+        return priority || String(a.name || '').localeCompare(String(b.name || ''), 'ko');
+      });
+    }
+
+    function renderCoachMemberCard(m, featured = false) {
       const inactiveDays = m.lastDate ? daysBetween(m.lastDate, state.selectedDate) : 14;
+      const priority = coachPriority(m);
       return `
-        <div class="bg-white rounded-[22px] p-4 shadow-sm space-y-3">
+        <article class="bg-white rounded-[22px] ${featured ? 'p-5 ring-2 ring-[#1D4ED8]/15 shadow-[0_12px_26px_rgba(30,58,138,0.12)]' : 'p-4 shadow-sm'} space-y-3">
           <div class="flex items-center justify-between gap-2">
-            <div>
+            <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <span class="text-[16px] font-extrabold text-[#111827]">${escapeHtml(m.name)}</span>
-                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">주 ${number(m.weeklyWorkoutDays || 0)}회 운동</span>
+                ${featured ? '<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#1D4ED8] text-white">지금 확인</span>' : ''}
               </div>
-              <p class="text-[12px] text-[#6B7280] mt-0.5">최근 기록: ${escapeHtml(m.lastDate || '기록 없음')} ${inactiveDays >= 3 ? `(${inactiveDays}일 전)` : ''}</p>
+              <p class="text-[12px] text-[#6B7280] mt-1">${escapeHtml(priority.label)} · 최근 ${escapeHtml(m.lastDate || '기록 없음')}${inactiveDays >= 3 ? ` (${inactiveDays}일 전)` : ''}</p>
             </div>
-            <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${m.pendingWorkout || m.pendingDiet ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">
-              ${m.pendingWorkout || m.pendingDiet ? '피드백 대기' : '관리 완료'}
+            <span class="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${priority.tone}">
+              ${priority.actions.length || m.activeToday ? '확인' : '완료'}
             </span>
           </div>
-          <div class="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
-            <button type="button" data-mname="${escapeHtml(m.name)}" class="btn-coach-brief tap-scale py-2.5 rounded-xl bg-[#F4F6F9] hover:bg-[#EFF6FF] text-[#1E3A8A] text-[12px] font-extrabold">
-              📋 5분 전 브리핑
-            </button>
-            <button type="button" data-mname="${escapeHtml(m.name)}" class="btn-coach-qlog tap-scale py-2.5 rounded-xl hero-navy text-white text-[12px] font-extrabold">
-              ⚡ 30초 일지 발행
-            </button>
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <div class="rounded-xl bg-[#F4F6F9] py-2"><p class="text-[10px] text-[#6B7280]">이번 주 운동</p><p class="text-[13px] font-extrabold">${number(m.weeklyWorkoutDays)}일</p></div>
+            <div class="rounded-xl bg-[#F4F6F9] py-2"><p class="text-[10px] text-[#6B7280]">식단 기록</p><p class="text-[13px] font-extrabold">${number(m.weeklyDietDays)}일</p></div>
+            <div class="rounded-xl bg-[#F4F6F9] py-2"><p class="text-[10px] text-[#6B7280]">오늘</p><p class="text-[13px] font-extrabold ${m.activeToday ? 'text-[#0F766E]' : 'text-[#6B7280]'}">${m.activeToday ? '기록 있음' : '기록 전'}</p></div>
           </div>
-        </div>
+          <div class="grid ${m.pendingWorkout && m.pendingDiet ? 'grid-cols-2' : 'grid-cols-1'} gap-2 pt-1 border-t border-gray-100">
+            ${m.pendingWorkout ? `<button type="button" data-mname="${escapeHtml(m.name)}" class="btn-coach-qlog tap-scale py-3 rounded-xl hero-navy text-white text-[12px] font-extrabold">
+              수업 피드백 작성
+            </button>` : ''}
+            ${m.pendingDiet ? `<button type="button" data-mname="${escapeHtml(m.name)}" class="btn-coach-diet tap-scale py-3 rounded-xl bg-[#ECFDF5] text-[#0F766E] text-[12px] font-extrabold">
+              식단 답장
+            </button>` : ''}
+            ${!m.pendingWorkout && !m.pendingDiet ? `<button type="button" data-mname="${escapeHtml(m.name)}" class="btn-coach-brief tap-scale py-3 rounded-xl bg-[#F4F6F9] text-[#1E3A8A] text-[12px] font-extrabold">
+              기록 브리핑 보기
+            </button>` : ''}
+          </div>
+        </article>
       `;
     }
 
@@ -1954,22 +1986,48 @@
         `;
       }
 
-      const shown = state.coachTab === 'today' ? list.filter(m => m.activeToday || m.pendingWorkout || m.pendingDiet) : list;
-      const finalShown = shown.length ? shown : list;
+      const reviewedToday = list.filter(m => m.activeToday).length;
+      const workoutQueue = list.filter(m => m.pendingWorkout).length;
+      const dietQueue = list.filter(m => m.pendingDiet).length;
+      const query = String(state.coachSearch || '').trim().toLowerCase();
+      const allMembers = coachQueue(list.filter(m => !query || String(m.name || '').toLowerCase().includes(query)));
+      const attention = coachQueue(list.filter(m => m.pendingWorkout || m.pendingDiet || m.activeToday));
 
+      if (state.coachTab === 'members') {
+        return `
+          <div class="space-y-3.5 animate-in">
+            <section class="bg-white rounded-[24px] p-4 shadow-sm space-y-3">
+              <div><p class="text-[11px] font-extrabold text-[#1D4ED8]">MEMBER DIRECTORY</p><h1 class="text-[19px] font-extrabold">전체 회원 ${list.length}명</h1></div>
+              <input id="coach-member-search" value="${escapeHtml(state.coachSearch || '')}" placeholder="회원 이름 검색" class="w-full rounded-2xl bg-[#F4F6F9] px-4 py-3 text-base outline-none" />
+            </section>
+            <div class="space-y-2.5">
+              ${allMembers.length ? allMembers.map(member => renderCoachMemberCard(member)).join('') : '<div class="bg-white rounded-[22px] p-6 text-center text-[13px] text-[#6B7280]">검색 결과가 없습니다.</div>'}
+            </div>
+          </div>
+        `;
+      }
+
+      const first = attention[0];
+      const remaining = attention.slice(1);
       return `
         <div class="space-y-3.5 animate-in">
           <section class="hero-navy rounded-[26px] p-5 text-white">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.selectedDate} 코치 대시보드</span>
-              <span class="text-[11px] font-bold text-white/80">칼럼 ${state.columns.length}편</span>
-            </div>
-            <h1 class="text-[21px] font-extrabold mt-2">전체 ${list.length}명 중<br/>피드백 대기 ${pendingTotal}건 · 잠수케어 ${dormantList.length}명</h1>
+            <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.selectedDate} 코치 업무</span>
+            <h1 class="text-[22px] font-extrabold mt-2">오늘은 ${first ? escapeHtml(first.name) + ' 회원님부터 확인하세요.' : '확인할 피드백이 없습니다.'}</h1>
+            <p class="text-[12px] text-white/80 mt-2">피드백을 완료하면 다음 회원으로 바로 넘어갈 수 있어요.</p>
           </section>
 
-          <div class="space-y-2.5">
-            ${finalShown.length ? finalShown.map(renderCoachMemberCard).join('') : '<div class="bg-white rounded-[22px] p-6 text-center text-[13px] text-[#6B7280]">표시할 회원이 없습니다.</div>'}
-          </div>
+          <section class="grid grid-cols-3 gap-2">
+            <button type="button" data-coach-tab="today" class="coach-summary tap-scale rounded-2xl bg-white p-3 text-left shadow-sm"><p class="text-[10px] text-[#6B7280]">수업 피드백</p><p class="mt-1 text-[20px] font-extrabold text-[#1D4ED8]">${workoutQueue}</p><p class="text-[10px] text-[#6B7280]">명 대기</p></button>
+            <button type="button" data-coach-tab="dietReply" class="coach-summary tap-scale rounded-2xl bg-white p-3 text-left shadow-sm"><p class="text-[10px] text-[#6B7280]">식단 답장</p><p class="mt-1 text-[20px] font-extrabold text-[#0F766E]">${dietQueue}</p><p class="text-[10px] text-[#6B7280]">명 대기</p></button>
+            <button type="button" data-coach-tab="dormant" class="coach-summary tap-scale rounded-2xl bg-white p-3 text-left shadow-sm"><p class="text-[10px] text-[#6B7280]">기록 확인</p><p class="mt-1 text-[20px] font-extrabold text-[#111827]">${reviewedToday}</p><p class="text-[10px] text-[#6B7280]">명 오늘 기록</p></button>
+          </section>
+
+          ${first ? `<section class="space-y-2"><div class="flex items-center justify-between px-1"><h2 class="text-[15px] font-extrabold">지금 확인할 회원</h2><span class="text-[11px] font-bold text-[#6B7280]">${attention.length}명 순서대로</span></div>${renderCoachMemberCard(first, true)}</section>` : ''}
+          <section class="space-y-2">
+            <div class="flex items-center justify-between px-1"><h2 class="text-[15px] font-extrabold">다음 순서</h2>${remaining.length ? '<span class="text-[11px] text-[#6B7280]">피드백이 끝나면 자동으로 갱신</span>' : ''}</div>
+            ${remaining.length ? remaining.map(member => renderCoachMemberCard(member)).join('') : '<div class="bg-white rounded-[22px] p-6 text-center text-[13px] text-[#6B7280]">오늘 확인할 회원을 모두 처리했어요.</div>'}
+          </section>
         </div>
       `;
     }
@@ -2016,10 +2074,40 @@
       bindEvents();
     }
 
+    function openCoachDietReplyModal(memberName) {
+      const presets = [
+        '단백질과 탄수화물 비율이 좋아요. 다음 끼니에도 단백질을 챙겨주세요.',
+        '식사 간격이 좋습니다. 오늘 수분 500ml만 더 챙겨볼까요?',
+        '오늘 식단 잘 기록했어요. 내일도 같은 흐름으로 이어가 봅시다.'
+      ];
+      openModal(`${memberName} 회원님 식단 답장`, `
+        <form id="coach-diet-reply-form" class="space-y-3">
+          <p class="text-[12px] text-[#6B7280]">답장은 회원님의 식단 피드백에 바로 저장됩니다.</p>
+          <div class="flex flex-wrap gap-2">
+            ${presets.map((text, index) => `<button type="button" data-diet-preset="${index}" class="rounded-xl bg-[#ECFDF5] px-3 py-2 text-[11px] font-bold text-[#0F766E]">추천 ${index + 1}</button>`).join('')}
+          </div>
+          <textarea id="coach-diet-reply" required rows="4" maxlength="5000" placeholder="회원님께 전달할 식단 피드백" class="w-full rounded-2xl bg-[#F4F6F9] p-3 text-base"></textarea>
+          <button type="submit" class="w-full rounded-2xl bg-[#0F766E] py-3 text-sm font-extrabold text-white">식단 답장 저장</button>
+        </form>
+      `);
+      document.querySelectorAll('[data-diet-preset]').forEach(button => {
+        button.addEventListener('click', () => {
+          document.getElementById('coach-diet-reply').value = presets[Number(button.dataset.dietPreset)];
+        });
+      });
+      document.getElementById('coach-diet-reply-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const message = document.getElementById('coach-diet-reply').value.trim();
+        if (!message) return;
+        const saved = await sendCoachDietFeedback(memberName, message);
+        if (saved) closeModal();
+      });
+    }
+
     async function sendCoachDietFeedback(memberName, replyText) {
       if (!replyText) return;
       const auth = credentials(state.selectedDate, memberName);
-      await saveAction(async () => {
+      return saveAction(async () => {
         const latest = await readCanonical(auth);
         await savePatchLive({ feedback: { ...latest.feedback, diet: replyText, time: nowTimeHHMM() } }, auth);
         canonicalDates.add(auth.date);
@@ -2126,6 +2214,21 @@
       });
       document.querySelectorAll('.btn-coach-qlog').forEach(b => {
         b.addEventListener('click', () => openQuickLogPublishModal(b.dataset.mname));
+      });
+      document.querySelectorAll('.btn-coach-diet').forEach(b => {
+        b.addEventListener('click', () => openCoachDietReplyModal(b.dataset.mname));
+      });
+      document.querySelectorAll('.coach-summary').forEach(b => {
+        b.addEventListener('click', () => {
+          state.coachTab = b.dataset.coachTab;
+          renderAll();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      });
+      document.getElementById('coach-member-search')?.addEventListener('input', event => {
+        state.coachSearch = event.target.value;
+        renderAll();
+        document.getElementById('coach-member-search')?.focus();
       });
       document.querySelectorAll('.btn-diet-preset').forEach(b => {
         b.addEventListener('click', () => sendCoachDietFeedback(b.dataset.mname, b.dataset.reply));

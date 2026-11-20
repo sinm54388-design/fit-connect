@@ -454,6 +454,7 @@
         }
       ],
 
+      directVideos: [],
       trainerOverview: []
     };
 
@@ -688,12 +689,13 @@
       const auth = state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword });
       const month = dateStr.slice(0, 7);
 
-      const [dailyRec, dailyAs, ins, cols, hist] = await Promise.allSettled([
+      const [dailyRec, dailyAs, ins, cols, hist, dVid] = await Promise.allSettled([
         postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
         postAppsScript({ action: 'read', member: state.memberName, date: dateStr, ...(state.token ? { token: state.token } : { password: state.trainerPassword }) }),
         postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
         postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth })
+        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth }),
+        postRecords({ action: 'directVideoList', member: state.memberName, date: dateStr, ...auth })
       ]);
 
       const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
@@ -725,6 +727,9 @@
       }
       if (hist.status === 'fulfilled' && hist.value?.status === 'success' && Array.isArray(hist.value.days)) {
         state.workoutDays = hist.value.days;
+      }
+      if (dVid.status === 'fulfilled' && dVid.value?.status === 'success' && Array.isArray(dVid.value.videos)) {
+        state.directVideos = dVid.value.videos;
       }
     }
 
@@ -1946,7 +1951,7 @@
       let resolvedUrl = String(videoUrl || '').trim();
       openModal(`자극 근육 · 자세 가이드`, `
         <div class="space-y-4">
-          <div id="fg-video-slot">${buildVideoPlayerHtml(resolvedUrl)}</div>
+          <div id="fg-video-slot">${resolvedUrl ? buildVideoPlayerHtml(resolvedUrl) : (videoId ? '<div class="p-4 rounded-2xl bg-[#F4F6F9] text-center text-[12px] font-bold text-[#1D4ED8]">🎬 영상을 불러오는 중...</div>' : '')}</div>
           <div class="p-4 rounded-[24px] bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
             <div class="flex items-center justify-between text-[11px] font-bold">
               <span class="text-[#111827] text-[13px] font-extrabold">${escapeHtml(title)}</span>
@@ -2601,8 +2606,19 @@
               routines[ri].videoUrl = '';
               replyMsg = document.getElementById('cd-reply-msg').value;
               dietMsg = document.getElementById('cd-diet-msg').value;
-              showToast('영상 업로드 완료! 아래 저장 버튼을 꼭 눌러주세요 ✓');
+              showToast('영상 업로드 완료! 저장 중...');
               renderDetailBody();
+              const autoPayload = {
+                headerMessage: replyMsg || daily.headerMessage || '',
+                routines,
+                reflection: daily.reflection || { good: '', bad: '' },
+                diet: daily.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
+                feedback: daily.feedback || { workout: '', diet: '', time: '' },
+                memos: Array.isArray(daily.memos) ? daily.memos : [],
+                dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' }
+              };
+              const savedOk = await saveFullRecordLive(memberName, autoPayload);
+              if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
             } catch (err) {
               showToast('영상 업로드 실패: ' + (err?.message || '용량(50MB 이하) 확인'));
             }
@@ -3281,6 +3297,21 @@
                 `;
               }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}
             </div>
+
+            ${state.directVideos.length ? `
+              <div class="bg-white rounded-[24px] p-5 space-y-2.5">
+                <h3 class="text-[15px] font-bold text-[#111827]">업로드된 운동 영상 (${state.directVideos.length})</h3>
+                ${state.directVideos.map(v => `
+                  <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.name || '운동 영상')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale w-full p-3.5 rounded-2xl bg-[#EFF6FF] text-left flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-[13px] font-bold text-[#111827] truncate">🎬 ${escapeHtml(v.name || '운동 영상')}</p>
+                      ${v.feedback ? `<p class="text-[11px] font-semibold text-[#0F766E] mt-0.5 truncate">코치 피드백: ${escapeHtml(v.feedback)}</p>` : (v.question ? `<p class="text-[11px] text-[#6B7280] mt-0.5 truncate">${escapeHtml(v.question)}</p>` : '')}
+                    </div>
+                    <span class="shrink-0 px-3 py-1.5 rounded-full card-blue text-white text-[11px] font-extrabold">재생 ▶</span>
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
           </div>
         `;
       }
@@ -3711,6 +3742,10 @@
         b.addEventListener('click', () => openFormGuideModal(b.dataset.gtitle, b.dataset.gnote, b.dataset.gvid, b.dataset.gvidid));
       });
 
+      document.querySelectorAll('.dv-play-btn').forEach(b => {
+        b.addEventListener('click', () => openFormGuideModal(b.dataset.dvname, b.dataset.dvfb, '', b.dataset.dvid));
+      });
+
       const addR = document.getElementById('btn-add-routine');
       if (addR) addR.addEventListener('click', openAddRoutineModal);
 
@@ -3744,7 +3779,8 @@
               time: nowTimeHHMM(),
               videoId: directId
             });
-            showToast('자세 영상 업로드 완료! 코치님께 전달되었어요 ✓');
+            state.directVideos.unshift({ id: directId, name: f.name || '자세 영상', question: '회원 자세 체크 영상', feedback: '' });
+            showToast('자세 영상 업로드 완료! 수업일지 · 메모에 반영되었어요 ✓');
             renderAll();
             savePatchLive({ memos: state.record.memos });
           } catch (err) {

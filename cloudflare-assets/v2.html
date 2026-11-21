@@ -583,12 +583,22 @@
         throw new Error(begin?.code || begin?.message || '업로드 시작 실패');
       }
       if (!begin.alreadyReady && begin.url) {
-        const putRes = await fetch(begin.url, {
+        let putRes = await fetch(begin.url, {
           method: 'PUT',
-          headers: { 'Content-Type': mime },
+          headers: { 'Content-Type': mime, 'x-upsert': 'true' },
           body: file
         });
-        if (!putRes.ok) throw new Error('영상 파일 전송 실패 (' + putRes.status + ')');
+        if (!putRes.ok && (putRes.status === 400 || putRes.status === 415)) {
+          const fd = new FormData();
+          fd.append('cacheControl', '3600');
+          fd.append('', file);
+          putRes = await fetch(begin.url, { method: 'PUT', body: fd });
+        }
+        if (!putRes.ok) {
+          let errTxt = '';
+          try { errTxt = (await putRes.text()).slice(0, 60); } catch {}
+          throw new Error('영상 전송 실패 (' + putRes.status + (errTxt ? ': ' + errTxt : '') + ')');
+        }
       }
       const fin = await postRecords({
         action: 'directVideoFinish',
@@ -627,6 +637,13 @@
 
     // --- Live Initialization (Parallel + Instant Cache) ---
     async function initLiveMemberData() {
+      if (state.memberName && state.token) {
+        try {
+          const map = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
+          map[state.memberName] = state.token;
+          localStorage.setItem('fit_member_tokens_v2', JSON.stringify(map));
+        } catch {}
+      }
       loadLocalMemberExtras();
       if (!isLiveOrigin || !state.memberName || !state.token) {
         renderAll();
@@ -2113,10 +2130,17 @@
           const fast = fastRes.status === 'fulfilled' ? fastRes.value : null;
           const asList = asListRes.status === 'fulfilled' ? asListRes.value : null;
           const tokenMap = {};
+          try {
+            const savedMap = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
+            Object.assign(tokenMap, savedMap);
+          } catch {}
           [fast, asList].forEach(src => {
-            const arr = Array.isArray(src?.members) ? src.members : (Array.isArray(src?.data) ? src.data : []);
+            const arr = Array.isArray(src) ? src : (Array.isArray(src?.members) ? src.members : (Array.isArray(src?.data) ? src.data : []));
             arr.forEach(fm => {
-              if (fm?.name && fm?.token) tokenMap[fm.name] = fm.token;
+              if (!fm || typeof fm !== 'object') return;
+              const nm = fm.name || fm.member || '';
+              const tk = fm.token || fm.memberToken || extractTokenValue(fm.url || fm.link || '');
+              if (nm && tk) tokenMap[nm] = tk;
             });
           });
           let serverMembers = [];
@@ -2223,6 +2247,9 @@
       const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
       if (mObj) mObj.token = tokenVal;
       try {
+        const map = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
+        map[memberName] = tokenVal;
+        localStorage.setItem('fit_member_tokens_v2', JSON.stringify(map));
         const prevAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]');
         const idx = prevAdded.findIndex(x => x.name === memberName);
         if (idx >= 0) prevAdded[idx].token = tokenVal;
@@ -2571,7 +2598,8 @@
             const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
             const mTok = mObj?.token || (memberName === state.memberName ? state.token : '');
             if (!mTok) {
-              showToast('먼저 상단 🔗 링크에서 이 회원의 토큰을 연결해 주세요');
+              showToast('영상 업로드를 위해 회원 토큰을 1회만 연결해 주세요');
+              copyMemberLink(memberName);
               return;
             }
             const lbl = document.getElementById('cd-new-vid-lbl');
@@ -2596,7 +2624,8 @@
             const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
             const mTok = mObj?.token || (memberName === state.memberName ? state.token : '');
             if (!mTok) {
-              showToast('먼저 상단 🔗 링크에서 이 회원의 토큰을 연결해 주세요');
+              showToast('영상 업로드를 위해 회원 토큰을 1회만 연결해 주세요');
+              copyMemberLink(memberName);
               return;
             }
             showToast('사진첩 영상을 업로드 중입니다... ⏳');

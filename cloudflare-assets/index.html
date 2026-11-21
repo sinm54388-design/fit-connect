@@ -584,12 +584,33 @@
       return 'video/mp4';
     }
 
-    async function uploadDirectVideoFile(file, memberName, memberToken, questionText) {
+    function xhrPutFile(url, body, headers, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', url, true);
+        Object.entries(headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+        if (xhr.upload && typeof onProgress === 'function') {
+          xhr.upload.onprogress = e => {
+            if (e.lengthComputable && e.total > 0) {
+              onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)), e.loaded, e.total);
+            }
+          };
+        }
+        xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: xhr.responseText || '' });
+        xhr.onerror = () => reject(new Error('네트워크 연결이 불안정합니다'));
+        xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다'));
+        xhr.timeout = 180000;
+        xhr.send(body);
+      });
+    }
+
+    async function uploadDirectVideoFile(file, memberName, memberToken, questionText, onProgress) {
       if (!file) throw new Error('no_file');
       if (file.size > 50000000) throw new Error('50MB 이하 영상만 업로드할 수 있어요');
       let activeToken = memberToken || '';
       let activeSession = (memberName === state.memberName && state.session) ? state.session : '';
-      if (!activeToken && !activeSession) throw new Error('회원 전용 토큰이 필요해요');
+      const hasTrainerPw = !!state.trainerPassword;
+      if (!hasTrainerPw && !activeToken && !activeSession) throw new Error('회원 전용 토큰이 필요해요');
       const mime = normalizeVideoMime(file);
       const id = makeUuidV4();
       const baseBegin = {
@@ -602,25 +623,15 @@
         mime,
         size: file.size
       };
-      const authPayload = () => activeSession ? { session: activeSession } : { token: activeToken };
+      const authPayload = () => hasTrainerPw
+        ? { password: state.trainerPassword }
+        : (activeSession ? { session: activeSession } : { token: activeToken });
       let begin;
       try {
         begin = await postRecords({ ...baseBegin, ...authPayload() });
       } catch (err) {
-        if (err?.status === 403 || String(err?.message || '').includes('records_403')) {
+        if (!hasTrainerPw && (err?.status === 403 || String(err?.message || '').includes('records_403'))) {
           let diag = err?.code || '403';
-          if (state.trainerPassword) {
-            try {
-              const r = await postAppsScript({ action: 'getMemberLink', name: memberName, password: state.trainerPassword });
-              const freshTok = r?.token || extractTokenValue(r?.url || r?.link || '');
-              if (r?.status === 'success' && freshTok) {
-                activeToken = freshTok;
-                saveMemberTokenLocal(memberName, activeToken);
-                const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
-                if (mObj) mObj.token = activeToken;
-              }
-            } catch {}
-          }
           if (activeToken) {
             try {
               const sr = await postRecords({ action: 'memberSession', member: memberName, date: state.selectedDate, token: activeToken });
@@ -628,8 +639,6 @@
             } catch (se) {
               diag += '/sess:' + (se?.code || se?.status || 'fail');
             }
-          } else {
-            diag += '/no_tok';
           }
           try {
             begin = await postRecords({ ...baseBegin, ...authPayload() });
@@ -647,20 +656,15 @@
         throw new Error(begin?.code || begin?.message || '업로드 시작 실패');
       }
       if (!begin.alreadyReady && begin.url) {
-        let putRes = await fetch(begin.url, {
-          method: 'PUT',
-          headers: { 'Content-Type': mime, 'x-upsert': 'true' },
-          body: file
-        });
+        let putRes = await xhrPutFile(begin.url, file, { 'Content-Type': mime, 'x-upsert': 'true' }, onProgress);
         if (!putRes.ok && (putRes.status === 400 || putRes.status === 415)) {
           const fd = new FormData();
           fd.append('cacheControl', '3600');
           fd.append('', file);
-          putRes = await fetch(begin.url, { method: 'PUT', body: fd });
+          putRes = await xhrPutFile(begin.url, fd, {}, onProgress);
         }
         if (!putRes.ok) {
-          let errTxt = '';
-          try { errTxt = (await putRes.text()).slice(0, 60); } catch {}
+          const errTxt = String(putRes.text || '').slice(0, 60);
           throw new Error('영상 전송 실패 (' + putRes.status + (errTxt ? ': ' + errTxt : '') + ')');
         }
       }
@@ -857,6 +861,30 @@
         state.directVideos = dVid.value.videos;
       }
       syncExerciseLibrary(dateStr);
+      prefetchRoutineVideos(state.record.routines, auth);
+    }
+
+    const videoPlayUrlCache = new Map();
+    async function resolvePlayableVideoUrl(videoId, authOverride) {
+      if (!videoId) return '';
+      const cached = videoPlayUrlCache.get(videoId);
+      if (cached && (Date.now() - cached.ts < 240000)) return cached.url;
+      const auth = authOverride || (state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword }));
+      const isDirect = String(videoId).startsWith('direct:');
+      const vRes = isDirect
+        ? await postRecords({ action: 'directVideoPlay', id: videoId, member: state.memberName, date: state.selectedDate, ...auth })
+        : await postRecords({ action: 'videoPlaybackUrl', fileId: videoId, videoId, member: state.memberName, date: state.selectedDate, ...auth });
+      const playUrl = vRes?.url || vRes?.playbackUrl || vRes?.data?.url || '';
+      if (playUrl) videoPlayUrlCache.set(videoId, { url: playUrl, ts: Date.now() });
+      return playUrl;
+    }
+
+    function prefetchRoutineVideos(routines, auth) {
+      if (!state.isLive || !Array.isArray(routines)) return;
+      const ids = [...new Set(routines.map(r => r?.videoId).filter(Boolean))];
+      ids.slice(0, 6).forEach(vid => {
+        resolvePlayableVideoUrl(vid, auth).catch(() => {});
+      });
     }
 
     // --- Live Save Wrappers ---
@@ -2076,7 +2104,7 @@
       }
       return `
         <div class="rounded-[20px] overflow-hidden bg-black shadow-sm">
-          <video src="${escapeHtml(u)}" controls playsinline preload="metadata" class="w-full max-h-56 object-contain"></video>
+          <video src="${escapeHtml(u)}" controls playsinline preload="auto" class="w-full max-h-56 object-contain"></video>
         </div>
       `;
     }
@@ -2084,6 +2112,10 @@
     async function openFormGuideModal(title, note, videoUrl, videoId) {
       const profile = getExerciseProfile(title);
       let resolvedUrl = String(videoUrl || '').trim();
+      if (!resolvedUrl && videoId) {
+        const cached = videoPlayUrlCache.get(videoId);
+        if (cached && (Date.now() - cached.ts < 240000)) resolvedUrl = cached.url;
+      }
       openModal(`자극 근육 · 자세 가이드`, `
         <div class="space-y-4">
           <div id="fg-video-slot">${resolvedUrl ? buildVideoPlayerHtml(resolvedUrl) : (videoId ? '<div class="p-4 rounded-2xl bg-[#F4F6F9] text-center text-[12px] font-bold text-[#1D4ED8]">🎬 영상을 불러오는 중...</div>' : '')}</div>
@@ -2125,15 +2157,14 @@
       document.getElementById('btn-close-guide').addEventListener('click', closeModal);
       if (!resolvedUrl && videoId && state.isLive) {
         try {
-          const auth = state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword });
-          const isDirect = String(videoId).startsWith('direct:');
-          const vRes = isDirect
-            ? await postRecords({ action: 'directVideoPlay', id: videoId, member: state.memberName, date: state.selectedDate, ...auth })
-            : await postRecords({ action: 'videoPlaybackUrl', fileId: videoId, videoId, member: state.memberName, date: state.selectedDate, ...auth });
-          const playUrl = vRes?.url || vRes?.playbackUrl || vRes?.data?.url || '';
+          const playUrl = await resolvePlayableVideoUrl(videoId);
           const slot = document.getElementById('fg-video-slot');
           if (playUrl && slot) slot.innerHTML = buildVideoPlayerHtml(playUrl);
-        } catch {}
+          else if (slot) slot.innerHTML = '<div class="p-3 rounded-2xl bg-[#F4F6F9] text-center text-[11px] text-[#6B7280]">등록된 영상을 불러오지 못했습니다.</div>';
+        } catch {
+          const slot = document.getElementById('fg-video-slot');
+          if (slot) slot.innerHTML = '<div class="p-3 rounded-2xl bg-[#F4F6F9] text-center text-[11px] text-[#6B7280]">영상을 불러오지 못했습니다.</div>';
+        }
       }
     }
 
@@ -2803,18 +2834,14 @@
             const f = e.target.files?.[0];
             if (!f) return;
             const lbl = document.getElementById('cd-new-vid-lbl');
-            if (lbl) lbl.textContent = '토큰 확인...';
-            const mTok = await resolveMemberToken(memberName);
-            if (!mTok) {
-              if (lbl) lbl.textContent = '📹 영상 올리기';
-              showToast('이 회원의 토큰을 먼저 연결해 주세요');
-              copyMemberLink(memberName);
-              return;
-            }
-            if (lbl) lbl.textContent = '업로드 중...';
+            const mbTotal = (f.size / 1048576).toFixed(1);
+            if (lbl) lbl.textContent = `준비 중 (${mbTotal}MB)...`;
             try {
               const titleHint = document.getElementById('cd-new-name')?.value.trim() || '시범 영상';
-              pendingNewVideoId = await uploadDirectVideoFile(f, memberName, mTok, titleHint);
+              pendingNewVideoId = await uploadDirectVideoFile(f, memberName, '', titleHint, (pct, loaded, total) => {
+                if (lbl) lbl.textContent = `업로드 ${pct}%`;
+                showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
+              });
               if (lbl) lbl.textContent = '📹 업로드됨 ✓';
               showToast('영상 업로드 완료! + 종목 추가 또는 저장을 눌러주세요 ✓');
             } catch (err) {
@@ -2829,16 +2856,12 @@
             const f = e.target.files?.[0];
             if (!f) return;
             const ri = Number(inp.dataset.vfi);
-            showToast('회원 정보 확인 중...');
-            const mTok = await resolveMemberToken(memberName);
-            if (!mTok) {
-              showToast('이 회원의 토큰을 먼저 연결해 주세요');
-              copyMemberLink(memberName);
-              return;
-            }
-            showToast('사진첩 영상을 업로드 중입니다... ⏳');
+            const mbTotal = (f.size / 1048576).toFixed(1);
+            showToast(`영상 업로드 시작 (${mbTotal}MB)...`);
             try {
-              const directId = await uploadDirectVideoFile(f, memberName, mTok, routines[ri]?.name || '');
+              const directId = await uploadDirectVideoFile(f, memberName, '', routines[ri]?.name || '', (pct, loaded, total) => {
+                showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
+              });
               routines[ri].videoId = directId;
               routines[ri].videoUrl = '';
               replyMsg = document.getElementById('cd-reply-msg').value;

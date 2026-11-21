@@ -312,15 +312,17 @@
       const rs = state.record.routines || [];
       let totalKg = 0;
       rs.forEach(r => {
+        const isPt = r.routineType !== 'homework';
         if (Array.isArray(r.setDetails) && r.setDetails.length) {
           r.setDetails.forEach((sd, idx) => {
-            const isDone = Array.isArray(r.completedSets) ? Boolean(r.completedSets[idx]) : false;
+            const isDone = isPt || (Array.isArray(r.completedSets) ? Boolean(r.completedSets[idx]) : false);
             if (isDone) totalKg += (Number(sd.weight) || 0) * (Number(sd.reps) || 10);
           });
         } else {
           const w = Number(r.weight) || 0;
           const reps = Number(r.reps) || 10;
-          const doneSets = Array.isArray(r.completedSets) ? r.completedSets.filter(Boolean).length : 0;
+          const totalSets = Math.max(1, Number(r.sets) || 1);
+          const doneSets = isPt ? totalSets : (Array.isArray(r.completedSets) ? r.completedSets.filter(Boolean).length : 0);
           if (w > 0 && doneSets > 0) totalKg += w * reps * doneSets;
         }
       });
@@ -1566,10 +1568,16 @@
     }
 
     // --- Metrics & Visual SVGs ---
+    function isRoutineDone(r) {
+      if (!r) return false;
+      if (r.routineType !== 'homework') return true; // PT 수업은 코치와 이미 수행한 수업 기록
+      return Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
+    }
+
     function getWorkoutRate() {
       const rs = state.record.routines || [];
       if (!rs.length) return { done: 0, total: 0, pct: 0 };
-      const done = rs.filter(r => Array.isArray(r.completedSets) && r.completedSets.some(Boolean)).length;
+      const done = rs.filter(isRoutineDone).length;
       return { done, total: rs.length, pct: Math.round((done / rs.length) * 100) };
     }
 
@@ -3338,11 +3346,11 @@
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
       const hasRoutines = (state.record.routines || []).length > 0;
-      const pendingRoutine = (state.record.routines || []).find(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
+      const pendingRoutine = (state.record.routines || []).find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
       const missionDone = hasRoutines && !pendingRoutine;
       const missionTitle = pendingRoutine
         ? pendingRoutine.name
-        : (missionDone ? '오늘 배정된 루틴 모두 완료!' : '오늘 배정된 루틴이 없어요');
+        : (missionDone ? '오늘 수업 · 루틴 기록 확인하기' : '오늘 배정된 루틴이 없어요');
       const missionNote = pendingRoutine
         ? pendingRoutine.note
         : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : '코치님이 루틴을 등록하면 이곳에 바로 표시됩니다.');
@@ -3524,14 +3532,15 @@
                   <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
                 </div>
                 ${rs.length ? rs.map((r, i) => {
-                  const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
+                  const isHw = r.routineType === 'homework';
+                  const done = isRoutineDone(r);
                   const libMatch = state.exerciseLibrary?.[normKey(r.name)];
                   const showPrevBadge = libMatch && libMatch.lastWeight && libMatch.lastDate && libMatch.lastDate < state.selectedDate;
                   return `
-                    <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
+                    <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-start justify-between gap-2">
                       <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || libMatch?.note || '')}" data-gvid="${escapeHtml(r.videoUrl || libMatch?.videoUrl || '')}" data-gvidid="${escapeHtml(r.videoId || r.demoKey || libMatch?.videoId || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
                         <div class="flex items-center gap-1.5 flex-wrap">
-                          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${r.routineType === 'homework' ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${r.routineType === 'homework' ? '개인 숙제' : 'PT 수업'}</span>
+                          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isHw ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${isHw ? '개인 숙제' : 'PT 수업'}</span>
                           <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
                           <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">${r.videoUrl || r.videoId || r.demoKey || libMatch?.videoUrl || libMatch?.videoId ? '🎬 영상 · 자세 ›' : '자세 · 부위 ›'}</span>
                         </div>
@@ -3541,7 +3550,7 @@
                           : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
                         ${r.note ? `<div class="mt-2 p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><span class="text-[10px] font-extrabold text-[#1D4ED8] block mb-0.5">💡 코치 자세 포인트</span><p class="text-[13px] font-medium text-[#1E293B] leading-relaxed">${escapeHtml(r.note)}</p></div>` : ''}
                       </button>
-                      <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
+                      ${isHw ? `<button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 mt-1 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-teal text-white' : 'bg-white text-[#0F766E] shadow-sm'}">${done ? '완료 ✓' : '체크'}</button>` : ''}
                     </div>
                   `;
                 }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}

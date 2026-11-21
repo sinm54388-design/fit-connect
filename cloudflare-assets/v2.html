@@ -64,7 +64,7 @@
     <main id="main-content" class="flex-1 px-4 pt-1 space-y-3.5"></main>
 
     <!-- Floating Mini Rest Timer Bar (Member Mode) -->
-    <div id="floating-timer-bar" class="hidden fixed bottom-[72px] left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[398px] z-35 rounded-2xl hero-navy text-white px-4 py-2.5 shadow-[0_10px_28px_rgba(11,19,43,0.38)] flex items-center justify-between gap-2 animate-in">
+    <div id="floating-timer-bar" style="left:50%;transform:translateX(-50%);" class="hidden fixed bottom-[76px] w-[calc(100%-28px)] max-w-[402px] z-40 rounded-2xl hero-navy text-white px-3.5 py-2.5 shadow-[0_10px_28px_rgba(11,19,43,0.38)] flex items-center justify-between gap-2">
       <div class="flex items-center gap-2.5 min-w-0">
         <span class="w-2.5 h-2.5 rounded-full bg-[#5EEAD4] animate-pulse shrink-0"></span>
         <div class="min-w-0">
@@ -347,6 +347,9 @@
       loading: false,
       appMode: 'member', // 'member' | 'coach'
       memberTab: 'report', // 'report' | 'lesson' | 'diet' | 'body' | 'feedback'
+      lessonView: 'today', // 'today' | 'library'
+      lessonSearch: '',
+      exerciseLibrary: {},
       coachTab: 'coaching', // 'coaching' | 'members'
       coachFilter: 'pending', // 'pending' | 'today' | 'dormant' | 'all'
       coachSearch: '',
@@ -477,6 +480,8 @@
         if (wv !== null && !Number(state.record.diet.water)) {
           state.record.diet.water = Number(wv) || 0;
         }
+        const libRaw = localStorage.getItem(`fit_ex_lib_${state.memberName}`);
+        if (libRaw) state.exerciseLibrary = JSON.parse(libRaw) || {};
         const bvRaw = localStorage.getItem(`fit_bodyval_${state.memberName}`);
         if (bvRaw) {
           const bv = JSON.parse(bvRaw);
@@ -624,6 +629,50 @@
       } catch { return false; }
     }
 
+    function syncExerciseLibrary(dateStr) {
+      const lib = { ...(state.exerciseLibrary || {}) };
+      const norm = n => String(n || '').trim().toLowerCase().replace(/\s+/g, '');
+      (state.record?.routines || []).forEach(r => {
+        const name = String(r.name || '').trim();
+        const key = norm(name);
+        if (!key) return;
+        const prev = lib[key] || { name };
+        const w = Number(r.weight) || 0;
+        const maxSetW = Array.isArray(r.setDetails) && r.setDetails.length
+          ? Math.max(...r.setDetails.map(sd => Number(sd.weight) || 0))
+          : w;
+        const bestW = Math.max(Number(prev.bestWeight) || 0, maxSetW);
+        lib[key] = {
+          name,
+          lastWeight: maxSetW > 0 ? String(maxSetW) : (prev.lastWeight || ''),
+          lastReps: String(r.reps || prev.lastReps || ''),
+          lastDate: dateStr >= (prev.lastDate || '') ? dateStr : prev.lastDate,
+          bestWeight: bestW > 0 ? String(bestW) : '',
+          note: String(r.note || '').trim() || prev.note || '',
+          videoUrl: String(r.videoUrl || '').trim() || prev.videoUrl || '',
+          videoId: String(r.videoId || r.demoKey || '').trim() || prev.videoId || ''
+        };
+      });
+      (state.insights?.progress || []).forEach(p => {
+        const name = String(p.name || '').trim();
+        const key = norm(name);
+        if (!key || !Array.isArray(p.points) || !p.points.length) return;
+        const latestPt = p.points[p.points.length - 1];
+        const maxPtW = Math.max(...p.points.map(pt => Number(pt.weight) || 0));
+        const prev = lib[key] || { name };
+        lib[key] = {
+          ...prev,
+          name,
+          lastWeight: latestPt.weight ? String(latestPt.weight) : (prev.lastWeight || ''),
+          lastReps: latestPt.reps ? String(latestPt.reps) : (prev.lastReps || ''),
+          lastDate: latestPt.date >= (prev.lastDate || '') ? latestPt.date : prev.lastDate,
+          bestWeight: Math.max(Number(prev.bestWeight) || 0, maxPtW) > 0 ? String(Math.max(Number(prev.bestWeight) || 0, maxPtW)) : ''
+        };
+      });
+      state.exerciseLibrary = lib;
+      try { localStorage.setItem(`fit_ex_lib_${state.memberName}`, JSON.stringify(lib)); } catch {}
+    }
+
     function saveCachedMemberData(dateStr) {
       try {
         localStorage.setItem(`fit_cache_v2_${state.memberName}_${dateStr}`, JSON.stringify({
@@ -748,6 +797,7 @@
       if (dVid.status === 'fulfilled' && dVid.value?.status === 'success' && Array.isArray(dVid.value.videos)) {
         state.directVideos = dVid.value.videos;
       }
+      syncExerciseLibrary(dateStr);
     }
 
     // --- Live Save Wrappers ---
@@ -843,12 +893,15 @@
 
     function updateFloatingTimerUI() {
       const bar = document.getElementById('floating-timer-bar');
+      const fabWrap = document.getElementById('member-fab-wrap');
       if (!bar) return;
       if (state.appMode !== 'member' || state.timer.remaining <= 0) {
         bar.classList.add('hidden');
+        if (fabWrap) { fabWrap.classList.remove('bottom-[138px]'); fabWrap.classList.add('bottom-20'); }
         return;
       }
       bar.classList.remove('hidden');
+      if (fabWrap) { fabWrap.classList.remove('bottom-20'); fabWrap.classList.add('bottom-[138px]'); }
       document.getElementById('ft-time').textContent = formatMMSS(state.timer.remaining);
       document.getElementById('ft-sub').textContent = `휴식 타이머 · ${state.timer.setsDone}세트 완료`;
       document.getElementById('ft-toggle').textContent = state.timer.running ? '일시정지' : '재개';
@@ -3383,18 +3436,19 @@
               </button>
             </div>
 
-            <!-- Compact Today's Mission -->
+            <!-- Compact Today's Lesson Shortcut -->
             <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
               <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
                 <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
                 </div>
                 <div class="min-w-0">
+                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${hasRoutines ? `오늘의 운동 루틴 (${wr.done}/${wr.total} 완료)` : '오늘의 운동 일정'}</span>
                   <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
-                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${missionDone ? '수업일지 전체 보기 ›' : (hasRoutines ? '터치해서 완료 체크 (+타이머)' : '휴식 · 회복일')}</p>
+                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${hasRoutines ? '수업일지에서 자세히 보기 ›' : '휴식 · 회복일'}</p>
                 </div>
               </button>
-              <button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold ${missionDone ? 'bg-white/20 text-white' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">자세 팁 ▶</button>
+              ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
             </div>
 
             <!-- Compact 1-Line Water Bar -->
@@ -3414,6 +3468,10 @@
 
       if (state.memberTab === 'lesson') {
         const rs = state.record.routines || [];
+        const normKey = n => String(n || '').trim().toLowerCase().replace(/\s+/g, '');
+        const libItems = Object.values(state.exerciseLibrary || {})
+          .filter(it => !state.lessonSearch || it.name.toLowerCase().includes(state.lessonSearch.toLowerCase()))
+          .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''));
         return `
           <div class="space-y-3.5 animate-in">
             <div class="hero-navy rounded-[24px] p-5 text-white">
@@ -3427,31 +3485,68 @@
               <p class="text-[13px] text-white/90 mt-2.5 leading-relaxed">${escapeHtml(coachNote)}</p>
             </div>
 
-            <div class="bg-white rounded-[24px] p-5 space-y-2.5">
-              <div class="flex items-center justify-between mb-1">
-                <h3 class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
-                <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
-              </div>
-              ${rs.length ? rs.map((r, i) => {
-                const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
-                return `
-                  <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
-                    <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || '')}" data-gvid="${escapeHtml(r.videoUrl || '')}" data-gvidid="${escapeHtml(r.videoId || r.demoKey || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
-                      <div class="flex items-center gap-1.5 flex-wrap">
-                        <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${r.routineType === 'homework' ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${r.routineType === 'homework' ? '개인 숙제' : 'PT 수업'}</span>
-                        <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
-                        <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">${r.videoUrl || r.videoId || r.demoKey ? '🎬 영상 · 자세 ›' : '자세 · 부위 ›'}</span>
-                      </div>
-                      ${Array.isArray(r.setDetails) && r.setDetails.length
-                        ? `<div class="flex flex-wrap gap-1 mt-1">${r.setDetails.map((sd, sIdx) => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white text-[#4B5563] tabular-nums">${sIdx + 1}set ${sd.weight ? sd.weight + 'kg×' : ''}${sd.reps || r.reps || '12'}회</span>`).join('')}</div>`
-                        : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
-                      ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${escapeHtml(r.note)}</p>` : ''}
-                    </button>
-                    <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
-                  </div>
-                `;
-              }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}
+            <!-- Lesson Sub-Tabs: Today Routine vs Saved Exercise/Video Archive -->
+            <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-white shadow-sm">
+              <button type="button" data-lview="today" class="lview-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${state.lessonView === 'today' ? 'hero-navy text-white shadow-sm' : 'text-[#6B7280]'}">오늘 루틴 (${wr.total})</button>
+              <button type="button" data-lview="library" class="lview-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${state.lessonView === 'library' ? 'hero-navy text-white shadow-sm' : 'text-[#6B7280]'}">📚 내 종목 · 영상 (${Object.keys(state.exerciseLibrary || {}).length})</button>
             </div>
+
+            ${state.lessonView === 'library' ? `
+              <div class="bg-white rounded-[24px] p-5 space-y-3">
+                <div>
+                  <h3 class="text-[15px] font-extrabold text-[#111827]">종목별 누적 기록 · 영상 사전</h3>
+                  <p class="text-[11px] text-[#6B7280] mt-0.5">지난 수업에서 배운 영상·자세 포인트·최고 중량을 언제든 꺼내보세요</p>
+                </div>
+                <input id="lesson-lib-search" value="${escapeHtml(state.lessonSearch)}" placeholder="종목 이름으로 바로 찾기 (예: 스쿼트, 랫풀다운)..." class="w-full text-[13px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+                <div class="space-y-2.5">
+                  ${libItems.length ? libItems.map(it => `
+                    <div class="p-3.5 rounded-2xl bg-[#F4F6F9] space-y-2">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="min-w-0">
+                          <p class="text-[14px] font-extrabold text-[#111827] truncate">${escapeHtml(it.name)}</p>
+                          <div class="flex items-center gap-1.5 flex-wrap mt-1">
+                            ${it.lastWeight ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">최근 ${escapeHtml(it.lastWeight)}kg${it.lastReps ? '×' + escapeHtml(it.lastReps) + '회' : ''}</span>` : ''}
+                            ${it.bestWeight ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#F0FDFA] text-[#0F766E]">최고 ${escapeHtml(it.bestWeight)}kg</span>` : ''}
+                            ${it.lastDate ? `<span class="text-[10px] text-[#6B7280]">${escapeHtml(it.lastDate)}</span>` : ''}
+                          </div>
+                        </div>
+                        <button type="button" data-gtitle="${escapeHtml(it.name)}" data-gnote="${escapeHtml(it.note || '')}" data-gvid="${escapeHtml(it.videoUrl || '')}" data-gvidid="${escapeHtml(it.videoId || '')}" class="routine-guide-btn tap-scale shrink-0 px-3 py-1.5 rounded-full ${it.videoUrl || it.videoId ? 'card-blue text-white' : 'bg-white text-[#1D4ED8] shadow-sm'} text-[11px] font-extrabold">${it.videoUrl || it.videoId ? '🎬 영상 보기' : '자세 · 부위'}</button>
+                      </div>
+                      ${it.note ? `<div class="p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><p class="text-[12px] font-medium text-[#1E293B] leading-relaxed">💡 ${escapeHtml(it.note)}</p></div>` : ''}
+                    </div>
+                  `).join('') : '<p class="py-6 text-center text-[12px] text-[#6B7280]">아직 누적된 종목 기록이 없어요. 수업일지가 쌓이면 자동으로 정리됩니다!</p>'}
+                </div>
+              </div>
+            ` : `
+              <div class="bg-white rounded-[24px] p-5 space-y-2.5">
+                <div class="flex items-center justify-between mb-1">
+                  <h3 class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
+                  <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
+                </div>
+                ${rs.length ? rs.map((r, i) => {
+                  const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
+                  const libMatch = state.exerciseLibrary?.[normKey(r.name)];
+                  const showPrevBadge = libMatch && libMatch.lastWeight && libMatch.lastDate && libMatch.lastDate < state.selectedDate;
+                  return `
+                    <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
+                      <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || libMatch?.note || '')}" data-gvid="${escapeHtml(r.videoUrl || libMatch?.videoUrl || '')}" data-gvidid="${escapeHtml(r.videoId || r.demoKey || libMatch?.videoId || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${r.routineType === 'homework' ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${r.routineType === 'homework' ? '개인 숙제' : 'PT 수업'}</span>
+                          <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
+                          <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">${r.videoUrl || r.videoId || r.demoKey || libMatch?.videoUrl || libMatch?.videoId ? '🎬 영상 · 자세 ›' : '자세 · 부위 ›'}</span>
+                        </div>
+                        ${showPrevBadge ? `<p class="text-[11px] font-bold text-[#0F766E] mt-1">📌 직전 참고: ${escapeHtml(libMatch.lastWeight)}kg${libMatch.lastReps ? '×' + escapeHtml(libMatch.lastReps) + '회' : ''} (${escapeHtml(libMatch.lastDate.slice(5))})</p>` : ''}
+                        ${Array.isArray(r.setDetails) && r.setDetails.length
+                          ? `<div class="flex flex-wrap gap-1 mt-1">${r.setDetails.map((sd, sIdx) => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white text-[#4B5563] tabular-nums">${sIdx + 1}set ${sd.weight ? sd.weight + 'kg×' : ''}${sd.reps || r.reps || '12'}회</span>`).join('')}</div>`
+                          : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
+                        ${r.note ? `<div class="mt-2 p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><span class="text-[10px] font-extrabold text-[#1D4ED8] block mb-0.5">💡 코치 자세 포인트</span><p class="text-[13px] font-medium text-[#1E293B] leading-relaxed">${escapeHtml(r.note)}</p></div>` : ''}
+                      </button>
+                      <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
+                    </div>
+                  `;
+                }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}
+              </div>
+            `}
 
             ${state.directVideos.length ? `
               <div class="bg-white rounded-[24px] p-5 space-y-2.5">
@@ -3838,20 +3933,9 @@
       const hmBtn = document.getElementById('btn-home-mission');
       if (hmBtn) {
         hmBtn.addEventListener('click', () => {
-          const idx = (state.record.routines || []).findIndex(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
-          if (idx >= 0) {
-            const r = state.record.routines[idx];
-            r.completedSets = Array(Math.max(1, Number(r.sets) || 3)).fill(true);
-            state.timer.setsDone += 1;
-            triggerConfetti();
-            showToast(`${r.name} 완료 체크!`);
-            if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
-            renderAll();
-            saveFullRecordLive();
-          } else {
-            state.memberTab = 'lesson';
-            renderAll();
-          }
+          state.memberTab = 'lesson';
+          renderAll();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }
 
@@ -3900,6 +3984,23 @@
       document.querySelectorAll('.dv-play-btn').forEach(b => {
         b.addEventListener('click', () => openFormGuideModal(b.dataset.dvname, b.dataset.dvfb, '', b.dataset.dvid));
       });
+
+      document.querySelectorAll('.lview-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          state.lessonView = b.dataset.lview;
+          renderAll();
+        });
+      });
+
+      const libSearch = document.getElementById('lesson-lib-search');
+      if (libSearch) {
+        libSearch.addEventListener('input', e => {
+          state.lessonSearch = e.target.value;
+          renderAll();
+          const n = document.getElementById('lesson-lib-search');
+          if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+        });
+      }
 
       const addR = document.getElementById('btn-add-routine');
       if (addR) addR.addEventListener('click', openAddRoutineModal);

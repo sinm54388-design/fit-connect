@@ -3070,7 +3070,15 @@
               <button type="button" id="btn-ask-coach" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#1D4ED8] shadow-sm whitespace-nowrap shrink-0">질문</button>
             </div>
           </div>
-          <div class="grid grid-cols-7 gap-1 mt-3.5">
+          <div class="flex items-center justify-between gap-2 mt-2.5 px-0.5">
+            <button type="button" id="m-prev-week" class="tap-scale px-2.5 py-1 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">‹ 지난주</button>
+            <div class="flex items-center gap-1.5">
+              <input id="m-date-picker" type="date" value="${state.selectedDate}" class="text-[12px] font-extrabold text-[#1E3A8A] bg-white px-2.5 py-1 rounded-full shadow-sm tabular-nums focus:outline-none" />
+              ${state.selectedDate !== getTodayKST() ? '<button type="button" id="m-today-btn" class="tap-scale px-2 py-1 rounded-full bg-[#EFF6FF] text-[10px] font-extrabold text-[#1D4ED8]">오늘</button>' : ''}
+            </div>
+            <button type="button" id="m-next-week" class="tap-scale px-2.5 py-1 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">다음주 ›</button>
+          </div>
+          <div class="grid grid-cols-7 gap-1 mt-2">
             ${state.weekDays.map(d => {
               const sel = d.fullDate === state.selectedDate;
               const worked = state.workoutDays.includes(d.fullDate);
@@ -3084,22 +3092,29 @@
             }).join('')}
           </div>
         `;
-        hdr.querySelectorAll('.day-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            state.selectedDate = btn.dataset.fdate;
-            state.weekDays = buildWeekDays(state.selectedDate);
-            if (state.isLive) {
-              const hadCache = applyCachedMemberData(state.selectedDate);
-              state.loading = !hadCache;
-              renderAll();
-              await loadMemberDateData(state.selectedDate);
-              saveCachedMemberData(state.selectedDate);
-              state.loading = false;
-            }
-            loadLocalMemberExtras();
+        const switchMemberDate = async newDate => {
+          if (!newDate) return;
+          state.selectedDate = newDate;
+          state.weekDays = buildWeekDays(state.selectedDate);
+          if (state.isLive) {
+            const hadCache = applyCachedMemberData(state.selectedDate);
+            state.loading = !hadCache;
             renderAll();
-          });
+            await loadMemberDateData(state.selectedDate);
+            saveCachedMemberData(state.selectedDate);
+            state.loading = false;
+          }
+          loadLocalMemberExtras();
+          renderAll();
+        };
+        hdr.querySelectorAll('.day-btn').forEach(btn => {
+          btn.addEventListener('click', () => switchMemberDate(btn.dataset.fdate));
         });
+        document.getElementById('m-prev-week').addEventListener('click', () => switchMemberDate(shiftDateStr(state.selectedDate, -7)));
+        document.getElementById('m-next-week').addEventListener('click', () => switchMemberDate(shiftDateStr(state.selectedDate, 7)));
+        document.getElementById('m-date-picker').addEventListener('change', e => switchMemberDate(e.target.value));
+        const mToday = document.getElementById('m-today-btn');
+        if (mToday) mToday.addEventListener('click', () => switchMemberDate(getTodayKST()));
         document.getElementById('btn-hdr-timer').addEventListener('click', openTimerModal);
         document.getElementById('btn-ask-coach').addEventListener('click', () => { state.memberTab = 'feedback'; renderAll(); });
         document.getElementById('btn-coach-switch').addEventListener('click', openTrainerLoginModal);
@@ -3119,6 +3134,16 @@
               <button type="button" id="btn-coach-logout" class="tap-scale h-7 px-2 rounded-full bg-gray-200/80 text-[10px] font-bold text-[#4B5563] whitespace-nowrap shrink-0">로그아웃</button>
             </div>
           </div>
+          <div class="flex items-center justify-between gap-2 mt-2.5">
+            <div class="flex items-center gap-1">
+              <button type="button" id="c-prev-day" class="tap-scale px-2.5 py-1 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">‹ 전날</button>
+              <button type="button" id="c-next-day" class="tap-scale px-2.5 py-1 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">다음날 ›</button>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <input id="c-date-picker" type="date" value="${state.selectedDate}" class="text-[12px] font-extrabold text-[#1E3A8A] bg-white px-3 py-1 rounded-full shadow-sm tabular-nums focus:outline-none" />
+              ${state.selectedDate !== getTodayKST() ? '<button type="button" id="c-today-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[11px] font-extrabold text-[#1D4ED8]">오늘</button>' : ''}
+            </div>
+          </div>
         `;
         document.getElementById('btn-new-col').addEventListener('click', openColumnWriteModal);
         document.getElementById('btn-back-member').addEventListener('click', async () => {
@@ -3130,6 +3155,23 @@
             renderAll();
           }
         });
+        const switchCoachDate = async newDate => {
+          if (!newDate) return;
+          state.selectedDate = newDate;
+          state.weekDays = buildWeekDays(newDate);
+          if (state.isLive && state.trainerPassword) {
+            showToast(`${newDate} 현황 불러오는 중...`);
+            await enterCoachWithPassword(state.trainerPassword, true);
+          } else {
+            renderAll();
+          }
+        };
+        document.getElementById('c-prev-day').addEventListener('click', () => switchCoachDate(shiftDateStr(state.selectedDate, -1)));
+        document.getElementById('c-next-day').addEventListener('click', () => switchCoachDate(shiftDateStr(state.selectedDate, 1)));
+        document.getElementById('c-date-picker').addEventListener('change', e => switchCoachDate(e.target.value));
+        const cToday = document.getElementById('c-today-btn');
+        if (cToday) cToday.addEventListener('click', () => switchCoachDate(getTodayKST()));
+
         document.getElementById('btn-coach-logout').addEventListener('click', () => {
           state.trainerPassword = '';
           try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}

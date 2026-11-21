@@ -98,6 +98,43 @@ async function lookupMember(base,member,supaGet) {
   memberLookups.set(key,lookup);
   try{return await lookup;}finally{memberLookups.delete(key);}
 }
+async function ensureMember(base,supaKey,member,supaGet) {
+  const existing=await lookupMember(base,member,supaGet);
+  if(existing!==null)return existing;
+  const headers={
+    apikey:supaKey,
+    ...(supaKey.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+supaKey}),
+    'Content-Type':'application/json',
+    Prefer:'resolution=ignore-duplicates,return=representation'
+  };
+  let res=await fetch(base+'/rest/v1/fit_members?on_conflict=name',{
+    method:'POST',headers,body:JSON.stringify({name:member}),signal:AbortSignal.timeout(8000)
+  });
+  if(!res.ok && res.status===400){
+    res=await fetch(base+'/rest/v1/fit_members',{
+      method:'POST',
+      headers:{...headers,Prefer:'return=representation'},
+      body:JSON.stringify({name:member}),
+      signal:AbortSignal.timeout(8000)
+    });
+  }
+  if(res.ok){
+    try{
+      const rows=await res.json();
+      if(Array.isArray(rows)&&rows[0]?.id!=null){
+        rememberMember(JSON.stringify([base,member]),rows[0].id);
+        return rows[0].id;
+      }
+    }catch{}
+  }
+  const matches=await supaGet('/rest/v1/fit_members?select=id&name=eq.'+
+    encodeURIComponent(member)+'&limit=1','member_ensure');
+  if(matches.length===1){
+    rememberMember(JSON.stringify([base,member]),matches[0].id);
+    return matches[0].id;
+  }
+  return null;
+}
 function shiftDay(day,offset) {
   const d=new Date(day+'T00:00:00Z');
   d.setUTCDate(d.getUTCDate()+offset);
@@ -388,7 +425,7 @@ async function handleRecords(request,env) {
   const supaWrite=async(path,method,payload,label)=>{
     step=label||step;
     const response=await fetch(base+path,{method,headers:{
-      apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json',
+      apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',
       Prefer:'return=representation'
     },body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
     if(!response.ok){
@@ -460,7 +497,7 @@ async function handleRecords(request,env) {
   }
   try {
     step='member';
-    const memberId=await lookupMember(base,member,supaGet);
+    const memberId=await ensureMember(base,key,member,supaGet);
     if(memberId===null)return json({status:'denied',code:'member_not_found'},403);
     const lookupMs=performance.now()-start;
     if(action==='dailyCheckin'){
@@ -513,7 +550,6 @@ async function handleRecords(request,env) {
       const filter=scope+'&id=eq.'+encodeURIComponent(id);
       let row;
       if(action==='directVideoBegin'){
-        if(trainer)return json({status:'denied',code:'member_upload_only'},403);
         const size=Number(input.size),mime=String(input.mime||''),name=String(input.name||'').trim().slice(0,150),question=String(input.question||'').slice(0,1000);
         const ext={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}[mime];
         if(!ext||!name||!Number.isInteger(size)||size<1||size>50000000)return json({status:'error',code:'invalid_file'},400);
@@ -537,7 +573,6 @@ async function handleRecords(request,env) {
       if(!row||row.state==='deleted')return json({status:'error',code:'video_not_found'},404);
       const path=row.storage_path.split('/').map(encodeURIComponent).join('/');
       if(action==='directVideoFinish'){
-        if(trainer)return json({status:'denied'},403);
         if(row.state==='ready')return json({status:'success',video:format(row)});
         step='direct_finish_storage';
         const info=await send(bucket+'/info/fit-direct-videos/'+path,'GET');
@@ -644,4 +679,3 @@ export default {
     return env.ASSETS.fetch(request);
   }
 };
-

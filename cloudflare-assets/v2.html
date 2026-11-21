@@ -520,8 +520,13 @@
         if (!res.ok) {
           let errCode = '';
           try {
-            const j = await res.json();
-            errCode = j?.code || j?.message || '';
+            const rawTxt = await res.text();
+            try {
+              const j = JSON.parse(rawTxt);
+              errCode = j?.code || j?.error || j?.message || rawTxt.slice(0, 80);
+            } catch {
+              errCode = rawTxt.slice(0, 80);
+            }
           } catch {}
           const e = new Error('records_' + res.status + (errCode ? ' (' + errCode + ')' : ''));
           e.status = res.status;
@@ -603,11 +608,13 @@
         begin = await postRecords({ ...baseBegin, ...authPayload() });
       } catch (err) {
         if (err?.status === 403 || String(err?.message || '').includes('records_403')) {
+          let diag = err?.code || '403';
           if (state.trainerPassword) {
             try {
               const r = await postAppsScript({ action: 'getMemberLink', name: memberName, password: state.trainerPassword });
-              if (r?.status === 'success' && r.token) {
-                activeToken = r.token;
+              const freshTok = r?.token || extractTokenValue(r?.url || r?.link || '');
+              if (r?.status === 'success' && freshTok) {
+                activeToken = freshTok;
                 saveMemberTokenLocal(memberName, activeToken);
                 const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
                 if (mObj) mObj.token = activeToken;
@@ -618,13 +625,17 @@
             try {
               const sr = await postRecords({ action: 'memberSession', member: memberName, date: state.selectedDate, token: activeToken });
               if (sr?.status === 'success' && sr.session) activeSession = sr.session;
-            } catch {}
+            } catch (se) {
+              diag += '/sess:' + (se?.code || se?.status || 'fail');
+            }
+          } else {
+            diag += '/no_tok';
           }
           try {
             begin = await postRecords({ ...baseBegin, ...authPayload() });
           } catch (retryErr) {
             if (retryErr?.status === 403 || String(retryErr?.message || '').includes('records_403')) {
-              throw new Error('회원 토큰 인증(403) 실패 — 회원 목록에서 링크를 다시 복사해 확인해 주세요');
+              throw new Error('토큰 인증 실패(403: ' + (retryErr?.code || diag) + ')');
             }
             throw retryErr;
           }
@@ -2386,9 +2397,10 @@
       if (state.isLive && state.trainerPassword) {
         try {
           const r = await postAppsScript({ action: 'getMemberLink', name: memberName, password: state.trainerPassword });
-          if (r?.status === 'success' && r.token) {
-            saveMemberTokenLocal(memberName, r.token);
-            return r.token;
+          const rTok = r?.token || extractTokenValue(r?.url || r?.link || '');
+          if (r?.status === 'success' && rTok) {
+            saveMemberTokenLocal(memberName, rTok);
+            return rTok;
           }
         } catch {}
         try {

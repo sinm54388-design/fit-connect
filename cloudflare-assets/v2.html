@@ -517,7 +517,17 @@
           body: JSON.stringify(payload),
           ...(ctrl ? { signal: ctrl.signal } : {})
         });
-        if (!res.ok) throw new Error('records_' + res.status);
+        if (!res.ok) {
+          let errCode = '';
+          try {
+            const j = await res.json();
+            errCode = j?.code || j?.message || '';
+          } catch {}
+          const e = new Error('records_' + res.status + (errCode ? ' (' + errCode + ')' : ''));
+          e.status = res.status;
+          e.code = errCode;
+          throw e;
+        }
         return res.json();
       } finally {
         if (timer) clearTimeout(timer);
@@ -572,20 +582,56 @@
     async function uploadDirectVideoFile(file, memberName, memberToken, questionText) {
       if (!file) throw new Error('no_file');
       if (file.size > 50000000) throw new Error('50MB 이하 영상만 업로드할 수 있어요');
-      if (!memberToken) throw new Error('회원 전용 토큰이 필요해요');
+      let activeToken = memberToken || '';
+      let activeSession = (memberName === state.memberName && state.session) ? state.session : '';
+      if (!activeToken && !activeSession) throw new Error('회원 전용 토큰이 필요해요');
       const mime = normalizeVideoMime(file);
       const id = makeUuidV4();
-      const begin = await postRecords({
+      const baseBegin = {
         action: 'directVideoBegin',
         member: memberName,
         date: state.selectedDate,
-        token: memberToken,
         id,
         name: (file.name || 'workout-video.mp4').slice(0, 150),
         question: String(questionText || '').slice(0, 1000),
         mime,
         size: file.size
-      });
+      };
+      const authPayload = () => activeSession ? { session: activeSession } : { token: activeToken };
+      let begin;
+      try {
+        begin = await postRecords({ ...baseBegin, ...authPayload() });
+      } catch (err) {
+        if (err?.status === 403 || String(err?.message || '').includes('records_403')) {
+          if (state.trainerPassword) {
+            try {
+              const r = await postAppsScript({ action: 'getMemberLink', name: memberName, password: state.trainerPassword });
+              if (r?.status === 'success' && r.token) {
+                activeToken = r.token;
+                saveMemberTokenLocal(memberName, activeToken);
+                const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
+                if (mObj) mObj.token = activeToken;
+              }
+            } catch {}
+          }
+          if (activeToken) {
+            try {
+              const sr = await postRecords({ action: 'memberSession', member: memberName, date: state.selectedDate, token: activeToken });
+              if (sr?.status === 'success' && sr.session) activeSession = sr.session;
+            } catch {}
+          }
+          try {
+            begin = await postRecords({ ...baseBegin, ...authPayload() });
+          } catch (retryErr) {
+            if (retryErr?.status === 403 || String(retryErr?.message || '').includes('records_403')) {
+              throw new Error('회원 토큰 인증(403) 실패 — 회원 목록에서 링크를 다시 복사해 확인해 주세요');
+            }
+            throw retryErr;
+          }
+        } else {
+          throw err;
+        }
+      }
       if (begin?.status !== 'success') {
         throw new Error(begin?.code || begin?.message || '업로드 시작 실패');
       }
@@ -611,7 +657,7 @@
         action: 'directVideoFinish',
         member: memberName,
         date: state.selectedDate,
-        token: memberToken,
+        ...authPayload(),
         id
       });
       if (fin?.status !== 'success') throw new Error(fin?.code || '업로드 마무리 실패');

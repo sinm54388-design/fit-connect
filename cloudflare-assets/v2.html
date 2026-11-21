@@ -2208,9 +2208,12 @@
           if (ov?.status === 'success' && Array.isArray(ov.members)) {
             serverMembers = ov.members.map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' }));
           }
-          const fastNames = Array.isArray(fast?.members) ? fast.members : [];
-          fastNames.forEach(fn => {
-            const nm = typeof fn === 'string' ? fn.trim() : String(fn?.name || '').trim();
+          const extraLists = [
+            ...(Array.isArray(fast?.members) ? fast.members : []),
+            ...(Array.isArray(asList?.members) ? asList.members : (Array.isArray(asList?.data) ? asList.data : []))
+          ];
+          extraLists.forEach(fn => {
+            const nm = typeof fn === 'string' ? fn.trim() : String(fn?.name || fn?.member || '').trim();
             if (nm && !serverMembers.some(sm => sm.name === nm)) {
               serverMembers.push({ name: nm, lastDate: '', activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0, token: tokenMap[nm] || '' });
             }

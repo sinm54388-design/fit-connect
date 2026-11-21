@@ -2290,14 +2290,18 @@
       if (!state.isLive || !state.trainerPassword) {
         return { daily: state.record, history: { previous: {} } };
       }
-      const [dRes, hRes] = await Promise.allSettled([
-        wasRecentlySaved(memberName, state.selectedDate)
-          ? postAppsScript({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword })
-          : postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
+      const [dRecRes, dAsRes, hRes] = await Promise.allSettled([
+        postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
+        postAppsScript({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
         postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
       ]);
+      const recObj = dRecRes.status === 'fulfilled' ? unwrapDailyRecord(dRecRes.value) : null;
+      const asObj = dAsRes.status === 'fulfilled' ? unwrapDailyRecord(dAsRes.value) : null;
+      const asHasRoutines = Array.isArray(asObj?.routines) && asObj.routines.length > 0;
+      const recHasRoutines = Array.isArray(recObj?.routines) && recObj.routines.length > 0;
+      const chosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
       return {
-        daily: (dRes.status === 'fulfilled') ? unwrapDailyRecord(dRes.value) : {},
+        daily: chosen,
         history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} }
       };
     }

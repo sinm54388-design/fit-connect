@@ -3348,15 +3348,23 @@
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
-      const hasRoutines = (state.record.routines || []).length > 0;
-      const pendingRoutine = (state.record.routines || []).find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
+      const routinesArr = state.record.routines || [];
+      const hasRoutines = routinesArr.length > 0;
+      const hasPtClass = routinesArr.some(r => r.routineType !== 'homework');
+      const pendingRoutine = routinesArr.find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
       const missionDone = hasRoutines && !pendingRoutine;
+      const missionLabel = pendingRoutine
+        ? `오늘의 개인 운동 숙제 (${wr.done}/${wr.total})`
+        : (missionDone ? (hasPtClass ? '오늘 PT 수업 일지' : '오늘 개인 운동 완료') : '오늘의 운동 일정');
       const missionTitle = pendingRoutine
         ? pendingRoutine.name
-        : (missionDone ? '오늘 수업 · 루틴 기록 확인하기' : '오늘 배정된 루틴이 없어요');
+        : (missionDone ? (hasPtClass ? `오늘 진행한 PT 수업 (${routinesArr.length}종목)` : '오늘 배정된 개인 운동 완료!') : '예정된 수업 · 루틴이 없어요');
+      const missionSub = pendingRoutine
+        ? '수업일지에서 체크하기 ›'
+        : (missionDone ? '수업 내용 확인하기 ›' : '휴식 · 회복일');
       const missionNote = pendingRoutine
         ? pendingRoutine.note
-        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : '코치님이 루틴을 등록하면 이곳에 바로 표시됩니다.');
+        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : '코치님이 일지를 등록하면 이곳에 바로 표시됩니다.');
 
       if (state.memberTab === 'report') {
         return `
@@ -3454,9 +3462,9 @@
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
                 </div>
                 <div class="min-w-0">
-                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${hasRoutines ? `오늘의 운동 루틴 (${wr.done}/${wr.total} 완료)` : '오늘의 운동 일정'}</span>
+                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${missionLabel}</span>
                   <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
-                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${hasRoutines ? '수업일지에서 자세히 보기 ›' : '휴식 · 회복일'}</p>
+                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/90' : 'text-[#1D4ED8]'}">${missionSub}</p>
                 </div>
               </button>
               ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}

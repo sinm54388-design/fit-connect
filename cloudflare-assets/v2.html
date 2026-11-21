@@ -2266,13 +2266,10 @@
         openModal(`${memberName}님 전용 링크 연결`, `
           <div class="space-y-3">
             <p class="text-[12px] text-[#4B5563] leading-relaxed">
-              서버에서 <strong>${escapeHtml(memberName)}</strong>님의 토큰이 아직 조회되지 않았습니다. 기존 관리자 페이지(<code>/</code>) 또는 시트에서 발급된 링크(또는 토큰)를 한 번만 붙여넣으시면 바로 저장되고 복사됩니다.
+              서버에서 <strong>${escapeHtml(memberName)}</strong>님의 토큰이 아직 조회되지 않았습니다. Google 시트(회원 명단) 또는 기존 카톡방에 있는 회원 링크(또는 토큰)를 한 번만 붙여넣으시면 바로 저장되고 복사됩니다.
             </p>
-            <input id="tk-paste-inp" placeholder="회원 기존 링크 또는 token 문자열 붙여넣기" class="w-full text-[12px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
-            <div class="grid grid-cols-2 gap-2">
-              <a href="/" target="_blank" rel="noopener noreferrer" class="tap-scale py-3 rounded-2xl bg-[#F4F6F9] text-[#111827] text-[12px] font-bold text-center">기존 관리자(/) 열기 ↗</a>
-              <button type="button" id="tk-save-copy-btn" class="tap-scale py-3 rounded-2xl hero-navy text-white text-[12px] font-extrabold">저장 후 링크 복사</button>
-            </div>
+            <input id="tk-paste-inp" placeholder="회원 링크(?name=...&token=...) 또는 token 붙여넣기" class="w-full text-[12px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+            <button type="button" id="tk-save-copy-btn" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">저장 후 전용 링크 복사</button>
           </div>
         `);
         document.getElementById('tk-save-copy-btn').addEventListener('click', () => {

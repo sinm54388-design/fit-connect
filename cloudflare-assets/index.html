@@ -2378,10 +2378,11 @@
       if (!state.isLive || !state.trainerPassword) {
         return { daily: state.record, history: { previous: {} } };
       }
-      const [dRecRes, dAsRes, hRes] = await Promise.allSettled([
+      const [dRecRes, dAsRes, hRes, vRes] = await Promise.allSettled([
         postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
         postAppsScript({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
-        postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
+        postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword }),
+        postRecords({ action: 'directVideoList', member: memberName, date: state.selectedDate, password: state.trainerPassword })
       ]);
       const recObj = dRecRes.status === 'fulfilled' ? unwrapDailyRecord(dRecRes.value) : null;
       const asObj = dAsRes.status === 'fulfilled' ? unwrapDailyRecord(dAsRes.value) : null;
@@ -2390,7 +2391,8 @@
       const chosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
       return {
         daily: chosen,
-        history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} }
+        history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} },
+        directVideos: (vRes.status === 'fulfilled' && vRes.value?.status === 'success' && Array.isArray(vRes.value.videos)) ? vRes.value.videos : []
       };
     }
 
@@ -2507,6 +2509,7 @@
 
       let replyMsg = daily.headerMessage || daily.feedback?.workout || '';
       let dietMsg = daily.feedback?.diet || '';
+      let directVideosList = Array.isArray(data.directVideos) ? [...data.directVideos] : [];
 
       function renderDetailBody() {
         openModal(`${memberName} 회원님 · 상세 & 바로 답글`, `
@@ -2641,6 +2644,26 @@
                 </div>
               </div>
             </div>
+
+            ${directVideosList.length ? `
+              <div class="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-[12px] font-extrabold text-[#111827]">🎬 업로드된 서버 영상 (${directVideosList.length})</span>
+                  <span class="text-[10px] font-semibold text-[#6B7280]">테스트·불필요 영상 삭제 가능</span>
+                </div>
+                <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                  ${directVideosList.map((dv, dIdx) => `
+                    <div class="p-2.5 rounded-xl bg-white flex items-center justify-between gap-2 shadow-sm">
+                      <div class="min-w-0">
+                        <p class="text-[12px] font-bold text-[#111827] truncate">${escapeHtml(dv.name || '운동 영상')}</p>
+                        <p class="text-[10px] text-[#6B7280] truncate">${escapeHtml((dv.createdAt || '').slice(0, 10))}${dv.question ? ' · ' + escapeHtml(dv.question) : ''}</p>
+                      </div>
+                      <button type="button" data-dvdel="${dIdx}" class="cd-dv-server-del tap-scale shrink-0 px-2.5 py-1 rounded-lg bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
 
             <!-- Sticky Reply Box -->
             <div class="pt-2 border-t border-gray-100 space-y-2">
@@ -2912,6 +2935,28 @@
               if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
             } catch (err) {
               showToast('영상 업로드 실패: ' + (err?.message || '용량(50MB 이하) 확인'));
+            }
+          });
+        });
+
+        document.querySelectorAll('.cd-dv-server-del').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const dIdx = Number(btn.dataset.dvdel);
+            const dv = directVideosList[dIdx];
+            if (!dv) return;
+            showToast('서버 영상을 삭제 중입니다...');
+            try {
+              const delRes = await postRecords({ action: 'directVideoDelete', id: dv.id, member: memberName, date: state.selectedDate, password: state.trainerPassword });
+              if (delRes?.status !== 'success') throw new Error(delRes?.code || '삭제 실패');
+              videoPlayUrlCache.delete(dv.id);
+              routines.forEach(rt => {
+                if (rt && rt.videoId === dv.id) delete rt.videoId;
+              });
+              directVideosList.splice(dIdx, 1);
+              renderDetailBody();
+              showToast('서버에서 영상이 삭제되었습니다 ✓');
+            } catch (err) {
+              showToast('영상 삭제 실패: ' + (err?.message || '잠시 후 다시 시도'));
             }
           });
         });
@@ -3688,13 +3733,16 @@
               <div class="bg-white rounded-[24px] p-5 space-y-2.5">
                 <h3 class="text-[15px] font-bold text-[#111827]">업로드된 운동 영상 (${state.directVideos.length})</h3>
                 ${state.directVideos.map(v => `
-                  <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.name || '운동 영상')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale w-full p-3.5 rounded-2xl bg-[#EFF6FF] text-left flex items-center justify-between gap-2">
-                    <div class="min-w-0">
-                      <p class="text-[13px] font-bold text-[#111827] truncate">🎬 ${escapeHtml(v.name || '운동 영상')}</p>
-                      ${v.feedback ? `<p class="text-[11px] font-semibold text-[#0F766E] mt-0.5 truncate">코치 피드백: ${escapeHtml(v.feedback)}</p>` : (v.question ? `<p class="text-[11px] text-[#6B7280] mt-0.5 truncate">${escapeHtml(v.question)}</p>` : '')}
-                    </div>
-                    <span class="shrink-0 px-3 py-1.5 rounded-full card-blue text-white text-[11px] font-extrabold">재생 ▶</span>
-                  </button>
+                  <div class="p-3.5 rounded-2xl bg-[#EFF6FF] flex items-center justify-between gap-2">
+                    <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.name || '운동 영상')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale flex-1 min-w-0 text-left flex items-center justify-between gap-2">
+                      <div class="min-w-0">
+                        <p class="text-[13px] font-bold text-[#111827] truncate">🎬 ${escapeHtml(v.name || '운동 영상')}</p>
+                        ${v.feedback ? `<p class="text-[11px] font-semibold text-[#0F766E] mt-0.5 truncate">코치 피드백: ${escapeHtml(v.feedback)}</p>` : (v.question ? `<p class="text-[11px] text-[#6B7280] mt-0.5 truncate">${escapeHtml(v.question)}</p>` : '')}
+                      </div>
+                      <span class="shrink-0 px-3 py-1.5 rounded-full card-blue text-white text-[11px] font-extrabold">재생 ▶</span>
+                    </button>
+                    ${state.trainerPassword ? `<button type="button" data-dvdelid="${escapeHtml(v.id)}" class="dv-del-btn tap-scale shrink-0 px-2.5 py-1.5 rounded-full bg-red-50 text-red-500 text-[11px] font-extrabold">삭제</button>` : ''}
+                  </div>
                 `).join('')}
               </div>
             ` : ''}
@@ -4119,6 +4167,24 @@
 
       document.querySelectorAll('.dv-play-btn').forEach(b => {
         b.addEventListener('click', () => openFormGuideModal(b.dataset.dvname, b.dataset.dvfb, '', b.dataset.dvid));
+      });
+
+      document.querySelectorAll('.dv-del-btn').forEach(b => {
+        b.addEventListener('click', async () => {
+          const dvid = b.dataset.dvdelid;
+          if (!dvid || !state.trainerPassword) return;
+          showToast('영상을 삭제 중입니다...');
+          try {
+            const delRes = await postRecords({ action: 'directVideoDelete', id: dvid, member: state.memberName, date: state.selectedDate, password: state.trainerPassword });
+            if (delRes?.status !== 'success') throw new Error(delRes?.code || '삭제 실패');
+            videoPlayUrlCache.delete(dvid);
+            state.directVideos = state.directVideos.filter(x => x.id !== dvid);
+            renderAll();
+            showToast('영상이 삭제되었습니다 ✓');
+          } catch (err) {
+            showToast('삭제 실패: ' + (err?.message || '오류'));
+          }
+        });
       });
 
       document.querySelectorAll('.lview-btn').forEach(b => {

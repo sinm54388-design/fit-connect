@@ -2607,11 +2607,12 @@
                     ` : ''}
                     <input type="text" data-ni="${i}" value="${escapeHtml(r.note || '')}" placeholder="코치 핵심 큐잉 입력 (예: 발바닥 3점 지지, 3초 하강)" class="cd-note-inp w-full text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
                     <div class="flex items-center gap-1.5">
-                      <input type="url" data-vi="${i}" value="${escapeHtml(r.videoUrl || '')}" placeholder="🎬 영상 링크 또는 오른쪽 버튼으로 사진첩 업로드" class="cd-vid-inp flex-1 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#1D4ED8] focus:outline-none" />
+                      <input type="url" data-vi="${i}" value="${escapeHtml(r.videoUrl || '')}" placeholder="${r.videoId ? '📹 사진첩 영상이 연결되어 있습니다' : '🎬 영상 링크 또는 오른쪽 버튼으로 사진첩 업로드'}" class="cd-vid-inp flex-1 min-w-0 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#1D4ED8] focus:outline-none" />
                       <label class="tap-scale shrink-0 px-2.5 py-1.5 rounded-xl ${r.videoId ? 'card-teal text-white' : 'bg-[#EFF6FF] text-[#1D4ED8]'} text-[11px] font-extrabold cursor-pointer">
                         <input type="file" accept="video/mp4,video/quicktime,video/webm,video/*" data-vfi="${i}" class="cd-vid-file hidden" />
-                        <span>${r.videoId ? '📹 업로드됨 ✓' : '📹 영상 올리기'}</span>
+                        <span>${r.videoId ? '📹 변경' : '📹 영상 올리기'}</span>
                       </label>
+                      ${(r.videoId || r.videoUrl) ? `<button type="button" data-vdi="${i}" class="cd-vid-del tap-scale shrink-0 px-2.5 py-1.5 rounded-xl bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>` : ''}
                     </div>
                   </div>
                 `;
@@ -2825,6 +2826,36 @@
         document.querySelectorAll('.cd-vid-inp').forEach(inp => {
           inp.addEventListener('input', e => {
             routines[Number(inp.dataset.vi)].videoUrl = e.target.value.trim();
+          });
+        });
+
+        document.querySelectorAll('.cd-vid-del').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const ri = Number(btn.dataset.vdi);
+            const target = routines[ri];
+            if (!target) return;
+            const oldVidId = String(target.videoId || '');
+            delete target.videoId;
+            target.videoUrl = '';
+            if (oldVidId) videoPlayUrlCache.delete(oldVidId);
+            replyMsg = document.getElementById('cd-reply-msg')?.value || '';
+            dietMsg = document.getElementById('cd-diet-msg')?.value || '';
+            renderDetailBody();
+            showToast('영상을 삭제하고 저장 중입니다...');
+            if (oldVidId.startsWith('direct:') && state.trainerPassword) {
+              postRecords({ action: 'directVideoDelete', id: oldVidId, member: memberName, date: state.selectedDate, password: state.trainerPassword }).catch(() => {});
+            }
+            const autoPayload = {
+              headerMessage: replyMsg || daily.headerMessage || '',
+              routines,
+              reflection: daily.reflection || { good: '', bad: '' },
+              diet: daily.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
+              feedback: daily.feedback || { workout: '', diet: '', time: '' },
+              memos: Array.isArray(daily.memos) ? daily.memos : [],
+              dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' }
+            };
+            const savedOk = await saveFullRecordLive(memberName, autoPayload);
+            if (savedOk) showToast('영상이 삭제되고 일지에 반영되었습니다 ✓');
           });
         });
 

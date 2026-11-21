@@ -2362,9 +2362,13 @@
 
             <!-- Routines + Type Toggle + Add Routine -->
             <div class="space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴 (눌러서 전환)</span>
-                <button type="button" id="cd-load-prev-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">📋 직전 루틴 불러오기</button>
+              <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴</span>
+                <div class="flex items-center gap-1">
+                  <button type="button" id="cd-copy-routines-btn" class="tap-scale px-2 py-1 rounded-full bg-[#F4F6F9] text-[#4B5563] text-[11px] font-bold">루틴 복사</button>
+                  <button type="button" id="cd-paste-routines-btn" class="hidden tap-scale px-2 py-1 rounded-full bg-[#F0FDFA] text-[#0F766E] text-[11px] font-extrabold">붙여넣기</button>
+                  <button type="button" id="cd-load-prev-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">📋 직전 불러오기</button>
+                </div>
               </div>
               ${routines.length ? routines.map((r, i) => {
                 const prev = prevMap[r.name];
@@ -2491,6 +2495,51 @@
           copyTextSafe(handoverText);
           showToast('인수인계 요약이 복사되었어요');
         });
+
+        const pasteBtn = document.getElementById('cd-paste-routines-btn');
+        try {
+          const copiedRaw = JSON.parse(localStorage.getItem('fit_copied_routines_v2') || '[]');
+          if (Array.isArray(copiedRaw) && copiedRaw.length && pasteBtn) {
+            pasteBtn.classList.remove('hidden');
+            pasteBtn.textContent = `📥 붙여넣기 (${copiedRaw.length})`;
+          }
+        } catch {}
+
+        document.getElementById('cd-copy-routines-btn').addEventListener('click', () => {
+          if (!routines.length) {
+            showToast('복사할 루틴 종목이 아직 없어요');
+            return;
+          }
+          try {
+            localStorage.setItem('fit_copied_routines_v2', JSON.stringify(routines));
+            if (pasteBtn) {
+              pasteBtn.classList.remove('hidden');
+              pasteBtn.textContent = `📥 붙여넣기 (${routines.length})`;
+            }
+            showToast(`${routines.length}개 종목을 복사했어요! 다른 회원에서 붙여넣으세요`);
+          } catch {
+            showToast('루틴 복사에 실패했어요');
+          }
+        });
+
+        if (pasteBtn) {
+          pasteBtn.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            try {
+              const copiedRaw = JSON.parse(localStorage.getItem('fit_copied_routines_v2') || '[]');
+              if (!Array.isArray(copiedRaw) || !copiedRaw.length) return;
+              const cloned = copiedRaw.map((r, idx) => ({
+                ...r,
+                id: Date.now() + idx,
+                completedSets: Array(Math.max(1, Number(r.sets) || (Array.isArray(r.setDetails) ? r.setDetails.length : 3))).fill(false)
+              }));
+              routines.push(...cloned);
+              showToast(`복사한 ${cloned.length}개 종목을 붙여넣었어요!`);
+              renderDetailBody();
+            } catch {}
+          });
+        }
 
         document.getElementById('cd-load-prev-btn').addEventListener('click', async () => {
           replyMsg = document.getElementById('cd-reply-msg').value;

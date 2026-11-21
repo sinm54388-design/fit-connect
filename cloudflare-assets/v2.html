@@ -2485,7 +2485,7 @@
     // One-Stop Member Detail & Immediate Reply Bottom Sheet
     async function openCoachDetailSheet(memberName) {
       openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
-      const { daily, history } = await fetchMemberForCoach(memberName);
+      const { daily, history, directVideos } = await fetchMemberForCoach(memberName);
       const routines = Array.isArray(daily.routines) ? daily.routines.map(r => ({ ...r })) : [];
       const expandedSets = {};
       let pendingNewVideoId = '';
@@ -2509,7 +2509,7 @@
 
       let replyMsg = daily.headerMessage || daily.feedback?.workout || '';
       let dietMsg = daily.feedback?.diet || '';
-      let directVideosList = Array.isArray(data.directVideos) ? [...data.directVideos] : [];
+      let directVideosList = Array.isArray(directVideos) ? [...directVideos] : [];
 
       function renderDetailBody() {
         openModal(`${memberName} 회원님 · 상세 & 바로 답글`, `

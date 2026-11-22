@@ -2587,40 +2587,48 @@
         const term=foodSearch.value.trim().toLowerCase().replace(/\s+/g,'');
         foodOptions.replaceChildren();
         if(!term){foodOptions.classList.add('hidden');return;}
-        const matches=FOOD_LOOKUP.filter(f=>(f[0]+' '+f[1]).toLowerCase().replace(/\s+/g,'').includes(term)).slice(0,8);
+        const matches=FOOD_LOOKUP.filter(f=>(f[0]+' '+f[1]).toLowerCase().replace(/\\s+/g,'').includes(term)).slice(0,7);
+        // Show each common portion as its own initial search option.
+        // Example: boiled egg 1개, boiled egg 2개, fried egg 1개.
         for(const food of matches){
-          const btn=document.createElement('button');
-          btn.type='button';btn.setAttribute('role','option');
-          btn.className='block w-full text-left rounded-lg bg-white px-3 py-2 text-[12px] text-[#111827]';
-          const suggestedPortion=foodPortionOptions(food)[0];
-          const suggestedNutrition=suggestedPortion ? {
-            kcal:Math.round(food[2]*suggestedPortion.grams/100),
-            prot:Math.round(food[4]*suggestedPortion.grams/10)/10
-          } : null;
-          btn.textContent=food[0]+' · '+(suggestedPortion
-            ? '1'+suggestedPortion.label+' (약 '+suggestedPortion.grams+'g) · '+suggestedNutrition.kcal+'kcal / 단백질 '+suggestedNutrition.prot+'g'
-            : '100g당 '+food[2]+'kcal / 단백질 '+food[4]+'g')
-            +' · '+foodWeightBasis(food);
-          btn.addEventListener('click',()=>{
-            selectedFood=food;
-            document.getElementById('food-choice-title').textContent=food[0]+' · '+foodWeightBasis(food);
-            foodGrams.value=food[6];
-            foodPortions=foodPortionOptions(food);
-            foodUnit.replaceChildren();
-            if(foodPortions.length){
-              foodPortions.forEach((p,i)=>{
-                const o=document.createElement('option');o.value=String(i);o.textContent='1'+p.label+' (약 '+p.grams+'g)';foodUnit.appendChild(o);
+          const portions=foodPortionOptions(food);
+          const variants=portions.length
+            ? [{index:0,qty:1}, {index:0,qty:2}]
+            : [{index:-1,qty:0}];
+          for(const variant of variants){
+            const p=variant.index>=0?portions[variant.index]:null;
+            const grams=p?p.grams*variant.qty:food[6];
+            const kcal=Math.round(food[2]*grams/100);
+            const protein=Math.round(food[4]*grams/10)/10;
+            const btn=document.createElement('button');
+            btn.type='button';
+            btn.setAttribute('role','option');
+            btn.className='block w-full text-left rounded-xl bg-white px-3 py-2 text-[12px] text-[#111827] hover:bg-[#EFF6FF]';
+            btn.textContent=food[0]+' '+(p?variant.qty+p.label:grams+'g')+' · 약 '+grams+'g · '+kcal+'kcal / 단백질 '+protein+'g';
+            btn.addEventListener('click',()=>{
+              selectedFood=food;
+              foodPortions=portions;
+              foodUnit.replaceChildren();
+              foodPortions.forEach((portion,i)=>{
+                const o=document.createElement('option');
+                o.value=String(i);
+                o.textContent='1'+portion.label+' (약 '+portion.grams+'g)';
+                foodUnit.appendChild(o);
               });
-            }
-            const gramsOption=document.createElement('option');
-            gramsOption.value='g';gramsOption.textContent='그램(g)';foodUnit.appendChild(gramsOption);
-            foodUnit.value=foodPortions.length?'0':'g';
-            foodQuantity.value='1';
-            foodChoice.classList.remove('hidden');
-            foodOptions.classList.add('hidden');
-            refreshFoodUnit();
-          });
-          foodOptions.appendChild(btn);
+              const gramsOption=document.createElement('option');
+              gramsOption.value='g';
+              gramsOption.textContent='그램(g)';
+              foodUnit.appendChild(gramsOption);
+              foodUnit.value=p?String(variant.index):'g';
+              foodQuantity.value=p?String(variant.qty):'1';
+              foodGrams.value=String(grams);
+              document.getElementById('food-choice-title').textContent=food[0]+' · '+foodWeightBasis(food);
+              foodChoice.classList.remove('hidden');
+              foodOptions.classList.add('hidden');
+              refreshFoodUnit();
+            });
+            foodOptions.appendChild(btn);
+          }
         }
         if(!matches.length){
           const msg=document.createElement('p');msg.className='p-2 text-[11px] text-[#64748B]';

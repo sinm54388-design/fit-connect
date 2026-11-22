@@ -354,6 +354,10 @@ async function handleRecords(request,env) {
     return json({status:'error',code:'too_large'},413);
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
+  // Content-Length can be absent (chunked transfer); enforce the limit after parsing too.
+  if(!input||typeof input!=='object'||Array.isArray(input))
+    return json({status:'error',code:'invalid_json'},400);
+  if(JSON.stringify(input).length>131072)return json({status:'error',code:'too_large'},413);
   const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
   if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','columnList','columnSave'].includes(action)&&!directVideo)
@@ -532,6 +536,22 @@ async function handleRecords(request,env) {
     if(action==='dietSave'){
       const rawDiet=input.diet;
       if(!rawDiet||typeof rawDiet!=='object'||Array.isArray(rawDiet))return json({status:'error',code:'invalid_diet'},400);
+      for(const k of ['breakfast','lunch','dinner','snack']){
+        if(rawDiet[k]===undefined)continue;
+        if(!rawDiet[k]||typeof rawDiet[k]!=='object'||Array.isArray(rawDiet[k]))
+          return json({status:'error',code:'invalid_meal'},400);
+        if(rawDiet[k].photos!==undefined){
+          if(!Array.isArray(rawDiet[k].photos)||rawDiet[k].photos.length>1)
+            return json({status:'error',code:'invalid_photos'},400);
+          for(const photo of rawDiet[k].photos){
+            const src=typeof photo==='string'?photo:(photo?.url||photo?.src||photo?.data||'');
+            if(typeof src!=='string'||src.length>95000||
+              !(src.startsWith('data:image/jpeg;base64,')||src.startsWith('data:image/png;base64,')||
+                src.startsWith('data:image/webp;base64,')||src.startsWith('https://')||src.startsWith('direct:')))
+              return json({status:'error',code:'invalid_photo'},400);
+          }
+        }
+      }
       const table='/rest/v1/fit_daily_records';
       const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
       const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation,resolution=merge-duplicates'};
@@ -567,7 +587,15 @@ async function handleRecords(request,env) {
               {member_id:memberId,record_date:date,meal_key:k,photo:src,updated_at:new Date().toISOString()},'meal_photo_write');
           }
         }
-        const data={...(row?.data||{}),diet:mergedDiet};
+        // Photo data is rehydrated from fit_meal_photos on reads. Avoid
+        // writing new base64 copies into the daily JSONB record.
+        const compactDiet={...mergedDiet};
+        for(const k of ['breakfast','lunch','dinner','snack']){
+          if(compactDiet[k]&&typeof compactDiet[k]==='object'&&rawDiet[k]){
+            compactDiet[k]={...compactDiet[k],photos:[]};
+          }
+        }
+        const data={...(row?.data||{}),diet:compactDiet};
         const version=row?.updated_at==null?'is.null':'eq.'+encodeURIComponent(row.updated_at);
         const target=row?table+'?id=eq.'+encodeURIComponent(row.id)+'&updated_at='+version:table;
         const payload=row?{data,updated_at:updatedAt}:{member_id:memberId,record_date:date,data,updated_at:updatedAt};

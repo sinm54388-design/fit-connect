@@ -7,7 +7,8 @@
   <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" media="print" onload="this.media=\'all\'" />
+  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" /></noscript>
   <style>
     body {
       font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
@@ -905,17 +906,24 @@
 
     async function loadMemberDateData(dateStr) {
       if (!state.isLive) return;
+      const requestedMember = state.memberName;
       const auth = state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword });
       const month = dateStr.slice(0, 7);
+      const stillCurrent = () => state.isLive && state.memberName === requestedMember && state.selectedDate === dateStr;
 
-      const [dailyRec, dailyAs, ins, cols, hist, dVid] = await Promise.allSettled([
-        postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
-        postAppsScript({ action: 'read', member: state.memberName, date: dateStr, ...(state.token ? { token: state.token } : { password: state.trainerPassword }) }),
-        postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth }),
-        postRecords({ action: 'directVideoList', member: state.memberName, date: dateStr, ...auth })
+      // Start the non-essential work in parallel, but don't block the first
+      // useful member screen on analytics, articles, history and video lists.
+      const secondaryPromise = Promise.allSettled([
+        postRecords({ action: 'memberInsights', member: requestedMember, date: dateStr, ...auth }),
+        postRecords({ action: 'columnList', member: requestedMember, date: dateStr, ...auth }),
+        postRecords({ action: 'workoutHistory', member: requestedMember, date: dateStr, month, ...auth }),
+        postRecords({ action: 'directVideoList', member: requestedMember, date: dateStr, ...auth })
       ]);
+      const [dailyRec, dailyAs] = await Promise.allSettled([
+        postRecords({ action: 'read', member: requestedMember, date: dateStr, ...auth }),
+        postAppsScript({ action: 'read', member: requestedMember, date: dateStr, ...(state.token ? { token: state.token } : { password: state.trainerPassword }) })
+      ]);
+      if (!stillCurrent()) return;
 
       const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
       const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
@@ -951,18 +959,30 @@
           ptTime: String(d.ptTime || '')
         };
       }
-      if (ins.status === 'fulfilled' && ins.value?.status === 'success') state.insights = ins.value;
-      if (cols.status === 'fulfilled' && cols.value?.status === 'success' && Array.isArray(cols.value.columns) && cols.value.columns.length) {
-        state.columns = cols.value.columns;
-      }
-      if (hist.status === 'fulfilled' && hist.value?.status === 'success' && Array.isArray(hist.value.days)) {
-        state.workoutDays = hist.value.days;
-      }
-      if (dVid.status === 'fulfilled' && dVid.value?.status === 'success' && Array.isArray(dVid.value.videos)) {
-        state.directVideos = dVid.value.videos;
-      }
       syncExerciseLibrary(dateStr);
-      prefetchRoutineVideos(state.record.routines, auth);
+
+      // Follow-up data refreshes the already visible screen only when the
+      // same member/date is still selected. Never overwrite a newer day.
+      secondaryPromise.then(([ins, cols, hist, dVid]) => {
+        if (!stillCurrent()) return;
+        if (ins.status === 'fulfilled' && ins.value?.status === 'success') state.insights = ins.value;
+        if (cols.status === 'fulfilled' && cols.value?.status === 'success' && Array.isArray(cols.value.columns) && cols.value.columns.length) {
+          state.columns = cols.value.columns;
+        }
+        if (hist.status === 'fulfilled' && hist.value?.status === 'success' && Array.isArray(hist.value.days)) {
+          state.workoutDays = hist.value.days;
+        }
+        if (dVid.status === 'fulfilled' && dVid.value?.status === 'success' && Array.isArray(dVid.value.videos)) {
+          state.directVideos = dVid.value.videos;
+        }
+        syncExerciseLibrary(dateStr);
+        saveCachedMemberData(dateStr);
+        // Keep input focus / user-initiated interactions stable where possible.
+        if (!document.querySelector('input:focus, textarea:focus, select:focus') && !document.getElementById('modal-backdrop')?.classList.contains('flex')) {
+          renderAll();
+        }
+        prefetchRoutineVideos(state.record.routines, auth);
+      }).catch(() => {});
     }
 
     const videoPlayUrlCache = new Map();

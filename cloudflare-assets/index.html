@@ -7,7 +7,20 @@
   <meta name="theme-color" content="#0B132B" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="FIT-CONNECT" />
-  <link rel="manifest" href="/manifest.webmanifest" />
+  <link id="fit-manifest" rel="manifest" href="/manifest.webmanifest" />
+  <script>
+    // Install a member-specific home screen shortcut, not the anonymous root.
+    // Keep this early in <head> so the install prompt uses the member URL.
+    (() => {
+      const p = new URLSearchParams(location.search);
+      const name = p.get('name') || p.get('member');
+      const token = p.get('token');
+      if (name && token) {
+        const q = new URLSearchParams({ name, token });
+        document.getElementById('fit-manifest').href = '/member-manifest.webmanifest?' + q;
+      }
+    })();
+  </script>
   <link rel="icon" href="/fit-icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon.png?v=20261123" />
   <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
@@ -373,8 +386,20 @@
 
     // --- URL Params ---
     const urlParams = new URLSearchParams(window.location.search);
-    const paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
-    const paramToken = (urlParams.get('token') || '').trim();
+    let paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
+    let paramToken = (urlParams.get('token') || '').trim();
+    // An already installed iOS shortcut may launch "/" without query params.
+    // Restore only a previously authenticated member in this app's own storage.
+    if (!paramToken) {
+      try {
+        const last = JSON.parse(localStorage.getItem('fit_last_member_access_v1') || 'null');
+        if (last && typeof last.name === 'string' && typeof last.token === 'string' &&
+            (!paramName || paramName === last.name)) {
+          paramName = last.name;
+          paramToken = last.token;
+        }
+      } catch {}
+    }
     const paramDate = /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date') || '') ? urlParams.get('date') : getTodayKST();
     const isLiveOrigin = window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
 
@@ -879,6 +904,11 @@
     async function initLiveMemberData() {
       if (state.memberName && state.token) {
         try {
+          localStorage.setItem('fit_last_member_access_v1', JSON.stringify({
+            name: state.memberName, token: state.token
+          }));
+        } catch {}
+        try {
           const map = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
           map[state.memberName] = state.token;
           localStorage.setItem('fit_member_tokens_v2', JSON.stringify(map));
@@ -886,7 +916,16 @@
       }
       loadLocalMemberExtras();
       if (!isLiveOrigin || !state.memberName || !state.token) {
+        // Do not show a fake member/demo record when the installed shortcut
+        // has lost its member identity. Explain how to restore access.
         renderAll();
+        if (isLiveOrigin && !state.token) {
+          document.getElementById('main-content').innerHTML =
+            '<section class="rounded-2xl bg-white p-6 space-y-3 text-center">' +
+            '<h2 class="text-lg font-bold text-[#0F172A]">회원 연결이 필요해요</h2>' +
+            '<p class="text-sm text-[#475569]">저장된 기록은 삭제되지 않았어요. 코치가 보내준 회원 전용 링크로 다시 접속해 주세요. 앱을 홈 화면에 추가할 때도 회원 전용 링크에서 추가해 주세요.</p>' +
+            '</section>';
+        }
         return;
       }
       const hadCache = applyCachedMemberData(state.selectedDate);

@@ -922,7 +922,13 @@
       const asHasData = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos);
       const baseLoadDaily = asHasData ? asObj : (recObj || asObj);
       const chosenDaily = (baseLoadDaily && typeof baseLoadDaily === 'object')
-        ? { ...baseLoadDaily, diet: mergeDietRecords(asObj?.diet, recObj?.diet) }
+        ? {
+            ...baseLoadDaily,
+            diet: mergeDietRecords(asObj?.diet, recObj?.diet),
+            ...(recObj?.coachFeedbackStored
+              ? { headerMessage: recObj.headerMessage, feedback: recObj.feedback }
+              : {})
+          }
         : baseLoadDaily;
 
       if (chosenDaily && typeof chosenDaily === 'object') {
@@ -2608,7 +2614,10 @@
       const chosen = {
         ...(baseChosen || {}),
         diet: mergedCoachDiet,
-        ...(asObj && hasDietData(asObj) ? { feedback: asObj.feedback || baseChosen?.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen?.memos } : {})
+        ...(asObj && hasDietData(asObj) ? { feedback: asObj.feedback || baseChosen?.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen?.memos } : {}),
+        ...(recObj?.coachFeedbackStored
+          ? { headerMessage: recObj.headerMessage, feedback: recObj.feedback }
+          : {})
       };
       const weekPtMap = {};
       weekDays.forEach((wd, idx) => {
@@ -3532,6 +3541,27 @@
           const ok = await saveFullRecordLive(memberName, fullPayload);
           if (!ok) {
             if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '이 회원만 저장하기'; }
+            return;
+          }
+          try {
+            const savedFeedback = await postRecords({
+              action: 'coachFeedbackSave',
+              member: memberName, date: state.selectedDate,
+              password: state.trainerPassword,
+              headerMessage: fullPayload.headerMessage,
+              workoutFeedback: fullPayload.feedback.workout || '',
+              dietFeedback: fullPayload.feedback.diet || ''
+            });
+            if (savedFeedback?.status !== 'success')
+              throw new Error(savedFeedback?.code || '피드백 서버 저장 실패');
+          } catch (err) {
+            // The Apps Script write may already have succeeded. Keep the
+            // editor open for retry instead of displaying false success.
+            if (saveBtn) {
+              saveBtn.disabled = false;
+              saveBtn.textContent = '다시 저장하기';
+            }
+            showToast('피드백 서버 저장 확인 실패: ' + (err?.message || '다시 시도해 주세요'));
             return;
           }
 

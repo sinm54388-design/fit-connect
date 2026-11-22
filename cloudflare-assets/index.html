@@ -2530,8 +2530,13 @@
           // requested food items before notifying the member of success.
           if (Array.isArray(updated.foods)) {
             const savedMeal = supaRes?.data?.diet?.[mealKey];
+            const signature = foods => JSON.stringify(foods.map(v => [
+              String(v.name || ''), Number(v.grams) || 0, String(v.display || ''),
+              Number(v.kcal) || 0, Number(v.carb) || 0,
+              Number(v.prot) || 0, Number(v.fat) || 0
+            ]));
             if (!savedMeal || !Array.isArray(savedMeal.foods) ||
-                JSON.stringify(savedMeal.foods) !== JSON.stringify(updated.foods)) {
+                signature(savedMeal.foods) !== signature(updated.foods)) {
               throw new Error('음식별 기록 서버 반영 확인 실패');
             }
           }

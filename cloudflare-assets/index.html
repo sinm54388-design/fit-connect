@@ -614,6 +614,16 @@
         const pPhoto = extractPhotoSrc(pm);
         const sPhoto = extractPhotoSrc(sm);
         const mergedMeal = { ...sm, ...pm };
+        // Supabase dietSave owns structured food items. Legacy Apps Script may
+        // return an older/missing foods array; never overwrite the verified
+        // server item list with a stale text-only mirror on refresh.
+        if (Array.isArray(sm.foods)) {
+          mergedMeal.foods = sm.foods;
+          if (sm.foods.length || Array.isArray(pm.foods)) {
+            for (const field of ['desc','cal','carb','prot','fat'])
+              if (sm[field] !== undefined) mergedMeal[field] = sm[field];
+          }
+        }
         if (!pPhoto && sPhoto) mergedMeal.photos = [sPhoto];
         else if (pPhoto) mergedMeal.photos = [pPhoto];
         if (deletedPhotoMeals.includes(k)) {
@@ -2514,7 +2524,16 @@
             supaRes = await postRecords({ ...dietPayload, session: state.session });
           }
           if (supaRes?.status !== 'success') {
-            throw new Error(supaRes?.code || supaRes?.message || '사진 저장 실패');
+            throw new Error(supaRes?.code || supaRes?.message || '식단 서버 저장 실패');
+          }
+          // A generic success isn't enough: confirm that the DB stored the
+          // requested food items before notifying the member of success.
+          if (Array.isArray(updated.foods)) {
+            const savedMeal = supaRes?.data?.diet?.[mealKey];
+            if (!savedMeal || !Array.isArray(savedMeal.foods) ||
+                JSON.stringify(savedMeal.foods) !== JSON.stringify(updated.foods)) {
+              throw new Error('음식별 기록 서버 반영 확인 실패');
+            }
           }
           // Photo write returned success. Avoid a second authenticated read here:
           // an expired read session should not turn a successful upload into 403.

@@ -857,6 +857,11 @@
       state.loading = !hadCache;
       renderAll();
       try {
+        // Begin the daily Apps Script fetch alongside session verification.
+        const initialAppsRead = postAppsScript({
+          action: 'read', member: state.memberName,
+          date: state.selectedDate, token: state.token
+        }).catch(() => null);
         const sessRes = await postRecords({
           action: 'memberSession',
           member: state.memberName,
@@ -866,7 +871,7 @@
         if (sessRes?.status === 'success' && sessRes.session) {
           state.session = sessRes.session;
         }
-        await loadMemberDateData(state.selectedDate);
+        await loadMemberDateData(state.selectedDate, initialAppsRead);
         saveCachedMemberData(state.selectedDate);
         loadLocalMemberExtras();
         maybeShowPrivacyConsent();
@@ -904,7 +909,7 @@
       });
     }
 
-    async function loadMemberDateData(dateStr) {
+    async function loadMemberDateData(dateStr, prefetchedAppsRead) {
       if (!state.isLive) return;
       const requestedMember = state.memberName;
       const auth = state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword });
@@ -921,7 +926,7 @@
       ]);
       const [dailyRec, dailyAs] = await Promise.allSettled([
         postRecords({ action: 'read', member: requestedMember, date: dateStr, ...auth }),
-        postAppsScript({ action: 'read', member: requestedMember, date: dateStr, ...(state.token ? { token: state.token } : { password: state.trainerPassword }) })
+        prefetchedAppsRead || postAppsScript({ action: 'read', member: requestedMember, date: dateStr, ...(state.token ? { token: state.token } : { password: state.trainerPassword }) })
       ]);
       if (!stillCurrent()) return;
 

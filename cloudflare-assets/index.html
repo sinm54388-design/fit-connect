@@ -870,7 +870,9 @@
           },
           feedback: d.feedback || { workout: '', diet: '', time: '' },
           memos: Array.isArray(d.memos) ? d.memos : [],
-          dailyCheckin: d.dailyCheckin || { workout: '', diet: '', mood: '' }
+          dailyCheckin: d.dailyCheckin || { workout: '', diet: '', mood: '' },
+          ptScheduled: Boolean(d.ptScheduled),
+          ptTime: String(d.ptTime || '')
         };
       }
       if (ins.status === 'fulfilled' && ins.value?.status === 'success') state.insights = ins.value;
@@ -2402,21 +2404,35 @@
       if (!state.isLive || !state.trainerPassword) {
         return { daily: state.record, history: { previous: {} } };
       }
-      const [dRecRes, dAsRes, hRes, vRes] = await Promise.allSettled([
+      const weekDays = buildWeekDays(state.selectedDate);
+      const [dRecRes, dAsRes, hRes, vRes, ...weekPtRes] = await Promise.allSettled([
         postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
         postAppsScript({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
         postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword }),
-        postRecords({ action: 'directVideoList', member: memberName, date: state.selectedDate, password: state.trainerPassword })
+        postRecords({ action: 'directVideoList', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
+        ...weekDays.map(wd => wd.fullDate === state.selectedDate
+          ? Promise.resolve(null)
+          : postRecords({ action: 'read', member: memberName, date: wd.fullDate, password: state.trainerPassword }))
       ]);
       const recObj = dRecRes.status === 'fulfilled' ? unwrapDailyRecord(dRecRes.value) : null;
       const asObj = dAsRes.status === 'fulfilled' ? unwrapDailyRecord(dAsRes.value) : null;
       const asHasRoutines = Array.isArray(asObj?.routines) && asObj.routines.length > 0;
       const recHasRoutines = Array.isArray(recObj?.routines) && recObj.routines.length > 0;
       const chosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
+      const weekPtMap = {};
+      weekDays.forEach((wd, idx) => {
+        if (wd.fullDate === state.selectedDate) {
+          weekPtMap[wd.fullDate] = { scheduled: Boolean(chosen?.ptScheduled), time: String(chosen?.ptTime || '') };
+        } else {
+          const r = weekPtRes[idx]?.status === 'fulfilled' ? unwrapDailyRecord(weekPtRes[idx].value) : null;
+          weekPtMap[wd.fullDate] = { scheduled: Boolean(r?.ptScheduled), time: String(r?.ptTime || '') };
+        }
+      });
       return {
         daily: chosen,
         history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} },
-        directVideos: (vRes.status === 'fulfilled' && vRes.value?.status === 'success' && Array.isArray(vRes.value.videos)) ? vRes.value.videos : []
+        directVideos: (vRes.status === 'fulfilled' && vRes.value?.status === 'success' && Array.isArray(vRes.value.videos)) ? vRes.value.videos : [],
+        weekPtMap
       };
     }
 
@@ -2509,7 +2525,11 @@
     // One-Stop Member Detail & Immediate Reply Bottom Sheet
     async function openCoachDetailSheet(memberName) {
       openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
-      const { daily, history, directVideos } = await fetchMemberForCoach(memberName);
+      const { daily, history, directVideos, weekPtMap } = await fetchMemberForCoach(memberName);
+      const weekDaysList = buildWeekDays(state.selectedDate);
+      const ptDaysState = { ...(weekPtMap || {}) };
+      const initialPtDays = JSON.parse(JSON.stringify(ptDaysState));
+      let ptTimeInput = Object.values(ptDaysState).find(x => x?.scheduled && x?.time)?.time || daily.ptTime || '';
       const routines = Array.isArray(daily.routines) ? daily.routines.map(r => ({ ...r })) : [];
       const expandedSets = {};
       let pendingNewVideoId = '';
@@ -2554,6 +2574,29 @@
               const vp = [...memos].reverse().find(m => m.photo);
               return vp ? `<div class="p-3 rounded-2xl bg-[#EFF6FF] space-y-1.5"><span class="text-[11px] font-extrabold text-[#1D4ED8]">📸 회원 현장 인증 사진</span><img src="${vp.photo}" alt="현장 인증" class="w-full h-36 object-cover rounded-xl" /></div>` : '';
             })()}
+
+            <!-- Weekly PT Schedule Picker -->
+            <div class="p-3.5 rounded-2xl bg-[#EFF6FF] space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[12px] font-extrabold text-[#1D4ED8]">🗓 이번 주 PT 예정 요일 설정</span>
+                <span class="text-[10px] font-semibold text-[#64748B]">선택한 요일에 회원 화면 배너 표시</span>
+              </div>
+              <div class="grid grid-cols-7 gap-1">
+                ${weekDaysList.map(wd => {
+                  const isOn = !!ptDaysState[wd.fullDate]?.scheduled;
+                  return `
+                    <button type="button" data-ptday="${wd.fullDate}" class="cd-pt-day-btn tap-scale py-1.5 rounded-xl flex flex-col items-center justify-center ${isOn ? 'card-teal text-white shadow-sm' : 'bg-white text-[#4B5563]'}">
+                      <span class="text-[10px] font-bold opacity-80">${wd.day}</span>
+                      <span class="text-[12px] font-extrabold tabular-nums">${wd.date}</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+              <div class="flex items-center gap-1.5 pt-0.5">
+                <input id="cd-pt-time" type="text" value="${escapeHtml(ptTimeInput)}" placeholder="수업 시간 (선택, 예: 19:00)" class="flex-1 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
+                <button type="button" id="cd-save-pt-days" class="tap-scale shrink-0 px-3 py-1.5 rounded-xl card-blue text-white text-[11px] font-extrabold">PT 일정 저장</button>
+              </div>
+            </div>
 
             <!-- Today's Diet & Photos -->
             <div class="p-3.5 rounded-2xl bg-[#F0FDFA] space-y-2">
@@ -2748,6 +2791,69 @@
           }
         } catch {}
 
+        document.querySelectorAll('.cd-pt-day-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const dStr = btn.dataset.ptday;
+            const prevOn = !!ptDaysState[dStr]?.scheduled;
+            ptDaysState[dStr] = { scheduled: !prevOn, time: document.getElementById('cd-pt-time')?.value.trim() || '' };
+            ptTimeInput = document.getElementById('cd-pt-time')?.value.trim() || '';
+            renderDetailBody();
+          });
+        });
+
+        const ptTimeEl = document.getElementById('cd-pt-time');
+        if (ptTimeEl) {
+          ptTimeEl.addEventListener('input', e => { ptTimeInput = e.target.value; });
+        }
+
+        const savePtBtn = document.getElementById('cd-save-pt-days');
+        if (savePtBtn) {
+          savePtBtn.addEventListener('click', async () => {
+            const tVal = document.getElementById('cd-pt-time')?.value.trim() || '';
+            ptTimeInput = tVal;
+            const changedDates = weekDaysList.map(w => w.fullDate).filter(dStr => {
+              const nowOn = !!ptDaysState[dStr]?.scheduled;
+              const wasOn = !!initialPtDays[dStr]?.scheduled;
+              const wasTime = String(initialPtDays[dStr]?.time || '');
+              return nowOn !== wasOn || (nowOn && tVal !== wasTime);
+            });
+            if (!changedDates.length) {
+              showToast('변경된 PT 예정일이 없습니다');
+              return;
+            }
+            savePtBtn.disabled = true;
+            savePtBtn.textContent = '저장 중...';
+            try {
+              const results = await Promise.allSettled(changedDates.map(dStr => {
+                const isOn = !!ptDaysState[dStr]?.scheduled;
+                return postAppsScript({
+                  action: 'patchData',
+                  member: memberName,
+                  date: dStr,
+                  password: state.trainerPassword,
+                  patch: { ptScheduled: isOn, ptTime: isOn ? tVal : '' }
+                });
+              }));
+              const okCount = results.filter(r => r.status === 'fulfilled' && r.value?.status === 'success').length;
+              if (okCount === changedDates.length) {
+                changedDates.forEach(dStr => {
+                  initialPtDays[dStr] = { scheduled: !!ptDaysState[dStr]?.scheduled, time: ptDaysState[dStr]?.scheduled ? tVal : '' };
+                });
+                daily.ptScheduled = !!ptDaysState[state.selectedDate]?.scheduled;
+                daily.ptTime = daily.ptScheduled ? tVal : '';
+                showToast('이번 주 PT 예정일이 저장되었어요 ✓');
+              } else {
+                showToast('일부 날짜 저장에 실패했어요. 다시 눌러주세요');
+              }
+            } catch {
+              showToast('PT 일정 저장 중 오류가 발생했어요');
+            } finally {
+              savePtBtn.disabled = false;
+              savePtBtn.textContent = 'PT 일정 저장';
+            }
+          });
+        }
+
         document.getElementById('cd-copy-routines-btn').addEventListener('click', () => {
           if (!routines.length) {
             showToast('복사할 루틴 종목이 아직 없어요');
@@ -2905,7 +3011,9 @@
               diet: daily.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
               feedback: daily.feedback || { workout: '', diet: '', time: '' },
               memos: Array.isArray(daily.memos) ? daily.memos : [],
-              dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' }
+              dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' },
+              ptScheduled: Boolean(daily.ptScheduled),
+              ptTime: daily.ptTime || ''
             };
             const savedOk = await saveFullRecordLive(memberName, autoPayload);
             if (savedOk) showToast('영상이 삭제되고 일지에 반영되었습니다 ✓');
@@ -2959,7 +3067,9 @@
                 diet: daily.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
                 feedback: daily.feedback || { workout: '', diet: '', time: '' },
                 memos: Array.isArray(daily.memos) ? daily.memos : [],
-                dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' }
+                dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' },
+                ptScheduled: Boolean(daily.ptScheduled),
+                ptTime: daily.ptTime || ''
               };
               const savedOk = await saveFullRecordLive(memberName, autoPayload);
               if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
@@ -3569,18 +3679,20 @@
       const hasPtClass = routinesArr.some(r => r.routineType !== 'homework');
       const pendingRoutine = routinesArr.find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
       const missionDone = hasRoutines && !pendingRoutine;
+      const isPtDay = Boolean(state.record.ptScheduled);
+      const ptTimeBadge = state.record.ptTime ? ` (${state.record.ptTime})` : '';
       const missionLabel = pendingRoutine
         ? `오늘의 개인 운동 숙제 (${wr.done}/${wr.total})`
-        : (missionDone ? (hasPtClass ? '오늘 PT 수업 일지' : '오늘 개인 운동 완료') : '오늘의 운동 일정');
+        : (missionDone ? (hasPtClass ? '오늘 PT 수업 일지' : '오늘 개인 운동 완료') : (isPtDay ? '오늘의 PT 일정' : '오늘의 운동 일정'));
       const missionTitle = pendingRoutine
         ? pendingRoutine.name
-        : (missionDone ? (hasPtClass ? `오늘 진행한 PT 수업 (${routinesArr.length}종목)` : '오늘 배정된 개인 운동 완료!') : '예정된 수업 · 루틴이 없어요');
+        : (missionDone ? (hasPtClass ? `오늘 진행한 PT 수업 (${routinesArr.length}종목)` : '오늘 배정된 개인 운동 완료!') : (isPtDay ? `🗓 오늘은 PT 예정일입니다${ptTimeBadge}` : '예정된 수업 · 루틴이 없어요'));
       const missionSub = pendingRoutine
         ? '수업일지에서 체크하기 ›'
-        : (missionDone ? '수업 내용 확인하기 ›' : '휴식 · 회복일');
+        : (missionDone ? '수업 내용 확인하기 ›' : (isPtDay ? '수업일지 보기 ›' : '휴식 · 회복일'));
       const missionNote = pendingRoutine
         ? pendingRoutine.note
-        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : '코치님이 일지를 등록하면 이곳에 바로 표시됩니다.');
+        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : (isPtDay ? '오늘 PT 수업이 예정되어 있어요. 수업 후 코치님이 운동일지를 올려드릴 예정입니다.' : '코치님이 일지를 등록하면 이곳에 바로 표시됩니다.'));
 
       if (state.memberTab === 'report') {
         return `
@@ -3719,6 +3831,21 @@
               </div>
               <p class="text-[13px] text-white/90 mt-2.5 leading-relaxed">${escapeHtml(coachNote)}</p>
             </div>
+
+            ${state.record.ptScheduled ? `
+              <div class="p-4 rounded-[22px] bg-[#F0FDFA] border border-[#99F6E4] flex items-start gap-3">
+                <div class="w-9 h-9 rounded-2xl card-teal text-white flex items-center justify-center text-base shrink-0">🗓</div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[14px] font-extrabold text-[#0F766E]">오늘은 PT 예정일입니다</span>
+                    ${state.record.ptTime ? `<span class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-white text-[#0F766E] shadow-sm">${escapeHtml(state.record.ptTime)} 수업</span>` : ''}
+                  </div>
+                  <p class="text-[12px] text-[#115E59] mt-0.5 leading-snug">
+                    ${rs.length ? '오늘 PT 수업일지가 등록되었어요. 아래 종목별 자세 포인트를 확인해 보세요!' : '오늘 PT 수업이 예정되어 있어요. 수업이 끝나면 코치님이 운동일지를 올려드릴 예정입니다!'}
+                  </p>
+                </div>
+              </div>
+            ` : ''}
 
             <!-- Lesson Sub-Tabs: Today Routine vs Saved Exercise/Video Archive -->
             <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-white shadow-sm">

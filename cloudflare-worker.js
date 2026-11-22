@@ -568,18 +568,45 @@ async function handleRecords(request,env) {
           encodeURIComponent(uid)+'&record_date=gte.'+previousStart+'&record_date=lte.'+day+'&order=record_date.asc&limit=120','assessment_history');
         const blank=()=>({workoutDays:0,dietDays:0,completedSets:0});
         const summary=blank(),previous=blank();
+        const exerciseRecords={recent:new Map(),previous:new Map()};
+        // Compare only identical exercise names and repetition counts; avoid
+        // interpreting different training conditions as a strength increase.
+        const numeric=(v)=>{const str=String(v??'').trim();return /^(?:\\d+)(?:\\.\\d{1,2})?$/.test(str)?Number(str):NaN;};
+
         for(const r of records){
           const d=r.data||{};
           const target=r.record_date>=start?summary:previous;
           const routines=Array.isArray(d.routines)?d.routines:[];
           const worked=routines.some(rt=>rt.routineType!=='homework'||(Array.isArray(rt.completedSets)&&rt.completedSets.some(Boolean)))||d.dailyCheckin?.workout==='done';
           if(worked)target.workoutDays++;
+          const period=r.record_date>=start?'recent':'previous';
+          for(const rt of routines){
+            const name=String(rt.name||'').trim().replace(/\\s+/g,' ').slice(0,80);
+            if(!name)continue;
+            const details=Array.isArray(rt.setDetails)&&rt.setDetails.length?rt.setDetails:[{weight:rt.weight,reps:rt.reps}];
+            details.forEach((detail,i)=>{
+              if(rt.routineType==='homework' && !rt.completedSets?.[i])return;
+              const weight=numeric(detail?.weight),reps=numeric(detail?.reps);
+              if(!Number.isFinite(weight)||weight<=0||weight>1000||!Number.isInteger(reps)||reps<=0||reps>100)return;
+              const key=name.toLocaleLowerCase('ko-KR')+'|'+reps;
+              const dict=exerciseRecords[period];
+              const existing=dict.get(key);
+              if(!existing||weight>existing.weight)dict.set(key,{name,reps,weight});
+            });
+          }
           const diet=d.diet||{};
           if(['breakfast','lunch','dinner','snack'].some(k=>Boolean(String(diet[k]?.desc||'').trim())||(Array.isArray(diet[k]?.photos)&&diet[k].photos.length)))target.dietDays++;
           target.completedSets+=routines.reduce((sum,rt)=>sum+(Array.isArray(rt.completedSets)?rt.completedSets.filter(Boolean).length:0),0);
         }
+        const exerciseComparisons=[...exerciseRecords.recent.entries()]
+          .filter(([key])=>exerciseRecords.previous.has(key))
+          .map(([key,item])=>{
+            const previousWeight=exerciseRecords.previous.get(key).weight;
+            return {name:item.name,reps:item.reps,previousWeight,currentWeight:item.weight,
+              changeKg:Math.round((item.weight-previousWeight)*100)/100};
+          }).sort((a,b)=>Math.abs(b.changeKg)-Math.abs(a.changeKg)).slice(0,5);
         return json({status:'success',assessments:rows,summary,previousSummary:previous,
-          range:{start,end:day},previousRange:{start:previousStart,end:previousEnd}});
+          exerciseComparisons,range:{start,end:day},previousRange:{start:previousStart,end:previousEnd}});
       }
       if(!validDay(String(input.assessed_on||'')))return json({status:'error',code:'invalid_assessment_date'},400);
       const scores=input.scores;

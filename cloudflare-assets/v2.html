@@ -692,13 +692,29 @@
       } catch { return false; }
     }
 
+    function getHiddenExerciseKeys(memberName) {
+      try {
+        const arr = JSON.parse(localStorage.getItem(`fit_ex_lib_hidden_${memberName}`) || '[]');
+        return new Set(Array.isArray(arr) ? arr : []);
+      } catch { return new Set(); }
+    }
+
+    function addHiddenExerciseKey(memberName, key) {
+      try {
+        const set = getHiddenExerciseKeys(memberName);
+        set.add(key);
+        localStorage.setItem(`fit_ex_lib_hidden_${memberName}`, JSON.stringify([...set]));
+      } catch {}
+    }
+
     function syncExerciseLibrary(dateStr) {
       const lib = { ...(state.exerciseLibrary || {}) };
+      const hidden = getHiddenExerciseKeys(state.memberName);
       const norm = n => String(n || '').trim().toLowerCase().replace(/\s+/g, '');
       (state.record?.routines || []).forEach(r => {
         const name = String(r.name || '').trim();
         const key = norm(name);
-        if (!key) return;
+        if (!key || hidden.has(key)) return;
         const prev = lib[key] || { name };
         const w = Number(r.weight) || 0;
         const maxSetW = Array.isArray(r.setDetails) && r.setDetails.length
@@ -719,7 +735,7 @@
       (state.insights?.progress || []).forEach(p => {
         const name = String(p.name || '').trim();
         const key = norm(name);
-        if (!key || !Array.isArray(p.points) || !p.points.length) return;
+        if (!key || hidden.has(key) || !Array.isArray(p.points) || !p.points.length) return;
         const latestPt = p.points[p.points.length - 1];
         const maxPtW = Math.max(...p.points.map(pt => Number(pt.weight) || 0));
         const prev = lib[key] || { name };
@@ -3722,7 +3738,10 @@
                             ${it.lastDate ? `<span class="text-[10px] text-[#6B7280]">${escapeHtml(it.lastDate)}</span>` : ''}
                           </div>
                         </div>
-                        <button type="button" data-gtitle="${escapeHtml(it.name)}" data-gnote="${escapeHtml(it.note || '')}" data-gvid="${escapeHtml(it.videoUrl || '')}" data-gvidid="${escapeHtml(it.videoId || '')}" class="routine-guide-btn tap-scale shrink-0 px-3 py-1.5 rounded-full ${it.videoUrl || it.videoId ? 'card-blue text-white' : 'bg-white text-[#1D4ED8] shadow-sm'} text-[11px] font-extrabold">${it.videoUrl || it.videoId ? '🎬 영상 보기' : '자세 · 부위'}</button>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                          <button type="button" data-gtitle="${escapeHtml(it.name)}" data-gnote="${escapeHtml(it.note || '')}" data-gvid="${escapeHtml(it.videoUrl || '')}" data-gvidid="${escapeHtml(it.videoId || '')}" class="routine-guide-btn tap-scale px-3 py-1.5 rounded-full ${it.videoUrl || it.videoId ? 'card-blue text-white' : 'bg-white text-[#1D4ED8] shadow-sm'} text-[11px] font-extrabold">${it.videoUrl || it.videoId ? '🎬 영상 보기' : '자세 · 부위'}</button>
+                          ${state.trainerPassword ? `<button type="button" data-libdel="${escapeHtml(it.name)}" data-libvidid="${escapeHtml(it.videoId || '')}" class="lib-del-btn tap-scale px-2.5 py-1.5 rounded-full bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>` : ''}
+                        </div>
                       </div>
                       ${it.note ? `<div class="p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><p class="text-[12px] font-medium text-[#1E293B] leading-relaxed">💡 ${escapeHtml(it.note)}</p></div>` : ''}
                     </div>
@@ -4223,6 +4242,27 @@
         b.addEventListener('click', () => {
           state.lessonView = b.dataset.lview;
           renderAll();
+        });
+      });
+
+      document.querySelectorAll('.lib-del-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const exName = btn.dataset.libdel || '';
+          const vidId = btn.dataset.libvidid || '';
+          const normKey = String(exName).trim().toLowerCase().replace(/\s+/g, '');
+          if (!normKey) return;
+          addHiddenExerciseKey(state.memberName, normKey);
+          if (state.exerciseLibrary && state.exerciseLibrary[normKey]) {
+            delete state.exerciseLibrary[normKey];
+            try { localStorage.setItem(`fit_ex_lib_${state.memberName}`, JSON.stringify(state.exerciseLibrary)); } catch {}
+          }
+          if (vidId && vidId.startsWith('direct:') && state.trainerPassword) {
+            postRecords({ action: 'directVideoDelete', id: vidId, member: state.memberName, date: state.selectedDate, password: state.trainerPassword }).catch(() => {});
+            videoPlayUrlCache.delete(vidId);
+            state.directVideos = state.directVideos.filter(v => v.id !== vidId);
+          }
+          renderAll();
+          showToast(`'${exName}' 항목을 내 종목 · 영상에서 삭제했어요 ✓`);
         });
       });
 

@@ -569,7 +569,7 @@ async function handleRecords(request,env) {
         for(const r of records){
           const d=r.data||{};
           const routines=Array.isArray(d.routines)?d.routines:[];
-          const worked=routines.some(rt=>Array.isArray(rt.completedSets)&&rt.completedSets.some(Boolean))||d.dailyCheckin?.workout==='done';
+          const worked=routines.some(rt=>rt.routineType!=='homework'||(Array.isArray(rt.completedSets)&&rt.completedSets.some(Boolean)))||d.dailyCheckin?.workout==='done';
           if(worked)summary.workoutDays++;
           const diet=d.diet||{};
           if(['breakfast','lunch','dinner','snack'].some(k=>Boolean(String(diet[k]?.desc||'').trim())||(Array.isArray(diet[k]?.photos)&&diet[k].photos.length)))summary.dietDays++;

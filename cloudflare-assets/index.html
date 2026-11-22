@@ -2053,6 +2053,17 @@
           ? { password: state.trainerPassword }
           : (state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword }));
         try {
+          // Apps Script deliberately strips photos. Finish that write BEFORE the
+          // photo-bearing Supabase write, rather than racing two writers.
+          const lightRecord = {
+            ...state.record,
+            diet: {
+              ...state.record.diet,
+              [mealKey]: { ...updated, photos: [] }
+            }
+          };
+          const appsSaved = await saveFullRecordLive(state.memberName, lightRecord);
+          if (!appsSaved) throw new Error('Apps Script 식단 기록 저장 실패');
           const supaRes = await postRecords({
             action: 'dietSave',
             member: state.memberName,
@@ -2061,16 +2072,8 @@
             diet: { [mealKey]: updated }
           });
           if (supaRes?.status !== 'success') {
-            throw new Error(supaRes?.code || supaRes?.message || '식단 저장 실패');
+            throw new Error(supaRes?.code || supaRes?.message || '사진 저장 실패');
           }
-          const lightRecord = {
-            ...state.record,
-            diet: {
-              ...state.record.diet,
-              [mealKey]: { ...updated, photos: [] }
-            }
-          };
-          saveFullRecordLive(state.memberName, lightRecord).catch(() => {});
           saveCachedMemberData(state.selectedDate);
           closeModal();
           renderAll();

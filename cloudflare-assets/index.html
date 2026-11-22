@@ -2148,7 +2148,8 @@
       let compressedPhoto = extractPhotoSrc(m);
       let hasNewPhoto = false;
 
-      openModal(`${mealLabel} 식단 기록`, `
+      const alreadyLogged = !!(String(m.desc || '').trim() || Number(m.cal) > 0 || compressedPhoto);
+      openModal(`${mealLabel} 식단 ${alreadyLogged ? '수정' : '기록'}`, `
         <div class="space-y-4">
           <div>
             <label class="tap-scale w-full py-3 px-4 rounded-2xl border-2 border-dashed ${compressedPhoto ? 'border-[#0F766E] bg-[#F0FDFA] text-[#0F766E]' : 'border-gray-200 bg-[#F4F6F9] text-[#4B5563]'} flex items-center justify-center gap-2 text-[13px] font-bold cursor-pointer">
@@ -2161,7 +2162,7 @@
           </div>
 
           <div>
-            <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 태그로 2초 만에 저장</p>
+            <p class="text-[12px] font-bold text-[#4B5563] mb-2">간편 입력 · 선택 후 저장 버튼을 눌러주세요</p>
             <div class="grid grid-cols-2 gap-2">
               ${presets.map((pr, idx) => `
                 <button type="button" data-pr="${idx}" class="pr-btn tap-scale p-3 rounded-2xl bg-[#F4F6F9] hover:bg-[#EFF6FF] text-left">
@@ -2175,7 +2176,7 @@
           <form id="meal-form" class="pt-2 border-t border-gray-100 space-y-2.5">
             <input id="mf-desc" value="${escapeHtml(m.desc || '')}" placeholder="먹은 메뉴를 입력하세요" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
             <input id="mf-cal" type="number" min="0" value="${escapeHtml(m.cal || '')}" placeholder="예상 칼로리 (kcal)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
-            <button type="submit" class="w-full py-3 rounded-2xl hero-navy text-white text-sm font-bold">저장하기</button>
+            <button type="submit" class="w-full py-3 rounded-2xl hero-navy text-white text-sm font-bold">${alreadyLogged ? '수정 내용 저장하기' : '식단 저장하기'}</button>
           </form>
           <div class="flex justify-end pt-1">
             <button type="button" id="meal-copy-yesterday" class="tap-scale inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-[11px] font-semibold text-[#475569] hover:bg-[#F1F5F9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB]" title="어제 같은 끼니의 메뉴와 칼로리만 입력칸에 불러옵니다. 사진은 제외됩니다.">↺ 어제 기록 불러오기</button>
@@ -2341,17 +2342,24 @@
             submitBtn.textContent = '저장하기';
           }
           document.querySelectorAll('.pr-btn').forEach(btn => { btn.disabled = false; });
+          preserveMealDraft();
           showToast('식단 저장을 완료하지 못했어요: ' + (err?.message || '네트워크를 확인해 주세요') + ' (일부 기록은 저장됐을 수 있어요)');
         } finally {
           savingMeal = false;
         }
       }
 
+      let selectedPreset = null;
       document.querySelectorAll('.pr-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const pr = presets[Number(btn.dataset.pr)];
-          const updated = { desc: `[${pr.tag}] ${pr.desc}`, cal: pr.cal, carb: pr.carb, prot: pr.prot, fat: pr.fat, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
-          commitMealSave(updated, `${mealLabel} (${pr.tag}) 저장 완료`);
+          if (!pr) return;
+          selectedPreset = pr;
+          if (descField) descField.value = '[' + pr.tag + '] ' + pr.desc;
+          if (calField) calField.value = pr.cal;
+          preserveMealDraft();
+          showToast('입력칸에 적용했어요 · 확인 후 저장해 주세요');
+          document.getElementById('meal-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
       });
 
@@ -2363,7 +2371,10 @@
           showToast('메뉴, 칼로리 또는 사진 중 하나를 입력해 주세요');
           return;
         }
-        const updated = { ...m, desc: desc || '사진 기록', cal, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
+        const presetMatches = selectedPreset && desc === '[' + selectedPreset.tag + '] ' + selectedPreset.desc && cal === selectedPreset.cal;
+        const updated = { ...m, desc: desc || '사진 기록', cal,
+          ...(presetMatches ? {carb:selectedPreset.carb, prot:selectedPreset.prot, fat:selectedPreset.fat} : {}),
+          ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
         commitMealSave(updated, `${mealLabel} 식단 저장 완료`);
       });
     }
@@ -4615,9 +4626,10 @@
                     <div>
                       <p class="text-[15px] font-bold text-[#111827]">${label}</p>
                       <p class="text-[12px] text-[#6B7280] mt-0.5">${escapeHtml(ml.desc || '아직 기록 전이에요')}</p>
+                      ${logged && Number(ml.cal) > 0 ? `<p class="text-[11px] font-bold text-[#0F766E] mt-1">${Number(ml.cal).toLocaleString()} kcal · 저장됨</p>` : ''}
                     </div>
                     <div class="shrink-0 flex flex-col items-end gap-1">
-                      <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
+                      <button type="button" data-mkey="${key}" data-mlabel="${label}" aria-label="${label} 식단 ${logged ? '수정하기' : '기록하기'}" class="meal-btn tap-scale px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#EFF6FF] text-[#1D4ED8]' : 'hero-navy text-white'}">${logged ? '✎ 수정하기' : '+ 기록하기'}</button>
                       <button type="button" data-prevmeal-key="${key}" data-prevmeal-label="${label}" class="meal-yesterday-btn tap-scale px-1 py-0.5 text-[#64748B] text-[10px] font-medium underline underline-offset-2">↺ 어제 기록</button>
                     </div>
                   </div>

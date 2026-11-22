@@ -12,7 +12,7 @@
 // MEMBER_SESSION_HOURS.
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
 const MEMBER_SESSION_HOURS=8;
-const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','dailyCheckin','columnList'];
+const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','dailyCheckin','dietSave','columnList'];
 const b64url={
   encode:bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
   decode:text=>{
@@ -350,13 +350,13 @@ function buildMemberInsights(rows,date) {
 async function handleRecords(request,env) {
   const requestStarted=performance.now();
   if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
-  if(Number(request.headers.get('content-length')||0)>16384)
+  if(Number(request.headers.get('content-length')||0)>131072)
     return json({status:'error',code:'too_large'},413);
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
   const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','columnList','columnSave'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','columnList','columnSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -391,7 +391,7 @@ async function handleRecords(request,env) {
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify')return json({status:'success'});
   }
-  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin';
+  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin'||action==='dietSave';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -528,6 +528,36 @@ async function handleRecords(request,env) {
         if(saved)return json({status:'success',data:saved.data});
       }
       return json({status:'error',code:'checkin_conflict'},409);
+    }
+    if(action==='dietSave'){
+      const rawDiet=input.diet;
+      if(!rawDiet||typeof rawDiet!=='object'||Array.isArray(rawDiet))return json({status:'error',code:'invalid_diet'},400);
+      const table='/rest/v1/fit_daily_records';
+      const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
+      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
+      for(let attempt=0;attempt<3;attempt++){
+        const rows=await supaGet(table+'?select=id,data,updated_at&'+scope+'&limit=2','diet_read');
+        if(rows.length>1)break;
+        const row=rows[0];
+        const previousVersion=Date.parse(row?.updated_at);
+        const updatedAt=new Date(Math.max(Date.now(),Number.isFinite(previousVersion)?previousVersion+1:0)).toISOString();
+        const prevDiet=(row?.data?.diet&&typeof row.data.diet==='object')?row.data.diet:{};
+        const mergedDiet={...prevDiet};
+        for(const k of ['breakfast','lunch','dinner','snack']){
+          if(rawDiet[k]&&typeof rawDiet[k]==='object')mergedDiet[k]=rawDiet[k];
+        }
+        if(rawDiet.water!==undefined)mergedDiet.water=Number(rawDiet.water)||0;
+        const data={...(row?.data||{}),diet:mergedDiet};
+        const version=row?.updated_at==null?'is.null':'eq.'+encodeURIComponent(row.updated_at);
+        const target=row?table+'?id=eq.'+encodeURIComponent(row.id)+'&updated_at='+version:table;
+        const payload=row?{data,updated_at:updatedAt}:{member_id:memberId,record_date:date,data,updated_at:updatedAt};
+        const response=await fetch(base+target,{method:row?'PATCH':'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
+        if(!row&&response.status===409)continue;
+        if(!response.ok)throw Error('diet_write_'+response.status);
+        const [saved]=await response.json();
+        if(saved)return json({status:'success',data:saved.data});
+      }
+      return json({status:'error',code:'diet_conflict'},409);
     }
     if(directVideo){
       const trainer=input.password!==undefined;

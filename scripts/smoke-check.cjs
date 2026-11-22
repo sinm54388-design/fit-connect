@@ -18,6 +18,13 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   assert(html.includes("recObj?.deletedPhotoMeals || []"), name + ': photo tombstones not respected');
   assert(html.includes("action: 'coachFeedbackSave'"), name + ': durable coach feedback save missing');
   assert(html.includes('weeklyCheckinDays'), name + ': weekly check-in summary missing');
+  assert(html.includes('meal-copy-yesterday'), name + ': yesterday meal quick entry missing');
+  assert(html.includes('routine-set-toggle'), name + ': per-set workout tracking missing');
+  assert(html.includes('cd-quick-tip'), name + ': coach quick reply chips missing');
+  assert(html.includes('최근 7일 한눈에 보기'), name + ': coach instant overview missing');
+  assert(html.includes('home-quick-workout') && html.includes('home-quick-diet'), name + ': member home shortcuts missing');
+  assert(html.includes('video-upload-status'), name + ': persistent video progress missing');
+  assert(html.indexOf('<!-- Important shortcuts above educational content -->') < html.indexOf('<!-- High-Visibility FIT-CONNECT MAGAZINE -->'), name + ': home task shortcuts must precede magazine');
   assert(html.includes("['videos', '영상 대기', videoWaiting]"), name + ': video feedback inbox missing');
   assert(html.includes("action: 'memberArchive'"), name + ': member archive UI missing');
   assert(html.includes('recObj?.coachFeedbackStored'), name + ': durable coach feedback hydration missing');

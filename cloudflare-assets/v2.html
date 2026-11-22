@@ -2649,14 +2649,29 @@
           const details=document.createElement('p');details.className='text-[11px] text-[#64748B]';details.textContent=(v.display|| (v.grams?v.grams+'g':''))+' · '+Math.round(Number(v.kcal)||0)+'kcal / 단 '+(Number(v.prot)||0).toFixed(1)+'g';
           body.append(name,details);row.appendChild(body);
           if(!v.legacy){
+            const unit=v.unitLabel || 'g';
+            const controls=document.createElement('div');
+            controls.className='shrink-0 flex flex-col items-end gap-1.5';
             const edit=document.createElement('button');edit.type='button';edit.textContent='양 수정';
-            edit.className='shrink-0 rounded-lg border border-[#BFDBFE] px-2 py-1.5 text-[11px] font-bold text-[#1D4ED8]';
+            edit.setAttribute('aria-expanded','false');
+            edit.className='rounded-lg border border-[#BFDBFE] px-2 py-1.5 text-[11px] font-bold text-[#1D4ED8]';
+            const editBox=document.createElement('div');editBox.className='hidden flex items-center gap-1';
+            const qtyInput=document.createElement('input');qtyInput.type='number';
+            qtyInput.inputMode='decimal';qtyInput.min='0.5';qtyInput.max='2000';
+            qtyInput.step=unit==='g'?'1':'0.5';
+            qtyInput.className='w-16 rounded-md border border-[#CBD5E1] bg-white px-1.5 py-1.5 text-[12px]';
+            qtyInput.value=String(Number(v.qty)||Number(v.grams)||100);
+            qtyInput.setAttribute('aria-label',v.name+' 새 수량');
+            const suffix=document.createElement('span');suffix.className='text-[11px] text-[#64748B]';suffix.textContent=unit;
+            const apply=document.createElement('button');apply.type='button';apply.textContent='적용';
+            apply.className='rounded-lg bg-[#1D4ED8] px-2 py-1.5 text-[11px] font-bold text-white';
             edit.addEventListener('click',()=>{
-              const unit=v.unitLabel || 'g';
-              const previous=Number(v.qty)||Number(v.grams)||100;
-              const entry=window.prompt('새 수량 ('+unit+')',String(previous));
-              if(entry===null)return;
-              const quantity=Number(entry);
+              const expanded=editBox.classList.toggle('hidden')===false;
+              edit.setAttribute('aria-expanded',String(expanded));
+              if(expanded)qtyInput.focus();
+            });
+            apply.addEventListener('click',()=>{
+              const quantity=Number(qtyInput.value);
               const grams=unit==='g'?quantity:quantity*Number(v.unitGrams);
               if(!(quantity>0 && grams>0 && grams<=2000 && Number.isFinite(grams))){showToast('올바른 수량을 입력해 주세요');return;}
               const source=FOOD_LOOKUP.find(f=>f[0]===v.name);
@@ -2665,7 +2680,7 @@
               Object.assign(v,next,{grams,qty:quantity,display:unit==='g'?'':quantity+unit});
               foodItemsChanged=true;recomputeItems();redrawItems();
             });
-            row.appendChild(edit);
+            editBox.append(qtyInput,suffix,apply);controls.append(edit,editBox);row.appendChild(controls);
           }
           const del=document.createElement('button');del.type='button';del.textContent='삭제';
           del.setAttribute('aria-label',v.name+' 삭제');

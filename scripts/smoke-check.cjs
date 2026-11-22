@@ -12,12 +12,18 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   for (const [, code] of scripts) if (code.trim()) new vm.Script(code, { filename: name });
   assert(html.includes("const appsSaved = await saveFullRecordLive"), name + ': Apps Script save ordering removed');
   assert(html.includes("action: 'dietSave'"), name + ': photo persistence route removed');
+  assert(html.includes("action: 'dietPhotoDelete'"), name + ': photo deletion request missing');
+  assert(html.includes("cd-meal-photo-delete"), name + ': coach photo delete control missing');
+  assert(html.includes("meal-delete-photo"), name + ': member photo delete control missing');
+  assert(html.includes("recObj?.deletedPhotoMeals || []"), name + ': photo tombstones not respected');
   assert(html.includes("action: 'coachFeedbackSave'"), name + ': durable coach feedback save missing');
   assert(html.includes('recObj?.coachFeedbackStored'), name + ': durable coach feedback hydration missing');
   assert(html.includes('mergeDietRecords(asObj?.diet, recObj?.diet)'), name + ': photo merge missing');
 }
 new vm.SourceTextModule(worker, { identifier: 'cloudflare-worker.js' });
 assert(worker.includes("fit_meal_photos"), 'independent photo storage route missing');
+assert(worker.includes("action==='dietPhotoDelete'"), 'authenticated photo deletion route missing');
+assert(worker.includes("deletedPhotoMeals"), 'deleted photo marker missing');
 assert(worker.includes("fit_coach_feedback"), 'independent coach feedback storage missing');
 assert(worker.includes("action==='dietSave'"), 'diet API action missing');
 assert(worker.includes("appsScriptAcceptsMember"), 'member token verification missing');

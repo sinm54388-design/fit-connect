@@ -2592,7 +2592,15 @@
           const btn=document.createElement('button');
           btn.type='button';btn.setAttribute('role','option');
           btn.className='block w-full text-left rounded-lg bg-white px-3 py-2 text-[12px] text-[#111827]';
-          btn.textContent=food[0]+' · '+foodWeightBasis(food)+' · 100g당 '+food[2]+'kcal / 단백질 '+food[4]+'g';
+          const suggestedPortion=foodPortionOptions(food)[0];
+          const suggestedNutrition=suggestedPortion ? {
+            kcal:Math.round(food[2]*suggestedPortion.grams/100),
+            prot:Math.round(food[4]*suggestedPortion.grams/10)/10
+          } : null;
+          btn.textContent=food[0]+' · '+(suggestedPortion
+            ? '1'+suggestedPortion.label+' (약 '+suggestedPortion.grams+'g) · '+suggestedNutrition.kcal+'kcal / 단백질 '+suggestedNutrition.prot+'g'
+            : '100g당 '+food[2]+'kcal / 단백질 '+food[4]+'g')
+            +' · '+foodWeightBasis(food);
           btn.addEventListener('click',()=>{
             selectedFood=food;
             document.getElementById('food-choice-title').textContent=food[0]+' · '+foodWeightBasis(food);

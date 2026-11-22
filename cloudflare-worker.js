@@ -365,7 +365,7 @@ async function handleRecords(request,env) {
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
   // Member path: either exchange a member link for a session, or use a session.
-  if((action==='videoPlaybackUrl'||directVideo||action==='columnList'||action==='memberInsights'||action==='dietSave')&&input.password===undefined&&input.session===undefined){
+  if((action==='read'||action==='workoutHistory'||action==='dailyCheckin'||action==='videoPlaybackUrl'||directVideo||action==='columnList'||action==='memberInsights'||action==='dietSave')&&input.password===undefined&&input.session===undefined){
     if(!member||member.length>100||typeof input.token!=='string'||!input.token||input.token.length>200||!validDay(date))return json({status:'denied'},403);
     try{if(!await appsScriptAcceptsMember(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
   } else if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {

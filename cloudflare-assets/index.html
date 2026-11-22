@@ -207,20 +207,25 @@
       return DAILY_COACH_TIPS[sum % DAILY_COACH_TIPS.length];
     }
 
-    // Client-side Image Compression (<= 900px JPEG for fast mobile upload)
+    // Client-side Image Compression (fits Google Sheets 50k cell limit safely)
     function compressImageFile(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
           const img = new Image();
           img.onload = () => {
-            const maxW = 900;
-            const scale = img.width > maxW ? maxW / img.width : 1;
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.round(img.width * scale);
-            canvas.height = Math.round(img.height * scale);
-            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/jpeg', 0.72));
+            const encodeAt = (maxW, q) => {
+              const scale = img.width > maxW ? maxW / img.width : 1;
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, Math.round(img.width * scale));
+              canvas.height = Math.max(1, Math.round(img.height * scale));
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+              return canvas.toDataURL('image/jpeg', q);
+            };
+            let out = encodeAt(480, 0.55);
+            if (out.length > 26000) out = encodeAt(360, 0.45);
+            if (out.length > 32000) out = encodeAt(300, 0.38);
+            resolve(out);
           };
           img.onerror = reject;
           img.src = reader.result;
@@ -932,18 +937,16 @@
           member: mName,
           date: state.selectedDate,
           token: state.token || '',
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : {}),
+          ...(state.trainerPassword ? { password: state.trainerPassword } : {}),
           patch: patchObj
         });
         if (!res || res.status !== 'success') {
-          showToast('저장 실패: ' + (res?.message || res?.error || '서버 응답 오류'));
-          return false;
+          return await saveFullRecordLive(mName, state.record);
         }
         markJustSaved(mName, state.selectedDate);
         return true;
       } catch (err) {
-        showToast('저장 오류: ' + (err?.message || '네트워크 확인'));
-        return false;
+        return await saveFullRecordLive(mName, state.record);
       }
     }
 
@@ -955,7 +958,7 @@
           member: mName,
           date: state.selectedDate,
           token: state.token || '',
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : {}),
+          ...(state.trainerPassword ? { password: state.trainerPassword } : {}),
           data: fullData || state.record
         });
         if (!res || res.status !== 'success') {
@@ -1958,15 +1961,34 @@
         }
       });
 
+      async function commitMealSave(updated, labelText) {
+        const submitBtn = document.querySelector('#meal-form button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = '서버에 저장 중...';
+        }
+        const prevMeal = state.record.diet[mealKey];
+        state.record.diet[mealKey] = updated;
+        const ok = await savePatchLive({ diet: { [mealKey]: updated } });
+        if (ok) {
+          saveCachedMemberData(state.selectedDate);
+          closeModal();
+          renderAll();
+          showToast(labelText + ' ✓');
+        } else {
+          state.record.diet[mealKey] = prevMeal;
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '저장하기';
+          }
+        }
+      }
+
       document.querySelectorAll('.pr-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const pr = presets[Number(btn.dataset.pr)];
           const updated = { desc: `[${pr.tag}] ${pr.desc}`, cal: pr.cal, carb: pr.carb, prot: pr.prot, fat: pr.fat, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
-          state.record.diet[mealKey] = updated;
-          closeModal();
-          showToast(`${mealLabel} (${pr.tag}) 저장 완료!`);
-          renderAll();
-          savePatchLive({ diet: { [mealKey]: updated } });
+          commitMealSave(updated, `${mealLabel} (${pr.tag}) 저장 완료`);
         });
       });
 
@@ -1974,13 +1996,12 @@
         e.preventDefault();
         const desc = document.getElementById('mf-desc').value.trim();
         const cal = document.getElementById('mf-cal').value.trim();
-        if (!desc && !cal && !compressedPhoto) return;
+        if (!desc && !cal && !compressedPhoto) {
+          showToast('메뉴, 칼로리 또는 사진 중 하나를 입력해 주세요');
+          return;
+        }
         const updated = { ...m, desc: desc || '사진 기록', cal, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
-        state.record.diet[mealKey] = updated;
-        closeModal();
-        showToast(`${mealLabel} 식단이 저장되었어요`);
-        renderAll();
-        savePatchLive({ diet: { [mealKey]: updated } });
+        commitMealSave(updated, `${mealLabel} 식단 저장 완료`);
       });
     }
 
@@ -2344,6 +2365,35 @@
           });
           state.trainerOverview = merged;
           state.isLive = true;
+          postAppsScript({ action: 'trainerOverview', password: pw, date: state.selectedDate }).then(asOv => {
+            if (asOv?.status === 'success' && Array.isArray(asOv.members)) {
+              const byName = new Map(asOv.members.map(m => [m.name, m]));
+              let changed = false;
+              state.trainerOverview = (state.trainerOverview || []).map(m => {
+                const am = byName.get(m.name);
+                if (!am) return m;
+                changed = true;
+                return {
+                  ...m,
+                  lastDate: (am.lastDate || '') > (m.lastDate || '') ? am.lastDate : m.lastDate,
+                  activeToday: Boolean(m.activeToday || am.activeToday),
+                  workoutToday: Boolean(m.workoutToday || am.workoutToday),
+                  dietToday: Boolean(m.dietToday || am.dietToday),
+                  pendingWorkout: Boolean(am.pendingWorkout ?? m.pendingWorkout),
+                  pendingDiet: Boolean(am.pendingDiet ?? m.pendingDiet),
+                  feedbackDone: Boolean(m.feedbackDone || am.feedbackDone),
+                  weeklyWorkoutDays: Math.max(Number(m.weeklyWorkoutDays) || 0, Number(am.weeklyWorkoutDays) || 0)
+                };
+              });
+              asOv.members.forEach(am => {
+                if (am?.name && !state.trainerOverview.some(x => x.name === am.name)) {
+                  state.trainerOverview.push({ ...am, token: tokenMap[am.name] || '' });
+                  changed = true;
+                }
+              });
+              if (changed && state.appMode === 'coach') renderAll();
+            }
+          }).catch(() => {});
         } catch {
           if (!isAuto) showToast('코치 인증 중 오류가 발생했어요');
           return false;
@@ -2416,9 +2466,16 @@
       ]);
       const recObj = dRecRes.status === 'fulfilled' ? unwrapDailyRecord(dRecRes.value) : null;
       const asObj = dAsRes.status === 'fulfilled' ? unwrapDailyRecord(dAsRes.value) : null;
+      const hasDietData = obj => obj?.diet && ['breakfast', 'lunch', 'dinner', 'snack'].some(k => {
+        const ml = obj.diet[k];
+        return ml && (String(ml.desc || '').trim() || (Array.isArray(ml.photos) && ml.photos.length > 0) || Number(ml.cal) > 0);
+      });
       const asHasRoutines = Array.isArray(asObj?.routines) && asObj.routines.length > 0;
       const recHasRoutines = Array.isArray(recObj?.routines) && recObj.routines.length > 0;
-      const chosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
+      const baseChosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
+      const chosen = (asObj && hasDietData(asObj) && baseChosen !== asObj)
+        ? { ...baseChosen, diet: asObj.diet, feedback: asObj.feedback || baseChosen.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen.memos }
+        : baseChosen;
       const weekPtMap = {};
       weekDays.forEach((wd, idx) => {
         if (wd.fullDate === state.selectedDate) {

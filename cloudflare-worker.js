@@ -360,7 +360,7 @@ async function handleRecords(request,env) {
   if(JSON.stringify(input).length>131072)return json({status:'error',code:'too_large'},413);
   const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','columnList','columnSave'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','coachFeedbackSave','columnList','columnSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -395,7 +395,7 @@ async function handleRecords(request,env) {
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify')return json({status:'success'});
   }
-  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin'||action==='dietSave';
+  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin'||action==='dietSave'||action==='coachFeedbackSave';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -430,7 +430,7 @@ async function handleRecords(request,env) {
     step=label||step;
     const response=await fetch(base+path,{method,headers:{
       apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',
-      Prefer:path.includes('/fit_meal_photos?')?'return=representation,resolution=merge-duplicates':'return=representation'
+      Prefer:(path.includes('/fit_meal_photos?')||path.includes('/fit_coach_feedback?'))?'return=representation,resolution=merge-duplicates':'return=representation'
     },body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
     if(!response.ok){
       let detail='';try{const body=await response.json();detail=clean(body?.message||body?.error||body?.code);}catch{}
@@ -532,6 +532,21 @@ async function handleRecords(request,env) {
         if(saved)return json({status:'success',data:saved.data});
       }
       return json({status:'error',code:'checkin_conflict'},409);
+    }
+    if(action==='coachFeedbackSave'){
+      // Only trainers may publish coaching feedback, never member sessions.
+      if(input.password===undefined)return json({status:'denied',code:'trainer_only'},403);
+      const header=String(input.headerMessage??'').trim();
+      const workout=String(input.workoutFeedback??'').trim();
+      const diet=String(input.dietFeedback??'').trim();
+      if(header.length>3000||workout.length>3000||diet.length>3000)
+        return json({status:'error',code:'feedback_too_long'},400);
+      const rows=await supaWrite('/rest/v1/fit_coach_feedback?on_conflict=member_id,record_date','POST',{
+        member_id:memberId,record_date:date,header_message:header,
+        workout_feedback:workout,diet_feedback:diet,updated_at:new Date().toISOString()
+      },'coach_feedback_write');
+      if(!rows?.length)return json({status:'error',code:'feedback_write_unconfirmed'},502);
+      return json({status:'success'});
     }
     if(action==='dietSave'){
       const rawDiet=input.diet;
@@ -715,11 +730,13 @@ async function handleRecords(request,env) {
         'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
       });
     }
-    const [daily,photoRows]=await Promise.all([
+    const [daily,photoRows,coachRows]=await Promise.all([
       supaGet('/rest/v1/fit_daily_records?select=data&member_id=eq.'+
         encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','daily'),
       supaGet('/rest/v1/fit_meal_photos?select=meal_key,photo&member_id=eq.'+
-        encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=4','meal_photos')
+        encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=4','meal_photos'),
+      supaGet('/rest/v1/fit_coach_feedback?select=header_message,workout_feedback,diet_feedback&member_id=eq.'+
+        encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','coach_feedback')
     ]);
     const result={...(daily[0]?.data||{})};
     const diet={...(result.diet||{})};
@@ -728,6 +745,11 @@ async function handleRecords(request,env) {
       diet[item.meal_key]={...(diet[item.meal_key]||{}),photos:[item.photo]};
     }
     if(photoRows.length)result.diet=diet;
+    if(coachRows.length){
+      const coach=coachRows[0];
+      result.headerMessage=coach.header_message;
+      result.feedback={...(result.feedback||{}),workout:coach.workout_feedback,diet:coach.diet_feedback};
+    }
     return json(result,200,{
       'Server-Timing':'member;dur='+lookupMs.toFixed(1)+
         ', daily;dur='+(performance.now()-start-lookupMs).toFixed(1),

@@ -2587,7 +2587,7 @@
         const term=foodSearch.value.trim().toLowerCase().replace(/\s+/g,'');
         foodOptions.replaceChildren();
         if(!term){foodOptions.classList.add('hidden');return;}
-        const matches=FOOD_LOOKUP.filter(f=>(f[0]+' '+f[1]).toLowerCase().replace(/\\s+/g,'').includes(term)).slice(0,7);
+        const matches=FOOD_LOOKUP.filter(f=>(f[0]+' '+f[1]).toLowerCase().replace(/\s+/g,'').includes(term)).slice(0,7);
         // Show each common portion as its own initial search option.
         // Example: boiled egg 1개, boiled egg 2개, fried egg 1개.
         for(const food of matches){

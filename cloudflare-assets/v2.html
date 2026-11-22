@@ -1120,9 +1120,9 @@
       let job=workoutSaveJobs.get(key);
       if(!job){job={member,date,key,token:state.token,password:state.trainerPassword,version:0,status:'',timer:null,pending:null,processing:false};workoutSaveJobs.set(key,job);}
       job.version++;
-      // Preserve the full day as a fallback for old Apps Script deployments.
-      // This snapshot is immutable and bound to this date, not the next tab/date.
-      job.pending=JSON.parse(JSON.stringify(state.record));
+      // Keep a dated, immutable routines-only snapshot. Never replace the
+      // whole day while saving a set: diet/photos and coach notes are separate.
+      job.pending=JSON.parse(JSON.stringify(state.record.routines||[]));
       job.status='queued';
       if(job.timer)clearTimeout(job.timer);
       job.timer=setTimeout(()=>{job.timer=null;flushWorkoutSave(job);},420);
@@ -1133,21 +1133,15 @@
       job.processing=true;
       try{
         while(job.pending){
-          const snapshot=job.pending,version=job.version;
+          const snapshot=job.pending;
           job.pending=null;
           job.status='saving';updateWorkoutSaveLabel();
           const auth={member:job.member,date:job.date,token:job.token||'',...(job.password?{password:job.password}:{})};
           try{
-            let result;
-            try {
-              // A routines-only patch avoids overwriting concurrent meal/photos.
-              result=await postAppsScript({...auth,action:'patchData',patch:{routines:snapshot.routines}});
-            } catch {result=null;}
-            if(result?.status!=='success'){
-              // Older Apps Script installs may not support patchData.
-              result=await postAppsScript({...auth,data:snapshot});
-            }
-            if(result?.status!=='success')throw Error(result?.message||result?.error||'서버 저장 실패');
+            // Patch only routines. Never fall back to writing the whole day:
+            // doing so could overwrite a meal/photo saved during workout.
+            const result=await postAppsScript({...auth,action:'patchData',patch:{routines:snapshot}});
+            if(result?.status!=='success')throw Error(result?.message||result?.error||'운동 세트 저장 실패');
             markJustSaved(job.member,job.date);
             if(!job.pending){job.status='saved';updateWorkoutSaveLabel();}
           } catch(err){
@@ -1165,6 +1159,16 @@
       const job=workoutSaveJobs.get(workoutSaveKey(state.memberName,state.selectedDate));
       if(job){if(job.timer)clearTimeout(job.timer);job.timer=null;flushWorkoutSave(job);}
     }
+    // Flush a pending set edit when switching tabs/apps; avoid leaving a
+    // debounce timer idle during an iPhone background transition.
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState==='hidden'){
+        workoutSaveJobs.forEach(job=>{
+          if(job.timer){clearTimeout(job.timer);job.timer=null;}
+          if(job.pending)flushWorkoutSave(job);
+        });
+      }
+    });
 
     // --- UI Feedback ---
     function setVideoUploadStatus(message,pct,visible=true) {

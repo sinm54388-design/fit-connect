@@ -124,6 +124,12 @@
     </div>
   </div>
 
+  <!-- Upload status stays visible during tab re-renders -->
+  <div id="video-upload-status" role="status" aria-live="polite" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 w-[calc(100%-24px)] max-w-[406px] z-50 rounded-2xl bg-[#0F172A] text-white p-3 shadow-xl pointer-events-none">
+    <div class="flex items-center justify-between gap-2"><span id="video-upload-text" class="text-[12px] font-bold truncate">영상 준비 중…</span><span id="video-upload-pct" class="text-[11px] font-extrabold">0%</span></div>
+    <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden"><div id="video-upload-bar" class="h-full bg-[#5EEAD4] rounded-full" style="width:0%"></div></div>
+    <p class="text-[10px] text-white/70 mt-1">다른 기록도 확인할 수 있어요.</p>
+  </div>
   <!-- Toast -->
   <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
 
@@ -1092,6 +1098,15 @@
     }
 
     // --- UI Feedback ---
+    function setVideoUploadStatus(message,pct,visible=true) {
+      const root=document.getElementById('video-upload-status');
+      if(!root)return;
+      root.classList.toggle('hidden',!visible);
+      if(!visible)return;
+      document.getElementById('video-upload-text').textContent=message;
+      document.getElementById('video-upload-pct').textContent=Math.round(pct)+'%';
+      document.getElementById('video-upload-bar').style.width=Math.max(0,Math.min(100,pct))+'%';
+    }
     function showToast(msg) {
       const t = document.getElementById('toast');
       t.textContent = msg;
@@ -3417,10 +3432,13 @@
             if (lbl) lbl.textContent = `준비 중 (${mbTotal}MB)...`;
             try {
               const titleHint = document.getElementById('cd-new-name')?.value.trim() || '시범 영상';
+              setVideoUploadStatus('시범 영상 준비 중',0);
               pendingNewVideoId = await uploadDirectVideoFile(f, memberName, '', titleHint, (pct, loaded, total) => {
+                setVideoUploadStatus('시범 영상 전송 중',pct);
                 if (lbl) lbl.textContent = `업로드 ${pct}%`;
                 showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
               });
+              setVideoUploadStatus('',0,false);
               if (lbl) lbl.textContent = '📹 업로드됨 ✓';
               showToast('영상 업로드 완료! + 종목 추가 또는 저장을 눌러주세요 ✓');
             } catch (err) {
@@ -3438,9 +3456,12 @@
             const mbTotal = (f.size / 1048576).toFixed(1);
             showToast(`영상 업로드 시작 (${mbTotal}MB)...`);
             try {
+              setVideoUploadStatus('운동 영상 준비 중',0);
               const directId = await uploadDirectVideoFile(f, memberName, '', routines[ri]?.name || '', (pct, loaded, total) => {
+                setVideoUploadStatus('운동 영상 전송 중',pct);
                 showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
               });
+              setVideoUploadStatus('',0,false);
               routines[ri].videoId = directId;
               routines[ri].videoUrl = '';
               replyMsg = document.getElementById('cd-reply-msg').value;
@@ -4220,26 +4241,12 @@
               </div>
             </section>
 
-            <!-- High-Visibility FIT-CONNECT MAGAZINE -->
-            <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">NEW</span>
-                  <span class="text-[12px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
-                </div>
-                <button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>
-              </div>
-              <div class="space-y-2">
-                ${state.columns.slice(0, 2).map((col, idx) => `
-                  <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
-                    <div class="min-w-0">
-                      <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
-                      <p class="text-[14px] font-extrabold text-[#111827] mt-1.5 leading-snug line-clamp-1">${escapeHtml(col.title)}</p>
-                      <p class="text-[11px] text-[#4B5563] mt-0.5 truncate">${escapeHtml(col.summary || '')}</p>
-                    </div>
-                    <span class="w-8 h-8 rounded-full bg-white text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">›</span>
-                  </button>
-                `).join('')}
+            <!-- Important shortcuts above educational content -->
+            <section class="bg-white rounded-[24px] p-4 border border-[#DBEAFE] shadow-sm space-y-2.5">
+              <div class="flex justify-between items-center"><h2 class="text-[15px] font-extrabold text-[#111827]">오늘 할 일</h2><span class="text-[11px] text-[#475569]">${checkedCount}/3 체크 완료</span></div>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="home-quick-workout" class="tap-scale p-3 rounded-2xl bg-[#EFF6FF] text-left"><p class="text-[13px] font-extrabold text-[#1D4ED8]">🏋️ 운동 기록</p><p class="text-[11px] text-[#475569] mt-1">${wr.done}/${wr.total} 종목 · 세트 체크</p></button>
+                <button type="button" id="home-quick-diet" class="tap-scale p-3 rounded-2xl bg-[#F0FDFA] text-left"><p class="text-[13px] font-extrabold text-[#0F766E]">🥗 식단 기록</p><p class="text-[11px] text-[#475569] mt-1">${ds.loggedCount}/4 끼니 · 사진 등록</p></button>
               </div>
             </section>
 
@@ -4277,6 +4284,29 @@
               </button>
               ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
             </div>
+
+            <!-- High-Visibility FIT-CONNECT MAGAZINE -->
+            <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">NEW</span>
+                  <span class="text-[12px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
+                </div>
+                <button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>
+              </div>
+              <div class="space-y-2">
+                ${state.columns.slice(0, 2).map((col, idx) => `
+                  <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
+                      <p class="text-[14px] font-extrabold text-[#111827] mt-1.5 leading-snug line-clamp-1">${escapeHtml(col.title)}</p>
+                      <p class="text-[11px] text-[#4B5563] mt-0.5 truncate">${escapeHtml(col.summary || '')}</p>
+                    </div>
+                    <span class="w-8 h-8 rounded-full bg-white text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">›</span>
+                  </button>
+                `).join('')}
+              </div>
+            </section>
 
             <!-- Compact 1-Line Water Bar -->
             ${renderCompactWaterBar(ds)}
@@ -5004,8 +5034,12 @@
             return;
           }
           showToast('자세 영상을 업로드 중입니다... ⏳');
+          setVideoUploadStatus('운동 영상 준비 중',0);
           try {
-            const directId = await uploadDirectVideoFile(f, state.memberName, state.token, '회원 자세 체크 영상');
+            const directId = await uploadDirectVideoFile(f, state.memberName, state.token, '회원 자세 체크 영상', pct => {
+              setVideoUploadStatus('운동 영상 전송 중',pct);
+            });
+            setVideoUploadStatus('업로드 완료 · 기록 반영 중',100);
             state.record.memos.push({
               id: Date.now() + '-vid',
               from: 'member',
@@ -5017,7 +5051,9 @@
             showToast('자세 영상 업로드 완료! 수업일지 · 메모에 반영되었어요 ✓');
             renderAll();
             savePatchLive({ memos: state.record.memos });
+            setVideoUploadStatus('',0,false);
           } catch (err) {
+            setVideoUploadStatus('',0,false);
             showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 MP4/MOV만 가능'));
           }
         });
@@ -5038,6 +5074,8 @@
         });
       }
 
+      document.getElementById('home-quick-workout')?.addEventListener('click', () => {state.memberTab='lesson';renderAll();});
+      document.getElementById('home-quick-diet')?.addEventListener('click', () => {state.memberTab='diet';renderAll();});
       const goL = document.getElementById('go-lesson');
       if (goL) goL.addEventListener('click', () => { state.memberTab = 'lesson'; renderAll(); });
       const goL2 = document.getElementById('go-lesson-2');

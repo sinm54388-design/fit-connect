@@ -3684,7 +3684,7 @@
                 <p class="text-[13px] font-bold mt-0.5 truncate">최근 메모: ${escapeHtml(lastMemo)}</p>
               </div>
               <div class="flex items-center gap-1 shrink-0">
-                <button type="button" id="cd-jump-reply" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">답글 쓰기</button>
+                <button type="button" id="cd-open-assessment" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">움직임 평가</button><button type="button" id="cd-jump-reply" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">답글 쓰기</button>
                 <button type="button" id="cd-preview-member" class="tap-scale px-2 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">👁 보기</button>
                 <button type="button" id="cd-copy-link" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-white text-[11px] font-bold">🔗 링크</button>
                 <button type="button" id="cd-copy-handover" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계</button>
@@ -3914,6 +3914,7 @@
             }
           });
         });
+        document.getElementById('cd-open-assessment')?.addEventListener('click',()=>fitOpenCoachAssessment(memberName));
         document.getElementById('cd-jump-reply')?.addEventListener('click', () => {
           document.getElementById('cd-reply-msg')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           document.getElementById('cd-reply-msg')?.focus({ preventScroll: true });
@@ -4942,6 +4943,94 @@
       }
     }
 
+
+    // FIT-CONNECT coach-assessed movement / four-week report
+    const FIT_MOVE_FIELDS=[['breathing','호흡·복압'],['thoracic','흉추 움직임'],['hip','고관절 움직임'],['squat','스쿼트 패턴'],['shoulder','어깨 움직임']];
+    const FIT_MOVE_LEVEL=['미평가','관찰 필요','진행 중','안정적'];
+    function fitAssessmentAuth(coach){return coach?{password:state.trainerPassword}:state.session?{session:state.session}:{token:state.token};}
+    async function fitAssessmentReport(member,coach){
+      if(!state.isLive){showToast('운영 링크에서만 평가 기록을 볼 수 있어요');return;}
+      openModal('4주 변화 리포트','<div class="h-40 skeleton rounded-xl"></div>');
+      try{
+        const res=await postRecords({action:'assessmentList',member,date:state.selectedDate,...fitAssessmentAuth(coach)});
+        if(res.status!=='success')throw Error(res.code||'조회 실패');
+        const rows=res.assessments||[],sum=res.summary||{},cur=rows[0],old=rows.find(x=>cur&&x.assessed_on<=shiftDateStr(cur.assessed_on,-28))||rows[1];
+        const scores=rows.length?FIT_MOVE_FIELDS.map(([key,label])=>{
+          const c=Number(cur.scores?.[key])||0,p=Number(old?.scores?.[key])||0;
+          return '<div class="space-y-1.5"><div class="flex justify-between gap-2"><span class="text-[12px] font-bold">'+label+'</span><span class="text-[11px] text-[#475569]">'+(old?FIT_MOVE_LEVEL[p]+' → ':'')+FIT_MOVE_LEVEL[c]+'</span></div>'+
+            (old?'<div class="h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden"><div class="h-full bg-[#94A3B8]" style="width:'+(p/3*100)+'%"></div></div>':'')+
+            '<div class="h-2 bg-[#E2E8F0] rounded-full overflow-hidden"><div class="h-full bg-[#2563EB]" style="width:'+(c/3*100)+'%"></div></div></div>';
+        }).join(''):'<p class="text-[12px] text-[#64748B]">첫 움직임 평가 후 변화가 표시됩니다.</p>';
+        const linked=rows.flatMap(r=>(Array.isArray(r.video_ids)?r.video_ids:[]).map(id=>({id,day:r.assessed_on})));
+        const videos=linked.filter((x,i)=>linked.findIndex(y=>y.id===x.id)===i).slice(0,4);
+        const videoHtml=videos.length?'<div class="grid grid-cols-2 gap-2">'+videos.map((v,i)=>
+          '<div class="p-2 bg-[#F4F6F9] rounded-xl space-y-2"><span class="text-[11px] text-[#475569]">'+escapeHtml(v.day)+'</span><button type="button" class="fit-assess-play w-full rounded-lg bg-[#DBEAFE] text-[#1E3A8A] py-2 text-[12px] font-bold" data-id="'+escapeHtml(v.id)+'" data-target="fit-assess-video-'+i+'">▶ 영상 비교</button><div id="fit-assess-video-'+i+'"></div></div>').join('')+'</div>':'<p class="text-[12px] text-[#64748B]">연결된 평가 영상이 아직 없어요.</p>';
+        const stat=(label,n,unit)=>'<div class="bg-[#EFF6FF] rounded-xl p-3 text-center"><p class="text-[10px] text-[#475569]">'+label+'</p><p class="text-[19px] font-extrabold text-[#1E3A8A] mt-1">'+(Number(n)||0)+'<span class="text-[10px]">'+unit+'</span></p></div>';
+        openModal(escapeHtml(member)+' · 4주 변화 리포트',
+          '<div class="space-y-4"><div class="hero-navy text-white p-4 rounded-2xl"><p class="text-[11px] text-white/75">FIT-CONNECT PROGRESS REPORT</p><h3 class="text-[20px] font-extrabold mt-1">나의 4주 변화</h3><p class="text-[12px] text-white/80 mt-1">'+escapeHtml(res.range?.start||'')+' ~ '+escapeHtml(res.range?.end||'')+'</p></div>'+
+          '<div class="grid grid-cols-3 gap-2">'+stat('운동 기록',sum.workoutDays,'일')+stat('식단 기록',sum.dietDays,'일')+stat('완료 세트',sum.completedSets,'세트')+'</div>'+
+          '<section class="border border-[#DBEAFE] rounded-2xl p-4 space-y-3"><h4 class="text-[15px] font-extrabold">움직임 평가 변화</h4><p class="text-[11px] text-[#64748B]">'+escapeHtml(cur?.assessed_on||'평가 전')+(old?' · 비교일 '+escapeHtml(old.assessed_on):'')+'</p>'+scores+
+          '<p class="text-[11px] leading-relaxed text-[#64748B]">코치의 동일 기준 관찰 기록으로, 의료적 진단이나 객관적 건강 점수는 아닙니다.</p></section>'+
+          '<section class="border border-[#DBEAFE] rounded-2xl p-4 space-y-2"><h4 class="text-[15px] font-extrabold">신명진 코치의 피드백</h4><p class="text-[13px] whitespace-pre-line leading-relaxed">'+escapeHtml(cur?.note||'첫 평가 후 코치의 메모가 표시됩니다.')+'</p><p class="text-[12px] font-bold text-[#1D4ED8] pt-2">다음 4주 목표</p><p class="text-[13px] whitespace-pre-line">'+escapeHtml(cur?.goal||'평가 후 설정됩니다.')+'</p></section>'+
+          '<section class="border border-[#DBEAFE] rounded-2xl p-4 space-y-2"><h4 class="text-[15px] font-extrabold">운동 영상 비교</h4>'+videoHtml+'</section>'+
+          (coach?'<button id="fit-assess-edit" class="w-full py-3 rounded-xl hero-navy text-white font-bold">움직임 평가 작성</button>':'')+'</div>');
+        document.getElementById('fit-assess-edit')?.addEventListener('click',()=>fitOpenCoachAssessment(member));
+        document.querySelectorAll('.fit-assess-play').forEach(btn=>btn.addEventListener('click',async()=>{
+          const dest=document.getElementById(btn.dataset.target);
+          if(!dest)return;
+          dest.textContent='영상 연결 중…';
+          try{
+            const url=await resolvePlayableVideoUrl(btn.dataset.id,fitAssessmentAuth(coach),member);
+            if(!url)throw Error('재생 URL 없음');
+            const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='metadata';video.className='w-full rounded-xl';video.src=url;
+            dest.replaceChildren(video);
+          }catch(err){dest.textContent='재생 실패: '+(err.message||'오류');}
+        }));
+      }catch(err){
+        openModal('4주 변화 리포트','<div class="p-4 text-[13px] text-red-700">불러오지 못했어요: '+escapeHtml(err.message||'오류')+'</div>');
+      }
+    }
+    async function fitOpenCoachAssessment(member){
+      if(state.appMode!=='coach'||!state.trainerPassword){showToast('코치 모드에서 열어 주세요');return;}
+      openModal('움직임 평가','<div class="h-40 skeleton rounded-xl"></div>');
+      try{
+        const [res,vres]=await Promise.all([
+          postRecords({action:'assessmentList',member,date:state.selectedDate,...fitAssessmentAuth(true)}),
+          postRecords({action:'directVideoList',member,date:state.selectedDate,...fitAssessmentAuth(true)}).catch(()=>({videos:[]}))
+        ]);
+        if(res.status!=='success')throw Error(res.code||'조회 실패');
+        const prev=(res.assessments||[]).find(x=>x.assessed_on===state.selectedDate);
+        const videoOptions='<option value="">영상 선택 안 함</option>'+(vres.videos||[]).filter(v=>String(v.id||'').startsWith('direct:')).slice(0,60).map(v=>
+          '<option value="'+escapeHtml(v.id)+'">'+escapeHtml((v.createdAt||'').slice(0,10)+' '+(v.name||'운동 영상'))+'</option>').join('');
+        openModal(escapeHtml(member)+' · 움직임 평가',
+          '<div class="space-y-3"><p class="p-3 bg-[#EFF6FF] rounded-xl text-[12px] text-[#475569]">동작의 안정성을 코치가 관찰해 기록합니다. 진단 점수가 아닙니다.</p>'+
+          '<label class="text-[12px] font-bold">평가 날짜</label><input id="fit-as-day" type="date" value="'+escapeHtml(state.selectedDate)+'" class="w-full p-3 rounded-xl border border-[#CBD5E1]"/>'+
+          FIT_MOVE_FIELDS.map(([key,label])=>'<label class="block text-[13px] font-bold">'+label+'</label><select class="fit-as-score w-full p-3 rounded-xl border border-[#CBD5E1] bg-white" data-field="'+key+'">'+
+            FIT_MOVE_LEVEL.map((v,i)=>'<option value="'+i+'" '+(prev?.scores?.[key]===i?'selected':'')+'>'+i+' · '+v+'</option>').join('')+'</select>').join('')+
+          '<label class="block text-[13px] font-bold">코치 평가 메모</label><textarea id="fit-as-note" maxlength="1500" rows="4" class="w-full p-3 rounded-xl border border-[#CBD5E1]" placeholder="동작의 관찰 내용과 변화">'+escapeHtml(prev?.note||'')+'</textarea>'+
+          '<label class="block text-[13px] font-bold">다음 4주 목표</label><textarea id="fit-as-goal" maxlength="500" rows="2" class="w-full p-3 rounded-xl border border-[#CBD5E1]" placeholder="다음 수업에서 확인할 목표">'+escapeHtml(prev?.goal||'')+'</textarea>'+
+          '<label class="block text-[13px] font-bold">기존 운동 영상 연결 (선택)</label><select class="fit-as-video w-full p-3 rounded-xl bg-[#F4F6F9]">'+videoOptions+'</select><select class="fit-as-video w-full p-3 rounded-xl bg-[#F4F6F9]">'+videoOptions+'</select>'+
+          '<button id="fit-as-save" class="w-full py-3.5 rounded-xl hero-navy text-white font-bold">평가 저장</button><button id="fit-as-report" class="w-full py-3 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] font-bold">변화 리포트 보기</button></div>');
+        document.querySelectorAll('.fit-as-video').forEach((el,i)=>{el.value=(prev?.video_ids||[])[i]||'';});
+        document.getElementById('fit-as-report')?.addEventListener('click',()=>fitAssessmentReport(member,true));
+        document.getElementById('fit-as-save')?.addEventListener('click',async()=>{
+          const btn=document.getElementById('fit-as-save'),scores={};
+          document.querySelectorAll('.fit-as-score').forEach(el=>{scores[el.dataset.field]=Number(el.value);});
+          const video_ids=[...new Set([...document.querySelectorAll('.fit-as-video')].map(el=>el.value).filter(Boolean))];
+          const assessed_on=document.getElementById('fit-as-day').value;
+          const note=document.getElementById('fit-as-note').value,goal=document.getElementById('fit-as-goal').value;
+          if(!assessed_on||!note.trim()){showToast('날짜와 평가 메모를 입력해 주세요');return;}
+          btn.disabled=true;btn.textContent='저장 중…';
+          try{
+            const saved=await postRecords({action:'assessmentSave',member,date:state.selectedDate,assessed_on,scores,note,goal,video_ids,...fitAssessmentAuth(true)});
+            if(saved.status!=='success')throw Error(saved.code||'저장 오류');
+            showToast('움직임 평가 저장 완료 ✓');
+            await fitAssessmentReport(member,true);
+          }catch(err){showToast('평가 저장 실패: '+(err.message||'오류'));btn.disabled=false;btn.textContent='평가 저장';}
+        });
+      }catch(err){openModal('움직임 평가','<p class="p-4 text-red-700">평가를 불러오지 못했어요: '+escapeHtml(err.message||'오류')+'</p>');}
+    }
+
     // --- Member View ---
     function renderCompactWaterBar(ds) {
       const waterPct = Math.min(100, Math.round((ds.water / 2000) * 100));
@@ -5344,6 +5433,10 @@
         const imps = state.insights?.weekly?.improvements || [];
         return `
           <div class="space-y-3.5 animate-in">
+            <section class="rounded-[24px] bg-[#EFF6FF] border border-[#DBEAFE] p-4 flex items-center justify-between gap-3">
+              <div class="min-w-0"><p class="text-[11px] font-bold text-[#1D4ED8]">MY PROGRESS</p><h2 class="text-[16px] font-extrabold text-[#0F172A] mt-1">나의 4주 변화 리포트</h2><p class="text-[11px] text-[#475569] mt-1">운동 기록 · 움직임 평가 · 영상 비교</p></div>
+              <button id="fit-open-report" class="shrink-0 px-3 py-2.5 hero-navy rounded-xl text-white text-[12px] font-bold">보기 ›</button>
+            </section>
             <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
               <div class="flex items-center justify-between">
                 <div><h2 class="text-[16px] font-bold text-[#111827]">주간 운동 리듬</h2><p class="text-[11px] text-[#6B7280] mt-0.5">이번 주 출석 ${state.insights?.careSummary?.workoutDays || 0}일 기록됨</p></div>
@@ -5649,6 +5742,7 @@
     }
 
     function bindEvents() {
+      document.getElementById('fit-open-report')?.addEventListener('click',()=>fitAssessmentReport(state.memberName,false));
       const vBtn = document.getElementById('btn-verify');
       if (vBtn) {
         vBtn.addEventListener('click', () => {

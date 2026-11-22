@@ -32,6 +32,40 @@ async function signMemberSession(secret,member) {
     new TextEncoder().encode('fit-member-v1.'+payload)));
   return {session:payload+'.'+b64url.encode(sig),exp};
 }
+// Coach authentication uses an HttpOnly, same-site cookie, never a stored PIN.
+const COACH_COOKIE='fit_coach_session';
+const COACH_AGE=30*24*60*60;
+async function coachSessionSignature(secret,password,payload) {
+  const key=await sessionKey(secret+'|'+password);
+  return b64url.encode(new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode('fit-coach-v1.'+payload))));
+}
+async function makeCoachCookie(env) {
+  const secret=String(env.MEMBER_SESSION_SECRET||''),password=String(env.TRAINER_PASSWORD||'');
+  if(secret.length<32||!password)return null;
+  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({v:1,exp:Date.now()+COACH_AGE*1000})));
+  const sig=await coachSessionSignature(secret,password,payload);
+  return COACH_COOKIE+'='+payload+'.'+sig+'; Max-Age='+COACH_AGE+'; Path=/api/; HttpOnly; Secure; SameSite=Strict';
+}
+async function validCoachCookie(request,env) {
+  const secret=String(env.MEMBER_SESSION_SECRET||''),password=String(env.TRAINER_PASSWORD||'');
+  if(secret.length<32||!password)return false;
+  const cookie=request.headers.get('cookie')||'';
+  const token=cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith(COACH_COOKIE+'='))?.slice(COACH_COOKIE.length+1);
+  if(!token||token.length>1000)return false;
+  const [payload,signature,extra]=token.split('.');
+  if(!payload||!signature||extra!==undefined)return false;
+  try {
+    const expected=await coachSessionSignature(secret,password,payload);
+    if(!constantTimeEquals(signature,expected))return false;
+    const parsed=JSON.parse(new TextDecoder().decode(b64url.decode(payload)));
+    return parsed.v===1&&Number.isFinite(parsed.exp)&&parsed.exp>Date.now();
+  }catch{return false;}
+}
+const clearCoachCookie=()=>COACH_COOKIE+'=; Max-Age=0; Path=/api/; HttpOnly; Secure; SameSite=Strict';
+function sameOriginRequest(request) {
+  const origin=request.headers.get('Origin');
+  return !origin || origin===new URL(request.url).origin;
+}
 // Returns the member name inside a valid, unexpired session, or ''.
 async function readMemberSession(secret,session) {
   try {
@@ -366,6 +400,15 @@ async function handleRecords(request,env) {
     return json({status:'error',code:'invalid_json'},400);
   if(JSON.stringify(input).length>131072)return json({status:'error',code:'too_large'},413);
   const action=input?.action;
+  if(action==='coachLogout'){
+    if(!sameOriginRequest(request))return json({status:'denied'},403);
+    return json({status:'success'},200,{'Set-Cookie':clearCoachCookie()});
+  }
+  // A valid coach cookie authorizes the same routes as a trainer password.
+  // Only same-origin POST requests may consume cookie authorization.
+  if(input.password===undefined && input.session===undefined && input.token===undefined &&
+      sameOriginRequest(request) && await validCoachCookie(request,env))
+    input.password=env.TRAINER_PASSWORD;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
   if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','memberRegister','memberArchive','columnList','columnSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
@@ -412,7 +455,11 @@ async function handleRecords(request,env) {
       return json({status:'error',code:'missing_runtime_configuration'},503);
     if(!constantTimeEquals(input.password,env.TRAINER_PASSWORD))
       return json({status:'denied',code:'unauthorized'},403);
-    if(action==='verify')return json({status:'success'});
+    if(action==='verify'){
+      if(!sameOriginRequest(request))return json({status:'denied'},403);
+      const cookie=await makeCoachCookie(env);
+      return json({status:'success'},200,cookie?{'Set-Cookie':cookie}:{});
+    }
   }
   const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin'||action==='dietSave'||action==='dietPhotoDelete'||action==='coachFeedbackSave';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
@@ -838,6 +885,9 @@ async function handleAppsScriptPost(request,env) {
     const body=await request.text();
     const input=JSON.parse(body);
     if(!input || typeof input!=='object' || Array.isArray(input))return json({status:'error',message:'Invalid request'},400);
+    if(input.password===undefined && input.token===undefined &&
+       await validCoachCookie(request,env))
+      input.password=env.TRAINER_PASSWORD;
     // The legacy Google Apps Script bridge must not let archived members
     // continue using links after the canonical Supabase account is archived.
     // Check member-scoped requests, including trainer reads of archived records
@@ -856,7 +906,7 @@ async function handleAppsScriptPost(request,env) {
       if(rows[0]?.is_archived)return json({status:'denied',code:'member_archived'},403);
     }
     const upstream=await fetch(APPS_SCRIPT_URL,{
-      method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body,
+      method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify(input),
       redirect:'follow',signal:AbortSignal.timeout(60000)
     });
     if(!upstream.ok)return json({status:'error',message:'Apps Script HTTP '+upstream.status},502);

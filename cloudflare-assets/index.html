@@ -2137,6 +2137,22 @@
       }
     }
 
+    // Reference estimates per 100g. Packaged products and cooking methods vary.
+    const FOOD_LOOKUP = [
+      ['닭가슴살 (구운 것)','닭가슴살 치킨',165,0,31,3.6,100],
+      ['닭가슴살 (생것)','닭가슴살 생닭',120,0,22.5,2.6,100],
+      ['삶은 계란 (껍질 제외)','계란 달걀 삶은달걀',155,1.1,12.6,10.6,50],
+      ['계란 흰자','계란 달걀 흰자',52,0.7,10.9,0.2,100],
+      ['흰쌀밥 (조리 후)','밥 쌀밥 백미',130,28.2,2.7,0.3,150],
+      ['현미밥 (조리 후)','현미 밥',112,23.5,2.3,0.8,150],
+      ['찐 고구마','고구마',86,20.1,1.6,0.1,100],
+      ['바나나','바나나',89,22.8,1.1,0.3,100],
+      ['오트밀 (건조)','오트밀 귀리',389,66.3,16.9,6.9,40],
+      ['그릭요거트 (무지방)','그릭 요거트',59,3.6,10.3,0.4,100],
+      ['두부 (일반)','두부',76,1.9,8.1,4.8,150],
+      ['우유','우유',61,4.8,3.2,3.3,200]
+    ];
+
     function openMealModal(mealKey, mealLabel) {
       const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
       const presets = [
@@ -2174,6 +2190,23 @@
           </div>
 
           <form id="meal-form" class="pt-2 border-t border-gray-100 space-y-2.5">
+            <div class="rounded-2xl border border-[#DBEAFE] bg-[#F4F8FF] p-3 space-y-2">
+              <p class="text-[13px] font-bold text-[#1E3A8A]">음식 검색 · 영양 자동 입력</p>
+              <input id="food-search" type="search" autocomplete="off" placeholder="닭가슴살, 계란, 밥 검색" aria-label="음식 검색" class="w-full rounded-xl bg-white px-3 py-2.5 text-[14px] border border-[#DBEAFE]" />
+              <div id="food-options" class="hidden max-h-36 overflow-y-auto space-y-1" role="listbox"></div>
+              <div id="food-choice" class="hidden rounded-xl bg-white p-2.5 space-y-2">
+                <p id="food-choice-title" class="text-[12px] font-bold text-[#111827]"></p>
+                <div class="flex gap-2 items-center">
+                  <label for="food-grams" class="text-[12px] text-[#475569]">중량(g)</label>
+                  <input id="food-grams" type="number" min="1" max="2000" step="1" inputmode="decimal" value="100" class="w-20 border rounded-lg px-2 py-2 text-[14px]" />
+                  <button type="button" id="food-apply" class="ml-auto bg-[#1D4ED8] text-white rounded-xl px-3 py-2 text-[12px] font-bold">추가</button>
+                </div>
+                <p id="food-preview" class="text-[11px] text-[#475569]" aria-live="polite"></p>
+              </div>
+              <p id="food-totals" class="hidden text-[11px] font-semibold text-[#0F766E]"></p>
+              <p class="text-[10px] text-[#64748B]">100g당 일반식품 참고치 · 제품과 조리법에 따라 다름</p>
+            </div>
+
             <input id="mf-desc" value="${escapeHtml(m.desc || '')}" placeholder="먹은 메뉴를 입력하세요" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
             <input id="mf-cal" type="number" min="0" value="${escapeHtml(m.cal || '')}" placeholder="예상 칼로리 (kcal)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
             <button type="submit" class="w-full py-3 rounded-2xl hero-navy text-white text-sm font-bold">${alreadyLogged ? '수정 내용 저장하기' : '식단 저장하기'}</button>
@@ -2349,6 +2382,74 @@
         }
       }
 
+      // Food auto-complete only fills the existing form; it never auto-saves.
+      let selectedFood = null, automaticNutrition = null;
+      const foodEntries = [];
+      const foodSearch = document.getElementById('food-search');
+      const foodOptions = document.getElementById('food-options');
+      const foodChoice = document.getElementById('food-choice');
+      const foodGrams = document.getElementById('food-grams');
+      const foodPreview = document.getElementById('food-preview');
+      const foodTotals = document.getElementById('food-totals');
+      const foodValues = (food, grams) => {
+        const ratio = grams / 100;
+        return {kcal:Math.round(food[2]*ratio),carb:Math.round(food[3]*ratio*10)/10,
+          prot:Math.round(food[4]*ratio*10)/10,fat:Math.round(food[5]*ratio*10)/10};
+      };
+      const previewFood = () => {
+        if (!selectedFood) return;
+        const grams = Number(foodGrams.value);
+        if (!(grams > 0 && grams <= 2000)) {foodPreview.textContent='1~2000g을 입력해 주세요';return;}
+        const n=foodValues(selectedFood,grams);
+        foodPreview.textContent=grams+'g · '+n.kcal+'kcal · 탄 '+n.carb+'g / 단 '+n.prot+'g / 지 '+n.fat+'g';
+      };
+      foodSearch?.addEventListener('input',()=>{
+        const term=foodSearch.value.trim().toLowerCase().replace(/\s+/g,'');
+        foodOptions.replaceChildren();
+        if(!term){foodOptions.classList.add('hidden');return;}
+        const matches=FOOD_LOOKUP.filter(f=>(f[0]+' '+f[1]).toLowerCase().replace(/\s+/g,'').includes(term)).slice(0,8);
+        for(const food of matches){
+          const btn=document.createElement('button');
+          btn.type='button';btn.setAttribute('role','option');
+          btn.className='block w-full text-left rounded-lg bg-white px-3 py-2 text-[12px] text-[#111827]';
+          btn.textContent=food[0]+' · 100g당 '+food[2]+'kcal / 단백질 '+food[4]+'g';
+          btn.addEventListener('click',()=>{
+            selectedFood=food;
+            document.getElementById('food-choice-title').textContent=food[0];
+            foodGrams.value=food[6];
+            foodChoice.classList.remove('hidden');
+            foodOptions.classList.add('hidden');
+            previewFood();
+          });
+          foodOptions.appendChild(btn);
+        }
+        if(!matches.length){
+          const msg=document.createElement('p');msg.className='p-2 text-[11px] text-[#64748B]';
+          msg.textContent='해당 음식은 없어요. 아래 입력칸에 직접 기록해 주세요.';
+          foodOptions.appendChild(msg);
+        }
+        foodOptions.classList.remove('hidden');
+      });
+      foodGrams?.addEventListener('input',previewFood);
+      const invalidateAutomatic = () => { automaticNutrition=null; };
+      descField?.addEventListener('input',invalidateAutomatic);
+      calField?.addEventListener('input',invalidateAutomatic);
+      document.getElementById('food-apply')?.addEventListener('click',()=>{
+        const grams=Number(foodGrams.value);
+        if(!selectedFood || !(grams>0 && grams<=2000)){showToast('중량을 1~2000g으로 입력해 주세요');return;}
+        const n=foodValues(selectedFood,grams);
+        foodEntries.push({name:selectedFood[0],grams,...n});
+        const t=foodEntries.reduce((a,v)=>({kcal:a.kcal+v.kcal,carb:a.carb+v.carb,prot:a.prot+v.prot,fat:a.fat+v.fat}),{kcal:0,carb:0,prot:0,fat:0});
+        automaticNutrition={carb:Math.round(t.carb*10)/10,prot:Math.round(t.prot*10)/10,fat:Math.round(t.fat*10)/10};
+        descField.value=foodEntries.map(v=>v.name+' '+v.grams+'g').join(' + ');
+        calField.value=t.kcal;
+        foodTotals.textContent=foodEntries.length+'개 합계 '+t.kcal+'kcal · 탄 '+automaticNutrition.carb+'g / 단 '+automaticNutrition.prot+'g / 지 '+automaticNutrition.fat+'g';
+        foodTotals.classList.remove('hidden');
+        preserveMealDraft();
+        foodSearch.value='';foodOptions.classList.add('hidden');foodChoice.classList.add('hidden');selectedFood=null;
+        showToast('자동 입력했어요 · 확인 후 저장해 주세요');
+      });
+
       let selectedPreset = null;
       document.querySelectorAll('.pr-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2373,7 +2474,7 @@
         }
         const presetMatches = selectedPreset && desc === '[' + selectedPreset.tag + '] ' + selectedPreset.desc && cal === selectedPreset.cal;
         const updated = { ...m, desc: desc || '사진 기록', cal,
-          ...(presetMatches ? {carb:selectedPreset.carb, prot:selectedPreset.prot, fat:selectedPreset.fat} : {}),
+          ...(automaticNutrition || (presetMatches ? {carb:selectedPreset.carb, prot:selectedPreset.prot, fat:selectedPreset.fat} : {})),
           ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
         commitMealSave(updated, `${mealLabel} 식단 저장 완료`);
       });

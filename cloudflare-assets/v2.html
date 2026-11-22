@@ -1097,6 +1097,75 @@
       }
     }
 
+    // Serialized workout saves: capture the member/date at edit time. Rapid
+    // taps are coalesced and no older request can finish AFTER the latest one.
+    const workoutSaveJobs = new Map();
+    function workoutSaveKey(member,date){return JSON.stringify([member,date]);}
+    function workoutStatus() {
+      return workoutSaveJobs.get(workoutSaveKey(state.memberName,state.selectedDate))?.status || '';
+    }
+    function updateWorkoutSaveLabel() {
+      const el=document.getElementById('workout-save-status');
+      if(!el)return;
+      const status=workoutStatus();
+      el.textContent=status==='failed'?'저장 실패 · 다시 시도':status==='saving'?'저장 중…':status==='queued'?'변경사항 저장 준비 중…':status==='saved'?'저장 완료 ✓':'세트를 누르면 자동 저장돼요';
+      el.classList.toggle('text-red-700',status==='failed');
+      el.classList.toggle('text-[#475569]',status!=='failed');
+      const retry=document.getElementById('workout-save-retry');
+      if(retry)retry.classList.toggle('hidden',status!=='failed');
+    }
+    function enqueueWorkoutSave() {
+      if(!state.isLive){showToast('미리보기에서는 운동 기록이 저장되지 않아요');return;}
+      const member=state.memberName,date=state.selectedDate,key=workoutSaveKey(member,date);
+      let job=workoutSaveJobs.get(key);
+      if(!job){job={member,date,key,token:state.token,password:state.trainerPassword,version:0,status:'',timer:null,pending:null,processing:false};workoutSaveJobs.set(key,job);}
+      job.version++;
+      // Preserve the full day as a fallback for old Apps Script deployments.
+      // This snapshot is immutable and bound to this date, not the next tab/date.
+      job.pending=JSON.parse(JSON.stringify(state.record));
+      job.status='queued';
+      if(job.timer)clearTimeout(job.timer);
+      job.timer=setTimeout(()=>{job.timer=null;flushWorkoutSave(job);},420);
+      updateWorkoutSaveLabel();
+    }
+    async function flushWorkoutSave(job) {
+      if(job.processing||!job.pending)return;
+      job.processing=true;
+      try{
+        while(job.pending){
+          const snapshot=job.pending,version=job.version;
+          job.pending=null;
+          job.status='saving';updateWorkoutSaveLabel();
+          const auth={member:job.member,date:job.date,token:job.token||'',...(job.password?{password:job.password}:{})};
+          try{
+            let result;
+            try {
+              // A routines-only patch avoids overwriting concurrent meal/photos.
+              result=await postAppsScript({...auth,action:'patchData',patch:{routines:snapshot.routines}});
+            } catch {result=null;}
+            if(result?.status!=='success'){
+              // Older Apps Script installs may not support patchData.
+              result=await postAppsScript({...auth,data:snapshot});
+            }
+            if(result?.status!=='success')throw Error(result?.message||result?.error||'서버 저장 실패');
+            markJustSaved(job.member,job.date);
+            if(!job.pending){job.status='saved';updateWorkoutSaveLabel();}
+          } catch(err){
+            // Do not roll back later taps or claim unsaved edits succeeded.
+            if(!job.pending)job.pending=snapshot;
+            job.status='failed';
+            updateWorkoutSaveLabel();
+            showToast('운동 저장 실패 · 다시 시도 버튼을 눌러주세요');
+            return;
+          }
+        }
+      } finally {job.processing=false;updateWorkoutSaveLabel();}
+    }
+    function retryWorkoutSave() {
+      const job=workoutSaveJobs.get(workoutSaveKey(state.memberName,state.selectedDate));
+      if(job){if(job.timer)clearTimeout(job.timer);job.timer=null;flushWorkoutSave(job);}
+    }
+
     // --- UI Feedback ---
     function setVideoUploadStatus(message,pct,visible=true) {
       const root=document.getElementById('video-upload-status');
@@ -4407,6 +4476,10 @@
                   <h3 class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
                   <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
                 </div>
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <span id="workout-save-status" class="text-[11px] font-semibold text-[#475569]">세트를 누르면 자동 저장돼요</span>
+                  <button type="button" id="workout-save-retry" class="hidden px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 text-[11px] font-bold">↻ 저장 재시도</button>
+                </div>
                 ${rs.length ? rs.map((r, i) => {
                   const isHw = r.routineType === 'homework';
                   const done = isRoutineDone(r);
@@ -4418,13 +4491,10 @@
                         <div class="flex items-center gap-1.5 flex-wrap">
                           <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isHw ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${isHw ? '개인 숙제' : 'PT 수업'}</span>
                           <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
-                          <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">${r.videoUrl || r.videoId || r.demoKey || libMatch?.videoUrl || libMatch?.videoId ? '🎬 영상 · 자세 ›' : '자세 · 부위 ›'}</span>
                         </div>
                         ${showPrevBadge ? `<p class="text-[11px] font-bold text-[#0F766E] mt-1">📌 직전 참고: ${escapeHtml(libMatch.lastWeight)}kg${libMatch.lastReps ? '×' + escapeHtml(libMatch.lastReps) + '회' : ''} (${escapeHtml(libMatch.lastDate.slice(5))})</p>` : ''}
-                        ${Array.isArray(r.setDetails) && r.setDetails.length
-                          ? `<div class="flex flex-wrap gap-1 mt-1">${r.setDetails.map((sd, sIdx) => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white text-[#4B5563] tabular-nums">${sIdx + 1}set ${sd.weight ? sd.weight + 'kg×' : ''}${sd.reps || r.reps || '12'}회</span>`).join('')}</div>`
-                          : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
-                        ${r.note ? `<div class="mt-2 p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><span class="text-[10px] font-extrabold text-[#1D4ED8] block mb-0.5">💡 코치 자세 포인트</span><p class="text-[13px] font-medium text-[#1E293B] leading-relaxed">${escapeHtml(r.note)}</p></div>` : ''}
+                        <p class="text-[12px] font-semibold text-[#475569] mt-1">${escapeHtml(r.weight||r.setDetails?.[0]?.weight||'—')}kg · ${escapeHtml(r.reps||r.setDetails?.[0]?.reps||'12')}회 · ${Math.max(1,Number(r.sets)||r.completedSets?.length||3)}세트</p>
+                        ${r.note || r.videoUrl || r.videoId || r.demoKey || libMatch?.videoId || libMatch?.videoUrl ? '<span class="inline-block mt-1.5 text-[11px] font-bold text-[#1D4ED8]">자세 · 영상 보기 ›</span>' : ''}
                       </button>
                       <div class="shrink-0 mt-1 flex flex-col gap-1.5">
                         <span class="text-[10px] text-[#475569] font-bold text-center">${isHw?'개인운동 세트':'PT 세트 기록'}</span>
@@ -4776,6 +4846,7 @@
       updateFloatingTimerUI();
       bindEvents();
       hydrateDirectImages();
+      updateWorkoutSaveLabel();
     }
 
     function bindEvents() {
@@ -4923,18 +4994,19 @@
           document.getElementById('meal-copy-yesterday')?.click();
         });
       });
+      document.getElementById('workout-save-retry')?.addEventListener('click',retryWorkoutSave);
       document.querySelectorAll('.routine-set-toggle').forEach(b => {
-        b.addEventListener('click', async () => {
+        b.addEventListener('click', () => {
           const ri=Number(b.dataset.setRidx),si=Number(b.dataset.setIdx);
           const routine=state.record.routines?.[ri];if(!routine)return;
           const count=Math.max(1,Number(routine.sets)||routine.completedSets?.length||3);
-          const original=Array.isArray(routine.completedSets)?[...routine.completedSets]:[];
-          const sets=Array.from({length:count},(_,i)=>Boolean(original[i]));
+          const sets=Array.from({length:count},(_,i)=>Boolean(routine.completedSets?.[i]));
           sets[si]=!sets[si];routine.completedSets=sets;
-          const completed=sets[si];renderAll();
-          const ok=await saveFullRecordLive();
-          if(!ok){routine.completedSets=original;renderAll();showToast('저장에 실패해 이전 세트 상태로 돌아갔어요');}
-          else if(completed)showToast(`${si+1}세트 완료 ✓`);
+          const completed=sets[si];enqueueWorkoutSave();renderAll();
+          if(completed){
+            state.timer.setsDone+=1;
+            if(state.timer.autoStartOnCheck)startTimerCountdown(getConfiguredTimerSeconds());
+          }
         });
       });
       document.querySelectorAll('.routine-toggle').forEach(b => {
@@ -4950,8 +5022,8 @@
             triggerConfetti();
             if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
           }
+          enqueueWorkoutSave();
           renderAll();
-          saveFullRecordLive();
         });
       });
 

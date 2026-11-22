@@ -3216,7 +3216,7 @@
 
     // Date-specific magazine selection: a different lead article each day.
     // Use canonical array indexes so list buttons always open the correct text.
-    function getDailyMagazinePicks(dateStr, count = 2) {
+    function getDailyMagazinePicks(dateStr, count = 1) {
       const items = Array.isArray(state.columns) ? state.columns : [];
       if (!items.length) return [];
       const day = Math.floor(Date.parse(dateStr + 'T00:00:00Z') / 86400000);
@@ -3240,7 +3240,13 @@
     }
 
     function openMagazineModal(idx) {
-      if (typeof idx === 'number') state.activeColumnIdx = idx;
+      // Members can read only the one article selected for this day.
+      // Coaches retain the full article browser for editorial review.
+      if (state.appMode === 'member') {
+        state.activeColumnIdx = getDailyMagazinePicks(state.selectedDate, 1)[0]?.index ?? 0;
+      } else if (typeof idx === 'number') {
+        state.activeColumnIdx = idx;
+      }
       const item = state.columns[state.activeColumnIdx] || state.columns[0];
       if (!item) return;
       const rawLines = (Array.isArray(item.content) ? item.content : [String(item.content || '')])
@@ -3257,7 +3263,7 @@
       }).filter(Boolean);
       openModal('FIT-CONNECT MAGAZINE', `
         <article class="space-y-5 pb-2" aria-label="${escapeHtml(item.title || '매거진')}">
-          <nav aria-label="매거진 카테고리" class="flex gap-2 overflow-x-auto pb-1">
+          ${state.appMode === 'coach' ? `<nav aria-label="매거진 카테고리" class="flex gap-2 overflow-x-auto pb-1">
             ${[...new Set(state.columns.map(c => c.category || '인사이트'))].map(category => {
               const categoryIndexes = state.columns.map((c, i) => ({ c, i })).filter(v => (v.c.category || '인사이트') === category);
               const active = (item.category || '인사이트') === category;
@@ -3273,7 +3279,7 @@
                 ${articles.map(({c,i}) => `<option value="${i}" ${i===state.activeColumnIdx?'selected':''}>${escapeHtml(c.title)}</option>`).join('')}
               </select>
             </div>` : '';
-          })()}
+          })()}` : ''}
           <header class="rounded-[22px] border border-[#D9E5F5] bg-[#F4F8FE] px-5 py-5 space-y-3">
             <span class="inline-block text-[12px] font-bold text-[#1D4ED8]">${escapeHtml(item.category || '코치 칼럼')}</span>
             <h4 class="text-[22px] font-extrabold leading-[1.4] tracking-tight text-[#0F172A] break-keep">${escapeHtml(item.title)}</h4>
@@ -4996,7 +5002,7 @@
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
       const weekdayNote = getWeekdayWorkoutNote(state.selectedDate);
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
-      const dailyMagazinePicks = getDailyMagazinePicks(state.selectedDate);
+      const dailyMagazinePicks = getDailyMagazinePicks(state.selectedDate, 1);
       const pr = state.insights?.weekly?.improvements?.[0];
       const routinesArr = state.record.routines || [];
       const hasRoutines = routinesArr.length > 0;
@@ -5070,7 +5076,7 @@
                   <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">오늘의 추천</span>
                   <span class="text-[12px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
                 </div>
-                ${state.columns.length ? '<button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>' : ''}
+                <span class="text-[11px] font-semibold text-[#64748B]">하루 한 편</span>
               </div>
               <div class="space-y-2">
                 ${!state.columns.length ? '<p class="text-[13px] leading-[1.7] text-[#64748B] py-2">발행된 매거진을 불러오는 중이거나 아직 표시할 글이 없어요.</p>' : ''}

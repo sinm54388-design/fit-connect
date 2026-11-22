@@ -590,11 +590,46 @@
 
     function normalizeVideoMime(file) {
       const t = String(file?.type || '').toLowerCase();
-      if (t === 'video/mp4' || t === 'video/webm' || t === 'video/quicktime') return t;
+      if (t === 'video/mp4' || t === 'video/webm' || t === 'video/quicktime' || t === 'image/jpeg' || t === 'image/png' || t === 'image/webp') return t;
       const n = String(file?.name || '').toLowerCase();
+      if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg';
+      if (n.endsWith('.png')) return 'image/png';
+      if (n.endsWith('.webp')) return 'image/webp';
       if (n.endsWith('.mov')) return 'video/quicktime';
       if (n.endsWith('.webm')) return 'video/webm';
       return 'video/mp4';
+    }
+
+    function dataUrlToFile(dataUrl, filename) {
+      const parts = String(dataUrl || '').split(',');
+      const mimeMatch = (parts[0] || '').match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const bin = atob(parts[1] || '');
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return new File([arr], filename || 'diet-photo.jpg', { type: mime });
+    }
+
+    function renderDirectOrImg(src, alt, memberName, cls) {
+      const s = String(src || '').trim();
+      if (!s) return '';
+      if (s.startsWith('direct:')) {
+        return `<img data-directimg="${escapeHtml(s)}" data-directmember="${escapeHtml(memberName || state.memberName)}" alt="${escapeHtml(alt || '사진')}" class="${cls} bg-[#F4F6F9]" />`;
+      }
+      return `<img src="${escapeHtml(s)}" alt="${escapeHtml(alt || '사진')}" class="${cls}" />`;
+    }
+
+    function hydrateDirectImages(memberOverride) {
+      document.querySelectorAll('img[data-directimg]').forEach(img => {
+        if (img.dataset.hydrated === '1') return;
+        img.dataset.hydrated = '1';
+        const dvid = img.dataset.directimg;
+        const mName = memberOverride || img.dataset.directmember || state.memberName;
+        if (!dvid) return;
+        resolvePlayableVideoUrl(dvid, (state.appMode === 'coach' && state.trainerPassword) ? { password: state.trainerPassword } : null, mName).then(url => {
+          if (url) img.src = url;
+        }).catch(() => {});
+      });
     }
 
     function xhrPutFile(url, body, headers, onProgress) {
@@ -1927,7 +1962,8 @@
         { tag: '외식', cal: '820', carb: '85', prot: '25', fat: '32', desc: '외식 메뉴 · 양 조절' },
         { tag: '단백질·간식', cal: '220', carb: '12', prot: '26', fat: '6', desc: '프로틴 쉐이크 · 견과류' }
       ];
-      let compressedPhoto = Array.isArray(m.photos) && m.photos[0] ? m.photos[0] : '';
+      let compressedPhoto = extractPhotoSrc(m);
+      let hasNewPhoto = false;
 
       openModal(`${mealLabel} 식단 기록`, `
         <div class="space-y-4">
@@ -1937,7 +1973,7 @@
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               <span id="photo-status-txt">${compressedPhoto ? '식단 사진 준비됨 ✓ (변경하려면 터치)' : '사진 1장 첨부 (자동 압축)'}</span>
             </label>
-            <img id="meal-photo-preview" src="${compressedPhoto}" alt="식단 사진" class="${compressedPhoto ? '' : 'hidden'} mt-2 w-full h-36 object-cover rounded-2xl" />
+            <img id="meal-photo-preview" ${compressedPhoto.startsWith('direct:') ? `data-directimg="${escapeHtml(compressedPhoto)}" data-directmember="${escapeHtml(state.memberName)}"` : `src="${escapeHtml(compressedPhoto)}"`} alt="식단 사진" class="${compressedPhoto ? '' : 'hidden'} mt-2 w-full h-36 object-cover rounded-2xl" />
           </div>
 
           <div>
@@ -1960,12 +1996,16 @@
         </div>
       `);
 
+      hydrateDirectImages(state.memberName);
       document.getElementById('meal-photo-input').addEventListener('change', async e => {
         const f = e.target.files?.[0];
         if (!f) return;
         try {
           compressedPhoto = await compressImageFile(f);
+          hasNewPhoto = true;
           const prev = document.getElementById('meal-photo-preview');
+          delete prev.dataset.directimg;
+          delete prev.dataset.hydrated;
           prev.src = compressedPhoto;
           prev.classList.remove('hidden');
           document.getElementById('photo-status-txt').textContent = '사진 압축 완료 ✓';
@@ -1982,6 +2022,19 @@
           submitBtn.textContent = '서버에 저장 중...';
         }
         const prevMeal = state.record.diet[mealKey];
+        if (hasNewPhoto && compressedPhoto && compressedPhoto.startsWith('data:image/') && state.isLive) {
+          if (submitBtn) submitBtn.textContent = '사진 업로드 중...';
+          try {
+            const imgFile = dataUrlToFile(compressedPhoto, `diet-${mealKey}.jpg`);
+            const directImgId = await uploadDirectVideoFile(imgFile, state.memberName, state.token, '__diet_photo__');
+            updated = { ...updated, photos: [directImgId] };
+          } catch (imgErr) {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
+            showToast('사진 업로드 실패: ' + (imgErr?.message || '잠시 후 다시 시도'));
+            return;
+          }
+          if (submitBtn) submitBtn.textContent = '서버에 저장 중...';
+        }
         state.record.diet[mealKey] = updated;
         const ok = await saveFullRecordLive(state.memberName, state.record);
         if (ok) {
@@ -2704,7 +2757,7 @@
                     <span class="font-bold text-[#111827]">${m.label}: ${escapeHtml(m.desc || '사진 기록')}</span>
                     ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${m.cal}kcal</span>` : ''}
                   </div>
-                  ${extractPhotoSrc(m) ? `<img src="${extractPhotoSrc(m)}" alt="${m.label} 식단" class="w-full h-32 object-cover rounded-lg" />` : ''}
+                  ${extractPhotoSrc(m) ? renderDirectOrImg(extractPhotoSrc(m), m.label + ' 식단', memberName, 'w-full h-32 object-cover rounded-lg') : ''}
                 </div>
               `).join('') : '<p class="text-[12px] text-[#6B7280]">아직 오늘 올라온 식단이 없습니다.</p>'}
               <div class="flex flex-wrap gap-1 pt-1">
@@ -2885,6 +2938,7 @@
           }
         } catch {}
 
+        hydrateDirectImages(memberName);
         document.querySelectorAll('.cd-pt-day-btn').forEach(btn => {
           btn.addEventListener('click', () => {
             const dStr = btn.dataset.ptday;
@@ -4074,7 +4128,7 @@
                     </div>
                     <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
                   </div>
-                  ${extractPhotoSrc(ml) ? `<img src="${extractPhotoSrc(ml)}" alt="${label} 식단" class="w-full h-32 object-cover rounded-xl" />` : ''}
+                  ${extractPhotoSrc(ml) ? renderDirectOrImg(extractPhotoSrc(ml), label + ' 식단', state.memberName, 'w-full h-32 object-cover rounded-xl') : ''}
                 </div>
               `;
             }).join('')}
@@ -4335,6 +4389,7 @@
       updateFabUI();
       updateFloatingTimerUI();
       bindEvents();
+      hydrateDirectImages();
     }
 
     function bindEvents() {

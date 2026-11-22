@@ -592,7 +592,10 @@ async function handleRecords(request,env) {
         const compactDiet={...mergedDiet};
         for(const k of ['breakfast','lunch','dinner','snack']){
           if(compactDiet[k]&&typeof compactDiet[k]==='object'&&rawDiet[k]){
-            compactDiet[k]={...compactDiet[k],photos:[]};
+            const candidate=rawDiet[k].photos?.[0];
+            const src=typeof candidate==='string'?candidate:(candidate?.url||candidate?.src||candidate?.data||'');
+            if(src.startsWith('data:image/')||src.startsWith('https://'))
+              compactDiet[k]={...compactDiet[k],photos:[]};
           }
         }
         const data={...(row?.data||{}),diet:compactDiet};

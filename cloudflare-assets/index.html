@@ -3684,7 +3684,7 @@
                 <p class="text-[13px] font-bold mt-0.5 truncate">최근 메모: ${escapeHtml(lastMemo)}</p>
               </div>
               <div class="flex items-center gap-1 shrink-0">
-                <button type="button" id="cd-open-assessment" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">움직임 평가</button><button type="button" id="cd-jump-reply" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">답글 쓰기</button>
+                <button type="button" id="cd-jump-reply" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">답글 쓰기</button>
                 <button type="button" id="cd-preview-member" class="tap-scale px-2 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">👁 보기</button>
                 <button type="button" id="cd-copy-link" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-white text-[11px] font-bold">🔗 링크</button>
                 <button type="button" id="cd-copy-handover" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계</button>
@@ -3694,6 +3694,11 @@
               const vp = [...memos].reverse().find(m => m.photo);
               return vp ? `<div class="p-3 rounded-2xl bg-[#EFF6FF] space-y-1.5"><span class="text-[11px] font-extrabold text-[#1D4ED8]">📸 회원 현장 인증 사진</span><img src="${vp.photo}" alt="현장 인증" class="w-full h-36 object-cover rounded-xl" /></div>` : '';
             })()}
+
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" id="cd-open-assessment" class="tap-scale py-3 rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] text-[#1E3A8A] text-[12px] font-extrabold">＋ 움직임 평가</button>
+              <button type="button" id="cd-open-report" class="tap-scale py-3 rounded-xl bg-white border border-[#DBEAFE] text-[#1D4ED8] text-[12px] font-extrabold">4주 변화 리포트 ›</button>
+            </div>
 
             <!-- Today's Diet & Photos -->
             <div class="p-3.5 rounded-2xl bg-[#F0FDFA] space-y-2">
@@ -3915,6 +3920,7 @@
           });
         });
         document.getElementById('cd-open-assessment')?.addEventListener('click',()=>fitOpenCoachAssessment(memberName));
+        document.getElementById('cd-open-report')?.addEventListener('click',()=>fitAssessmentReport(memberName,true));
         document.getElementById('cd-jump-reply')?.addEventListener('click', () => {
           document.getElementById('cd-reply-msg')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           document.getElementById('cd-reply-msg')?.focus({ preventScroll: true });

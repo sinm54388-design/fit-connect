@@ -981,7 +981,10 @@
         } catch { /* preserve cached data and show a read warning below */ }
       }
       if (!stillCurrent()) return;
-      const recObj = canonicalDaily.status === 'fulfilled' ? unwrapDailyRecord(canonicalDaily.value) : null;
+      const recObj = canonicalDaily.status === 'fulfilled' &&
+        canonicalDaily.value?.status !== 'error' &&
+        canonicalDaily.value?.status !== 'denied'
+        ? unwrapDailyRecord(canonicalDaily.value) : null;
       const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
       if (!recObj) {
         // Do not silently fall back to potentially stale Apps Script diet.
@@ -2560,8 +2563,52 @@
               throw new Error('음식별 기록 서버 반영 확인 실패');
             }
           }
-          // Photo write returned success. Avoid a second authenticated read here:
-          // an expired read session should not turn a successful upload into 403.
+          // Confirm a fresh read returns the same meal before claiming save
+          // success. Without this, the UI stays updated until refresh even
+          // when the canonical database has not retained the changes.
+          const mealSignature = meal => JSON.stringify({
+            desc: String(meal?.desc || ''),
+            cal: String(meal?.cal ?? ''),
+            foods: Array.isArray(meal?.foods) ? meal.foods.map(v => ({
+              name: String(v.name || ''), grams: Number(v.grams) || 0,
+              display: String(v.display || ''), kcal: Number(v.kcal) || 0,
+              carb: Number(v.carb) || 0, prot: Number(v.prot) || 0,
+              fat: Number(v.fat) || 0
+            })) : []
+          });
+          let verifiedMeal = null;
+          let readAuth = state.session ? { session: state.session }
+            : (state.token ? { token: state.token } : { password: state.trainerPassword });
+          if (state.appMode === 'coach' && state.trainerPassword) readAuth = { password: state.trainerPassword };
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const result = await postRecords({
+                action: 'read', member: state.memberName,
+                date: state.selectedDate, ...readAuth
+              });
+              const serverMeal = unwrapDailyRecord(result)?.diet?.[mealKey];
+              if (mealSignature(serverMeal) === mealSignature(updated)) {
+                verifiedMeal = serverMeal;
+                break;
+              }
+            } catch (readError) {
+              if (readError?.status === 403 && state.token && state.appMode !== 'coach') {
+                try {
+                  const renewal = await postRecords({
+                    action: 'memberSession', member: state.memberName,
+                    date: state.selectedDate, token: state.token
+                  });
+                  if (renewal?.session) {
+                    state.session = renewal.session;
+                    readAuth = { session: renewal.session };
+                  }
+                } catch {}
+              }
+            }
+          }
+          if (!verifiedMeal) throw new Error('서버 재조회에서 최신 식단을 확인하지 못했어요');
+          state.record.diet[mealKey] = { ...updated, ...verifiedMeal };
+          state.mealReadVerified = true;
           saveCachedMemberData(state.selectedDate);
           // Only recent generic food choices in tab-scoped storage, never member identifiers/photos.
           try {

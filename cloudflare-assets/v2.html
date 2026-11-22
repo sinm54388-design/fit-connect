@@ -613,17 +613,11 @@
         const sm = s[k] || {};
         const pPhoto = extractPhotoSrc(pm);
         const sPhoto = extractPhotoSrc(sm);
-        const mergedMeal = { ...sm, ...pm };
-        // Supabase dietSave owns structured food items. Legacy Apps Script may
-        // return an older/missing foods array; never overwrite the verified
-        // server item list with a stale text-only mirror on refresh.
-        if (Array.isArray(sm.foods)) {
-          mergedMeal.foods = sm.foods;
-          if (sm.foods.length || Array.isArray(pm.foods)) {
-            for (const field of ['desc','cal','carb','prot','fat'])
-              if (sm[field] !== undefined) mergedMeal[field] = sm[field];
-          }
-        }
+        // Supabase is the canonical store for meal edits. Apps Script may
+        // still contain the previous revision, so merge it only as a fallback.
+        // This also covers manual descriptions and calories (not just foods).
+        const mergedMeal = { ...pm, ...sm };
+        if (Array.isArray(sm.foods)) mergedMeal.foods = sm.foods;
         if (!pPhoto && sPhoto) mergedMeal.photos = [sPhoto];
         else if (pPhoto) mergedMeal.photos = [pPhoto];
         if (deletedPhotoMeals.includes(k)) {
@@ -973,8 +967,23 @@
       ]);
       if (!stillCurrent()) return;
 
-      const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
+      // A transient Supabase read failure must not replace a just-saved
+      // meal with an older Apps Script snapshot after a page refresh.
+      let canonicalDaily = dailyRec;
+      if (canonicalDaily.status !== 'fulfilled') {
+        try {
+          canonicalDaily = { status: 'fulfilled', value: await postRecords({
+            action: 'read', member: requestedMember, date: dateStr, ...auth
+          }) };
+        } catch { /* preserve cached data and show a read warning below */ }
+      }
+      if (!stillCurrent()) return;
+      const recObj = canonicalDaily.status === 'fulfilled' ? unwrapDailyRecord(canonicalDaily.value) : null;
       const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
+      if (!recObj && wasRecentlySaved(requestedMember, dateStr)) {
+        showToast('최신 식단 확인에 실패했어요. 저장된 화면을 유지하고 다시 확인해 주세요.');
+        return;
+      }
       const asHasData = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos);
       const baseLoadDaily = asHasData ? asObj : (recObj || asObj);
       const chosenDaily = (baseLoadDaily && typeof baseLoadDaily === 'object')

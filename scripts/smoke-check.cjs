@@ -19,6 +19,9 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   assert(html.includes("action: 'coachFeedbackSave'"), name + ': durable coach feedback save missing');
   assert(html.includes('weeklyCheckinDays'), name + ': weekly check-in summary missing');
   assert(html.includes('meal-copy-yesterday'), name + ': yesterday meal quick entry missing');
+  assert(html.includes('meal-yesterday-btn'), name + ': direct yesterday meal button missing on diet cards');
+  assert(html.includes("document.getElementById('meal-copy-yesterday')?.click()"), name + ': diet card shortcut must open prefilling modal');
+  assert(html.includes("PT 세트 기록"), name + ': PT routines must expose per-set controls');
   assert(html.includes('routine-set-toggle'), name + ': per-set workout tracking missing');
   assert(html.includes('cd-quick-tip'), name + ': coach quick reply chips missing');
   assert(html.includes('최근 7일 한눈에 보기'), name + ': coach instant overview missing');

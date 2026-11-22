@@ -929,7 +929,10 @@
     }
 
     async function savePatchLive(patchObj, targetMember) {
-      if (!state.isLive) return true;
+      if (!state.isLive) {
+        showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
+        return false;
+      }
       const mName = targetMember || state.memberName;
       try {
         const res = await postAppsScript({
@@ -951,7 +954,10 @@
     }
 
     async function saveFullRecordLive(targetMember, fullData) {
-      if (!state.isLive) return true;
+      if (!state.isLive) {
+        showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
+        return false;
+      }
       const mName = targetMember || state.memberName;
       try {
         const res = await postAppsScript({
@@ -1969,8 +1975,26 @@
         }
         const prevMeal = state.record.diet[mealKey];
         state.record.diet[mealKey] = updated;
-        const ok = await savePatchLive({ diet: { [mealKey]: updated } });
+        const ok = await saveFullRecordLive(state.memberName, state.record);
         if (ok) {
+          try {
+            const verifyRes = await postAppsScript({
+              action: 'read',
+              member: state.memberName,
+              date: state.selectedDate,
+              token: state.token || '',
+              ...(state.trainerPassword ? { password: state.trainerPassword } : {})
+            });
+            const vObj = unwrapDailyRecord(verifyRes);
+            const savedMeal = vObj?.diet?.[mealKey];
+            const hasSaved = savedMeal && (String(savedMeal.desc || '').trim() || (Array.isArray(savedMeal.photos) && savedMeal.photos.length > 0) || Number(savedMeal.cal) > 0);
+            if (!hasSaved) {
+              state.record.diet[mealKey] = prevMeal;
+              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
+              showToast('서버 반영 확인 실패: ' + (verifyRes?.message || '잠시 후 다시 저장해 주세요'));
+              return;
+            }
+          } catch {}
           saveCachedMemberData(state.selectedDate);
           closeModal();
           renderAll();

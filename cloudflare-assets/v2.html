@@ -4566,8 +4566,13 @@
                     </div>
                   </div>
                   ${extractPhotoSrc(ml) ? `
-                    ${renderDirectOrImg(extractPhotoSrc(ml), label + ' 식단', state.memberName, 'w-full h-32 object-cover rounded-xl')}
-                    <button type="button" data-meal-photo-key="${key}" data-meal-photo-label="${label}" class="member-photo-delete-btn tap-scale w-full py-2.5 rounded-xl border border-red-100 bg-red-50 text-red-700 text-[12px] font-bold">🗑 사진만 삭제하기</button>
+                    <div class="flex items-center justify-between gap-3 rounded-xl bg-[#F8FAFC] p-2">
+                      <div class="flex items-center gap-2 min-w-0">
+                        ${renderDirectOrImg(extractPhotoSrc(ml), label + ' 식단', state.memberName, 'w-14 h-14 shrink-0 object-cover rounded-lg')}
+                        <span class="text-[11px] font-medium text-[#475569]">식단 사진 첨부됨 ✓</span>
+                      </div>
+                      <button type="button" data-meal-photo-key="${key}" data-meal-photo-label="${label}" class="member-photo-delete-btn tap-scale shrink-0 px-2.5 py-2 rounded-lg text-red-600 text-[11px] font-bold">사진 삭제</button>
+                    </div>
                   ` : ''}
                 </div>
               `;

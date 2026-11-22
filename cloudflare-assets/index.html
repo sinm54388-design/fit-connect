@@ -570,6 +570,10 @@
       if (payload?.password === 'coach-cookie') {
         payload = { ...payload };
         delete payload.password;
+        // Coach requests use only the server-issued cookie. A stale member
+        // token/session must not accidentally downgrade them to member access.
+        delete payload.token;
+        delete payload.session;
       }
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timeoutMs = (payload?.action === 'directVideoBegin' || payload?.action === 'directVideoFinish' || payload?.action === 'memberSession') ? 25000 : 12000;
@@ -608,6 +612,10 @@
       if (payload?.password === 'coach-cookie') {
         payload = { ...payload };
         delete payload.password;
+        // Coach requests use only the server-issued cookie. A stale member
+        // token/session must not accidentally downgrade them to member access.
+        delete payload.token;
+        delete payload.session;
       }
       const res = await fetch('/api/apps-script', {
         method: 'POST',
@@ -3338,7 +3346,7 @@
         }
       } else {
         state.trainerPassword = pw;
-        try { localStorage.setItem('fit_coach_pw_v2', pw); } catch {}
+        try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}
         const baseMock = [
           { name: '김윤지', lastDate: state.selectedDate, activeToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 2 },
           { name: '이서연', lastDate: state.selectedDate, activeToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 3 },

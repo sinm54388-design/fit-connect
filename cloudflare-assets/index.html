@@ -3214,26 +3214,33 @@
       if (typeof idx === 'number') state.activeColumnIdx = idx;
       const item = state.columns[state.activeColumnIdx] || state.columns[0];
       if (!item) return;
-      const lines = Array.isArray(item.content) ? item.content : [String(item.content || '')];
+      const lines = (Array.isArray(item.content) ? item.content : [String(item.content || '')])
+        .map(line => String(line || '').trim()).filter(Boolean);
       openModal('FIT-CONNECT MAGAZINE', `
-        <div class="space-y-4">
-          <div class="flex gap-1.5 overflow-x-auto pb-1">
+        <article class="space-y-5 pb-2" aria-label="${escapeHtml(item.title || '매거진')}">
+          <nav aria-label="매거진 글 선택" class="flex gap-2 overflow-x-auto pb-1">
             ${state.columns.map((c, i) => `
-              <button type="button" data-cidx="${i}" class="col-tab-btn shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold transition ${i === state.activeColumnIdx ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'}">
-                #${escapeHtml(c.category || '인사이트')}
+              <button type="button" data-cidx="${i}" aria-current="${i === state.activeColumnIdx ? 'page' : 'false'}" class="col-tab-btn shrink-0 px-3.5 py-2.5 rounded-full text-[13px] font-semibold transition ${i === state.activeColumnIdx ? 'bg-[#1E3A8A] text-white' : 'bg-[#EFF3F9] text-[#334155]'}">
+                ${escapeHtml(c.category || '인사이트')}
               </button>
             `).join('')}
+          </nav>
+          <header class="rounded-[22px] border border-[#D9E5F5] bg-[#F4F8FE] px-5 py-5 space-y-3">
+            <span class="inline-block text-[12px] font-bold text-[#1D4ED8]">${escapeHtml(item.category || '코치 칼럼')}</span>
+            <h4 class="text-[22px] font-extrabold leading-[1.4] tracking-tight text-[#0F172A] break-keep">${escapeHtml(item.title)}</h4>
+            ${item.summary ? `<p class="text-[15px] font-medium text-[#334155] leading-[1.75] break-keep">${escapeHtml(item.summary)}</p>` : ''}
+          </header>
+          <div class="space-y-4 px-1">
+            ${lines.map((line, i) => `
+              <section class="rounded-2xl bg-white border border-[#E2E8F0] px-4 py-4">
+                <p class="text-[16px] leading-[1.9] font-normal text-[#1E293B] break-keep whitespace-pre-line">${escapeHtml(line)}</p>
+              </section>
+            `).join('')}
           </div>
-          <div class="p-4 rounded-2xl hero-navy text-white space-y-1.5">
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${escapeHtml(item.category || '코치 칼럼')}</span>
-            <h4 class="text-[17px] font-extrabold leading-snug">${escapeHtml(item.title)}</h4>
-            <p class="text-[12px] text-white/80">${escapeHtml(item.summary || '')}</p>
-          </div>
-          <div class="space-y-2.5 text-[13px] text-[#374151] leading-relaxed px-1">
-            ${lines.map(line => `<p>${escapeHtml(line)}</p>`).join('')}
-          </div>
-          <p class="text-[11px] text-[#9CA3AF] px-1">작성: ${escapeHtml(item.author || '담당 코치')} · ${escapeHtml(item.published_at || '')}</p>
-        </div>
+          <footer class="border-t border-[#E2E8F0] pt-3 px-1 text-[12px] text-[#64748B] leading-relaxed">
+            작성: ${escapeHtml(item.author || '담당 코치')} ${item.published_at ? `· ${escapeHtml(item.published_at)}` : ''}
+          </footer>
+        </article>
       `);
       document.querySelectorAll('.col-tab-btn').forEach(b => {
         b.addEventListener('click', () => openMagazineModal(Number(b.dataset.cidx)));
@@ -4991,8 +4998,8 @@
                   <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
                     <div class="min-w-0">
                       <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
-                      <p class="text-[14px] font-extrabold text-[#111827] mt-1.5 leading-snug line-clamp-1">${escapeHtml(col.title)}</p>
-                      <p class="text-[11px] text-[#4B5563] mt-0.5 truncate">${escapeHtml(col.summary || '')}</p>
+                      <p class="text-[15px] font-extrabold text-[#0F172A] mt-2 leading-[1.55] line-clamp-2 break-keep">${escapeHtml(col.title)}</p>
+                      <p class="text-[13px] text-[#475569] mt-1 leading-[1.6] line-clamp-2 break-keep">${escapeHtml(col.summary || '')}</p>
                     </div>
                     <span class="w-8 h-8 rounded-full bg-white text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">›</span>
                   </button>
@@ -5466,7 +5473,7 @@
                 <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3 rounded-2xl bg-[#F4F6F9] text-left flex items-center justify-between gap-2">
                   <div class="min-w-0">
                     <span class="text-[10px] font-bold text-[#1D4ED8]">#${escapeHtml(c.category || '인사이트')}</span>
-                    <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(c.title)}</p>
+                    <p class="text-[14px] font-bold text-[#0F172A] mt-1 leading-[1.5] line-clamp-2 break-keep">${escapeHtml(c.title)}</p>
                   </div>
                   <span class="text-[12px] font-bold text-[#6B7280]">›</span>
                 </button>

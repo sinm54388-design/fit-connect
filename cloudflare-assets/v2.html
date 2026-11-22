@@ -567,6 +567,10 @@
 
     // --- API Helpers ---
     async function postRecords(payload) {
+      if (payload?.password === 'coach-cookie') {
+        payload = { ...payload };
+        delete payload.password;
+      }
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timeoutMs = (payload?.action === 'directVideoBegin' || payload?.action === 'directVideoFinish' || payload?.action === 'memberSession') ? 25000 : 12000;
       const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
@@ -601,6 +605,10 @@
     }
 
     async function postAppsScript(payload) {
+      if (payload?.password === 'coach-cookie') {
+        payload = { ...payload };
+        delete payload.password;
+      }
       const res = await fetch('/api/apps-script', {
         method: 'POST',
         cache: 'no-store',
@@ -902,6 +910,17 @@
 
     // --- Live Initialization (Parallel + Instant Cache) ---
     async function initLiveMemberData() {
+      // Restore coach workspace when the installed app is opened again.
+      // Do not override an explicit member-only URL.
+      if (isLiveOrigin && !paramToken) {
+        let autoCoach=false;
+        try { autoCoach=localStorage.getItem('fit_coach_auto_v1')==='1'; } catch {}
+        if (autoCoach) {
+          state.isLive=true;
+          const restored=await enterCoachWithPassword('coach-cookie',true);
+          if (restored) return;
+        }
+      }
       if (state.memberName && state.token) {
         try {
           localStorage.setItem('fit_last_member_access_v1', JSON.stringify({
@@ -3220,14 +3239,20 @@
           const v = await postRecords({ action: 'verify', password: pw, date: state.selectedDate });
           if (v?.status !== 'success') {
             if (isAuto) {
-              try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}
+              try {
+                localStorage.removeItem('fit_coach_pw_v2');
+                localStorage.removeItem('fit_coach_auto_v1');
+              } catch {}
               return false;
             }
             showToast('비밀번호가 일치하지 않아요');
             return false;
           }
-          state.trainerPassword = pw;
-          try { localStorage.setItem('fit_coach_pw_v2', pw); } catch {}
+          state.trainerPassword = 'coach-cookie';
+          try {
+            localStorage.removeItem('fit_coach_pw_v2');
+            localStorage.setItem('fit_coach_auto_v1', '1');
+          } catch {}
           const [ovRes, fastRes, asListRes] = await Promise.allSettled([
             postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate }),
             postRecords({ action: 'listMembersFast', password: pw }),
@@ -3340,7 +3365,7 @@
     async function openTrainerLoginModal() {
       let savedPw = state.trainerPassword || '';
       if (!savedPw) {
-        try { savedPw = localStorage.getItem('fit_coach_pw_v2') || ''; } catch {}
+        try { if (localStorage.getItem('fit_coach_auto_v1')==='1') savedPw='coach-cookie'; } catch {}
       }
       if (savedPw) {
         showToast('코치 인증 확인 중...');
@@ -4738,9 +4763,13 @@
         const cToday = document.getElementById('c-today-btn');
         if (cToday) cToday.addEventListener('click', () => switchCoachDate(getTodayKST()));
 
-        document.getElementById('btn-coach-logout').addEventListener('click', () => {
+        document.getElementById('btn-coach-logout').addEventListener('click', async () => {
+          try { await postRecords({action:'coachLogout'}); } catch {}
           state.trainerPassword = '';
-          try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}
+          try {
+            localStorage.removeItem('fit_coach_pw_v2');
+            localStorage.removeItem('fit_coach_auto_v1');
+          } catch {}
           state.appMode = 'member';
           showToast('코치 로그인이 해제되었어요');
           renderAll();

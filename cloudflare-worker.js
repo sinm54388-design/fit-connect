@@ -559,29 +559,34 @@ async function handleRecords(request,env) {
       if(action==='assessmentList') {
         const rows=await supaGet('/rest/v1/fit_movement_assessments?select=id,assessed_on,scores,note,goal,video_ids,coach_name&member_id=eq.'+
           encodeURIComponent(uid)+'&order=assessed_on.desc&limit=24','assessment_list');
+
         const day=date;
-        const startDay=new Date(day+'T00:00:00Z');
-        startDay.setUTCDate(startDay.getUTCDate()-27);
-        const start=startDay.toISOString().slice(0,10);
+        const endDate=new Date(day+'T00:00:00Z');
+        const getDay=(offset)=>{const d=new Date(endDate);d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10);};
+        const start=getDay(-27),previousStart=getDay(-55),previousEnd=getDay(-28);
         const records=await supaGet('/rest/v1/fit_daily_records?select=record_date,data&member_id=eq.'+
-          encodeURIComponent(uid)+'&record_date=gte.'+start+'&record_date=lte.'+day+'&order=record_date.asc&limit=100','assessment_history');
-        const summary={workoutDays:0,dietDays:0,completedSets:0};
+          encodeURIComponent(uid)+'&record_date=gte.'+previousStart+'&record_date=lte.'+day+'&order=record_date.asc&limit=120','assessment_history');
+        const blank=()=>({workoutDays:0,dietDays:0,completedSets:0});
+        const summary=blank(),previous=blank();
         for(const r of records){
           const d=r.data||{};
+          const target=r.record_date>=start?summary:previous;
           const routines=Array.isArray(d.routines)?d.routines:[];
           const worked=routines.some(rt=>rt.routineType!=='homework'||(Array.isArray(rt.completedSets)&&rt.completedSets.some(Boolean)))||d.dailyCheckin?.workout==='done';
-          if(worked)summary.workoutDays++;
+          if(worked)target.workoutDays++;
           const diet=d.diet||{};
-          if(['breakfast','lunch','dinner','snack'].some(k=>Boolean(String(diet[k]?.desc||'').trim())||(Array.isArray(diet[k]?.photos)&&diet[k].photos.length)))summary.dietDays++;
-          summary.completedSets+=routines.reduce((sum,rt)=>sum+(Array.isArray(rt.completedSets)?rt.completedSets.filter(Boolean).length:0),0);
+          if(['breakfast','lunch','dinner','snack'].some(k=>Boolean(String(diet[k]?.desc||'').trim())||(Array.isArray(diet[k]?.photos)&&diet[k].photos.length)))target.dietDays++;
+          target.completedSets+=routines.reduce((sum,rt)=>sum+(Array.isArray(rt.completedSets)?rt.completedSets.filter(Boolean).length:0),0);
         }
-        return json({status:'success',assessments:rows,summary,range:{start,end:day}});
+        return json({status:'success',assessments:rows,summary,previousSummary:previous,
+          range:{start,end:day},previousRange:{start:previousStart,end:previousEnd}});
       }
       if(!validDay(String(input.assessed_on||'')))return json({status:'error',code:'invalid_assessment_date'},400);
       const scores=input.scores;
       const allowed=['breathing','thoracic','hip','squat','shoulder'];
       if(!scores||typeof scores!=='object'||Array.isArray(scores)||Object.keys(scores).some(k=>!allowed.includes(k))||
-        allowed.some(k=>!Number.isInteger(scores[k])||scores[k]<0||scores[k]>3))
+        Object.keys(scores).length<2||Object.keys(scores).length>3||
+        Object.values(scores).some(v=>!Number.isInteger(v)||v<1||v>3))
         return json({status:'error',code:'invalid_scores'},400);
       const note=String(input.note||'').trim(),goal=String(input.goal||'').trim();
       if(note.length>1500||goal.length>500)return json({status:'error',code:'assessment_too_long'},400);

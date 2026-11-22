@@ -2267,7 +2267,8 @@
     function foodPortionOptions(food) {
       const n=food[0];
       if (/계란 흰자/.test(n)) return [{label:'개',grams:33}];
-      if (/계란|달걀|스크램블/.test(n)) return [{label:'개',grams:50}];
+      if (/스크램블/.test(n)) return [{label:'인분',grams:food[6]}];
+      if (/계란|달걀/.test(n)) return [{label:'개',grams:50}];
       if (/흰쌀밥|현미밥|잡곡밥|보리밥|흑미밥/.test(n)) return [{label:'공기',grams:210},{label:'반 공기',grams:105}];
       if (/바나나/.test(n)) return [{label:'개',grams:100}];
       if (/사과|배|오렌지|복숭아/.test(n)) return [{label:'개',grams:150}];
@@ -2280,6 +2281,14 @@
       if (/피자/.test(n)) return [{label:'조각',grams:120}];
       if (/에너지바/.test(n)) return [{label:'개',grams:45}];
       if (/구운김/.test(n)) return [{label:'장',grams:2}];
+      if (/아몬드|호두|땅콩|캐슈넛|오트밀|그래놀라|시리얼/.test(n)) return [{label:'회분',grams:food[6]}];
+      if (/고구마|감자 삶은|옥수수 삶은/.test(n)) return [{label:'개',grams:food[6]}];
+      if (/찹쌀떡|가래떡/.test(n)) return [{label:'개',grams:food[6]}];
+      if (/계란찜|스크램블 에그/.test(n)) return [{label:'인분',grams:food[6]}];
+      if (/찌개|국$|국물포함|제육볶음|소불고기|닭볶음탕|비빔밥|볶음밥|떡볶이|잡채|카레라이스|돈가스|치킨|햄버거|짜장면|짬뽕|칼국수|삼계탕|샌드위치|라면|우동|쌀국수/.test(n)) return [{label:'인분',grams:food[6]}];
+      if (/요거트|두부|훈제오리|통조림|김치|버터|치즈|프로틴|파우더|콩 삶은|검은콩|병아리콩|브로콜리|버섯|양상추|시금치|파프리카/.test(n)) return [{label:'회분',grams:food[6]}];
+      // For meat, fish, vegetables and other foods with no natural "piece",
+      // present clearly measured 100g and 200g choices in the search list.
       return [];
     }
 
@@ -2594,17 +2603,17 @@
           const portions=foodPortionOptions(food);
           const variants=portions.length
             ? [{index:0,qty:1}, {index:0,qty:2}]
-            : [{index:-1,qty:0}];
+            : [{index:-1,qty:100}, {index:-1,qty:200}];
           for(const variant of variants){
             const p=variant.index>=0?portions[variant.index]:null;
-            const grams=p?p.grams*variant.qty:food[6];
+            const grams=p?p.grams*variant.qty:variant.qty;
             const kcal=Math.round(food[2]*grams/100);
             const protein=Math.round(food[4]*grams/10)/10;
             const btn=document.createElement('button');
             btn.type='button';
             btn.setAttribute('role','option');
             btn.className='block w-full text-left rounded-xl bg-white px-3 py-2 text-[12px] text-[#111827] hover:bg-[#EFF6FF]';
-            btn.textContent=food[0]+' '+(p?variant.qty+p.label:grams+'g')+' · 약 '+grams+'g · '+kcal+'kcal / 단백질 '+protein+'g';
+            btn.textContent=food[0]+' '+(p?variant.qty+p.label:grams+'g')+' · '+(p?'약 ':'')+grams+'g · '+kcal+'kcal / 단백질 '+protein+'g';
             btn.addEventListener('click',()=>{
               selectedFood=food;
               foodPortions=portions;

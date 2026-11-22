@@ -4291,10 +4291,7 @@
                     <span class="flex items-center gap-1 text-white"><span class="w-2 h-2 rounded-full bg-white"></span>루틴 ${wr.pct}%</span>
                   </div>
                 </div>
-                <div class="relative shrink-0 flex items-center justify-center">
-                  ${heroRingsSvg(score, ds.pct, wr.pct)}
-                  <div class="absolute text-center"><span class="text-[19px] font-extrabold text-white tabular-nums">${score}</span></div>
-                </div>
+
               </div>
 
               <div class="mt-4 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 space-y-2.5">
@@ -4328,6 +4325,34 @@
               </div>
             </section>
 
+            <!-- Compact Today's Lesson Shortcut -->
+            <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
+              <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${missionLabel}</span>
+                  <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
+                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/90' : 'text-[#1D4ED8]'}">${missionSub}</p>
+                </div>
+              </button>
+              ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
+            </div>
+
+            <!-- Compact 1-Line Water Bar -->
+            ${renderCompactWaterBar(ds)}
+
+            <!-- Compact Today Check -->
+            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
+              <div class="flex items-center justify-between"><h2 class="text-[16px] font-bold text-[#111827]">오늘 상태 체크</h2><span class="text-[12px] font-bold text-[#1D4ED8]">${checkedCount}/3</span></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">운동</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="workout" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'done' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">했어요</button><button type="button" data-grp="workout" data-val="rest" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'rest' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">회복</button></div></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">식단</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="diet" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'done' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">지켰어요</button><button type="button" data-grp="diet" data-val="partial" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'partial' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">조절 중</button></div></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">컨디션</span><div class="grid grid-cols-3 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="mood" data-val="good" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'good' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">좋음</button><button type="button" data-grp="mood" data-val="normal" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'normal' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">보통</button><button type="button" data-grp="mood" data-val="tired" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'tired' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">피곤</button></div></div>
+            </section>
+            <details class="rounded-[22px] bg-white p-4 shadow-sm">
+              <summary class="cursor-pointer text-[12px] font-extrabold text-[#475569]">📊 상세 통계 · 운동 달성률 · 칼로리 보기</summary>
+              <div class="mt-3">
             <!-- 2-Col Bento -->
             <div class="grid grid-cols-2 gap-3">
               <button type="button" id="go-lesson-2" class="card-blue tap-scale rounded-[22px] p-4 text-left text-white shadow-[0_8px_20px_rgba(37,99,235,0.20)] flex flex-col justify-between">
@@ -4348,21 +4373,11 @@
               </button>
             </div>
 
-            <!-- Compact Today's Lesson Shortcut -->
-            <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
-              <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
-                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
-                </div>
-                <div class="min-w-0">
-                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${missionLabel}</span>
-                  <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
-                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/90' : 'text-[#1D4ED8]'}">${missionSub}</p>
-                </div>
-              </button>
-              ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
-            </div>
-
+              </div>
+            </details>
+            <details class="rounded-[22px] bg-white p-4 shadow-sm">
+              <summary class="cursor-pointer text-[12px] font-extrabold text-[#475569]">📚 FIT-CONNECT 매거진 · 운동·영양 읽을거리</summary>
+              <div class="mt-3">
             <!-- High-Visibility FIT-CONNECT MAGAZINE -->
             <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
               <div class="flex items-center justify-between">
@@ -4386,16 +4401,9 @@
               </div>
             </section>
 
-            <!-- Compact 1-Line Water Bar -->
-            ${renderCompactWaterBar(ds)}
+              </div>
+            </details>
 
-            <!-- Compact Today Check -->
-            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
-              <div class="flex items-center justify-between"><h2 class="text-[16px] font-bold text-[#111827]">오늘 상태 체크</h2><span class="text-[12px] font-bold text-[#1D4ED8]">${checkedCount}/3</span></div>
-              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">운동</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="workout" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'done' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">했어요</button><button type="button" data-grp="workout" data-val="rest" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'rest' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">회복</button></div></div>
-              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">식단</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="diet" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'done' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">지켰어요</button><button type="button" data-grp="diet" data-val="partial" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'partial' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">조절 중</button></div></div>
-              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">컨디션</span><div class="grid grid-cols-3 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="mood" data-val="good" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'good' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">좋음</button><button type="button" data-grp="mood" data-val="normal" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'normal' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">보통</button><button type="button" data-grp="mood" data-val="tired" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'tired' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">피곤</button></div></div>
-            </section>
 
           </div>
         `;

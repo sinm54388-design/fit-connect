@@ -2064,13 +2064,28 @@
           };
           const appsSaved = await saveFullRecordLive(state.memberName, lightRecord);
           if (!appsSaved) throw new Error('Apps Script 식단 기록 저장 실패');
-          const supaRes = await postRecords({
+          const dietPayload = {
             action: 'dietSave',
             member: state.memberName,
             date: state.selectedDate,
-            ...auth,
             diet: { [mealKey]: updated }
-          });
+          };
+          let supaRes;
+          try {
+            supaRes = await postRecords({ ...dietPayload, ...auth });
+          } catch (saveError) {
+            // Member sessions last eight hours. If a session expired while
+            // a member was filling out the meal form, validate the member link
+            // and transparently retry without losing the selected photo.
+            if (saveError?.status !== 403 || !state.token || state.appMode === 'coach') throw saveError;
+            const fresh = await postRecords({
+              action: 'memberSession', member: state.memberName,
+              date: state.selectedDate, token: state.token
+            });
+            if (fresh?.status !== 'success' || !fresh.session) throw saveError;
+            state.session = fresh.session;
+            supaRes = await postRecords({ ...dietPayload, session: state.session });
+          }
           if (supaRes?.status !== 'success') {
             throw new Error(supaRes?.code || supaRes?.message || '사진 저장 실패');
           }

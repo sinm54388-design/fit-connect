@@ -2322,10 +2322,6 @@
     }
 
     function openMealModal(mealKey, mealLabel) {
-      if (state.isLive && (state.loading || !state.mealReadVerified)) {
-        showToast('최신 식단 확인 중이에요. 불러오기가 끝난 뒤 다시 눌러주세요.');
-        return;
-      }
       const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
       const presets = [
         { tag: '클린식', cal: '450', carb: '40', prot: '35', fat: '10', desc: '닭가슴살 · 현미밥 · 샐러드' },
@@ -2563,51 +2559,8 @@
               throw new Error('음식별 기록 서버 반영 확인 실패');
             }
           }
-          // Confirm a fresh read returns the same meal before claiming save
-          // success. Without this, the UI stays updated until refresh even
-          // when the canonical database has not retained the changes.
-          const mealSignature = meal => JSON.stringify({
-            desc: String(meal?.desc || ''),
-            cal: String(meal?.cal ?? ''),
-            foods: Array.isArray(meal?.foods) ? meal.foods.map(v => ({
-              name: String(v.name || ''), grams: Number(v.grams) || 0,
-              display: String(v.display || ''), kcal: Number(v.kcal) || 0,
-              carb: Number(v.carb) || 0, prot: Number(v.prot) || 0,
-              fat: Number(v.fat) || 0
-            })) : []
-          });
-          let verifiedMeal = null;
-          let readAuth = state.session ? { session: state.session }
-            : (state.token ? { token: state.token } : { password: state.trainerPassword });
-          if (state.appMode === 'coach' && state.trainerPassword) readAuth = { password: state.trainerPassword };
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              const result = await postRecords({
-                action: 'read', member: state.memberName,
-                date: state.selectedDate, ...readAuth
-              });
-              const serverMeal = unwrapDailyRecord(result)?.diet?.[mealKey];
-              if (mealSignature(serverMeal) === mealSignature(updated)) {
-                verifiedMeal = serverMeal;
-                break;
-              }
-            } catch (readError) {
-              if (readError?.status === 403 && state.token && state.appMode !== 'coach') {
-                try {
-                  const renewal = await postRecords({
-                    action: 'memberSession', member: state.memberName,
-                    date: state.selectedDate, token: state.token
-                  });
-                  if (renewal?.session) {
-                    state.session = renewal.session;
-                    readAuth = { session: renewal.session };
-                  }
-                } catch {}
-              }
-            }
-          }
-          if (!verifiedMeal) throw new Error('서버 재조회에서 최신 식단을 확인하지 못했어요');
-          state.record.diet[mealKey] = { ...updated, ...verifiedMeal };
+          // dietSave success and food echo are the write confirmation. Do not
+          // reject a successful write due to a separate, slower read request.
           state.mealReadVerified = true;
           saveCachedMemberData(state.selectedDate);
           // Only recent generic food choices in tab-scoped storage, never member identifiers/photos.

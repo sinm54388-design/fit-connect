@@ -513,7 +513,8 @@
     // --- API Helpers ---
     async function postRecords(payload) {
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+      const timeoutMs = (payload?.action === 'directVideoBegin' || payload?.action === 'directVideoFinish' || payload?.action === 'memberSession') ? 25000 : 12000;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
       try {
         const res = await fetch('/api/records', {
           method: 'POST',
@@ -571,6 +572,24 @@
       if (typeof raw === 'string') return raw;
       if (raw && typeof raw === 'object') return raw.url || raw.src || raw.data || '';
       return '';
+    }
+
+    function mergeDietRecords(primaryDiet, secondaryDiet) {
+      const p = (primaryDiet && typeof primaryDiet === 'object') ? primaryDiet : {};
+      const s = (secondaryDiet && typeof secondaryDiet === 'object') ? secondaryDiet : {};
+      const out = { ...s, ...p };
+      ['breakfast', 'lunch', 'dinner', 'snack'].forEach(k => {
+        const pm = p[k] || {};
+        const sm = s[k] || {};
+        const pPhoto = extractPhotoSrc(pm);
+        const sPhoto = extractPhotoSrc(sm);
+        const mergedMeal = { ...sm, ...pm };
+        if (!pPhoto && sPhoto) mergedMeal.photos = [sPhoto];
+        else if (pPhoto) mergedMeal.photos = [pPhoto];
+        if (Object.keys(mergedMeal).length) out[k] = mergedMeal;
+      });
+      out.water = Math.max(Number(p.water) || 0, Number(s.water) || 0);
+      return out;
     }
 
     function unwrapDailyRecord(res) {
@@ -901,7 +920,10 @@
       const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
       const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
       const asHasData = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos);
-      const chosenDaily = asHasData ? asObj : (recObj || asObj);
+      const baseLoadDaily = asHasData ? asObj : (recObj || asObj);
+      const chosenDaily = (baseLoadDaily && typeof baseLoadDaily === 'object')
+        ? { ...baseLoadDaily, diet: mergeDietRecords(asObj?.diet, recObj?.diet) }
+        : baseLoadDaily;
 
       if (chosenDaily && typeof chosenDaily === 'object') {
         const d = chosenDaily;
@@ -2016,61 +2038,50 @@
       });
 
       async function commitMealSave(updated, labelText) {
+        if (!state.isLive) {
+          showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
+          return;
+        }
         const submitBtn = document.querySelector('#meal-form button[type="submit"]');
         if (submitBtn) {
           submitBtn.disabled = true;
           submitBtn.textContent = '서버에 저장 중...';
         }
         const prevMeal = state.record.diet[mealKey];
-        if (hasNewPhoto && compressedPhoto && compressedPhoto.startsWith('data:image/') && state.isLive) {
-          if (submitBtn) submitBtn.textContent = '사진 업로드 중...';
-          try {
-            const imgFile = dataUrlToFile(compressedPhoto, `diet-${mealKey}.jpg`);
-            const directImgId = await uploadDirectVideoFile(imgFile, state.memberName, state.token, '__diet_photo__');
-            updated = { ...updated, photos: [directImgId] };
-          } catch (imgErr) {
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
-            showToast('사진 업로드 실패: ' + (imgErr?.message || '잠시 후 다시 시도'));
-            return;
-          }
-          if (submitBtn) submitBtn.textContent = '서버에 저장 중...';
-        }
         state.record.diet[mealKey] = updated;
-        const ok = await saveFullRecordLive(state.memberName, state.record);
-        if (ok) {
-          try {
-            const verifyRes = await postAppsScript({
-              action: 'read',
-              member: state.memberName,
-              date: state.selectedDate,
-              token: state.token || '',
-              ...(state.trainerPassword ? { password: state.trainerPassword } : {})
-            });
-            const vObj = unwrapDailyRecord(verifyRes);
-            const savedMeal = vObj?.diet?.[mealKey];
-            const hasSaved = savedMeal && (String(savedMeal.desc || '').trim() || !!extractPhotoSrc(savedMeal) || Number(savedMeal.cal) > 0);
-            if (!hasSaved) {
-              state.record.diet[mealKey] = prevMeal;
-              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
-              showToast('서버 반영 확인 실패: ' + (verifyRes?.message || '잠시 후 다시 저장해 주세요'));
-              return;
+        const auth = (state.appMode === 'coach' && state.trainerPassword)
+          ? { password: state.trainerPassword }
+          : (state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword }));
+        try {
+          const supaRes = await postRecords({
+            action: 'dietSave',
+            member: state.memberName,
+            date: state.selectedDate,
+            ...auth,
+            diet: { [mealKey]: updated }
+          });
+          if (supaRes?.status !== 'success') {
+            throw new Error(supaRes?.code || supaRes?.message || '식단 저장 실패');
+          }
+          const lightRecord = {
+            ...state.record,
+            diet: {
+              ...state.record.diet,
+              [mealKey]: { ...updated, photos: [] }
             }
-            if (compressedPhoto && !extractPhotoSrc(savedMeal)) {
-              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
-              showToast('⚠️ 글자는 저장됐지만 사진이 서버에서 빠졌어요 (' + compressedPhoto.length + '자)');
-              return;
-            }
-          } catch {}
+          };
+          saveFullRecordLive(state.memberName, lightRecord).catch(() => {});
           saveCachedMemberData(state.selectedDate);
           closeModal();
           renderAll();
           showToast(labelText + ' ✓');
-        } else {
+        } catch (err) {
           state.record.diet[mealKey] = prevMeal;
           if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = '저장하기';
           }
+          showToast('식단 저장 실패: ' + (err?.message || '네트워크를 확인해 주세요'));
         }
       }
 
@@ -2563,9 +2574,12 @@
       const asHasRoutines = Array.isArray(asObj?.routines) && asObj.routines.length > 0;
       const recHasRoutines = Array.isArray(recObj?.routines) && recObj.routines.length > 0;
       const baseChosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
-      const chosen = (asObj && hasDietData(asObj) && baseChosen !== asObj)
-        ? { ...baseChosen, diet: asObj.diet, feedback: asObj.feedback || baseChosen.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen.memos }
-        : baseChosen;
+      const mergedCoachDiet = mergeDietRecords(asObj?.diet, recObj?.diet);
+      const chosen = {
+        ...(baseChosen || {}),
+        diet: mergedCoachDiet,
+        ...(asObj && hasDietData(asObj) ? { feedback: asObj.feedback || baseChosen?.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen?.memos } : {})
+      };
       const weekPtMap = {};
       weekDays.forEach((wd, idx) => {
         if (wd.fullDate === state.selectedDate) {

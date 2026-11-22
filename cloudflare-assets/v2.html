@@ -222,9 +222,9 @@
               canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
               return canvas.toDataURL('image/jpeg', q);
             };
-            let out = encodeAt(480, 0.55);
-            if (out.length > 26000) out = encodeAt(360, 0.45);
-            if (out.length > 32000) out = encodeAt(300, 0.38);
+            let out = encodeAt(400, 0.5);
+            if (out.length > 18000) out = encodeAt(320, 0.42);
+            if (out.length > 22000) out = encodeAt(260, 0.35);
             resolve(out);
           };
           img.onerror = reject;
@@ -563,6 +563,14 @@
         const ts = Number(localStorage.getItem(`fit_just_saved_${memberName}_${dateStr}`) || 0);
         return ts > 0 && (Date.now() - ts) < 120000;
       } catch { return false; }
+    }
+
+    function extractPhotoSrc(meal) {
+      if (!meal || typeof meal !== 'object') return '';
+      const raw = (Array.isArray(meal.photos) && meal.photos[0]) || meal.photo || '';
+      if (typeof raw === 'string') return raw;
+      if (raw && typeof raw === 'object') return raw.url || raw.src || raw.data || '';
+      return '';
     }
 
     function unwrapDailyRecord(res) {
@@ -1987,11 +1995,16 @@
             });
             const vObj = unwrapDailyRecord(verifyRes);
             const savedMeal = vObj?.diet?.[mealKey];
-            const hasSaved = savedMeal && (String(savedMeal.desc || '').trim() || (Array.isArray(savedMeal.photos) && savedMeal.photos.length > 0) || Number(savedMeal.cal) > 0);
+            const hasSaved = savedMeal && (String(savedMeal.desc || '').trim() || !!extractPhotoSrc(savedMeal) || Number(savedMeal.cal) > 0);
             if (!hasSaved) {
               state.record.diet[mealKey] = prevMeal;
               if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
               showToast('서버 반영 확인 실패: ' + (verifyRes?.message || '잠시 후 다시 저장해 주세요'));
+              return;
+            }
+            if (compressedPhoto && !extractPhotoSrc(savedMeal)) {
+              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
+              showToast('⚠️ 글자는 저장됐지만 사진이 서버에서 빠졌어요 (' + compressedPhoto.length + '자)');
               return;
             }
           } catch {}
@@ -2691,7 +2704,7 @@
                     <span class="font-bold text-[#111827]">${m.label}: ${escapeHtml(m.desc || '사진 기록')}</span>
                     ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${m.cal}kcal</span>` : ''}
                   </div>
-                  ${Array.isArray(m.photos) && m.photos[0] ? `<img src="${m.photos[0]}" alt="${m.label} 식단" class="w-full h-32 object-cover rounded-lg" />` : ''}
+                  ${extractPhotoSrc(m) ? `<img src="${extractPhotoSrc(m)}" alt="${m.label} 식단" class="w-full h-32 object-cover rounded-lg" />` : ''}
                 </div>
               `).join('') : '<p class="text-[12px] text-[#6B7280]">아직 오늘 올라온 식단이 없습니다.</p>'}
               <div class="flex flex-wrap gap-1 pt-1">
@@ -4061,7 +4074,7 @@
                     </div>
                     <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
                   </div>
-                  ${hasPhoto ? `<img src="${ml.photos[0]}" alt="${label} 식단" class="w-full h-32 object-cover rounded-xl" />` : ''}
+                  ${extractPhotoSrc(ml) ? `<img src="${extractPhotoSrc(ml)}" alt="${label} 식단" class="w-full h-32 object-cover rounded-xl" />` : ''}
                 </div>
               `;
             }).join('')}

@@ -5030,21 +5030,52 @@
         openModal(escapeHtml(member)+' · 움직임 평가',
           '<div class="space-y-3"><p class="p-3 bg-[#EFF6FF] rounded-xl text-[12px] text-[#475569]">동작의 안정성을 코치가 관찰해 기록합니다. 진단 점수가 아닙니다.</p>'+
           '<label class="text-[12px] font-bold">평가 날짜</label><input id="fit-as-day" type="date" value="'+escapeHtml(state.selectedDate)+'" class="w-full p-3 rounded-xl border border-[#CBD5E1]"/>'+
-          FIT_MOVE_FIELDS.map(([key,label])=>'<label class="block text-[13px] font-bold">'+label+'</label><select class="fit-as-score w-full p-3 rounded-xl border border-[#CBD5E1] bg-white" data-field="'+key+'">'+
-            FIT_MOVE_LEVEL.map((v,i)=>'<option value="'+i+'" '+(prev?.scores?.[key]===i?'selected':'')+'>'+i+' · '+v+'</option>').join('')+'</select>').join('')+
+          '<p class="text-[11px] text-[#64748B]">아래 5개 중 회원에게 필요한 2~3개만 체크하세요. 같은 동작·속도·부하 조건으로 재평가합니다.</p>'+
+          '<p class="text-[11px] text-[#475569]">'+FIT_LEVEL_DESC+'</p>'+
+          FIT_MOVE_FIELDS.map(([key,label],i)=>{
+            const selected=Object.prototype.hasOwnProperty.call(prev?.scores||{},key);
+            const initial=prev?selected:(i===0||i===2||i===3);
+            return '<div class="fit-as-row rounded-xl border border-[#E2E8F0] p-3 space-y-2">'+
+              '<label class="flex items-center gap-2"><input type="checkbox" class="fit-as-use w-4 h-4" data-field="'+key+'" '+(initial?'checked':'')+'/><span class="text-[13px] font-bold">'+label+'</span></label>'+
+              '<p class="text-[11px] text-[#64748B]">'+escapeHtml(FIT_MOVE_CRITERIA[key])+'</p>'+
+              '<div class="grid grid-cols-3 gap-1">'+
+              [1,2,3].map(level=>'<label class="flex items-center justify-center gap-1 text-[11px] rounded-lg py-2 bg-[#F4F6F9]"><input type="radio" name="fit-as-'+key+'" class="fit-as-score" data-field="'+key+'" value="'+level+'" '+((prev?.scores?.[key]||2)===level?'checked':'')+'/>'+FIT_MOVE_LEVEL[level]+'</label>').join('')+
+              '</div></div>';
+          }).join('')+
           '<label class="block text-[13px] font-bold">코치 평가 메모</label><textarea id="fit-as-note" maxlength="1500" rows="4" class="w-full p-3 rounded-xl border border-[#CBD5E1]" placeholder="동작의 관찰 내용과 변화">'+escapeHtml(prev?.note||'')+'</textarea>'+
           '<label class="block text-[13px] font-bold">다음 4주 목표</label><textarea id="fit-as-goal" maxlength="500" rows="2" class="w-full p-3 rounded-xl border border-[#CBD5E1]" placeholder="다음 수업에서 확인할 목표">'+escapeHtml(prev?.goal||'')+'</textarea>'+
           '<label class="block text-[13px] font-bold">기존 운동 영상 연결 (선택)</label><select class="fit-as-video w-full p-3 rounded-xl bg-[#F4F6F9]">'+videoOptions+'</select><select class="fit-as-video w-full p-3 rounded-xl bg-[#F4F6F9]">'+videoOptions+'</select>'+
           '<button id="fit-as-save" class="w-full py-3.5 rounded-xl hero-navy text-white font-bold">평가 저장</button><button id="fit-as-report" class="w-full py-3 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] font-bold">변화 리포트 보기</button></div>');
         document.querySelectorAll('.fit-as-video').forEach((el,i)=>{el.value=(prev?.video_ids||[])[i]||'';});
+        const updateAssessmentSelections=()=>{
+          const checked=[...document.querySelectorAll('.fit-as-use:checked')];
+          document.querySelectorAll('.fit-as-row').forEach(row=>{
+            const enabled=row.querySelector('.fit-as-use')?.checked;
+            row.querySelectorAll('.fit-as-score').forEach(r=>{r.disabled=!enabled;});
+            row.classList.toggle('opacity-50',!enabled);
+          });
+          const save=document.getElementById('fit-as-save');
+          if(save)save.textContent='평가 저장 ('+checked.length+'/3)';
+        };
+        document.querySelectorAll('.fit-as-use').forEach(el=>el.addEventListener('change',()=>{
+          if(document.querySelectorAll('.fit-as-use:checked').length>3){
+            el.checked=false;showToast('핵심 항목은 최대 3개까지 선택해 주세요');
+          }
+          updateAssessmentSelections();
+        }));
+        updateAssessmentSelections();
         document.getElementById('fit-as-report')?.addEventListener('click',()=>fitAssessmentReport(member,true));
         document.getElementById('fit-as-save')?.addEventListener('click',async()=>{
           const btn=document.getElementById('fit-as-save'),scores={};
-          document.querySelectorAll('.fit-as-score').forEach(el=>{scores[el.dataset.field]=Number(el.value);});
+          document.querySelectorAll('.fit-as-use:checked').forEach(el=>{
+            const selected=document.querySelector('input.fit-as-score[name="fit-as-'+el.dataset.field+'"]:checked');
+            if(selected)scores[el.dataset.field]=Number(selected.value);
+          });
           const video_ids=[...new Set([...document.querySelectorAll('.fit-as-video')].map(el=>el.value).filter(Boolean))];
           const assessed_on=document.getElementById('fit-as-day').value;
           const note=document.getElementById('fit-as-note').value,goal=document.getElementById('fit-as-goal').value;
           if(!assessed_on||!note.trim()){showToast('날짜와 평가 메모를 입력해 주세요');return;}
+          if(Object.keys(scores).length<2||Object.keys(scores).length>3){showToast('평가 항목을 2~3개 선택해 주세요');return;}
           btn.disabled=true;btn.textContent='저장 중…';
           try{
             const saved=await postRecords({action:'assessmentSave',member,date:state.selectedDate,assessed_on,scores,note,goal,video_ids,...fitAssessmentAuth(true)});

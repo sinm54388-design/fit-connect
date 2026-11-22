@@ -4426,7 +4426,11 @@
                           : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
                         ${r.note ? `<div class="mt-2 p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><span class="text-[10px] font-extrabold text-[#1D4ED8] block mb-0.5">💡 코치 자세 포인트</span><p class="text-[13px] font-medium text-[#1E293B] leading-relaxed">${escapeHtml(r.note)}</p></div>` : ''}
                       </button>
-                      ${isHw ? `<div class="shrink-0 mt-1 flex flex-col gap-1.5"><button type="button" data-ridx="${i}" class="routine-toggle tap-scale px-2.5 py-1.5 rounded-xl text-[11px] font-bold ${done ? 'card-teal text-white' : 'bg-white text-[#0F766E] shadow-sm'}">${r.completedSets?.length >= Math.max(1,Number(r.sets)||3) && r.completedSets.slice(0,Math.max(1,Number(r.sets)||3)).every(Boolean) ? '세트 완료 ✓' : '모두 체크'}</button><div class="flex flex-wrap gap-1 max-w-[98px] justify-end">${Array.from({length:Math.min(12,Math.max(1,Number(r.sets)||r.completedSets?.length||3))},(_,si)=>`<button type="button" data-set-ridx="${i}" data-set-idx="${si}" aria-label="${si+1}세트 완료 상태 변경" class="routine-set-toggle tap-scale w-7 h-7 rounded-lg text-[10px] font-extrabold ${r.completedSets?.[si]?'bg-[#0F766E] text-white':'bg-white text-[#475569] border border-[#CBD5E1]'}">${r.completedSets?.[si]?'✓':si+1}</button>`).join('')}</div></div>` : ''}
+                      <div class="shrink-0 mt-1 flex flex-col gap-1.5">
+                        <span class="text-[10px] text-[#475569] font-bold text-center">${isHw?'개인운동 세트':'PT 세트 기록'}</span>
+                        <button type="button" data-ridx="${i}" class="routine-toggle tap-scale px-2.5 py-1.5 rounded-xl text-[11px] font-bold ${r.completedSets?.length >= Math.max(1,Number(r.sets)||3) && r.completedSets.slice(0,Math.max(1,Number(r.sets)||3)).every(Boolean) ? 'card-teal text-white' : 'bg-white text-[#0F766E] shadow-sm'}">${r.completedSets?.length >= Math.max(1,Number(r.sets)||3) && r.completedSets.slice(0,Math.max(1,Number(r.sets)||3)).every(Boolean) ? '세트 완료 ✓' : '모두 체크'}</button>
+                        <div class="flex flex-wrap gap-1 max-w-[98px] justify-end">${Array.from({length:Math.min(12,Math.max(1,Number(r.sets)||r.completedSets?.length||3))},(_,si)=>`<button type="button" data-set-ridx="${i}" data-set-idx="${si}" aria-label="${si+1}세트 완료 상태 변경" class="routine-set-toggle tap-scale w-7 h-7 rounded-lg text-[10px] font-extrabold ${r.completedSets?.[si]?'bg-[#0F766E] text-white':'bg-white text-[#475569] border border-[#CBD5E1]'}">${r.completedSets?.[si]?'✓':si+1}</button>`).join('')}</div>
+                      </div>
                     </div>
                   `;
                 }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}
@@ -4476,6 +4480,7 @@
                     </div>
                     <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
                   </div>
+                  <button type="button" data-prevmeal-key="${key}" data-prevmeal-label="${label}" class="meal-yesterday-btn tap-scale w-full py-2.5 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8] text-[12px] font-extrabold">↺ 어제 ${label} 식단 불러오기</button>
                   ${extractPhotoSrc(ml) ? `
                     ${renderDirectOrImg(extractPhotoSrc(ml), label + ' 식단', state.memberName, 'w-full h-32 object-cover rounded-xl')}
                     <button type="button" data-meal-photo-key="${key}" data-meal-photo-label="${label}" class="member-photo-delete-btn tap-scale w-full py-2.5 rounded-xl border border-red-100 bg-red-50 text-red-700 text-[12px] font-bold">🗑 사진만 삭제하기</button>
@@ -4910,6 +4915,12 @@
         });
       });
 
+      document.querySelectorAll('.meal-yesterday-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          openMealModal(btn.dataset.prevmealKey,btn.dataset.prevmealLabel);
+          document.getElementById('meal-copy-yesterday')?.click();
+        });
+      });
       document.querySelectorAll('.routine-set-toggle').forEach(b => {
         b.addEventListener('click', async () => {
           const ri=Number(b.dataset.setRidx),si=Number(b.dataset.setIdx);
@@ -5083,7 +5094,7 @@
         });
       }
 
-      document.getElementById('home-quick-workout')?.addEventListener('click', () => {state.memberTab='lesson';renderAll();});
+      document.getElementById('home-quick-workout')?.addEventListener('click', () => {state.memberTab='lesson';state.lessonView='today';renderAll();});
       document.getElementById('home-quick-diet')?.addEventListener('click', () => {state.memberTab='diet';renderAll();});
       const goL = document.getElementById('go-lesson');
       if (goL) goL.addEventListener('click', () => { state.memberTab = 'lesson'; renderAll(); });

@@ -586,11 +586,11 @@ async function handleRecords(request,env) {
       const note=String(input.note||'').trim(),goal=String(input.goal||'').trim();
       if(note.length>1500||goal.length>500)return json({status:'error',code:'assessment_too_long'},400);
       const vids=Array.isArray(input.video_ids)?input.video_ids.map(v=>String(v||'').trim()):[];
-      if(vids.length>2||vids.some(v=>!/^[-a-zA-Z0-9_]{1,100}$/.test(v)))
+      if(vids.length>2||vids.some(v=>!/^direct:[0-9a-f-]{36}$/i.test(v)))
         return json({status:'error',code:'invalid_video_ids'},400);
       if(vids.length) {
         const matches=await supaGet('/rest/v1/fit_direct_videos?select=id&member_id=eq.'+
-          encodeURIComponent(uid)+'&state=eq.ready&id=in.('+vids.map(encodeURIComponent).join(',')+')','assessment_video_ownership');
+          encodeURIComponent(uid)+'&state=eq.ready&id=in.('+vids.map(v=>encodeURIComponent(v.slice(7))).join(',')+')','assessment_video_ownership');
         if(matches.length!==new Set(vids).size)return json({status:'error',code:'video_not_owned'},400);
       }
       const payload={member_id:uid,assessed_on:input.assessed_on,scores,note,goal,

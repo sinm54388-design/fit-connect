@@ -2824,26 +2824,49 @@
             savePtBtn.disabled = true;
             savePtBtn.textContent = '저장 중...';
             try {
-              const results = await Promise.allSettled(changedDates.map(dStr => {
+              let okCount = 0;
+              let lastErr = '';
+              for (const dStr of changedDates) {
                 const isOn = !!ptDaysState[dStr]?.scheduled;
-                return postAppsScript({
+                const ptTimeVal = isOn ? tVal : '';
+                let res = await postAppsScript({
                   action: 'patchData',
                   member: memberName,
                   date: dStr,
                   password: state.trainerPassword,
-                  patch: { ptScheduled: isOn, ptTime: isOn ? tVal : '' }
-                });
-              }));
-              const okCount = results.filter(r => r.status === 'fulfilled' && r.value?.status === 'success').length;
+                  patch: { ptScheduled: isOn, ptTime: ptTimeVal }
+                }).catch(() => null);
+                if (!res || res.status !== 'success') {
+                  const existingRaw = await postAppsScript({ action: 'read', member: memberName, date: dStr, password: state.trainerPassword }).catch(() => null);
+                  const baseRec = unwrapDailyRecord(existingRaw) || {
+                    headerMessage: '',
+                    routines: [],
+                    reflection: { good: '', bad: '' },
+                    diet: { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
+                    feedback: { workout: '', diet: '', time: '' },
+                    memos: [],
+                    dailyCheckin: { workout: '', diet: '', mood: '' }
+                  };
+                  res = await postAppsScript({
+                    member: memberName,
+                    date: dStr,
+                    password: state.trainerPassword,
+                    data: { ...baseRec, ptScheduled: isOn, ptTime: ptTimeVal }
+                  }).catch(e => ({ status: 'error', message: e?.message || 'network' }));
+                }
+                if (res?.status === 'success') {
+                  okCount++;
+                  initialPtDays[dStr] = { scheduled: isOn, time: ptTimeVal };
+                } else {
+                  lastErr = res?.message || res?.error || 'unknown';
+                }
+              }
               if (okCount === changedDates.length) {
-                changedDates.forEach(dStr => {
-                  initialPtDays[dStr] = { scheduled: !!ptDaysState[dStr]?.scheduled, time: ptDaysState[dStr]?.scheduled ? tVal : '' };
-                });
                 daily.ptScheduled = !!ptDaysState[state.selectedDate]?.scheduled;
                 daily.ptTime = daily.ptScheduled ? tVal : '';
                 showToast('이번 주 PT 예정일이 저장되었어요 ✓');
               } else {
-                showToast('일부 날짜 저장에 실패했어요. 다시 눌러주세요');
+                showToast(`일부 날짜 저장 실패 (${okCount}/${changedDates.length}${lastErr ? ': ' + lastErr : ''})`);
               }
             } catch {
               showToast('PT 일정 저장 중 오류가 발생했어요');

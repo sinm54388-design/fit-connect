@@ -2250,6 +2250,8 @@
             const cal = document.getElementById('mf-cal');
             if(desc) desc.value = previous.desc || '';
             if(cal) cal.value = previous.cal || '';
+            invalidateAutomatic();
+            selectedPreset = null;
             preserveMealDraft();
             showToast('어제 기록을 입력칸에 불러왔어요 · 저장을 눌러주세요');
           }
@@ -2431,7 +2433,7 @@
         foodOptions.classList.remove('hidden');
       });
       foodGrams?.addEventListener('input',previewFood);
-      const invalidateAutomatic = () => { automaticNutrition=null; };
+      const invalidateAutomatic = () => { automaticNutrition=null; foodEntries.length=0; foodTotals.classList.add('hidden'); };
       descField?.addEventListener('input',invalidateAutomatic);
       calField?.addEventListener('input',invalidateAutomatic);
       document.getElementById('food-apply')?.addEventListener('click',()=>{
@@ -2476,8 +2478,9 @@
           return;
         }
         const presetMatches = selectedPreset && desc === '[' + selectedPreset.tag + '] ' + selectedPreset.desc && cal === selectedPreset.cal;
+        const changedManually = desc !== String(m.desc || '') || cal !== String(m.cal || '');
         const updated = { ...m, desc: desc || '사진 기록', cal,
-          ...(automaticNutrition || (presetMatches ? {carb:selectedPreset.carb, prot:selectedPreset.prot, fat:selectedPreset.fat} : {})),
+          ...(automaticNutrition || (presetMatches ? {carb:selectedPreset.carb, prot:selectedPreset.prot, fat:selectedPreset.fat} : (changedManually ? {carb:'',prot:'',fat:''} : {}))),
           ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
         commitMealSave(updated, `${mealLabel} 식단 저장 완료`);
       });

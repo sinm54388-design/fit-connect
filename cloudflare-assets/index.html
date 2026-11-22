@@ -4292,7 +4292,10 @@
                     </div>
                     <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
                   </div>
-                  ${extractPhotoSrc(ml) ? renderDirectOrImg(extractPhotoSrc(ml), label + ' 식단', state.memberName, 'w-full h-32 object-cover rounded-xl') : ''}
+                  ${extractPhotoSrc(ml) ? `
+                    ${renderDirectOrImg(extractPhotoSrc(ml), label + ' 식단', state.memberName, 'w-full h-32 object-cover rounded-xl')}
+                    <button type="button" data-meal-photo-key="${key}" data-meal-photo-label="${label}" class="member-photo-delete-btn tap-scale w-full py-2.5 rounded-xl border border-red-100 bg-red-50 text-red-700 text-[12px] font-bold">🗑 사진만 삭제하기</button>
+                  ` : ''}
                 </div>
               `;
             }).join('')}
@@ -4663,6 +4666,37 @@
       });
 
       document.querySelectorAll('.meal-btn').forEach(b => b.addEventListener('click', () => openMealModal(b.dataset.mkey, b.dataset.mlabel)));
+      // Always expose photo deletion on the member diet card, not only
+      // inside the meal editor. Only the photographed meal can be deleted.
+      document.querySelectorAll('.member-photo-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const mealKey = btn.dataset.mealPhotoKey;
+          const mealLabel = btn.dataset.mealPhotoLabel;
+          if (!['breakfast','lunch','dinner','snack'].includes(mealKey) || !extractPhotoSrc(state.record.diet?.[mealKey])) return;
+          if (!window.confirm(`${mealLabel} 사진만 삭제할까요? 식단 글과 칼로리는 남습니다.`)) return;
+          btn.disabled = true;
+          btn.textContent = '사진 삭제 중...';
+          const targetMember = state.memberName;
+          const targetDate = state.selectedDate;
+          try {
+            const auth = (state.appMode === 'coach' && state.trainerPassword)
+              ? { password: state.trainerPassword }
+              : (state.session ? { session: state.session } : { token: state.token });
+            const res = await deleteMealPhoto(targetMember, targetDate, mealKey, auth);
+            if (res?.status !== 'success') throw new Error(res?.code || '삭제 실패');
+            if (targetMember === state.memberName && targetDate === state.selectedDate) {
+              state.record.diet[mealKey] = { ...state.record.diet[mealKey], photos: [], photo: '' };
+              saveCachedMemberData(targetDate);
+              renderAll();
+            }
+            showToast(`${mealLabel} 사진을 삭제했어요 ✓`);
+          } catch (err) {
+            btn.disabled = false;
+            btn.textContent = '🗑 사진만 삭제하기';
+            showToast('사진 삭제 실패: ' + (err?.message || '네트워크 오류'));
+          }
+        });
+      });
 
       document.querySelectorAll('.routine-toggle').forEach(b => {
         b.addEventListener('click', () => {

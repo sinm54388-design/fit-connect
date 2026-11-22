@@ -4984,6 +4984,12 @@
         const videos=linked.filter((x,i)=>linked.findIndex(y=>y.id===x.id)===i).slice(0,4);
         const videoHtml=videos.length?'<div class="grid grid-cols-2 gap-2">'+videos.map((v,i)=>
           '<div class="p-2 bg-[#F4F6F9] rounded-xl space-y-2"><span class="text-[11px] text-[#475569]">'+escapeHtml(v.day)+'</span><button type="button" class="fit-assess-play w-full rounded-lg bg-[#DBEAFE] text-[#1E3A8A] py-2 text-[12px] font-bold" data-id="'+escapeHtml(v.id)+'" data-target="fit-assess-video-'+i+'">▶ 영상 비교</button><div id="fit-assess-video-'+i+'"></div></div>').join('')+'</div>':'<p class="text-[12px] text-[#64748B]">연결된 평가 영상이 아직 없어요.</p>';
+        const exerciseComparisons=Array.isArray(res.exerciseComparisons)?res.exerciseComparisons:[];
+        const exerciseHtml=exerciseComparisons.length?exerciseComparisons.map(ex=>{
+          const delta=Number(ex.changeKg)||0;
+          const status=delta===0?'동일':(delta>0?'+':'')+delta+'kg';
+          return '<div class="flex items-center justify-between gap-2 py-2 border-b border-[#F1F5F9]"><div class="min-w-0"><p class="text-[12px] font-bold text-[#0F172A]">'+escapeHtml(ex.name)+'</p><p class="text-[11px] text-[#64748B]">동일 '+ex.reps+'회 조건 · '+ex.previousWeight+'kg → '+ex.currentWeight+'kg</p></div><span class="text-[12px] font-extrabold '+(delta>0?'text-[#047857]':delta<0?'text-[#B45309]':'text-[#64748B]')+'">'+status+'</span></div>';
+        }).join(''):'<p class="text-[12px] text-[#64748B]">같은 운동·반복 조건에서 비교할 중량 기록이 아직 충분하지 않아요.</p>';
         const prevSum=res.previousSummary||{};
         const stat=(label,key,unit)=>{
           const n=Number(sum[key])||0,p=Number(prevSum[key])||0,diff=n-p;
@@ -4993,7 +4999,8 @@
         openModal(escapeHtml(member)+' · 4주 변화 리포트',
           '<div class="space-y-4"><div class="hero-navy text-white p-4 rounded-2xl"><p class="text-[11px] text-white/75">FIT-CONNECT PROGRESS REPORT</p><h3 class="text-[20px] font-extrabold mt-1">나의 4주 변화</h3><p class="text-[12px] text-white/80 mt-1">'+escapeHtml(res.range?.start||'')+' ~ '+escapeHtml(res.range?.end||'')+'</p></div>'+
           '<div class="grid grid-cols-3 gap-2">'+stat('운동 기록','workoutDays','일')+stat('식단 기록','dietDays','일')+stat('완료 세트','completedSets','세트')+'</div>'+
-          '<p class="text-[11px] text-[#64748B]">직전 28일과 최근 28일의 실제 저장 기록을 비교했습니다. 기록이 없으면 0으로 표시하며, 출석률이나 신체 능력 향상을 뜻하지 않습니다.</p>'+
+          '<p class="text-[11px] text-[#64748B]">직전 28일과 최근 28일의 실제 저장 기록을 비교했습니다. 기록이 없으면 0으로 표시하며, 출석률이나 신체 능력 향상을 뜻하지 않습니다.</p>'+ 
+          '<section class="border border-[#DBEAFE] rounded-2xl p-4 space-y-2"><h4 class="text-[15px] font-extrabold">운동 중량 기록 비교</h4>'+exerciseHtml+'<p class="text-[11px] leading-relaxed text-[#64748B]">같은 이름의 운동, 같은 반복 횟수일 때만 최고 기록 중량을 비교합니다. 중량 증가가 곧바로 근력 향상 전체를 의미하지는 않습니다. 동일한 가동범위와 수행 조건을 함께 확인해 주세요.</p></section>'+
           '<section class="border border-[#DBEAFE] rounded-2xl p-4 space-y-3"><h4 class="text-[15px] font-extrabold">움직임 평가 변화</h4><p class="text-[11px] text-[#64748B]">'+escapeHtml(cur?.assessed_on||'평가 전')+(old?' · 비교일 '+escapeHtml(old.assessed_on):'')+'</p>'+assessmentHtml+
           '<p class="text-[11px] leading-relaxed text-[#64748B]">코치의 동일 기준 관찰 기록으로, 의료적 진단이나 객관적 건강 점수는 아닙니다.</p></section>'+
           '<section class="border border-[#DBEAFE] rounded-2xl p-4 space-y-2"><h4 class="text-[15px] font-extrabold">신명진 코치의 피드백</h4><p class="text-[13px] whitespace-pre-line leading-relaxed">'+escapeHtml(cur?.note||'첫 평가 후 코치의 메모가 표시됩니다.')+'</p><p class="text-[12px] font-bold text-[#1D4ED8] pt-2">다음 4주 목표</p><p class="text-[13px] whitespace-pre-line">'+escapeHtml(cur?.goal||'평가 후 설정됩니다.')+'</p></section>'+

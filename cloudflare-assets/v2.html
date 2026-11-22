@@ -3253,27 +3253,34 @@
           return { title: String(label || '').trim() || u.hostname, url: u.href };
         } catch { return null; }
       }).filter(Boolean);
+      const currentCategory = item.category || '인사이트';
+      const choices = state.appMode === 'member'
+        ? getDailyMagazinePicks(state.selectedDate)
+        : state.columns.map((col, index) => ({ col, index }));
+      // Build navigation before rendering; avoid deeply nested HTML templates.
+      const uniqueCategories = [...new Set(choices.map(x => x.col.category || '인사이트'))];
+      const magazineTabs = uniqueCategories.map(category => {
+        const candidate = choices.find(x => (x.col.category || '인사이트') === category);
+        const selected = currentCategory === category;
+        return '<button type="button" data-cidx="' + candidate.index +
+          '" class="col-tab-btn shrink-0 px-3.5 py-2.5 rounded-full text-[13px] font-semibold ' +
+          (selected ? 'bg-[#1E3A8A] text-white' : 'bg-[#EFF3F9] text-[#334155]') + '">' +
+          escapeHtml(category) + '</button>';
+      }).join('');
+      const magazineTabsHtml = '<nav aria-label="매거진 카테고리" class="flex gap-2 overflow-x-auto pb-1">' +
+        magazineTabs + '</nav>';
+      const categoryArticles = state.appMode === 'coach'
+        ? state.columns.map((col,index)=>({col,index})).filter(x=>(x.col.category||'인사이트') === currentCategory)
+        : [];
+      const magazineArticlePicker = categoryArticles.length > 1
+        ? '<div class="space-y-1.5"><label for="mag-article-select" class="text-[12px] font-semibold text-[#475569]">이 카테고리의 다른 글</label>' +
+          '<select id="mag-article-select" class="w-full rounded-xl border border-[#D8E2EE] bg-white px-3 py-3 text-[14px] font-medium text-[#0F172A]">' +
+          categoryArticles.map(({col,index})=>'<option value="'+index+'" '+(index===state.activeColumnIdx?'selected':'')+'>'+escapeHtml(col.title)+'</option>').join('') +
+          '</select></div>' : '';
       openModal('FIT-CONNECT MAGAZINE', `
         <article class="space-y-5 pb-2" aria-label="${escapeHtml(item.title || '매거진')}">
-          ${state.appMode === 'member' ? `<nav aria-label="오늘의 매거진" class="flex gap-2 overflow-x-auto pb-1">
-            ${getDailyMagazinePicks(state.selectedDate).map(({col,index}) => `<button type="button" data-cidx="${index}" aria-current="${index===state.activeColumnIdx?'page':'false'}" class="col-tab-btn shrink-0 px-3.5 py-2.5 rounded-full text-[13px] font-semibold ${index===state.activeColumnIdx?'bg-[#1E3A8A] text-white':'bg-[#EFF3F9] text-[#334155]'}">${escapeHtml(col.category)}</button>`).join('')}
-          </nav>` : `<nav aria-label="매거진 카테고리" class="flex gap-2 overflow-x-auto pb-1">
-            ${[...new Set(state.columns.map(c => c.category || '인사이트'))].map(category => {
-              const categoryIndexes = state.columns.map((c, i) => ({ c, i })).filter(v => (v.c.category || '인사이트') === category);
-              const active = (item.category || '인사이트') === category;
-              const lead = categoryIndexes[(Math.floor(Date.parse(state.selectedDate+'T00:00:00Z') / 86400000) % categoryIndexes.length + categoryIndexes.length) % categoryIndexes.length];
-              return `<button type="button" data-cidx="${lead.i}" aria-current="${active ? 'page' : 'false'}" class="col-tab-btn shrink-0 px-3.5 py-2.5 rounded-full text-[13px] font-semibold transition ${active ? 'bg-[#1E3A8A] text-white' : 'bg-[#EFF3F9] text-[#334155]'}">${escapeHtml(category)}</button>`;
-            }).join('')}
-          </nav>
-          ${(() => {
-            const articles = state.columns.map((c,i)=>({c,i})).filter(x=>(x.c.category||'인사이트') === (item.category||'인사이트'));
-            return articles.length > 1 ? `<div class="space-y-1.5">
-              <label for="mag-article-select" class="text-[12px] font-semibold text-[#475569]">이 카테고리의 다른 글 (${articles.length}편)</label>
-              <select id="mag-article-select" class="w-full rounded-xl border border-[#D8E2EE] bg-white px-3 py-3 text-[14px] font-medium text-[#0F172A]">
-                ${articles.map(({c,i}) => `<option value="${i}" ${i===state.activeColumnIdx?'selected':''}>${escapeHtml(c.title)}</option>`).join('')}
-              </select>
-            </div>` : '';
-          })()}` : ''}
+          ${magazineTabsHtml}
+          ${magazineArticlePicker}
           <header class="rounded-[22px] border border-[#D9E5F5] bg-[#F4F8FE] px-5 py-5 space-y-3">
             <span class="inline-block text-[12px] font-bold text-[#1D4ED8]">${escapeHtml(item.category || '코치 칼럼')}</span>
             <h4 class="text-[22px] font-extrabold leading-[1.4] tracking-tight text-[#0F172A] break-keep">${escapeHtml(item.title)}</h4>

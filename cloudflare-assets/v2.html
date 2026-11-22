@@ -3257,13 +3257,23 @@
       }).filter(Boolean);
       openModal('FIT-CONNECT MAGAZINE', `
         <article class="space-y-5 pb-2" aria-label="${escapeHtml(item.title || '매거진')}">
-          <nav aria-label="매거진 글 선택" class="flex gap-2 overflow-x-auto pb-1">
-            ${state.columns.map((c, i) => `
-              <button type="button" data-cidx="${i}" aria-current="${i === state.activeColumnIdx ? 'page' : 'false'}" class="col-tab-btn shrink-0 px-3.5 py-2.5 rounded-full text-[13px] font-semibold transition ${i === state.activeColumnIdx ? 'bg-[#1E3A8A] text-white' : 'bg-[#EFF3F9] text-[#334155]'}">
-                ${escapeHtml(c.category || '인사이트')}
-              </button>
-            `).join('')}
+          <nav aria-label="매거진 카테고리" class="flex gap-2 overflow-x-auto pb-1">
+            ${[...new Set(state.columns.map(c => c.category || '인사이트'))].map(category => {
+              const categoryIndexes = state.columns.map((c, i) => ({ c, i })).filter(v => (v.c.category || '인사이트') === category);
+              const active = (item.category || '인사이트') === category;
+              const lead = categoryIndexes[(Math.floor(Date.parse(state.selectedDate+'T00:00:00Z') / 86400000) % categoryIndexes.length + categoryIndexes.length) % categoryIndexes.length];
+              return `<button type="button" data-cidx="${lead.i}" aria-current="${active ? 'page' : 'false'}" class="col-tab-btn shrink-0 px-3.5 py-2.5 rounded-full text-[13px] font-semibold transition ${active ? 'bg-[#1E3A8A] text-white' : 'bg-[#EFF3F9] text-[#334155]'}">${escapeHtml(category)}</button>`;
+            }).join('')}
           </nav>
+          ${(() => {
+            const articles = state.columns.map((c,i)=>({c,i})).filter(x=>(x.c.category||'인사이트') === (item.category||'인사이트'));
+            return articles.length > 1 ? `<div class="space-y-1.5">
+              <label for="mag-article-select" class="text-[12px] font-semibold text-[#475569]">이 카테고리의 다른 글 (${articles.length}편)</label>
+              <select id="mag-article-select" class="w-full rounded-xl border border-[#D8E2EE] bg-white px-3 py-3 text-[14px] font-medium text-[#0F172A]">
+                ${articles.map(({c,i}) => `<option value="${i}" ${i===state.activeColumnIdx?'selected':''}>${escapeHtml(c.title)}</option>`).join('')}
+              </select>
+            </div>` : '';
+          })()}
           <header class="rounded-[22px] border border-[#D9E5F5] bg-[#F4F8FE] px-5 py-5 space-y-3">
             <span class="inline-block text-[12px] font-bold text-[#1D4ED8]">${escapeHtml(item.category || '코치 칼럼')}</span>
             <h4 class="text-[22px] font-extrabold leading-[1.4] tracking-tight text-[#0F172A] break-keep">${escapeHtml(item.title)}</h4>
@@ -3288,6 +3298,9 @@
       `);
       document.querySelectorAll('.col-tab-btn').forEach(b => {
         b.addEventListener('click', () => openMagazineModal(Number(b.dataset.cidx)));
+      });
+      document.getElementById('mag-article-select')?.addEventListener('change', e => {
+        openMagazineModal(Number(e.target.value));
       });
     }
 

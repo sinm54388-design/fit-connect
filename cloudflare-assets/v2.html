@@ -201,11 +201,23 @@
       '[일상] 오래 앉아 있는 날엔 1시간마다 기지개와 흉추 스트레칭으로 굳은 어깨를 풀어줘야 운동 시 부상 위험이 줄어듭니다.'
     ];
 
+    // Date-based weekday messaging: the same selected date always shows
+    // the same coaching focus, including when browsing past/future dates.
+    const WEEKDAY_WORKOUT_NOTES = [
+      { day: '일요일', theme: '회복과 준비', note: '오늘은 충분히 회복하고 다음 주 운동을 준비해요. 가벼운 산책과 수면 리듬부터 챙겨주세요.' },
+      { day: '월요일', theme: '한 주의 시작', note: '이번 주 목표를 하나 정해보세요. 무게보다 정확한 자세와 일정한 운동 습관이 우선이에요.' },
+      { day: '화요일', theme: '움직임의 기본', note: '운동 전 호흡과 코어 안정성을 점검해요. 발의 지지와 고관절 움직임까지 연결해 보세요.' },
+      { day: '수요일', theme: '꾸준함 점검', note: '벌써 주중이에요! 운동 기록을 살펴보고, 무리한 증량보다 정확한 반복에 집중해 보세요.' },
+      { day: '목요일', theme: '균형 있는 운동', note: '좌우 움직임의 차이를 확인해요. 천천히 움직이며 목표 근육에 힘이 전달되는지 느껴보세요.' },
+      { day: '금요일', theme: '한 주 돌아보기', note: '이번 주 잘된 운동 한 가지를 기록해요. 작은 개선도 다음 주 변화를 만드는 중요한 기준이에요.' },
+      { day: '토요일', theme: '활동과 컨디션', note: '주말에는 몸 상태에 맞춰 움직여요. 피곤하면 강도를 낮추고 가볍게 활동하며 회복하세요.' }
+    ];
+    function getWeekdayWorkoutNote(dateStr) {
+      const d = new Date(String(dateStr || getTodayKST()) + 'T00:00:00Z');
+      return WEEKDAY_WORKOUT_NOTES[Number.isNaN(d.getTime()) ? 0 : d.getUTCDay()];
+    }
     function getDailyCoachTip(dateStr) {
-      const s = String(dateStr || getTodayKST());
-      let sum = 0;
-      for (let i = 0; i < s.length; i++) sum += s.charCodeAt(i) * (i + 1);
-      return DAILY_COACH_TIPS[sum % DAILY_COACH_TIPS.length];
+      return getWeekdayWorkoutNote(dateStr).note;
     }
 
     // Client-side Image Compression (fits Google Sheets 50k cell limit safely)
@@ -4007,6 +4019,7 @@
       const score = computeCareScore();
       const chk = state.record.dailyCheckin || {};
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
+      const weekdayNote = getWeekdayWorkoutNote(state.selectedDate);
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
       const routinesArr = state.record.routines || [];
@@ -4041,7 +4054,7 @@
                     ${pr ? `<button type="button" id="btn-open-pr" class="tap-scale text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#5EEAD4]/20 text-[#5EEAD4]">🏆 ${escapeHtml(pr.name)} +${pr.current - pr.previous}kg ›</button>` : ''}
                   </div>
                   <h1 class="text-[22px] font-extrabold tracking-tight leading-snug mt-2">${escapeHtml(state.memberName)}님의<br/>오늘 운동노트</h1>
-                  <p class="text-[11px] font-semibold text-white/70 mt-1">명진 트레이너의 1:1 PT 케어</p>
+                  <p class="text-[11px] font-semibold text-white/80 mt-1">${weekdayNote.day} · ${weekdayNote.theme} · 명진 트레이너의 1:1 PT 케어</p>
                   <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[11px] font-bold">
                     <span class="flex items-center gap-1 text-[#60A5FA]"><span class="w-2 h-2 rounded-full bg-[#60A5FA]"></span>관리 ${score}</span>
                     <span class="flex items-center gap-1 text-[#5EEAD4]"><span class="w-2 h-2 rounded-full bg-[#5EEAD4]"></span>식단 ${ds.pct}%</span>
@@ -4060,6 +4073,7 @@
                   <button type="button" id="go-lesson" class="text-[11px] font-bold text-[#60A5FA]">수업일지 ›</button>
                 </div>
                 <p class="text-[13px] text-white/95 leading-relaxed">${escapeHtml(coachNote)}</p>
+                ${(state.record.headerMessage || state.record.feedback?.workout) ? `<div class="pt-2 border-t border-white/15"><p class="text-[10px] font-bold text-[#5EEAD4] mb-1">${weekdayNote.day} 운동 포인트</p><p class="text-[12px] text-white/80 leading-relaxed">${escapeHtml(weekdayNote.note)}</p></div>` : ''}
                 <div class="flex items-center gap-2 pt-0.5">
                   <button type="button" data-rval="확인했어요 👍" class="fb-react-btn tap-scale px-3 py-1 rounded-full text-[11px] font-bold transition ${state.feedbackReaction === '확인했어요 👍' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white/90'}">확인했어요 👍</button>
                   <button type="button" data-rval="불태웠어요 🔥" class="fb-react-btn tap-scale px-3 py-1 rounded-full text-[11px] font-bold transition ${state.feedbackReaction === '불태웠어요 🔥' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white/90'}">불태웠어요 🔥</button>

@@ -148,7 +148,7 @@ async function buildOverview(supaGet,date,base) {
   const weekStart=shiftDay(date,-6),windowStart=shiftDay(date,-OVERVIEW_WINDOW_DAYS);
   const pageSize=1000;
   const prefix='/rest/v1/fit_daily_records?select=member_id,record_date,'+
-    'routines:data->routines,reflection:data->reflection,diet:data->diet,feedback:data->feedback'+
+    'routines:data->routines,reflection:data->reflection,diet:data->diet,feedback:data->feedback,checkin:data->dailyCheckin'+
     '&record_date=gte.'+windowStart+'&record_date=lte.'+date+
     '&order=record_date.desc&limit='+pageSize;
   const directPending=(async()=>{
@@ -160,10 +160,12 @@ async function buildOverview(supaGet,date,base) {
       if(rows.length<size)return counts;
     }
   })();
-  const [allMembers,firstPage,directCounts]=await Promise.all([
+  const [allMembers,firstPage,directCounts,coachSaved]=await Promise.all([
     supaGet('/rest/v1/fit_members?select=id,name&is_archived=eq.false&order=name.asc&limit=1000','overview'),
-    supaGet(prefix+'&offset=0','overview'),directPending
+    supaGet(prefix+'&offset=0','overview'),directPending,
+    supaGet('/rest/v1/fit_coach_feedback?select=member_id,workout_feedback,diet_feedback&record_date=eq.'+date+'&limit=1000','overview_feedback')
   ]);
+  const savedMap=new Map(coachSaved.map(x=>[String(x.member_id),x]));
   if(allMembers.length===1000)throw Error('too many members for overview');
   const result=new Map();
   for(const row of allMembers) {
@@ -171,7 +173,7 @@ async function buildOverview(supaGet,date,base) {
     result.set(row.id,{name:row.name,lastDate:'',activeToday:false,
       pendingWorkout:false,pendingDiet:false,pendingVideos:0,directPendingVideos:directCounts.get(String(row.id))||0,feedbackDone:false,
       workoutToday:false,dietToday:false,
-      _w:new Set(),_d:new Set(),_r:new Set(),_a:new Set()});
+      _w:new Set(),_d:new Set(),_r:new Set(),_a:new Set(),_c:new Set(),_t:new Set()});
   }
   let records=firstPage,offset=0;
   while(true) {
@@ -195,13 +197,17 @@ async function buildOverview(supaGet,date,base) {
         if(hasDiet)item._d.add(day);
         if(reflection)item._r.add(day);
         if(active)item._a.add(day);
+        const checkin=record.checkin||{};
+        if(String(checkin.workout||checkin.diet||checkin.mood||'').trim())item._c.add(day);
+        if(checkin.mood==='tired')item._t.add(day);
       }
       if(active&&day>item.lastDate)item.lastDate=day;
       if(day===date) {
         item.activeToday||=active;
         item.workoutToday||=completed;
         item.dietToday||=hasDiet;
-        const feedback=record.feedback||{};
+        const feedback={...record.feedback,...(savedMap.get(String(record.member_id))?
+          {workout:savedMap.get(String(record.member_id)).workout_feedback,diet:savedMap.get(String(record.member_id)).diet_feedback}:{})};
         const fw=!!String(feedback.workout||'').trim(),fd=!!String(feedback.diet||'').trim();
         item.pendingWorkout||=(completed||reflection)&&!fw;
         item.pendingDiet||=hasDiet&&!fd;
@@ -214,9 +220,10 @@ async function buildOverview(supaGet,date,base) {
     records=await supaGet(prefix+'&offset='+offset);
   }
   const members=[...result.values()].map(item=>{
-    const {_w,_d,_r,_a,...rest}=item;
+    const {_w,_d,_r,_a,_c,_t,...rest}=item;
     return {...rest,weeklyWorkoutDays:_w.size,weeklyDietDays:_d.size,
-      weeklyReflectionDays:_r.size,weeklyActiveDays:_a.size};
+      weeklyReflectionDays:_r.size,weeklyActiveDays:_a.size,
+      weeklyCheckinDays:_c.size,weeklyTiredDays:_t.size};
   });
   return {status:'success',date,weekStart,members,partial:true,windowDays:OVERVIEW_WINDOW_DAYS};
 }
@@ -823,7 +830,7 @@ async function handleRecords(request,env) {
   }
 }
 // Same-origin bridge for the existing Apps Script POST API. Auth remains in Apps Script.
-async function handleAppsScriptPost(request) {
+async function handleAppsScriptPost(request,env) {
   if(request.method!=='POST')return json({status:'error',message:'Method not allowed'},405);
   const origin=request.headers.get('Origin');
   if(origin && origin!==new URL(request.url).origin)return json({status:'error',message:'Origin denied'},403);
@@ -831,6 +838,23 @@ async function handleAppsScriptPost(request) {
     const body=await request.text();
     const input=JSON.parse(body);
     if(!input || typeof input!=='object' || Array.isArray(input))return json({status:'error',message:'Invalid request'},400);
+    // The legacy Google Apps Script bridge must not let archived members
+    // continue using links after the canonical Supabase account is archived.
+    // Check member-scoped requests, including trainer reads of archived records
+    // (coach restoration uses the separate memberRegister action).
+    const requestedName=String(input.member||'').trim();
+    if(requestedName&&input.action!=='addMember'&&input.action!=='listMembers'&&input.action!=='trainerOverview'){
+      const base=String(env.SUPABASE_URL||'').trim().replace(/\/+$/,'');
+      const key=String(env.SUPABASE_SECRET_KEY||'').trim();
+      if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base)||!key)
+        return json({status:'error',code:'missing_runtime_configuration'},503);
+      const rowRes=await fetch(base+'/rest/v1/fit_members?select=is_archived&name=eq.'+
+        encodeURIComponent(requestedName)+'&limit=1',{headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key})},
+        signal:AbortSignal.timeout(8000)});
+      if(!rowRes.ok)return json({status:'error',code:'member_status_unavailable'},502);
+      const rows=await rowRes.json();
+      if(rows[0]?.is_archived)return json({status:'denied',code:'member_archived'},403);
+    }
     const upstream=await fetch(APPS_SCRIPT_URL,{
       method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body,
       redirect:'follow',signal:AbortSignal.timeout(60000)
@@ -851,7 +875,7 @@ export default {
   async fetch(request,env) {
     const path=new URL(request.url).pathname;
     if(path==='/api/records')return handleRecords(request,env);
-    if(path==='/api/apps-script')return handleAppsScriptPost(request);
+    if(path==='/api/apps-script')return handleAppsScriptPost(request,env);
     if(path.startsWith('/api/'))return json({status:'error',code:'not_found'},404);
     return env.ASSETS.fetch(request);
   }

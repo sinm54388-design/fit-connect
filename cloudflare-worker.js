@@ -161,7 +161,7 @@ async function buildOverview(supaGet,date,base) {
     }
   })();
   const [allMembers,firstPage,directCounts]=await Promise.all([
-    supaGet('/rest/v1/fit_members?select=id,name&order=name.asc&limit=1000','overview'),
+    supaGet('/rest/v1/fit_members?select=id,name&is_archived=eq.false&order=name.asc&limit=1000','overview'),
     supaGet(prefix+'&offset=0','overview'),directPending
   ]);
   if(allMembers.length===1000)throw Error('too many members for overview');
@@ -360,7 +360,7 @@ async function handleRecords(request,env) {
   if(JSON.stringify(input).length>131072)return json({status:'error',code:'too_large'},413);
   const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','columnList','columnSave'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','memberRegister','memberArchive','columnList','columnSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -441,9 +441,42 @@ async function handleRecords(request,env) {
   const start=performance.now();
   if(action==='listMembersFast') {
     try {
-      const rows=await supaGet('/rest/v1/fit_members?select=name&order=name.asc&limit=1000','members');
+      const rows=await supaGet('/rest/v1/fit_members?select=name,is_archived&order=name.asc&limit=1000','members');
       if(rows.length===1000)throw Error('member list pagination required');
-      return json({status:'success',source:'supabase',members:rows.map(row=>String(row.name||'').trim()).filter(Boolean)});
+      return json({status:'success',source:'supabase',
+         members:rows.filter(row=>!row.is_archived).map(row=>String(row.name||'').trim()).filter(Boolean),
+         archivedMembers:rows.filter(row=>row.is_archived).map(row=>String(row.name||'').trim()).filter(Boolean)});
+    }catch(error){return failed(error);}
+  }
+  if(action==='memberRegister'||action==='memberArchive'){
+    const managedName=String(input.name||'').trim().replace(/\s+/g,' ');
+    if(managedName.length<2||managedName.length>30||/[<>\u0000-\u001f]/.test(managedName))
+      return json({status:'error',code:'invalid_member_name'},400);
+    try{
+      const existing=await supaGet('/rest/v1/fit_members?select=id,is_archived&name=eq.'+
+        encodeURIComponent(managedName)+'&limit=1','member_manage_lookup');
+      if(action==='memberRegister'){
+        if(existing.length){
+          if(!existing[0].is_archived)return json({status:'success',alreadyExists:true});
+          const rows=await supaWrite('/rest/v1/fit_members?id=eq.'+encodeURIComponent(existing[0].id),
+            'PATCH',{is_archived:false},'member_reactivate');
+          if(!rows?.length)throw Error('reactivation_not_confirmed');
+        }else{
+          const rows=await supaWrite('/rest/v1/fit_members','POST',
+            {name:managedName,is_archived:false},'member_register');
+          if(!rows?.length)throw Error('registration_not_confirmed');
+        }
+      }else{
+        // Archive, never cascade-delete member history, photos or videos.
+        if(!existing.length)return json({status:'error',code:'member_not_found'},404);
+        if(!existing[0].is_archived){
+          const rows=await supaWrite('/rest/v1/fit_members?id=eq.'+encodeURIComponent(existing[0].id),
+            'PATCH',{is_archived:true},'member_archive');
+          if(!rows?.length)throw Error('archive_not_confirmed');
+        }
+      }
+      memberCache.delete(JSON.stringify([base,managedName]));
+      return json({status:'success'});
     }catch(error){return failed(error);}
   }
   if(action==='columnList') {
@@ -490,7 +523,7 @@ async function handleRecords(request,env) {
   if(action==='trainerVideoQueue') {
     try {
       const [members, videos]=await Promise.all([
-        supaGet('/rest/v1/fit_members?select=id,name&limit=1000','video_queue_members'),
+        supaGet('/rest/v1/fit_members?select=id,name&is_archived=eq.false&limit=1000','video_queue_members'),
         supaGet('/rest/v1/fit_direct_videos?select=member_id,name,created_at,feedback,mime&state=eq.ready&order=created_at.desc&limit=1000','video_queue')
       ]);
       const names=new Map(members.map(row=>[String(row.id),String(row.name||'').trim()]));
@@ -501,6 +534,9 @@ async function handleRecords(request,env) {
   }
   try {
     step='member';
+    const managedRows=await supaGet('/rest/v1/fit_members?select=id,is_archived&name=eq.'+
+      encodeURIComponent(member)+'&limit=1','member_status');
+    if(managedRows[0]?.is_archived)return json({status:'denied',code:'member_archived'},403);
     const memberId=await ensureMember(base,key,member,supaGet);
     if(memberId===null)return json({status:'denied',code:'member_not_found'},403);
     const lookupMs=performance.now()-start;

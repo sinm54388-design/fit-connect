@@ -2455,6 +2455,9 @@
         btn.addEventListener('click', () => {
           const pr = presets[Number(btn.dataset.pr)];
           if (!pr) return;
+          automaticNutrition = null;
+          foodEntries.length = 0;
+          foodTotals.classList.add('hidden');
           selectedPreset = pr;
           if (descField) descField.value = '[' + pr.tag + '] ' + pr.desc;
           if (calField) calField.value = pr.cal;

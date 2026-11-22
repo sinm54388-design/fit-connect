@@ -575,7 +575,7 @@
       return '';
     }
 
-    function mergeDietRecords(primaryDiet, secondaryDiet) {
+    function mergeDietRecords(primaryDiet, secondaryDiet, deletedPhotoMeals = []) {
       const p = (primaryDiet && typeof primaryDiet === 'object') ? primaryDiet : {};
       const s = (secondaryDiet && typeof secondaryDiet === 'object') ? secondaryDiet : {};
       const out = { ...s, ...p };
@@ -587,6 +587,10 @@
         const mergedMeal = { ...sm, ...pm };
         if (!pPhoto && sPhoto) mergedMeal.photos = [sPhoto];
         else if (pPhoto) mergedMeal.photos = [pPhoto];
+        if (deletedPhotoMeals.includes(k)) {
+          mergedMeal.photos = [];
+          mergedMeal.photo = '';
+        }
         if (Object.keys(mergedMeal).length) out[k] = mergedMeal;
       });
       out.water = Math.max(Number(p.water) || 0, Number(s.water) || 0);
@@ -937,7 +941,7 @@
       const chosenDaily = (baseLoadDaily && typeof baseLoadDaily === 'object')
         ? {
             ...baseLoadDaily,
-            diet: mergeDietRecords(asObj?.diet, recObj?.diet),
+            diet: mergeDietRecords(asObj?.diet, recObj?.diet, recObj?.deletedPhotoMeals || []),
             ...(recObj?.coachFeedbackStored
               ? { headerMessage: recObj.headerMessage, feedback: recObj.feedback }
               : {})
@@ -2007,6 +2011,19 @@
       });
     }
 
+    async function deleteMealPhoto(targetMember, targetDate, mealKey, auth) {
+      const payload = { action: 'dietPhotoDelete', member: targetMember, date: targetDate, mealKey };
+      try {
+        return await postRecords({ ...payload, ...auth });
+      } catch (err) {
+        if (err?.status !== 403 || !state.token || auth.password) throw err;
+        const fresh = await postRecords({ action: 'memberSession', member: targetMember, date: targetDate, token: state.token });
+        if (fresh?.status !== 'success' || !fresh.session) throw err;
+        state.session = fresh.session;
+        return postRecords({ ...payload, session: state.session });
+      }
+    }
+
     function openMealModal(mealKey, mealLabel) {
       const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
       const presets = [
@@ -2027,6 +2044,7 @@
               <span id="photo-status-txt">${compressedPhoto ? '식단 사진 준비됨 ✓ (변경하려면 터치)' : '사진 1장 첨부 (자동 압축)'}</span>
             </label>
             <img id="meal-photo-preview" ${compressedPhoto.startsWith('direct:') ? `data-directimg="${escapeHtml(compressedPhoto)}" data-directmember="${escapeHtml(state.memberName)}"` : `src="${escapeHtml(compressedPhoto)}"`} alt="식단 사진" class="${compressedPhoto ? '' : 'hidden'} mt-2 w-full h-36 object-cover rounded-2xl" />
+            ${compressedPhoto ? '<button type="button" id="meal-delete-photo" class="mt-2 w-full py-2.5 rounded-xl bg-red-50 text-red-700 text-[12px] font-bold">사진만 삭제하기</button>' : ''}
           </div>
 
           <div>
@@ -2050,6 +2068,29 @@
       `);
 
       hydrateDirectImages(state.memberName);
+      document.getElementById('meal-delete-photo')?.addEventListener('click', async e => {
+        if (!window.confirm(`${mealLabel} 사진을 삭제할까요? 식단 글과 칼로리는 유지됩니다.`)) return;
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        btn.textContent = '사진 삭제 중...';
+        try {
+          const auth = (state.appMode === 'coach' && state.trainerPassword)
+            ? { password: state.trainerPassword }
+            : (state.session ? { session: state.session } : { token: state.token });
+          const res = await deleteMealPhoto(state.memberName, state.selectedDate, mealKey, auth);
+          if (res?.status !== 'success') throw new Error(res?.code || '삭제 실패');
+          // Clear the local copy and cache only after the authoritative save.
+          state.record.diet[mealKey] = { ...(state.record.diet[mealKey] || {}), photos: [], photo: '' };
+          saveCachedMemberData(state.selectedDate);
+          closeModal();
+          renderAll();
+          showToast(`${mealLabel} 사진이 삭제되었어요`);
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = '사진만 삭제하기';
+          showToast('사진 삭제 실패: ' + (err?.message || '네트워크 오류'));
+        }
+      });
       document.getElementById('meal-photo-input').addEventListener('change', async e => {
         const f = e.target.files?.[0];
         if (!f) return;
@@ -2635,7 +2676,7 @@
       const asHasRoutines = Array.isArray(asObj?.routines) && asObj.routines.length > 0;
       const recHasRoutines = Array.isArray(recObj?.routines) && recObj.routines.length > 0;
       const baseChosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
-      const mergedCoachDiet = mergeDietRecords(asObj?.diet, recObj?.diet);
+      const mergedCoachDiet = mergeDietRecords(asObj?.diet, recObj?.diet, recObj?.deletedPhotoMeals || []);
       const chosen = {
         ...(baseChosen || {}),
         diet: mergedCoachDiet,
@@ -2813,7 +2854,7 @@
                     <span class="font-bold text-[#111827]">${m.label}: ${escapeHtml(m.desc || '사진 기록')}</span>
                     ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${m.cal}kcal</span>` : ''}
                   </div>
-                  ${extractPhotoSrc(m) ? renderDirectOrImg(extractPhotoSrc(m), m.label + ' 식단', memberName, 'w-full h-32 object-cover rounded-lg') : ''}
+                  ${extractPhotoSrc(m) ? `${renderDirectOrImg(extractPhotoSrc(m), m.label + ' 식단', memberName, 'w-full h-32 object-cover rounded-lg')}<button type="button" data-meal-photo-delete="${m.key}" class="cd-meal-photo-delete w-full py-2 rounded-xl bg-red-50 text-red-700 text-[11px] font-bold">사진만 삭제</button>` : ''}
                 </div>
               `).join('') : '<p class="text-[12px] text-[#6B7280]">아직 오늘 올라온 식단이 없습니다.</p>'}
               <div class="flex flex-wrap gap-1 pt-1">
@@ -2987,6 +3028,25 @@
           </div>
         `);
 
+        document.querySelectorAll('.cd-meal-photo-delete').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const mealKey = btn.dataset.mealPhotoDelete;
+            const label = ({ breakfast: '아침', lunch: '점심', dinner: '저녁', snack: '간식' })[mealKey];
+            if (!label || !window.confirm(`${memberName} 회원님의 ${label} 사진을 삭제할까요? 식단 글은 그대로 유지됩니다.`)) return;
+            btn.disabled = true;
+            btn.textContent = '삭제 중...';
+            try {
+              const res = await deleteMealPhoto(memberName, state.selectedDate, mealKey, { password: state.trainerPassword });
+              if (res?.status !== 'success') throw new Error(res?.code || '삭제 실패');
+              showToast(`${label} 사진을 삭제했어요`);
+              await openCoachDetailSheet(memberName);
+            } catch (err) {
+              btn.disabled = false;
+              btn.textContent = '사진만 삭제';
+              showToast('사진 삭제 실패: ' + (err?.message || '네트워크 오류'));
+            }
+          });
+        });
         document.getElementById('cd-jump-reply')?.addEventListener('click', () => {
           document.getElementById('cd-reply-msg')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           document.getElementById('cd-reply-msg')?.focus({ preventScroll: true });

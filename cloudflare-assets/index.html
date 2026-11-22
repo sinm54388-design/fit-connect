@@ -1097,6 +1097,79 @@
       }
     }
 
+    // Serialized workout saves: capture the member/date at edit time. Rapid
+    // taps are coalesced and no older request can finish AFTER the latest one.
+    const workoutSaveJobs = new Map();
+    function workoutSaveKey(member,date){return JSON.stringify([member,date]);}
+    function workoutStatus() {
+      return workoutSaveJobs.get(workoutSaveKey(state.memberName,state.selectedDate))?.status || '';
+    }
+    function updateWorkoutSaveLabel() {
+      const el=document.getElementById('workout-save-status');
+      if(!el)return;
+      const status=workoutStatus();
+      el.textContent=status==='failed'?'저장 실패 · 다시 시도':status==='saving'?'저장 중…':status==='queued'?'변경사항 저장 준비 중…':status==='saved'?'저장 완료 ✓':'세트를 누르면 자동 저장돼요';
+      el.classList.toggle('text-red-700',status==='failed');
+      el.classList.toggle('text-[#475569]',status!=='failed');
+      const retry=document.getElementById('workout-save-retry');
+      if(retry)retry.classList.toggle('hidden',status!=='failed');
+    }
+    function enqueueWorkoutSave() {
+      if(!state.isLive){showToast('미리보기에서는 운동 기록이 저장되지 않아요');return;}
+      const member=state.memberName,date=state.selectedDate,key=workoutSaveKey(member,date);
+      let job=workoutSaveJobs.get(key);
+      if(!job){job={member,date,key,token:state.token,password:state.trainerPassword,version:0,status:'',timer:null,pending:null,processing:false};workoutSaveJobs.set(key,job);}
+      job.version++;
+      // Keep a dated, immutable routines-only snapshot. Never replace the
+      // whole day while saving a set: diet/photos and coach notes are separate.
+      job.pending=JSON.parse(JSON.stringify(state.record.routines||[]));
+      job.status='queued';
+      if(job.timer)clearTimeout(job.timer);
+      job.timer=setTimeout(()=>{job.timer=null;flushWorkoutSave(job);},420);
+      updateWorkoutSaveLabel();
+    }
+    async function flushWorkoutSave(job) {
+      if(job.processing||!job.pending)return;
+      job.processing=true;
+      try{
+        while(job.pending){
+          const snapshot=job.pending;
+          job.pending=null;
+          job.status='saving';updateWorkoutSaveLabel();
+          const auth={member:job.member,date:job.date,token:job.token||'',...(job.password?{password:job.password}:{})};
+          try{
+            // Patch only routines. Never fall back to writing the whole day:
+            // doing so could overwrite a meal/photo saved during workout.
+            const result=await postAppsScript({...auth,action:'patchData',patch:{routines:snapshot}});
+            if(result?.status!=='success')throw Error(result?.message||result?.error||'운동 세트 저장 실패');
+            markJustSaved(job.member,job.date);
+            if(!job.pending){job.status='saved';updateWorkoutSaveLabel();}
+          } catch(err){
+            // Do not roll back later taps or claim unsaved edits succeeded.
+            if(!job.pending)job.pending=snapshot;
+            job.status='failed';
+            updateWorkoutSaveLabel();
+            showToast('운동 저장 실패 · 다시 시도 버튼을 눌러주세요');
+            return;
+          }
+        }
+      } finally {job.processing=false;updateWorkoutSaveLabel();}
+    }
+    function retryWorkoutSave() {
+      const job=workoutSaveJobs.get(workoutSaveKey(state.memberName,state.selectedDate));
+      if(job){if(job.timer)clearTimeout(job.timer);job.timer=null;flushWorkoutSave(job);}
+    }
+    // Flush a pending set edit when switching tabs/apps; avoid leaving a
+    // debounce timer idle during an iPhone background transition.
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState==='hidden'){
+        workoutSaveJobs.forEach(job=>{
+          if(job.timer){clearTimeout(job.timer);job.timer=null;}
+          if(job.pending)flushWorkoutSave(job);
+        });
+      }
+    });
+
     // --- UI Feedback ---
     function setVideoUploadStatus(message,pct,visible=true) {
       const root=document.getElementById('video-upload-status');
@@ -4222,10 +4295,7 @@
                     <span class="flex items-center gap-1 text-white"><span class="w-2 h-2 rounded-full bg-white"></span>루틴 ${wr.pct}%</span>
                   </div>
                 </div>
-                <div class="relative shrink-0 flex items-center justify-center">
-                  ${heroRingsSvg(score, ds.pct, wr.pct)}
-                  <div class="absolute text-center"><span class="text-[19px] font-extrabold text-white tabular-nums">${score}</span></div>
-                </div>
+
               </div>
 
               <div class="mt-4 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 space-y-2.5">
@@ -4259,6 +4329,34 @@
               </div>
             </section>
 
+            <!-- Compact Today's Lesson Shortcut -->
+            <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
+              <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${missionLabel}</span>
+                  <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
+                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/90' : 'text-[#1D4ED8]'}">${missionSub}</p>
+                </div>
+              </button>
+              ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
+            </div>
+
+            <!-- Compact 1-Line Water Bar -->
+            ${renderCompactWaterBar(ds)}
+
+            <!-- Compact Today Check -->
+            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
+              <div class="flex items-center justify-between"><h2 class="text-[16px] font-bold text-[#111827]">오늘 상태 체크</h2><span class="text-[12px] font-bold text-[#1D4ED8]">${checkedCount}/3</span></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">운동</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="workout" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'done' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">했어요</button><button type="button" data-grp="workout" data-val="rest" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'rest' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">회복</button></div></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">식단</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="diet" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'done' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">지켰어요</button><button type="button" data-grp="diet" data-val="partial" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'partial' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">조절 중</button></div></div>
+              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">컨디션</span><div class="grid grid-cols-3 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="mood" data-val="good" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'good' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">좋음</button><button type="button" data-grp="mood" data-val="normal" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'normal' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">보통</button><button type="button" data-grp="mood" data-val="tired" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'tired' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">피곤</button></div></div>
+            </section>
+            <details class="rounded-[22px] bg-white p-4 shadow-sm">
+              <summary class="cursor-pointer text-[12px] font-extrabold text-[#475569]">📊 상세 통계 · 운동 달성률 · 칼로리 보기</summary>
+              <div class="mt-3">
             <!-- 2-Col Bento -->
             <div class="grid grid-cols-2 gap-3">
               <button type="button" id="go-lesson-2" class="card-blue tap-scale rounded-[22px] p-4 text-left text-white shadow-[0_8px_20px_rgba(37,99,235,0.20)] flex flex-col justify-between">
@@ -4279,21 +4377,11 @@
               </button>
             </div>
 
-            <!-- Compact Today's Lesson Shortcut -->
-            <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
-              <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
-                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
-                </div>
-                <div class="min-w-0">
-                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${missionLabel}</span>
-                  <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
-                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/90' : 'text-[#1D4ED8]'}">${missionSub}</p>
-                </div>
-              </button>
-              ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
-            </div>
-
+              </div>
+            </details>
+            <details class="rounded-[22px] bg-white p-4 shadow-sm">
+              <summary class="cursor-pointer text-[12px] font-extrabold text-[#475569]">📚 FIT-CONNECT 매거진 · 운동·영양 읽을거리</summary>
+              <div class="mt-3">
             <!-- High-Visibility FIT-CONNECT MAGAZINE -->
             <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
               <div class="flex items-center justify-between">
@@ -4317,16 +4405,9 @@
               </div>
             </section>
 
-            <!-- Compact 1-Line Water Bar -->
-            ${renderCompactWaterBar(ds)}
+              </div>
+            </details>
 
-            <!-- Compact Today Check -->
-            <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3">
-              <div class="flex items-center justify-between"><h2 class="text-[16px] font-bold text-[#111827]">오늘 상태 체크</h2><span class="text-[12px] font-bold text-[#1D4ED8]">${checkedCount}/3</span></div>
-              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">운동</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="workout" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'done' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">했어요</button><button type="button" data-grp="workout" data-val="rest" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.workout === 'rest' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">회복</button></div></div>
-              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">식단</span><div class="grid grid-cols-2 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="diet" data-val="done" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'done' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">지켰어요</button><button type="button" data-grp="diet" data-val="partial" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.diet === 'partial' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">조절 중</button></div></div>
-              <div class="flex items-center justify-between gap-3"><span class="text-[13px] font-semibold text-[#4B5563] w-12 shrink-0">컨디션</span><div class="grid grid-cols-3 gap-1 flex-1 p-1 rounded-xl bg-[#F4F6F9]"><button type="button" data-grp="mood" data-val="good" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'good' ? 'bg-[#1D4ED8] text-white' : 'text-[#6B7280]'}">좋음</button><button type="button" data-grp="mood" data-val="normal" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'normal' ? 'bg-[#0F172A] text-white' : 'text-[#6B7280]'}">보통</button><button type="button" data-grp="mood" data-val="tired" class="chk-btn py-1.5 rounded-lg text-[12px] font-bold ${chk.mood === 'tired' ? 'bg-[#0F766E] text-white' : 'text-[#6B7280]'}">피곤</button></div></div>
-            </section>
 
           </div>
         `;
@@ -4407,6 +4488,10 @@
                   <h3 class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
                   <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
                 </div>
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <span id="workout-save-status" class="text-[11px] font-semibold text-[#475569]">세트를 누르면 자동 저장돼요</span>
+                  <button type="button" id="workout-save-retry" class="hidden px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 text-[11px] font-bold">↻ 저장 재시도</button>
+                </div>
                 ${rs.length ? rs.map((r, i) => {
                   const isHw = r.routineType === 'homework';
                   const done = isRoutineDone(r);
@@ -4418,13 +4503,10 @@
                         <div class="flex items-center gap-1.5 flex-wrap">
                           <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isHw ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${isHw ? '개인 숙제' : 'PT 수업'}</span>
                           <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
-                          <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">${r.videoUrl || r.videoId || r.demoKey || libMatch?.videoUrl || libMatch?.videoId ? '🎬 영상 · 자세 ›' : '자세 · 부위 ›'}</span>
                         </div>
                         ${showPrevBadge ? `<p class="text-[11px] font-bold text-[#0F766E] mt-1">📌 직전 참고: ${escapeHtml(libMatch.lastWeight)}kg${libMatch.lastReps ? '×' + escapeHtml(libMatch.lastReps) + '회' : ''} (${escapeHtml(libMatch.lastDate.slice(5))})</p>` : ''}
-                        ${Array.isArray(r.setDetails) && r.setDetails.length
-                          ? `<div class="flex flex-wrap gap-1 mt-1">${r.setDetails.map((sd, sIdx) => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white text-[#4B5563] tabular-nums">${sIdx + 1}set ${sd.weight ? sd.weight + 'kg×' : ''}${sd.reps || r.reps || '12'}회</span>`).join('')}</div>`
-                          : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
-                        ${r.note ? `<div class="mt-2 p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><span class="text-[10px] font-extrabold text-[#1D4ED8] block mb-0.5">💡 코치 자세 포인트</span><p class="text-[13px] font-medium text-[#1E293B] leading-relaxed">${escapeHtml(r.note)}</p></div>` : ''}
+                        <p class="text-[12px] font-semibold text-[#475569] mt-1">${escapeHtml(r.weight||r.setDetails?.[0]?.weight||'—')}kg · ${escapeHtml(r.reps||r.setDetails?.[0]?.reps||'12')}회 · ${Math.max(1,Number(r.sets)||r.completedSets?.length||3)}세트</p>
+                        ${r.note || r.videoUrl || r.videoId || r.demoKey || libMatch?.videoId || libMatch?.videoUrl ? '<span class="inline-block mt-1.5 text-[11px] font-bold text-[#1D4ED8]">자세 · 영상 보기 ›</span>' : ''}
                       </button>
                       <div class="shrink-0 mt-1 flex flex-col gap-1.5">
                         <span class="text-[10px] text-[#475569] font-bold text-center">${isHw?'개인운동 세트':'PT 세트 기록'}</span>
@@ -4776,6 +4858,7 @@
       updateFloatingTimerUI();
       bindEvents();
       hydrateDirectImages();
+      updateWorkoutSaveLabel();
     }
 
     function bindEvents() {
@@ -4923,18 +5006,19 @@
           document.getElementById('meal-copy-yesterday')?.click();
         });
       });
+      document.getElementById('workout-save-retry')?.addEventListener('click',retryWorkoutSave);
       document.querySelectorAll('.routine-set-toggle').forEach(b => {
-        b.addEventListener('click', async () => {
+        b.addEventListener('click', () => {
           const ri=Number(b.dataset.setRidx),si=Number(b.dataset.setIdx);
           const routine=state.record.routines?.[ri];if(!routine)return;
           const count=Math.max(1,Number(routine.sets)||routine.completedSets?.length||3);
-          const original=Array.isArray(routine.completedSets)?[...routine.completedSets]:[];
-          const sets=Array.from({length:count},(_,i)=>Boolean(original[i]));
+          const sets=Array.from({length:count},(_,i)=>Boolean(routine.completedSets?.[i]));
           sets[si]=!sets[si];routine.completedSets=sets;
-          const completed=sets[si];renderAll();
-          const ok=await saveFullRecordLive();
-          if(!ok){routine.completedSets=original;renderAll();showToast('저장에 실패해 이전 세트 상태로 돌아갔어요');}
-          else if(completed)showToast(`${si+1}세트 완료 ✓`);
+          const completed=sets[si];enqueueWorkoutSave();renderAll();
+          if(completed){
+            state.timer.setsDone+=1;
+            if(state.timer.autoStartOnCheck)startTimerCountdown(getConfiguredTimerSeconds());
+          }
         });
       });
       document.querySelectorAll('.routine-toggle').forEach(b => {
@@ -4950,8 +5034,8 @@
             triggerConfetti();
             if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
           }
+          enqueueWorkoutSave();
           renderAll();
-          saveFullRecordLive();
         });
       });
 

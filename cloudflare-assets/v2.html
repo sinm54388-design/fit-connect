@@ -3214,6 +3214,31 @@
       });
     }
 
+    // Date-specific magazine selection: a different lead article each day.
+    // Use canonical array indexes so list buttons always open the correct text.
+    function getDailyMagazinePicks(dateStr, count = 2) {
+      const items = Array.isArray(state.columns) ? state.columns : [];
+      if (!items.length) return [];
+      const day = Math.floor(Date.parse(dateStr + 'T00:00:00Z') / 86400000);
+      const base = ((day % items.length) + items.length) % items.length;
+      const lead = { col: items[base], index: base };
+      const result = [lead];
+      // Prefer a different category for the secondary article.
+      for (let offset = 1; offset < items.length && result.length < count; offset++) {
+        const index = (base + offset) % items.length;
+        if (items[index]?.category !== lead.col?.category) {
+          result.push({ col: items[index], index });
+          break;
+        }
+      }
+      for (let offset = 1; offset < items.length && result.length < count; offset++) {
+        const index = (base + offset) % items.length;
+        if (!result.some(p => p.index === index))
+          result.push({ col: items[index], index });
+      }
+      return result;
+    }
+
     function openMagazineModal(idx) {
       if (typeof idx === 'number') state.activeColumnIdx = idx;
       const item = state.columns[state.activeColumnIdx] || state.columns[0];
@@ -4958,6 +4983,7 @@
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
       const weekdayNote = getWeekdayWorkoutNote(state.selectedDate);
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
+      const dailyMagazinePicks = getDailyMagazinePicks(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
       const routinesArr = state.record.routines || [];
       const hasRoutines = routinesArr.length > 0;
@@ -5028,15 +5054,15 @@
             <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                  <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">NEW</span>
+                  <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">오늘의 추천</span>
                   <span class="text-[12px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
                 </div>
                 ${state.columns.length ? '<button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>' : ''}
               </div>
               <div class="space-y-2">
                 ${!state.columns.length ? '<p class="text-[13px] leading-[1.7] text-[#64748B] py-2">발행된 매거진을 불러오는 중이거나 아직 표시할 글이 없어요.</p>' : ''}
-                ${state.columns.slice(0, 2).map((col, idx) => `
-                  <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
+                ${dailyMagazinePicks.map(({ col, index }, idx) => `
+                  <button type="button" data-colidx="${index}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
                     <div class="min-w-0">
                       <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
                       <p class="text-[15px] font-extrabold text-[#0F172A] mt-2 leading-[1.55] line-clamp-2 break-keep">${escapeHtml(col.title)}</p>
@@ -5840,7 +5866,7 @@
       if (plateLessonBtn) plateLessonBtn.addEventListener('click', openPlateCalcModal);
 
       const magBtn = document.getElementById('btn-open-magazine');
-      if (magBtn) magBtn.addEventListener('click', () => openMagazineModal(0));
+      if (magBtn) magBtn.addEventListener('click', () => openMagazineModal(getDailyMagazinePicks(state.selectedDate)[0]?.index || 0));
       document.querySelectorAll('.mag-item-btn').forEach(b => {
         b.addEventListener('click', () => openMagazineModal(Number(b.dataset.colidx)));
       });

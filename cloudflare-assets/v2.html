@@ -4478,9 +4478,11 @@
                       <p class="text-[15px] font-bold text-[#111827]">${label}</p>
                       <p class="text-[12px] text-[#6B7280] mt-0.5">${escapeHtml(ml.desc || '아직 기록 전이에요')}</p>
                     </div>
-                    <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
+                    <div class="shrink-0 flex flex-col items-end gap-1">
+                      <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
+                      <button type="button" data-prevmeal-key="${key}" data-prevmeal-label="${label}" class="meal-yesterday-btn tap-scale px-1 py-0.5 text-[#64748B] text-[10px] font-medium underline underline-offset-2">↺ 어제 기록</button>
+                    </div>
                   </div>
-                  <button type="button" data-prevmeal-key="${key}" data-prevmeal-label="${label}" class="meal-yesterday-btn tap-scale w-full py-2.5 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8] text-[12px] font-extrabold">↺ 어제 ${label} 식단 불러오기</button>
                   ${extractPhotoSrc(ml) ? `
                     ${renderDirectOrImg(extractPhotoSrc(ml), label + ' 식단', state.memberName, 'w-full h-32 object-cover rounded-xl')}
                     <button type="button" data-meal-photo-key="${key}" data-meal-photo-label="${label}" class="member-photo-delete-btn tap-scale w-full py-2.5 rounded-xl border border-red-100 bg-red-50 text-red-700 text-[12px] font-bold">🗑 사진만 삭제하기</button>

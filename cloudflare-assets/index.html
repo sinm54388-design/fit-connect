@@ -3298,8 +3298,15 @@
               </li>`).join('')}
             </ol>
           </aside>` : ''}
-          <footer class="border-t border-[#E2E8F0] pt-3 px-1 text-[12px] text-[#64748B] leading-relaxed">
-            작성: ${escapeHtml(item.author || '담당 코치')} ${item.published_at ? `· ${escapeHtml(item.published_at)}` : ''}
+          <footer class="border-t border-[#E2E8F0] pt-4">
+            <div class="flex items-center gap-3 rounded-2xl bg-[#EFF6FF] border border-[#DBEAFE] px-4 py-3.5">
+              <div class="w-10 h-10 shrink-0 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center text-[15px] font-extrabold" aria-hidden="true">코치</div>
+              <div class="min-w-0 flex-1">
+                <p class="text-[11px] font-bold tracking-wide text-[#1D4ED8]">FIT-CONNECT 전문 코치 칼럼</p>
+                <p class="text-[16px] font-extrabold text-[#0F172A] mt-0.5">작성 · ${escapeHtml(item.author || '신명진 코치')}</p>
+              </div>
+              ${item.published_at ? `<time class="text-[11px] text-[#64748B] shrink-0" datetime="${escapeHtml(item.published_at)}">${escapeHtml(item.published_at)}</time>` : ''}
+            </div>
           </footer>
         </article>
       `);

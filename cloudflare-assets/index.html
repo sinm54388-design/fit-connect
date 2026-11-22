@@ -2334,6 +2334,7 @@
                   <input id="food-grams" type="number" min="1" max="2000" step="1" inputmode="decimal" value="100" class="w-20 border rounded-lg px-2 py-2 text-[14px]" />
                   <button type="button" id="food-apply" class="ml-auto bg-[#1D4ED8] text-white rounded-xl px-3 py-2 text-[12px] font-bold">추가</button>
                 </div>
+                <div id="food-quick-portions" class="hidden flex flex-wrap gap-1.5" aria-label="간편 수량 선택"></div>
                 <p id="food-unit-note" class="text-[11px] text-[#64748B]"></p>
                 <p id="food-preview" class="text-[11px] text-[#475569]" aria-live="polite"></p>
               </div>
@@ -2530,6 +2531,7 @@
       const foodQuantity = document.getElementById('food-quantity');
       const foodQtyLabel = document.getElementById('food-quantity-label');
       const foodUnitNote = document.getElementById('food-unit-note');
+      const foodQuickPortions = document.getElementById('food-quick-portions');
       let foodPortions = [];
       const selectedAmount = () => {
         const index=Number(foodUnit.value);
@@ -2545,6 +2547,26 @@
         foodQtyLabel.textContent=useGrams?'중량':'수량';
         const index=Number(foodUnit.value),p=foodPortions[index];
         foodUnitNote.textContent=useGrams?'직접 중량을 입력해 주세요.':p?'1'+p.label+' ≈ '+p.grams+'g (대표적인 참고 중량)':'';
+        foodQuickPortions.replaceChildren();
+        foodQuickPortions.classList.toggle('hidden',useGrams || !p);
+        if (!useGrams && p) {
+          for (const qty of [1,2,3]) {
+            const button=document.createElement('button');
+            button.type='button';
+            button.className='tap-scale rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-[12px] font-bold text-[#1D4ED8]';
+            button.textContent=qty+p.label;
+            button.setAttribute('aria-label',qty+p.label+' 선택');
+            button.addEventListener('click',()=>{
+              foodQuantity.value=String(qty);
+              refreshFoodUnit();
+            });
+            if (Number(foodQuantity.value)===qty) {
+              button.className='tap-scale rounded-full bg-[#1D4ED8] px-3 py-2 text-[12px] font-bold text-white';
+              button.setAttribute('aria-pressed','true');
+            }
+            foodQuickPortions.appendChild(button);
+          }
+        }
         previewFood();
       };
       const foodPreview = document.getElementById('food-preview');
@@ -2579,7 +2601,7 @@
             foodUnit.replaceChildren();
             if(foodPortions.length){
               foodPortions.forEach((p,i)=>{
-                const o=document.createElement('option');o.value=String(i);o.textContent=p.label;foodUnit.appendChild(o);
+                const o=document.createElement('option');o.value=String(i);o.textContent='1'+p.label+' (약 '+p.grams+'g)';foodUnit.appendChild(o);
               });
             }
             const gramsOption=document.createElement('option');
@@ -2600,7 +2622,7 @@
         foodOptions.classList.remove('hidden');
       });
       foodGrams?.addEventListener('input',previewFood);
-      foodQuantity?.addEventListener('input',previewFood);
+      foodQuantity?.addEventListener('input',refreshFoodUnit);
       foodUnit?.addEventListener('change',refreshFoodUnit);
       const invalidateAutomatic = () => { automaticNutrition=null; foodEntries.length=0; foodTotals.classList.add('hidden'); };
       descField?.addEventListener('input',invalidateAutomatic);

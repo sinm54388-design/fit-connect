@@ -3226,7 +3226,10 @@
         const options = items.map((col, index) => ({ col, index }))
           .filter(item => item.col?.category === category);
         if (!options.length) return null;
-        return options[((day % options.length) + options.length) % options.length];
+        // Daily auto-published articles take priority on their own date.
+        // If publishing fails, retain the existing date-based rotation.
+        const todaysArticle = options.find(item => String(item.col.published_at || '').slice(0,10) === dateStr);
+        return todaysArticle || options[((day % options.length) + options.length) % options.length];
       }).filter(Boolean);
     }
 

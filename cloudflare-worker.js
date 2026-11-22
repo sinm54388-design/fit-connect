@@ -571,7 +571,7 @@ async function handleRecords(request,env) {
         const exerciseRecords={recent:new Map(),previous:new Map()};
         // Compare only identical exercise names and repetition counts; avoid
         // interpreting different training conditions as a strength increase.
-        const numeric=(v)=>{const str=String(v??'').trim();return /^(?:\\d+)(?:\\.\\d{1,2})?$/.test(str)?Number(str):NaN;};
+        const numeric=(v)=>{const str=String(v??'').trim();return /^(?:\d+)(?:\.\d{1,2})?$/.test(str)?Number(str):NaN;};
 
         for(const r of records){
           const d=r.data||{};
@@ -581,7 +581,7 @@ async function handleRecords(request,env) {
           if(worked)target.workoutDays++;
           const period=r.record_date>=start?'recent':'previous';
           for(const rt of routines){
-            const name=String(rt.name||'').trim().replace(/\\s+/g,' ').slice(0,80);
+            const name=String(rt.name||'').trim().replace(/\s+/g,' ').slice(0,80);
             if(!name)continue;
             const details=Array.isArray(rt.setDetails)&&rt.setDetails.length?rt.setDetails:[{weight:rt.weight,reps:rt.reps}];
             details.forEach((detail,i)=>{

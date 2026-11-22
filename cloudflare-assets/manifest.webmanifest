@@ -1,0 +1,18 @@
+{
+  "name": "FIT-CONNECT | 회원 운동·식단 기록",
+  "short_name": "FIT-CONNECT",
+  "description": "운동과 식단 기록, 코치 피드백",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F6F9",
+  "theme_color": "#0B132B",
+  "icons": [
+    {
+      "src": "/fit-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

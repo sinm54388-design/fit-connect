@@ -843,7 +843,7 @@ async function handleAppsScriptPost(request,env) {
     // Check member-scoped requests, including trainer reads of archived records
     // (coach restoration uses the separate memberRegister action).
     const requestedName=String(input.member||'').trim();
-    if(requestedName&&input.action!=='addMember'&&input.action!=='listMembers'&&input.action!=='trainerOverview'){
+    if(requestedName&&input.password===undefined&&input.action!=='addMember'&&input.action!=='listMembers'&&input.action!=='trainerOverview'){
       const base=String(env.SUPABASE_URL||'').trim().replace(/\/+$/,'');
       const key=String(env.SUPABASE_SECRET_KEY||'').trim();
       if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base)||!key)

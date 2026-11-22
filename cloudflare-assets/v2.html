@@ -2348,7 +2348,7 @@
                 <p id="food-preview" class="text-[11px] text-[#475569]" aria-live="polite"></p>
               </div>
               <p id="food-totals" class="hidden text-[11px] font-semibold text-[#0F766E]"></p>
-              <p class="text-[10px] text-[#64748B]">원재료는 조리 전 무게, 완성 요리는 조리 후 무게로 입력해 주세요. 기준은 검색 결과에 표시됩니다. 영양값은 일반적 추정치예요.</p>
+              <p class="text-[10px] text-[#64748B]">개·인분·공기 등으로 간단히 선택하세요. 앱이 대표 중량으로 계산하며, 영양값은 추정치예요. 정확한 무게를 알면 g 입력도 가능해요.</p>
               <a href="https://various.foodsafetykorea.go.kr/nutrient/" target="_blank" rel="noopener noreferrer" class="inline-block text-[11px] font-semibold text-[#1D4ED8] underline">공식 식품영양성분 검색 (식약처)</a>
             </div>
 
@@ -2555,7 +2555,7 @@
         foodQuantity.classList.toggle('hidden',useGrams);
         foodQtyLabel.textContent=useGrams?'중량':'수량';
         const index=Number(foodUnit.value),p=foodPortions[index];
-        foodUnitNote.textContent=useGrams?'직접 중량을 입력해 주세요.':p?'1'+p.label+' ≈ '+p.grams+'g (대표적인 참고 중량)':'';
+        foodUnitNote.textContent=useGrams?'정확한 중량을 아는 경우에만 입력해 주세요.':p?'일반적인 1'+p.label+' 기준으로 자동 계산돼요. 실제 양에 따라 달라질 수 있어요.':'';
         foodQuickPortions.replaceChildren();
         foodQuickPortions.classList.toggle('hidden',useGrams || !p);
         if (!useGrams && p) {
@@ -2590,7 +2590,7 @@
         const {grams,display}=selectedAmount();
         if (!(grams > 0 && grams <= 2000)) {foodPreview.textContent='중량 1~2000g 또는 수량 0.5~20 사이로 입력해 주세요';return;}
         const n=foodValues(selectedFood,grams);
-        foodPreview.innerHTML='<div class="rounded-lg border border-[#E2E8F0] overflow-hidden"><div class="bg-[#F1F5F9] px-2 py-1 text-[11px] font-bold text-[#334155]">예상 영양성분표 · '+(display?display+' ≈ ':'')+grams+'g · '+foodWeightBasis(selectedFood)+'</div><div class="grid grid-cols-4 divide-x divide-[#E2E8F0] text-center"><div class="p-1.5"><b class="block text-[#111827]">'+n.kcal+'</b>kcal</div><div class="p-1.5"><b class="block text-[#111827]">'+n.carb+'g</b>탄수화물</div><div class="p-1.5"><b class="block text-[#111827]">'+n.prot+'g</b>단백질</div><div class="p-1.5"><b class="block text-[#111827]">'+n.fat+'g</b>지방</div></div></div>';
+        foodPreview.innerHTML='<div class="rounded-lg border border-[#E2E8F0] overflow-hidden"><div class="bg-[#F1F5F9] px-2 py-1 text-[11px] font-bold text-[#334155]">예상 영양성분표 · '+(display?display:grams+'g')+'</div><div class="grid grid-cols-4 divide-x divide-[#E2E8F0] text-center"><div class="p-1.5"><b class="block text-[#111827]">'+n.kcal+'</b>kcal</div><div class="p-1.5"><b class="block text-[#111827]">'+n.carb+'g</b>탄수화물</div><div class="p-1.5"><b class="block text-[#111827]">'+n.prot+'g</b>단백질</div><div class="p-1.5"><b class="block text-[#111827]">'+n.fat+'g</b>지방</div></div></div>';
       };
       foodSearch?.addEventListener('input',()=>{
         const term=foodSearch.value.trim().toLowerCase().replace(/\s+/g,'');
@@ -2613,7 +2613,7 @@
             btn.type='button';
             btn.setAttribute('role','option');
             btn.className='block w-full text-left rounded-xl bg-white px-3 py-2 text-[12px] text-[#111827] hover:bg-[#EFF6FF]';
-            btn.textContent=food[0]+' '+(p?variant.qty+p.label:grams+'g')+' · '+(p?'약 ':'')+grams+'g · '+kcal+'kcal / 단백질 '+protein+'g';
+            btn.textContent=food[0]+' · '+(p?variant.qty+p.label:grams+'g')+' · 약 '+kcal+'kcal / 단백질 '+protein+'g';
             btn.addEventListener('click',()=>{
               selectedFood=food;
               foodPortions=portions;
@@ -2621,12 +2621,12 @@
               foodPortions.forEach((portion,i)=>{
                 const o=document.createElement('option');
                 o.value=String(i);
-                o.textContent='1'+portion.label+' (약 '+portion.grams+'g)';
+                o.textContent='1'+portion.label;
                 foodUnit.appendChild(o);
               });
               const gramsOption=document.createElement('option');
               gramsOption.value='g';
-              gramsOption.textContent='그램(g)';
+              gramsOption.textContent='직접 g 입력';
               foodUnit.appendChild(gramsOption);
               foodUnit.value=p?String(variant.index):'g';
               foodQuantity.value=p?String(variant.qty):'1';
@@ -2659,7 +2659,7 @@
         foodEntries.push({name:selectedFood[0],grams,display,...n});
         const t=foodEntries.reduce((a,v)=>({kcal:a.kcal+v.kcal,carb:a.carb+v.carb,prot:a.prot+v.prot,fat:a.fat+v.fat}),{kcal:0,carb:0,prot:0,fat:0});
         automaticNutrition={carb:Math.round(t.carb*10)/10,prot:Math.round(t.prot*10)/10,fat:Math.round(t.fat*10)/10};
-        descField.value=foodEntries.map(v=>v.name+' '+(v.display?v.display+' (약 '+v.grams+'g)':v.grams+'g')).join(' + ');
+        descField.value=foodEntries.map(v=>v.name+' '+(v.display||v.grams+'g')).join(' + ');
         calField.value=t.kcal;
         foodTotals.textContent='예상 영양성분 · '+foodEntries.length+'개 음식 합계: '+t.kcal+'kcal / 탄수화물 '+automaticNutrition.carb+'g / 단백질 '+automaticNutrition.prot+'g / 지방 '+automaticNutrition.fat+'g';
         foodTotals.classList.remove('hidden');

@@ -544,7 +544,16 @@ async function handleRecords(request,env) {
         const prevDiet=(row?.data?.diet&&typeof row.data.diet==='object')?row.data.diet:{};
         const mergedDiet={...prevDiet};
         for(const k of ['breakfast','lunch','dinner','snack']){
-          if(rawDiet[k]&&typeof rawDiet[k]==='object')mergedDiet[k]=rawDiet[k];
+          if(rawDiet[k]&&typeof rawDiet[k]==='object'&&!Array.isArray(rawDiet[k])){
+            const previous=prevDiet[k]&&typeof prevDiet[k]==='object'?prevDiet[k]:{};
+            const incoming=rawDiet[k];
+            // Missing photos means "leave the photo unchanged", not "delete it".
+            // Apps Script's text-only meal writes must never clear existing images.
+            const existingPhotos=Array.isArray(previous.photos)?previous.photos:[];
+            const nextPhotos=Array.isArray(incoming.photos)&&incoming.photos.length
+              ?incoming.photos:existingPhotos;
+            mergedDiet[k]={...previous,...incoming,photos:nextPhotos};
+          }
         }
         if(rawDiet.water!==undefined)mergedDiet.water=Number(rawDiet.water)||0;
         const data={...(row?.data||{}),diet:mergedDiet};

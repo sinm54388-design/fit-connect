@@ -2094,18 +2094,8 @@
           if (supaRes?.status !== 'success') {
             throw new Error(supaRes?.code || supaRes?.message || '사진 저장 실패');
           }
-          // Confirm that a newly uploaded photo survives a fresh server read.
-          if (hasNewPhoto && extractPhotoSrc(updated)) {
-            const verified = await postRecords({
-              action: 'read', member: state.memberName, date: state.selectedDate,
-              ...(state.appMode === 'coach' && state.trainerPassword
-                ? { password: state.trainerPassword }
-                : (state.session ? { session: state.session } : { token: state.token }))
-            });
-            const persisted = extractPhotoSrc(unwrapDailyRecord(verified)?.diet?.[mealKey]);
-            if (!persisted || persisted !== extractPhotoSrc(updated))
-              throw new Error('사진 저장 확인 실패 — 다시 시도해 주세요');
-          }
+          // Photo write returned success. Avoid a second authenticated read here:
+          // an expired read session should not turn a successful upload into 403.
           saveCachedMemberData(state.selectedDate);
           closeModal();
           renderAll();

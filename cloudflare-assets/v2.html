@@ -2059,6 +2059,7 @@
             ${compressedPhoto ? '<button type="button" id="meal-delete-photo" class="mt-2 w-full py-2.5 rounded-xl bg-red-50 text-red-700 text-[12px] font-bold">사진만 삭제하기</button>' : ''}
           </div>
 
+          <button type="button" id="meal-copy-yesterday" class="tap-scale w-full p-3 rounded-2xl bg-[#EFF6FF] text-[#1D4ED8] font-extrabold text-[12px]">↺ 어제 ${mealLabel} 식단 불러오기 (사진 제외)</button>
           <div>
             <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 태그로 2초 만에 저장</p>
             <div class="grid grid-cols-2 gap-2">
@@ -2080,6 +2081,30 @@
       `);
 
       hydrateDirectImages(state.memberName);
+      document.getElementById('meal-copy-yesterday')?.addEventListener('click', async e => {
+        const btn = e.currentTarget;
+        const date = shiftDateStr(state.selectedDate, -1);
+        btn.disabled = true;
+        btn.textContent = '어제 식단 확인 중…';
+        try {
+          const auth = state.trainerPassword ? {password:state.trainerPassword} : state.session ? {session:state.session} : {token:state.token};
+          const res = await postRecords({action:'read',member:state.memberName,date,...auth});
+          const previous = unwrapDailyRecord(res)?.diet?.[mealKey];
+          if (!previous || (!String(previous.desc||'').trim() && !Number(previous.cal))) {
+            showToast('어제 같은 끼니에 저장된 기록이 없어요');
+          } else {
+            const desc = document.getElementById('mf-desc');
+            const cal = document.getElementById('mf-cal');
+            if(desc) desc.value = previous.desc || '';
+            if(cal) cal.value = previous.cal || '';
+            showToast('어제 기록을 입력칸에 불러왔어요 · 저장을 눌러주세요');
+          }
+        } catch(err) {
+          showToast('어제 식단을 불러오지 못했어요: '+(err?.code||'네트워크 확인'));
+        } finally {
+          btn.disabled=false;btn.textContent='↺ 어제 식단 불러오기 (사진 제외)';
+        }
+      });
       document.getElementById('meal-delete-photo')?.addEventListener('click', async e => {
         if (!window.confirm(`${mealLabel} 사진을 삭제할까요? 식단 글과 칼로리는 유지됩니다.`)) return;
         const btn = e.currentTarget;
@@ -3049,6 +3074,9 @@
                 <option value="">✨ 전문 코칭 멘트 선택하기 (10종)...</option>
                 ${DAILY_COACH_TIPS.map((tip, idx) => `<option value="${idx}">${idx + 1}. ${escapeHtml(tip.slice(0, 32))}...</option>`).join('')}
               </select>
+              <div class="flex gap-1.5 overflow-x-auto pb-1" aria-label="코치 빠른 피드백">
+                ${[['자세 좋아요','자세가 안정적으로 유지됐어요. 지금처럼 움직임의 정확도를 지켜주세요.'],['복압 유지','동작 시작 전 숨을 채우고 복압을 유지해 보세요.'],['단백질 챙기기','매 끼니 단백질 반찬을 함께 챙겨주세요.'],['회복 집중','오늘은 충분한 수면과 수분 섭취로 회복을 우선해 주세요.']].map(([label,tip])=>`<button type="button" data-quick-tip="${escapeHtml(tip)}" class="cd-quick-tip tap-scale shrink-0 px-3 py-2 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold">${label} +</button>`).join('')}
+              </div>
               <textarea id="cd-reply-msg" rows="2" placeholder="회원님께 보낼 피드백과 오늘의 한마디를 입력하세요" class="w-full text-[13px] p-3 rounded-2xl bg-[#F4F6F9] focus:outline-none">${escapeHtml(replyMsg)}</textarea>
               <div class="grid grid-cols-2 gap-2">
                 <button type="button" id="cd-broadcast-all" class="tap-scale py-3.5 rounded-2xl bg-[#F0FDFA] text-[#0F766E] text-[12px] font-extrabold">
@@ -3065,6 +3093,14 @@
           </div>
         `);
 
+        document.querySelectorAll('.cd-quick-tip').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const field=document.getElementById('cd-reply-msg');
+            if(!field)return;
+            field.value=[field.value.trim(),btn.dataset.quickTip].filter(Boolean).join('\n');
+            replyMsg=field.value;field.focus();
+          });
+        });
         document.querySelectorAll('.cd-meal-photo-delete').forEach(btn => {
           btn.addEventListener('click', async () => {
             const mealKey = btn.dataset.mealPhotoDelete;
@@ -4351,7 +4387,7 @@
                           : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
                         ${r.note ? `<div class="mt-2 p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><span class="text-[10px] font-extrabold text-[#1D4ED8] block mb-0.5">💡 코치 자세 포인트</span><p class="text-[13px] font-medium text-[#1E293B] leading-relaxed">${escapeHtml(r.note)}</p></div>` : ''}
                       </button>
-                      ${isHw ? `<button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 mt-1 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-teal text-white' : 'bg-white text-[#0F766E] shadow-sm'}">${done ? '완료 ✓' : '체크'}</button>` : ''}
+                      ${isHw ? `<div class="shrink-0 mt-1 flex flex-col gap-1.5"><button type="button" data-ridx="${i}" class="routine-toggle tap-scale px-2.5 py-1.5 rounded-xl text-[11px] font-bold ${done ? 'card-teal text-white' : 'bg-white text-[#0F766E] shadow-sm'}">${done ? '전체 완료 ✓' : '전체 체크'}</button><div class="flex flex-wrap gap-1 max-w-[98px] justify-end">${Array.from({length:Math.min(12,Math.max(1,Number(r.sets)||r.completedSets?.length||3))},(_,si)=>`<button type="button" data-set-ridx="${i}" data-set-idx="${si}" aria-label="${si+1}세트 완료 상태 변경" class="routine-set-toggle tap-scale w-7 h-7 rounded-lg text-[10px] font-extrabold ${r.completedSets?.[si]?'bg-[#0F766E] text-white':'bg-white text-[#475569] border border-[#CBD5E1]'}">${r.completedSets?.[si]?'✓':si+1}</button>`).join('')}</div></div>` : ''}
                     </div>
                   `;
                 }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}
@@ -4835,6 +4871,20 @@
         });
       });
 
+      document.querySelectorAll('.routine-set-toggle').forEach(b => {
+        b.addEventListener('click', async () => {
+          const ri=Number(b.dataset.setRidx),si=Number(b.dataset.setIdx);
+          const routine=state.record.routines?.[ri];if(!routine)return;
+          const count=Math.max(1,Number(routine.sets)||routine.completedSets?.length||3);
+          const original=Array.isArray(routine.completedSets)?[...routine.completedSets]:[];
+          const sets=Array.from({length:count},(_,i)=>Boolean(original[i]));
+          sets[si]=!sets[si];routine.completedSets=sets;
+          const completed=sets[si];renderAll();
+          const ok=await saveFullRecordLive();
+          if(!ok){routine.completedSets=original;renderAll();showToast('저장에 실패해 이전 세트 상태로 돌아갔어요');}
+          else if(completed)showToast(`${si+1}세트 완료 ✓`);
+        });
+      });
       document.querySelectorAll('.routine-toggle').forEach(b => {
         b.addEventListener('click', () => {
           const idx = Number(b.dataset.ridx);

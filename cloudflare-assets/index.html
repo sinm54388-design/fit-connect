@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FIT-CONNECT</title>
+  <meta name="theme-color" content="#0B132B" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="FIT-CONNECT" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/fit-icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
@@ -134,6 +139,10 @@
   <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
 
   <script>
+    // Register a network-only service worker: never cache private member/API data.
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}), { once: true });
+    }
     // --- Date & Clipboard Helpers ---
     function getTodayKST() {
       const now = new Date();
@@ -2171,6 +2180,22 @@
       `);
 
       hydrateDirectImages(state.memberName);
+      // Tab-scoped text draft; no pictures or credentials enter sessionStorage.
+      const mealDraftKey = 'fit_meal_draft_v1_' + encodeURIComponent(state.memberName) + '_' + state.selectedDate + '_' + mealKey;
+      const descField = document.getElementById('mf-desc');
+      const calField = document.getElementById('mf-cal');
+      try {
+        const draft = JSON.parse(sessionStorage.getItem(mealDraftKey) || 'null');
+        if (draft && typeof draft.desc === 'string' && typeof draft.cal === 'string') {
+          if (descField) descField.value = draft.desc;
+          if (calField) calField.value = draft.cal;
+        }
+      } catch {}
+      const preserveMealDraft = () => {
+        try { sessionStorage.setItem(mealDraftKey, JSON.stringify({ desc: descField?.value || '', cal: calField?.value || '' })); } catch {}
+      };
+      descField?.addEventListener('input', preserveMealDraft);
+      calField?.addEventListener('input', preserveMealDraft);
       document.getElementById('meal-copy-yesterday')?.addEventListener('click', async e => {
         const btn = e.currentTarget;
         const date = shiftDateStr(state.selectedDate, -1);
@@ -2187,6 +2212,7 @@
             const cal = document.getElementById('mf-cal');
             if(desc) desc.value = previous.desc || '';
             if(cal) cal.value = previous.cal || '';
+            preserveMealDraft();
             showToast('어제 기록을 입력칸에 불러왔어요 · 저장을 눌러주세요');
           }
         } catch(err) {
@@ -2222,6 +2248,7 @@
         const f = e.target.files?.[0];
         if (!f) return;
         try {
+          document.getElementById('photo-status-txt').textContent = '사진 최적화 중…';
           compressedPhoto = await compressImageFile(f);
           hasNewPhoto = true;
           const prev = document.getElementById('meal-photo-preview');
@@ -2232,6 +2259,7 @@
           document.getElementById('photo-status-txt').textContent = '사진 압축 완료 ✓';
           showToast('사진이 가볍게 압축되었어요');
         } catch {
+          document.getElementById('photo-status-txt').textContent = '사진 처리 실패 · 다시 선택해 주세요';
           showToast('사진을 불러오지 못했어요');
         }
       });
@@ -2296,6 +2324,7 @@
           // Photo write returned success. Avoid a second authenticated read here:
           // an expired read session should not turn a successful upload into 403.
           saveCachedMemberData(state.selectedDate);
+          try { sessionStorage.removeItem(mealDraftKey); } catch {}
           closeModal();
           renderAll();
           showToast(labelText + ' ✓');
@@ -4155,6 +4184,25 @@
       }
     }
 
+    // Device-local unread hint, not a server-side read receipt.
+    function trainerMemoSignature() {
+      const messages = (state.record?.memos || []).filter(m => m.from === 'trainer');
+      const last = messages[messages.length - 1];
+      return last ? String(last.id || '') + '|' + String(last.time || '') + '|' + String(last.text || '') : '';
+    }
+    function feedbackSeenKey() {
+      return 'fit_feedback_seen_v1_' + encodeURIComponent(state.memberName || '');
+    }
+    function hasUnreadFeedback() {
+      const signature = trainerMemoSignature();
+      if (!signature || state.appMode !== 'member') return false;
+      try { return localStorage.getItem(feedbackSeenKey()) !== signature; } catch { return false; }
+    }
+    function markFeedbackSeen() {
+      const signature = trainerMemoSignature();
+      if (!signature) return;
+      try { localStorage.setItem(feedbackSeenKey(), signature); } catch {}
+    }
     function renderBottomNav() {
       const nav = document.getElementById('bottom-nav');
       document.getElementById('member-fab-wrap').style.display = state.appMode === 'member' ? 'flex' : 'none';
@@ -4169,9 +4217,9 @@
         ];
         nav.innerHTML = tabs.map(t => {
           const act = state.memberTab === t.id;
-          return `<button type="button" data-tab="${t.id}" class="m-nav-btn tap-scale flex flex-col items-center justify-center py-0.5 ${act ? 'text-[#1D4ED8]' : 'text-[#9CA3AF]'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="${act ? '2.3' : '1.7'}" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${t.icon}"/></svg><span class="text-[10px] mt-1 ${act ? 'font-bold' : 'font-medium'}">${t.label}</span></button>`;
+          return `<button type="button" data-tab="${t.id}" class="m-nav-btn tap-scale flex flex-col items-center justify-center py-0.5 ${act ? 'text-[#1D4ED8]' : 'text-[#9CA3AF]'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="${act ? '2.3' : '1.7'}" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${t.icon}"/></svg><span class="text-[10px] mt-1 ${act ? 'font-bold' : 'font-medium'}">${t.label}${t.id === "feedback" && hasUnreadFeedback() ? " •" : ""}</span></button>`;
         }).join('');
-        nav.querySelectorAll('.m-nav-btn').forEach(b => b.addEventListener('click', () => { state.memberTab = b.dataset.tab; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+        nav.querySelectorAll('.m-nav-btn').forEach(b => b.addEventListener('click', () => { state.memberTab = b.dataset.tab; if(state.memberTab === 'feedback') markFeedbackSeen(); renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
       } else {
         nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-2 px-6 pt-2 pb-3';
         const tabs = [
@@ -5163,7 +5211,7 @@
             savePatchLive({ memos: state.record.memos });
             setVideoUploadStatus('',0,false);
           } catch (err) {
-            setVideoUploadStatus('',0,false);
+            setVideoUploadStatus('업로드 실패 · 파일을 다시 선택해 주세요',0,true);
             showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 MP4/MOV만 가능'));
           }
         });

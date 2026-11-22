@@ -534,7 +534,7 @@ async function handleRecords(request,env) {
       if(!rawDiet||typeof rawDiet!=='object'||Array.isArray(rawDiet))return json({status:'error',code:'invalid_diet'},400);
       const table='/rest/v1/fit_daily_records';
       const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
-      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
+      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation,resolution=merge-duplicates'};
       for(let attempt=0;attempt<3;attempt++){
         const rows=await supaGet(table+'?select=id,data,updated_at&'+scope+'&limit=2','diet_read');
         if(rows.length>1)break;
@@ -556,6 +556,17 @@ async function handleRecords(request,env) {
           }
         }
         if(rawDiet.water!==undefined)mergedDiet.water=Number(rawDiet.water)||0;
+        // Photo bytes have their own table so a subsequent Apps Script mirror
+        // cannot erase them by replacing fit_daily_records.data.
+        for(const k of ['breakfast','lunch','dinner','snack']){
+          const photos=rawDiet[k]?.photos;
+          const candidate=Array.isArray(photos)?photos[0]:null;
+          const src=typeof candidate==='string'?candidate:(candidate?.url||candidate?.src||candidate?.data||'');
+          if(src && (/^data:image\\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(src)||/^https:\\/\\//.test(src))){
+            await supaWrite('/rest/v1/fit_meal_photos?on_conflict=member_id,record_date,meal_key','POST',
+              {member_id:memberId,record_date:date,meal_key:k,photo:src,updated_at:new Date().toISOString()},'meal_photo_write');
+          }
+        }
         const data={...(row?.data||{}),diet:mergedDiet};
         const version=row?.updated_at==null?'is.null':'eq.'+encodeURIComponent(row.updated_at);
         const target=row?table+'?id=eq.'+encodeURIComponent(row.id)+'&updated_at='+version:table;
@@ -673,9 +684,20 @@ async function handleRecords(request,env) {
         'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
       });
     }
-    const daily=await supaGet('/rest/v1/fit_daily_records?select=data&member_id=eq.'+
-      encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','daily');
-    return json(daily.length?daily[0].data:{},200,{
+    const [daily,photoRows]=await Promise.all([
+      supaGet('/rest/v1/fit_daily_records?select=data&member_id=eq.'+
+        encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','daily'),
+      supaGet('/rest/v1/fit_meal_photos?select=meal_key,photo&member_id=eq.'+
+        encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=4','meal_photos')
+    ]);
+    const result={...(daily[0]?.data||{})};
+    const diet={...(result.diet||{})};
+    for(const item of photoRows){
+      if(!['breakfast','lunch','dinner','snack'].includes(item.meal_key))continue;
+      diet[item.meal_key]={...(diet[item.meal_key]||{}),photos:[item.photo]};
+    }
+    if(photoRows.length)result.diet=diet;
+    return json(result,200,{
       'Server-Timing':'member;dur='+lookupMs.toFixed(1)+
         ', daily;dur='+(performance.now()-start-lookupMs).toFixed(1),
       'X-Fit-Function-Region':request.cf?.colo||'cloudflare'

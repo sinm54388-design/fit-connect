@@ -64,7 +64,7 @@
     <main id="main-content" class="flex-1 px-4 pt-1 space-y-3.5"></main>
 
     <!-- Floating Mini Rest Timer Bar (Member Mode) -->
-    <div id="floating-timer-bar" class="hidden fixed bottom-[72px] left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[398px] z-35 rounded-2xl hero-navy text-white px-4 py-2.5 shadow-[0_10px_28px_rgba(11,19,43,0.38)] flex items-center justify-between gap-2 animate-in">
+    <div id="floating-timer-bar" style="left:50%;transform:translateX(-50%);" class="hidden fixed bottom-[76px] w-[calc(100%-28px)] max-w-[402px] z-40 rounded-2xl hero-navy text-white px-3.5 py-2.5 shadow-[0_10px_28px_rgba(11,19,43,0.38)] flex items-center justify-between gap-2">
       <div class="flex items-center gap-2.5 min-w-0">
         <span class="w-2.5 h-2.5 rounded-full bg-[#5EEAD4] animate-pulse shrink-0"></span>
         <div class="min-w-0">
@@ -207,20 +207,25 @@
       return DAILY_COACH_TIPS[sum % DAILY_COACH_TIPS.length];
     }
 
-    // Client-side Image Compression (<= 900px JPEG for fast mobile upload)
+    // Client-side Image Compression (fits Google Sheets 50k cell limit safely)
     function compressImageFile(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
           const img = new Image();
           img.onload = () => {
-            const maxW = 900;
-            const scale = img.width > maxW ? maxW / img.width : 1;
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.round(img.width * scale);
-            canvas.height = Math.round(img.height * scale);
-            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/jpeg', 0.72));
+            const encodeAt = (maxW, q) => {
+              const scale = img.width > maxW ? maxW / img.width : 1;
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, Math.round(img.width * scale));
+              canvas.height = Math.max(1, Math.round(img.height * scale));
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+              return canvas.toDataURL('image/jpeg', q);
+            };
+            let out = encodeAt(400, 0.5);
+            if (out.length > 18000) out = encodeAt(320, 0.42);
+            if (out.length > 22000) out = encodeAt(260, 0.35);
+            resolve(out);
           };
           img.onerror = reject;
           img.src = reader.result;
@@ -290,6 +295,52 @@
       } catch {}
     }
 
+    function playTempoTone(freq, dur) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        const ctx = new AC();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.14, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + dur + 0.02);
+      } catch {}
+    }
+
+    function computeTodayVolumeFun() {
+      const rs = state.record.routines || [];
+      let totalKg = 0;
+      rs.forEach(r => {
+        const isPt = r.routineType !== 'homework';
+        if (Array.isArray(r.setDetails) && r.setDetails.length) {
+          r.setDetails.forEach((sd, idx) => {
+            const isDone = isPt || (Array.isArray(r.completedSets) ? Boolean(r.completedSets[idx]) : false);
+            if (isDone) totalKg += (Number(sd.weight) || 0) * (Number(sd.reps) || 10);
+          });
+        } else {
+          const w = Number(r.weight) || 0;
+          const reps = Number(r.reps) || 10;
+          const totalSets = Math.max(1, Number(r.sets) || 1);
+          const doneSets = isPt ? totalSets : (Array.isArray(r.completedSets) ? r.completedSets.filter(Boolean).length : 0);
+          if (w > 0 && doneSets > 0) totalKg += w * reps * doneSets;
+        }
+      });
+      totalKg = Math.round(totalKg);
+      let analogy = '맨몸 · 코어 집중 데이 🔥';
+      if (totalKg >= 3500) analogy = `코끼리 ${(totalKg / 4000).toFixed(1)}마리 🐘`;
+      else if (totalKg >= 1200) analogy = `소형차(아반떼) ${(totalKg / 1300).toFixed(1)}대 🚗`;
+      else if (totalKg >= 400) analogy = `성인 남성 ${Math.max(1, Math.round(totalKg / 70))}명 🏋️`;
+      else if (totalKg >= 100) analogy = `쌀 20kg ${Math.max(1, Math.round(totalKg / 20))}포대 🌾`;
+      else if (totalKg > 0) analogy = `생수 2L ${Math.max(1, Math.round(totalKg / 2))}병 💧`;
+      return { totalKg, analogy };
+    }
+
     // --- URL Params ---
     const urlParams = new URLSearchParams(window.location.search);
     const paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
@@ -303,6 +354,9 @@
       loading: false,
       appMode: 'member', // 'member' | 'coach'
       memberTab: 'report', // 'report' | 'lesson' | 'diet' | 'body' | 'feedback'
+      lessonView: 'today', // 'today' | 'library'
+      lessonSearch: '',
+      exerciseLibrary: {},
       coachTab: 'coaching', // 'coaching' | 'members'
       coachFilter: 'pending', // 'pending' | 'today' | 'dormant' | 'all'
       coachSearch: '',
@@ -336,16 +390,18 @@
         barWeight: 20
       },
 
+      // Body Asset Value State (Fat Loss & Muscle Gain)
+      bodyValue: {
+        fatLostKg: 0,
+        muscleGainedKg: 0
+      },
+
       // Member feedback reaction (local persisted per member+date)
       feedbackReaction: '',
 
       record: {
         headerMessage: '',
-        routines: [
-          { id: 1, routineType: 'pt', name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '발바닥 3점 지지, 3초 천천히 하강', completedSets: [true, true, true, true] },
-          { id: 2, routineType: 'pt', name: '루마니안 데드리프트', weight: '30', sets: '4', reps: '10', note: '무릎 고정하고 엉덩이 뒤로 밀기', completedSets: [true, true, true, true] },
-          { id: 3, routineType: 'homework', name: '데드버그', weight: '', sets: '3', reps: '12', note: '허리 바닥 밀착 호흡', completedSets: [false, false, false] }
-        ],
+        routines: [],
         reflection: { good: '', bad: '' },
         diet: {
           breakfast: { desc: '그릭요거트 · 삶은계란 2개 · 사과', cal: '480', carb: '45', prot: '28', fat: '12', photos: [] },
@@ -408,6 +464,7 @@
         }
       ],
 
+      directVideos: [],
       trainerOverview: []
     };
 
@@ -430,6 +487,14 @@
         if (wv !== null && !Number(state.record.diet.water)) {
           state.record.diet.water = Number(wv) || 0;
         }
+        const libRaw = localStorage.getItem(`fit_ex_lib_v2_${state.memberName}`);
+        if (libRaw) state.exerciseLibrary = JSON.parse(libRaw) || {};
+        const bvRaw = localStorage.getItem(`fit_bodyval_${state.memberName}`);
+        if (bvRaw) {
+          const bv = JSON.parse(bvRaw);
+          state.bodyValue.fatLostKg = Number(bv.fatLostKg) || 0;
+          state.bodyValue.muscleGainedKg = Number(bv.muscleGainedKg) || 0;
+        }
       } catch {}
     }
 
@@ -448,15 +513,32 @@
     // --- API Helpers ---
     async function postRecords(payload) {
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+      const timeoutMs = (payload?.action === 'directVideoBegin' || payload?.action === 'directVideoFinish' || payload?.action === 'memberSession') ? 25000 : 12000;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
       try {
         const res = await fetch('/api/records', {
           method: 'POST',
+          cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
           ...(ctrl ? { signal: ctrl.signal } : {})
         });
-        if (!res.ok) throw new Error('records_' + res.status);
+        if (!res.ok) {
+          let errCode = '';
+          try {
+            const rawTxt = await res.text();
+            try {
+              const j = JSON.parse(rawTxt);
+              errCode = j?.code || j?.error || j?.message || rawTxt.slice(0, 80);
+            } catch {
+              errCode = rawTxt.slice(0, 80);
+            }
+          } catch {}
+          const e = new Error('records_' + res.status + (errCode ? ' (' + errCode + ')' : ''));
+          e.status = res.status;
+          e.code = errCode;
+          throw e;
+        }
         return res.json();
       } finally {
         if (timer) clearTimeout(timer);
@@ -466,11 +548,184 @@
     async function postAppsScript(payload) {
       const res = await fetch('/api/apps-script', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('apps_script_' + res.status);
       return res.json();
+    }
+
+    function markJustSaved(memberName, dateStr) {
+      try { localStorage.setItem(`fit_just_saved_${memberName}_${dateStr}`, String(Date.now())); } catch {}
+    }
+    function wasRecentlySaved(memberName, dateStr) {
+      try {
+        const ts = Number(localStorage.getItem(`fit_just_saved_${memberName}_${dateStr}`) || 0);
+        return ts > 0 && (Date.now() - ts) < 120000;
+      } catch { return false; }
+    }
+
+    function extractPhotoSrc(meal) {
+      if (!meal || typeof meal !== 'object') return '';
+      const raw = (Array.isArray(meal.photos) && meal.photos[0]) || meal.photo || '';
+      if (typeof raw === 'string') return raw;
+      if (raw && typeof raw === 'object') return raw.url || raw.src || raw.data || '';
+      return '';
+    }
+
+    function unwrapDailyRecord(res) {
+      if (!res || typeof res !== 'object') return {};
+      if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) return res.data;
+      if (res.record && typeof res.record === 'object' && !Array.isArray(res.record)) return res.record;
+      return res;
+    }
+
+    function makeUuidV4() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+
+    function normalizeVideoMime(file) {
+      const t = String(file?.type || '').toLowerCase();
+      if (t === 'video/mp4' || t === 'video/webm' || t === 'video/quicktime' || t === 'image/jpeg' || t === 'image/png' || t === 'image/webp') return t;
+      const n = String(file?.name || '').toLowerCase();
+      if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg';
+      if (n.endsWith('.png')) return 'image/png';
+      if (n.endsWith('.webp')) return 'image/webp';
+      if (n.endsWith('.mov')) return 'video/quicktime';
+      if (n.endsWith('.webm')) return 'video/webm';
+      return 'video/mp4';
+    }
+
+    function dataUrlToFile(dataUrl, filename) {
+      const parts = String(dataUrl || '').split(',');
+      const mimeMatch = (parts[0] || '').match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const bin = atob(parts[1] || '');
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return new File([arr], filename || 'diet-photo.jpg', { type: mime });
+    }
+
+    function renderDirectOrImg(src, alt, memberName, cls) {
+      const s = String(src || '').trim();
+      if (!s) return '';
+      if (s.startsWith('direct:')) {
+        return `<img data-directimg="${escapeHtml(s)}" data-directmember="${escapeHtml(memberName || state.memberName)}" alt="${escapeHtml(alt || '사진')}" class="${cls} bg-[#F4F6F9]" />`;
+      }
+      return `<img src="${escapeHtml(s)}" alt="${escapeHtml(alt || '사진')}" class="${cls}" />`;
+    }
+
+    function hydrateDirectImages(memberOverride) {
+      document.querySelectorAll('img[data-directimg]').forEach(img => {
+        if (img.dataset.hydrated === '1') return;
+        img.dataset.hydrated = '1';
+        const dvid = img.dataset.directimg;
+        const mName = memberOverride || img.dataset.directmember || state.memberName;
+        if (!dvid) return;
+        resolvePlayableVideoUrl(dvid, (state.appMode === 'coach' && state.trainerPassword) ? { password: state.trainerPassword } : null, mName).then(url => {
+          if (url) img.src = url;
+        }).catch(() => {});
+      });
+    }
+
+    function xhrPutFile(url, body, headers, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', url, true);
+        Object.entries(headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+        if (xhr.upload && typeof onProgress === 'function') {
+          xhr.upload.onprogress = e => {
+            if (e.lengthComputable && e.total > 0) {
+              onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)), e.loaded, e.total);
+            }
+          };
+        }
+        xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: xhr.responseText || '' });
+        xhr.onerror = () => reject(new Error('네트워크 연결이 불안정합니다'));
+        xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다'));
+        xhr.timeout = 180000;
+        xhr.send(body);
+      });
+    }
+
+    async function uploadDirectVideoFile(file, memberName, memberToken, questionText, onProgress) {
+      if (!file) throw new Error('no_file');
+      if (file.size > 50000000) throw new Error('50MB 이하 영상만 업로드할 수 있어요');
+      let activeToken = memberToken || '';
+      let activeSession = (memberName === state.memberName && state.session) ? state.session : '';
+      const hasTrainerPw = !!state.trainerPassword;
+      if (!hasTrainerPw && !activeToken && !activeSession) throw new Error('회원 전용 토큰이 필요해요');
+      const mime = normalizeVideoMime(file);
+      const id = makeUuidV4();
+      const baseBegin = {
+        action: 'directVideoBegin',
+        member: memberName,
+        date: state.selectedDate,
+        id,
+        name: (file.name || 'workout-video.mp4').slice(0, 150),
+        question: String(questionText || '').slice(0, 1000),
+        mime,
+        size: file.size
+      };
+      const authPayload = () => hasTrainerPw
+        ? { password: state.trainerPassword }
+        : (activeSession ? { session: activeSession } : { token: activeToken });
+      let begin;
+      try {
+        begin = await postRecords({ ...baseBegin, ...authPayload() });
+      } catch (err) {
+        if (!hasTrainerPw && (err?.status === 403 || String(err?.message || '').includes('records_403'))) {
+          let diag = err?.code || '403';
+          if (activeToken) {
+            try {
+              const sr = await postRecords({ action: 'memberSession', member: memberName, date: state.selectedDate, token: activeToken });
+              if (sr?.status === 'success' && sr.session) activeSession = sr.session;
+            } catch (se) {
+              diag += '/sess:' + (se?.code || se?.status || 'fail');
+            }
+          }
+          try {
+            begin = await postRecords({ ...baseBegin, ...authPayload() });
+          } catch (retryErr) {
+            if (retryErr?.status === 403 || String(retryErr?.message || '').includes('records_403')) {
+              throw new Error('토큰 인증 실패(403: ' + (retryErr?.code || diag) + ')');
+            }
+            throw retryErr;
+          }
+        } else {
+          throw err;
+        }
+      }
+      if (begin?.status !== 'success') {
+        throw new Error(begin?.code || begin?.message || '업로드 시작 실패');
+      }
+      if (!begin.alreadyReady && begin.url) {
+        let putRes = await xhrPutFile(begin.url, file, { 'Content-Type': mime, 'x-upsert': 'true' }, onProgress);
+        if (!putRes.ok && (putRes.status === 400 || putRes.status === 415)) {
+          const fd = new FormData();
+          fd.append('cacheControl', '3600');
+          fd.append('', file);
+          putRes = await xhrPutFile(begin.url, fd, {}, onProgress);
+        }
+        if (!putRes.ok) {
+          const errTxt = String(putRes.text || '').slice(0, 60);
+          throw new Error('영상 전송 실패 (' + putRes.status + (errTxt ? ': ' + errTxt : '') + ')');
+        }
+      }
+      const fin = await postRecords({
+        action: 'directVideoFinish',
+        member: memberName,
+        date: state.selectedDate,
+        ...authPayload(),
+        id
+      });
+      if (fin?.status !== 'success') throw new Error(fin?.code || '업로드 마무리 실패');
+      return 'direct:' + id;
     }
 
     function applyCachedMemberData(dateStr) {
@@ -486,6 +741,73 @@
       } catch { return false; }
     }
 
+    function getHiddenExerciseKeys(memberName) {
+      try {
+        const arr = JSON.parse(localStorage.getItem(`fit_ex_lib_hidden_${memberName}`) || '[]');
+        return new Set(Array.isArray(arr) ? arr : []);
+      } catch { return new Set(); }
+    }
+
+    function addHiddenExerciseKey(memberName, key) {
+      try {
+        const set = getHiddenExerciseKeys(memberName);
+        set.add(key);
+        localStorage.setItem(`fit_ex_lib_hidden_${memberName}`, JSON.stringify([...set]));
+      } catch {}
+    }
+
+    function syncExerciseLibrary(dateStr) {
+      const lib = { ...(state.exerciseLibrary || {}) };
+      const hidden = getHiddenExerciseKeys(state.memberName);
+      const norm = n => String(n || '').trim().toLowerCase().replace(/\s+/g, '');
+      (state.record?.routines || []).forEach(r => {
+        const name = String(r.name || '').trim();
+        const key = norm(name);
+        if (!key || hidden.has(key)) return;
+        const prev = lib[key] || { name };
+        const w = Number(r.weight) || 0;
+        const maxSetW = Array.isArray(r.setDetails) && r.setDetails.length
+          ? Math.max(...r.setDetails.map(sd => Number(sd.weight) || 0))
+          : w;
+        const bestW = Math.max(Number(prev.bestWeight) || 0, maxSetW);
+        lib[key] = {
+          name,
+          lastWeight: maxSetW > 0 ? String(maxSetW) : (prev.lastWeight || ''),
+          lastReps: String(r.reps || prev.lastReps || ''),
+          lastDate: dateStr >= (prev.lastDate || '') ? dateStr : prev.lastDate,
+          bestWeight: bestW > 0 ? String(bestW) : '',
+          note: String(r.note || '').trim() || prev.note || '',
+          videoUrl: String(r.videoUrl || '').trim() || prev.videoUrl || '',
+          videoId: String(r.videoId || r.demoKey || '').trim() || prev.videoId || ''
+        };
+      });
+      (state.insights?.progress || []).forEach(p => {
+        const name = String(p.name || '').trim();
+        const key = norm(name);
+        if (!key || hidden.has(key) || !Array.isArray(p.points) || !p.points.length) return;
+        const latestPt = p.points[p.points.length - 1];
+        const maxPtW = Math.max(...p.points.map(pt => Number(pt.weight) || 0));
+        const prev = lib[key] || { name };
+        lib[key] = {
+          ...prev,
+          name,
+          lastWeight: latestPt.weight ? String(latestPt.weight) : (prev.lastWeight || ''),
+          lastReps: latestPt.reps ? String(latestPt.reps) : (prev.lastReps || ''),
+          lastDate: latestPt.date >= (prev.lastDate || '') ? latestPt.date : prev.lastDate,
+          bestWeight: Math.max(Number(prev.bestWeight) || 0, maxPtW) > 0 ? String(Math.max(Number(prev.bestWeight) || 0, maxPtW)) : ''
+        };
+      });
+      const currentNames = new Set((state.record?.routines || []).map(r => norm(r.name)).filter(Boolean));
+      const progressNames = new Set((state.insights?.progress || []).map(p => norm(p.name)).filter(Boolean));
+      Object.keys(lib).forEach(k => {
+        if (lib[k]?.lastDate === dateStr && !currentNames.has(k) && !progressNames.has(k)) {
+          delete lib[k];
+        }
+      });
+      state.exerciseLibrary = lib;
+      try { localStorage.setItem(`fit_ex_lib_v2_${state.memberName}`, JSON.stringify(lib)); } catch {}
+    }
+
     function saveCachedMemberData(dateStr) {
       try {
         localStorage.setItem(`fit_cache_v2_${state.memberName}_${dateStr}`, JSON.stringify({
@@ -499,6 +821,13 @@
 
     // --- Live Initialization (Parallel + Instant Cache) ---
     async function initLiveMemberData() {
+      if (state.memberName && state.token) {
+        try {
+          const map = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
+          map[state.memberName] = state.token;
+          localStorage.setItem('fit_member_tokens_v2', JSON.stringify(map));
+        } catch {}
+      }
       loadLocalMemberExtras();
       if (!isLiveOrigin || !state.memberName || !state.token) {
         renderAll();
@@ -509,18 +838,16 @@
       state.loading = !hadCache;
       renderAll();
       try {
-        const [sessRes] = await Promise.all([
-          postRecords({
-            action: 'memberSession',
-            member: state.memberName,
-            token: state.token,
-            date: state.selectedDate
-          }).catch(() => null),
-          loadMemberDateData(state.selectedDate)
-        ]);
+        const sessRes = await postRecords({
+          action: 'memberSession',
+          member: state.memberName,
+          token: state.token,
+          date: state.selectedDate
+        }).catch(() => null);
         if (sessRes?.status === 'success' && sessRes.session) {
           state.session = sessRes.session;
         }
+        await loadMemberDateData(state.selectedDate);
         saveCachedMemberData(state.selectedDate);
         loadLocalMemberExtras();
         maybeShowPrivacyConsent();
@@ -560,18 +887,25 @@
 
     async function loadMemberDateData(dateStr) {
       if (!state.isLive) return;
-      const auth = state.session ? { session: state.session } : { token: state.token };
+      const auth = state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword });
       const month = dateStr.slice(0, 7);
 
-      const [daily, ins, cols, hist] = await Promise.allSettled([
+      const [dailyRec, dailyAs, ins, cols, hist, dVid] = await Promise.allSettled([
         postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
+        postAppsScript({ action: 'read', member: state.memberName, date: dateStr, ...(state.token ? { token: state.token } : { password: state.trainerPassword }) }),
         postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
         postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth })
+        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth }),
+        postRecords({ action: 'directVideoList', member: state.memberName, date: dateStr, ...auth })
       ]);
 
-      if (daily.status === 'fulfilled' && daily.value && typeof daily.value === 'object') {
-        const d = daily.value;
+      const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
+      const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
+      const asHasData = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos);
+      const chosenDaily = asHasData ? asObj : (recObj || asObj);
+
+      if (chosenDaily && typeof chosenDaily === 'object') {
+        const d = chosenDaily;
         state.record = {
           headerMessage: d.headerMessage || '',
           routines: Array.isArray(d.routines) ? d.routines : [],
@@ -585,7 +919,9 @@
           },
           feedback: d.feedback || { workout: '', diet: '', time: '' },
           memos: Array.isArray(d.memos) ? d.memos : [],
-          dailyCheckin: d.dailyCheckin || { workout: '', diet: '', mood: '' }
+          dailyCheckin: d.dailyCheckin || { workout: '', diet: '', mood: '' },
+          ptScheduled: Boolean(d.ptScheduled),
+          ptTime: String(d.ptTime || '')
         };
       }
       if (ins.status === 'fulfilled' && ins.value?.status === 'success') state.insights = ins.value;
@@ -595,6 +931,35 @@
       if (hist.status === 'fulfilled' && hist.value?.status === 'success' && Array.isArray(hist.value.days)) {
         state.workoutDays = hist.value.days;
       }
+      if (dVid.status === 'fulfilled' && dVid.value?.status === 'success' && Array.isArray(dVid.value.videos)) {
+        state.directVideos = dVid.value.videos;
+      }
+      syncExerciseLibrary(dateStr);
+      prefetchRoutineVideos(state.record.routines, auth);
+    }
+
+    const videoPlayUrlCache = new Map();
+    async function resolvePlayableVideoUrl(videoId, authOverride, memberOverride) {
+      if (!videoId) return '';
+      const cached = videoPlayUrlCache.get(videoId);
+      if (cached && (Date.now() - cached.ts < 240000)) return cached.url;
+      const targetMember = memberOverride || state.memberName;
+      const auth = authOverride || (state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword }));
+      const isDirect = String(videoId).startsWith('direct:');
+      const vRes = isDirect
+        ? await postRecords({ action: 'directVideoPlay', id: videoId, member: targetMember, date: state.selectedDate, ...auth })
+        : await postRecords({ action: 'videoPlaybackUrl', fileId: videoId, videoId, member: targetMember, date: state.selectedDate, ...auth });
+      const playUrl = vRes?.url || vRes?.playbackUrl || vRes?.data?.url || '';
+      if (playUrl) videoPlayUrlCache.set(videoId, { url: playUrl, ts: Date.now() });
+      return playUrl;
+    }
+
+    function prefetchRoutineVideos(routines, auth) {
+      if (!state.isLive || !Array.isArray(routines)) return;
+      const ids = [...new Set(routines.map(r => r?.videoId).filter(Boolean))];
+      ids.slice(0, 6).forEach(vid => {
+        resolvePlayableVideoUrl(vid, auth).catch(() => {});
+      });
     }
 
     // --- Live Save Wrappers ---
@@ -608,33 +973,53 @@
     }
 
     async function savePatchLive(patchObj, targetMember) {
-      if (!state.isLive) return;
+      if (!state.isLive) {
+        showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
+        return false;
+      }
       const mName = targetMember || state.memberName;
       try {
-        await postAppsScript({
+        const res = await postAppsScript({
           action: 'patchData',
           member: mName,
           date: state.selectedDate,
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
+          token: state.token || '',
+          ...(state.trainerPassword ? { password: state.trainerPassword } : {}),
           patch: patchObj
         });
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
+        if (!res || res.status !== 'success') {
+          return await saveFullRecordLive(mName, state.record);
+        }
+        markJustSaved(mName, state.selectedDate);
+        return true;
+      } catch (err) {
+        return await saveFullRecordLive(mName, state.record);
       }
     }
 
     async function saveFullRecordLive(targetMember, fullData) {
-      if (!state.isLive) return;
+      if (!state.isLive) {
+        showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
+        return false;
+      }
       const mName = targetMember || state.memberName;
       try {
-        await postAppsScript({
+        const res = await postAppsScript({
           member: mName,
           date: state.selectedDate,
-          ...(state.appMode === 'coach' && state.trainerPassword ? { password: state.trainerPassword } : { token: state.token }),
+          token: state.token || '',
+          ...(state.trainerPassword ? { password: state.trainerPassword } : {}),
           data: fullData || state.record
         });
-      } catch {
-        showToast('저장 중 네트워크 오류가 발생했어요');
+        if (!res || res.status !== 'success') {
+          showToast('저장 실패: ' + (res?.message || res?.error || '서버 응답 오류'));
+          return false;
+        }
+        markJustSaved(mName, state.selectedDate);
+        return true;
+      } catch (err) {
+        showToast('저장 오류: ' + (err?.message || '네트워크 확인'));
+        return false;
       }
     }
 
@@ -674,12 +1059,15 @@
 
     function updateFloatingTimerUI() {
       const bar = document.getElementById('floating-timer-bar');
+      const fabWrap = document.getElementById('member-fab-wrap');
       if (!bar) return;
       if (state.appMode !== 'member' || state.timer.remaining <= 0) {
         bar.classList.add('hidden');
+        if (fabWrap) { fabWrap.classList.remove('bottom-[138px]'); fabWrap.classList.add('bottom-20'); }
         return;
       }
       bar.classList.remove('hidden');
+      if (fabWrap) { fabWrap.classList.remove('bottom-20'); fabWrap.classList.add('bottom-[138px]'); }
       document.getElementById('ft-time').textContent = formatMMSS(state.timer.remaining);
       document.getElementById('ft-sub').textContent = `휴식 타이머 · ${state.timer.setsDone}세트 완료`;
       document.getElementById('ft-toggle').textContent = state.timer.running ? '일시정지' : '재개';
@@ -738,157 +1126,228 @@
     }
 
     function openTimerModal() {
+      let timerTab = 'rest'; // 'rest' | 'tempo'
+      let tempoRunning = false;
+      let tempoStep = 0; // 0,1,2 = 하강 1,2,3 | 3 = 정지 | 4 = 업!
+      let tempoReps = 0;
+      const tempoLabels = ['하강 1 · 천천히', '하강 2 · 버티기', '하강 3 · 집중', '정점 1초 정지!', '상승 · 힘껏 업! 🔥'];
+
       function renderTimerModalBody() {
         const displaySec = state.timer.remaining > 0 ? state.timer.remaining : getConfiguredTimerSeconds();
-        openModal('운동 · 휴식 타이머 설정기', `
+        openModal('운동 · 휴식 타이머 & 템포', `
           <div class="space-y-4">
-            <div class="p-5 rounded-[24px] hero-navy text-white text-center space-y-2">
-              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.timer.running ? '카운트다운 진행 중' : '설정된 휴식 시간'}</span>
-              <p id="tm-live-display" class="text-[42px] font-extrabold tabular-nums tracking-tight leading-none pt-1">${formatMMSS(displaySec)}</p>
-              <div class="flex items-center justify-center gap-2 pt-2">
-                <button type="button" id="tm-minus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">-10초</button>
-                <button type="button" id="tm-start-btn" class="tap-scale px-5 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold">${state.timer.running ? '일시정지' : '시작하기'}</button>
-                <button type="button" id="tm-plus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">+10초</button>
-              </div>
+            <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[#F4F6F9]">
+              <button type="button" data-ttab="rest" class="tm-tab-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${timerTab === 'rest' ? 'bg-white text-[#1D4ED8] shadow-sm' : 'text-[#6B7280]'}">⏱ 휴식 타이머</button>
+              <button type="button" data-ttab="tempo" class="tm-tab-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${timerTab === 'tempo' ? 'bg-white text-[#0F766E] shadow-sm' : 'text-[#6B7280]'}">🎵 3-1-1 템포 가이드</button>
             </div>
 
-            <div>
-              <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 프리셋</p>
-              <div class="grid grid-cols-4 gap-2">
-                ${[30, 60, 90, 120].map(sec => `
-                  <button type="button" data-tsec="${sec}" class="tm-preset-btn tap-scale py-2.5 rounded-2xl text-[12px] font-bold ${getConfiguredTimerSeconds() === sec ? 'card-blue text-white' : 'bg-[#F4F6F9] text-[#111827]'}">${sec >= 60 && sec % 60 === 0 ? (sec / 60) + '분' : sec + '초'}</button>
-                `).join('')}
+            ${timerTab === 'rest' ? `
+              <div class="p-5 rounded-[24px] hero-navy text-white text-center space-y-2">
+                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.timer.running ? '카운트다운 진행 중' : '설정된 휴식 시간'}</span>
+                <p id="tm-live-display" class="text-[42px] font-extrabold tabular-nums tracking-tight leading-none pt-1">${formatMMSS(displaySec)}</p>
+                <div class="flex items-center justify-center gap-2 pt-2">
+                  <button type="button" id="tm-minus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">-10초</button>
+                  <button type="button" id="tm-start-btn" class="tap-scale px-5 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold">${state.timer.running ? '일시정지' : '시작하기'}</button>
+                  <button type="button" id="tm-plus-10" class="tap-scale px-3 py-1.5 rounded-xl bg-white/15 text-[12px] font-bold">+10초</button>
+                </div>
               </div>
-            </div>
 
-            <div class="grid grid-cols-2 gap-2.5">
-              <div class="p-3 rounded-2xl bg-[#F4F6F9]">
-                <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (분)</label>
-                <input id="tm-min-inp" type="number" min="0" max="30" value="${state.timer.customMin}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
-              </div>
-              <div class="p-3 rounded-2xl bg-[#F4F6F9]">
-                <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (초)</label>
-                <input id="tm-sec-inp" type="number" min="0" max="59" value="${state.timer.customSec}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
-              </div>
-            </div>
-
-            <div class="p-3.5 rounded-2xl bg-[#EFF6FF] flex items-center justify-between">
               <div>
-                <p class="text-[13px] font-bold text-[#111827]">오늘 완료 세트 카운터</p>
-                <p class="text-[11px] text-[#1D4ED8]">운동 체크 시 자동으로 올라가요</p>
+                <p class="text-[12px] font-bold text-[#4B5563] mb-2">원터치 프리셋</p>
+                <div class="grid grid-cols-4 gap-2">
+                  ${[30, 60, 90, 120].map(sec => `
+                    <button type="button" data-tsec="${sec}" class="tm-preset-btn tap-scale py-2.5 rounded-2xl text-[12px] font-bold ${getConfiguredTimerSeconds() === sec ? 'card-blue text-white' : 'bg-[#F4F6F9] text-[#111827]'}">${sec >= 60 && sec % 60 === 0 ? (sec / 60) + '분' : sec + '초'}</button>
+                  `).join('')}
+                </div>
               </div>
-              <div class="flex items-center gap-2">
-                <button type="button" id="tm-set-dec" class="tap-scale w-8 h-8 rounded-xl bg-white text-[#111827] font-bold shadow-sm">-</button>
-                <span class="text-[16px] font-extrabold text-[#1D4ED8] tabular-nums w-8 text-center">${state.timer.setsDone}</span>
-                <button type="button" id="tm-set-inc" class="tap-scale w-8 h-8 rounded-xl bg-[#1D4ED8] text-white font-bold shadow-sm">+</button>
-              </div>
-            </div>
 
-            <div class="space-y-2">
-              <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
-                <span class="text-[13px] font-semibold text-[#111827]">운동 체크 시 휴식 타이머 자동 시작</span>
-                <input id="tm-auto-chk" type="checkbox" ${state.timer.autoStartOnCheck ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
-              </label>
-              <div class="grid grid-cols-2 gap-2">
-                <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
-                  <span class="text-[12px] font-semibold text-[#111827]">종료 알림음</span>
-                  <input id="tm-sound-chk" type="checkbox" ${state.timer.soundOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
-                </label>
-                <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
-                  <span class="text-[12px] font-semibold text-[#111827]">진동 알림</span>
-                  <input id="tm-vib-chk" type="checkbox" ${state.timer.vibrateOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
-                </label>
+              <div class="grid grid-cols-2 gap-2.5">
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                  <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (분)</label>
+                  <input id="tm-min-inp" type="number" min="0" max="30" value="${state.timer.customMin}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
+                </div>
+                <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                  <label class="text-[11px] font-bold text-[#6B7280] block mb-1">직접 입력 (초)</label>
+                  <input id="tm-sec-inp" type="number" min="0" max="59" value="${state.timer.customSec}" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-bold tabular-nums" />
+                </div>
               </div>
-            </div>
+
+              <div class="p-3.5 rounded-2xl bg-[#EFF6FF] flex items-center justify-between">
+                <div>
+                  <p class="text-[13px] font-bold text-[#111827]">오늘 완료 세트 카운터</p>
+                  <p class="text-[11px] text-[#1D4ED8]">운동 체크 시 자동으로 올라가요</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" id="tm-set-dec" class="tap-scale w-8 h-8 rounded-xl bg-white text-[#111827] font-bold shadow-sm">-</button>
+                  <span class="text-[16px] font-extrabold text-[#1D4ED8] tabular-nums w-8 text-center">${state.timer.setsDone}</span>
+                  <button type="button" id="tm-set-inc" class="tap-scale w-8 h-8 rounded-xl bg-[#1D4ED8] text-white font-bold shadow-sm">+</button>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                  <span class="text-[13px] font-semibold text-[#111827]">운동 체크 시 휴식 타이머 자동 시작</span>
+                  <input id="tm-auto-chk" type="checkbox" ${state.timer.autoStartOnCheck ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+                </label>
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                    <span class="text-[12px] font-semibold text-[#111827]">종료 알림음</span>
+                    <input id="tm-sound-chk" type="checkbox" ${state.timer.soundOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+                  </label>
+                  <label class="flex items-center justify-between p-3 rounded-2xl bg-[#F4F6F9] cursor-pointer">
+                    <span class="text-[12px] font-semibold text-[#111827]">진동 알림</span>
+                    <input id="tm-vib-chk" type="checkbox" ${state.timer.vibrateOn ? 'checked' : ''} class="w-4 h-4 accent-[#1D4ED8]" />
+                  </label>
+                </div>
+              </div>
+            ` : `
+              <div class="p-6 rounded-[24px] hero-navy text-white text-center space-y-3">
+                <span class="text-[11px] font-bold px-3 py-1 rounded-full bg-white/15 text-[#5EEAD4]">혼자 운동할 때 3-1-1 박자 코치</span>
+                <p id="tp-phase-text" class="text-[24px] font-extrabold pt-1">${tempoRunning ? tempoLabels[tempoStep] : '준비되시면 시작을 누르세요'}</p>
+                <div class="grid grid-cols-5 gap-1.5 pt-1">
+                  ${['1', '2', '3', '정지', '업'].map((lb, idx) => `
+                    <div id="tp-dot-${idx}" class="py-2 rounded-xl text-[11px] font-extrabold transition ${tempoRunning && tempoStep === idx ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/10 text-white/60'}">${lb}</div>
+                  `).join('')}
+                </div>
+                <p id="tp-reps-text" class="text-[14px] font-bold text-[#93C5FD] tabular-nums pt-1">완료 횟수: ${tempoReps}회</p>
+                <div class="flex items-center justify-center gap-2 pt-2">
+                  <button type="button" id="tp-toggle-btn" class="tap-scale px-6 py-2.5 rounded-2xl bg-[#5EEAD4] text-[#0F172A] text-[13px] font-extrabold">${tempoRunning ? '일시정지' : '박자 시작하기'}</button>
+                  <button type="button" id="tp-reset-btn" class="tap-scale px-4 py-2.5 rounded-2xl bg-white/15 text-white text-[13px] font-bold">초기화</button>
+                </div>
+              </div>
+              <p class="text-[12px] text-[#4B5563] bg-[#F4F6F9] p-3.5 rounded-2xl leading-relaxed">
+                트레이너가 옆에서 숫자를 세어주듯 <strong>3초 천천히 내리고 → 1초 정지 → 힘껏 상승</strong> 리듬을 소리와 진동으로 맞춰줍니다.
+              </p>
+            `}
           </div>
         `);
 
-        document.querySelectorAll('.tm-preset-btn').forEach(b => {
+        document.querySelectorAll('.tm-tab-btn').forEach(b => {
           b.addEventListener('click', () => {
-            const s = Number(b.dataset.tsec);
-            state.timer.customMin = Math.floor(s / 60);
-            state.timer.customSec = s % 60;
-            saveTimerPrefsLocal();
-            startTimerCountdown(s);
+            timerTab = b.dataset.ttab;
+            if (timerTab !== 'tempo') { stopTempoPacer(); tempoRunning = false; }
             renderTimerModalBody();
           });
         });
 
-        document.getElementById('tm-minus-10').addEventListener('click', () => {
-          if (state.timer.remaining > 0) {
-            state.timer.remaining = Math.max(5, state.timer.remaining - 10);
-          } else {
-            const next = Math.max(5, getConfiguredTimerSeconds() - 10);
-            state.timer.customMin = Math.floor(next / 60);
-            state.timer.customSec = next % 60;
-            saveTimerPrefsLocal();
-          }
-          updateFloatingTimerUI();
-          renderTimerModalBody();
-        });
-
-        document.getElementById('tm-plus-10').addEventListener('click', () => {
-          if (state.timer.remaining > 0) {
-            state.timer.remaining += 10;
-          } else {
-            const next = getConfiguredTimerSeconds() + 10;
-            state.timer.customMin = Math.floor(next / 60);
-            state.timer.customSec = next % 60;
-            saveTimerPrefsLocal();
-          }
-          updateFloatingTimerUI();
-          renderTimerModalBody();
-        });
-
-        document.getElementById('tm-start-btn').addEventListener('click', () => {
-          if (state.timer.running) {
-            state.timer.running = false;
+        if (timerTab === 'rest') {
+          document.querySelectorAll('.tm-preset-btn').forEach(b => {
+            b.addEventListener('click', () => {
+              const s = Number(b.dataset.tsec);
+              state.timer.customMin = Math.floor(s / 60);
+              state.timer.customSec = s % 60;
+              saveTimerPrefsLocal();
+              startTimerCountdown(s);
+              renderTimerModalBody();
+            });
+          });
+          document.getElementById('tm-minus-10').addEventListener('click', () => {
+            if (state.timer.remaining > 0) state.timer.remaining = Math.max(5, state.timer.remaining - 10);
+            else {
+              const next = Math.max(5, getConfiguredTimerSeconds() - 10);
+              state.timer.customMin = Math.floor(next / 60);
+              state.timer.customSec = next % 60;
+              saveTimerPrefsLocal();
+            }
             updateFloatingTimerUI();
-          } else if (state.timer.remaining > 0) {
-            state.timer.running = true;
-            runTimerTick();
+            renderTimerModalBody();
+          });
+          document.getElementById('tm-plus-10').addEventListener('click', () => {
+            if (state.timer.remaining > 0) state.timer.remaining += 10;
+            else {
+              const next = getConfiguredTimerSeconds() + 10;
+              state.timer.customMin = Math.floor(next / 60);
+              state.timer.customSec = next % 60;
+              saveTimerPrefsLocal();
+            }
             updateFloatingTimerUI();
-          } else {
-            startTimerCountdown(getConfiguredTimerSeconds());
-          }
-          renderTimerModalBody();
-        });
-
-        const applyCustomInputs = () => {
-          const m = Math.max(0, Math.min(30, Number(document.getElementById('tm-min-inp').value) || 0));
-          const s = Math.max(0, Math.min(59, Number(document.getElementById('tm-sec-inp').value) || 0));
-          state.timer.customMin = m;
-          state.timer.customSec = s;
-          saveTimerPrefsLocal();
-          const disp = document.getElementById('tm-live-display');
-          if (disp && state.timer.remaining <= 0) disp.textContent = formatMMSS(getConfiguredTimerSeconds());
-        };
-        document.getElementById('tm-min-inp').addEventListener('input', applyCustomInputs);
-        document.getElementById('tm-sec-inp').addEventListener('input', applyCustomInputs);
-
-        document.getElementById('tm-set-dec').addEventListener('click', () => {
-          state.timer.setsDone = Math.max(0, state.timer.setsDone - 1);
-          updateFloatingTimerUI();
-          renderTimerModalBody();
-        });
-        document.getElementById('tm-set-inc').addEventListener('click', () => {
-          state.timer.setsDone += 1;
-          updateFloatingTimerUI();
-          renderTimerModalBody();
-        });
-
-        document.getElementById('tm-auto-chk').addEventListener('change', e => {
-          state.timer.autoStartOnCheck = e.target.checked;
-          saveTimerPrefsLocal();
-        });
-        document.getElementById('tm-sound-chk').addEventListener('change', e => {
-          state.timer.soundOn = e.target.checked;
-          saveTimerPrefsLocal();
-        });
-        document.getElementById('tm-vib-chk').addEventListener('change', e => {
-          state.timer.vibrateOn = e.target.checked;
-          saveTimerPrefsLocal();
-        });
+            renderTimerModalBody();
+          });
+          document.getElementById('tm-start-btn').addEventListener('click', () => {
+            if (state.timer.running) {
+              state.timer.running = false;
+              updateFloatingTimerUI();
+            } else if (state.timer.remaining > 0) {
+              state.timer.running = true;
+              runTimerTick();
+              updateFloatingTimerUI();
+            } else {
+              startTimerCountdown(getConfiguredTimerSeconds());
+            }
+            renderTimerModalBody();
+          });
+          const applyCustomInputs = () => {
+            const m = Math.max(0, Math.min(30, Number(document.getElementById('tm-min-inp').value) || 0));
+            const s = Math.max(0, Math.min(59, Number(document.getElementById('tm-sec-inp').value) || 0));
+            state.timer.customMin = m;
+            state.timer.customSec = s;
+            saveTimerPrefsLocal();
+            const disp = document.getElementById('tm-live-display');
+            if (disp && state.timer.remaining <= 0) disp.textContent = formatMMSS(getConfiguredTimerSeconds());
+          };
+          document.getElementById('tm-min-inp').addEventListener('input', applyCustomInputs);
+          document.getElementById('tm-sec-inp').addEventListener('input', applyCustomInputs);
+          document.getElementById('tm-set-dec').addEventListener('click', () => {
+            state.timer.setsDone = Math.max(0, state.timer.setsDone - 1);
+            updateFloatingTimerUI();
+            renderTimerModalBody();
+          });
+          document.getElementById('tm-set-inc').addEventListener('click', () => {
+            state.timer.setsDone += 1;
+            updateFloatingTimerUI();
+            renderTimerModalBody();
+          });
+          document.getElementById('tm-auto-chk').addEventListener('change', e => {
+            state.timer.autoStartOnCheck = e.target.checked;
+            saveTimerPrefsLocal();
+          });
+          document.getElementById('tm-sound-chk').addEventListener('change', e => {
+            state.timer.soundOn = e.target.checked;
+            saveTimerPrefsLocal();
+          });
+          document.getElementById('tm-vib-chk').addEventListener('change', e => {
+            state.timer.vibrateOn = e.target.checked;
+            saveTimerPrefsLocal();
+          });
+        } else {
+          document.getElementById('tp-toggle-btn').addEventListener('click', () => {
+            if (tempoRunning) {
+              stopTempoPacer();
+              tempoRunning = false;
+              renderTimerModalBody();
+            } else {
+              tempoRunning = true;
+              const tickTempo = () => {
+                const ph = document.getElementById('tp-phase-text');
+                const rp = document.getElementById('tp-reps-text');
+                if (!ph) { stopTempoPacer(); return; }
+                ph.textContent = tempoLabels[tempoStep];
+                for (let i = 0; i < 5; i++) {
+                  const dot = document.getElementById('tp-dot-' + i);
+                  if (dot) dot.className = `py-2 rounded-xl text-[11px] font-extrabold transition ${tempoStep === i ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/10 text-white/60'}`;
+                }
+                if (state.timer.soundOn) {
+                  playTempoTone(tempoStep === 4 ? 880 : (tempoStep === 3 ? 620 : 440), 0.11);
+                }
+                if (tempoStep === 4) {
+                  tempoReps += 1;
+                  if (rp) rp.textContent = `완료 횟수: ${tempoReps}회`;
+                }
+                tempoStep = (tempoStep + 1) % 5;
+              };
+              renderTimerModalBody();
+              tickTempo();
+              __tempoInterval = setInterval(tickTempo, 1000);
+            }
+          });
+          document.getElementById('tp-reset-btn').addEventListener('click', () => {
+            stopTempoPacer();
+            tempoRunning = false;
+            tempoStep = 0;
+            tempoReps = 0;
+            renderTimerModalBody();
+          });
+        }
       }
       renderTimerModalBody();
     }
@@ -1104,7 +1563,9 @@
       // Member & Day Streak
       ctx.fillStyle = 'rgba(255,255,255,0.68)';
       ctx.font = '600 22px Pretendard, sans-serif';
-      ctx.fillText(`${state.selectedDate}  ·  STREAK DAY ${String(streak).padStart(2, '0')}`, 56, 132);
+      const volFun = computeTodayVolumeFun();
+      const volStr = volFun.totalKg > 0 ? `  ·  ${volFun.totalKg.toLocaleString()}kg (${volFun.analogy})` : `  ·  STREAK DAY ${String(streak).padStart(2, '0')}`;
+      ctx.fillText(`${state.selectedDate}${volStr}`, 56, 132);
 
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '800 44px Pretendard, sans-serif';
@@ -1255,17 +1716,32 @@
       b.classList.add('flex');
     }
 
+    let __tempoInterval = null;
+    function stopTempoPacer() {
+      if (__tempoInterval) {
+        clearInterval(__tempoInterval);
+        __tempoInterval = null;
+      }
+    }
+
     function closeModal() {
+      stopTempoPacer();
       const b = document.getElementById('modal-backdrop');
       b.classList.add('hidden');
       b.classList.remove('flex');
     }
 
     // --- Metrics & Visual SVGs ---
+    function isRoutineDone(r) {
+      if (!r) return false;
+      if (r.routineType !== 'homework') return true; // PT 수업은 코치와 이미 수행한 수업 기록
+      return Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
+    }
+
     function getWorkoutRate() {
       const rs = state.record.routines || [];
       if (!rs.length) return { done: 0, total: 0, pct: 0 };
-      const done = rs.filter(r => Array.isArray(r.completedSets) && r.completedSets.some(Boolean)).length;
+      const done = rs.filter(isRoutineDone).length;
       return { done, total: rs.length, pct: Math.round((done / rs.length) * 100) };
     }
 
@@ -1487,7 +1963,8 @@
         { tag: '외식', cal: '820', carb: '85', prot: '25', fat: '32', desc: '외식 메뉴 · 양 조절' },
         { tag: '단백질·간식', cal: '220', carb: '12', prot: '26', fat: '6', desc: '프로틴 쉐이크 · 견과류' }
       ];
-      let compressedPhoto = Array.isArray(m.photos) && m.photos[0] ? m.photos[0] : '';
+      let compressedPhoto = extractPhotoSrc(m);
+      let hasNewPhoto = false;
 
       openModal(`${mealLabel} 식단 기록`, `
         <div class="space-y-4">
@@ -1497,7 +1974,7 @@
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               <span id="photo-status-txt">${compressedPhoto ? '식단 사진 준비됨 ✓ (변경하려면 터치)' : '사진 1장 첨부 (자동 압축)'}</span>
             </label>
-            <img id="meal-photo-preview" src="${compressedPhoto}" alt="식단 사진" class="${compressedPhoto ? '' : 'hidden'} mt-2 w-full h-36 object-cover rounded-2xl" />
+            <img id="meal-photo-preview" ${compressedPhoto.startsWith('direct:') ? `data-directimg="${escapeHtml(compressedPhoto)}" data-directmember="${escapeHtml(state.memberName)}"` : `src="${escapeHtml(compressedPhoto)}"`} alt="식단 사진" class="${compressedPhoto ? '' : 'hidden'} mt-2 w-full h-36 object-cover rounded-2xl" />
           </div>
 
           <div>
@@ -1520,12 +1997,16 @@
         </div>
       `);
 
+      hydrateDirectImages(state.memberName);
       document.getElementById('meal-photo-input').addEventListener('change', async e => {
         const f = e.target.files?.[0];
         if (!f) return;
         try {
           compressedPhoto = await compressImageFile(f);
+          hasNewPhoto = true;
           const prev = document.getElementById('meal-photo-preview');
+          delete prev.dataset.directimg;
+          delete prev.dataset.hydrated;
           prev.src = compressedPhoto;
           prev.classList.remove('hidden');
           document.getElementById('photo-status-txt').textContent = '사진 압축 완료 ✓';
@@ -1535,15 +2016,70 @@
         }
       });
 
+      async function commitMealSave(updated, labelText) {
+        const submitBtn = document.querySelector('#meal-form button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = '서버에 저장 중...';
+        }
+        const prevMeal = state.record.diet[mealKey];
+        if (hasNewPhoto && compressedPhoto && compressedPhoto.startsWith('data:image/') && state.isLive) {
+          if (submitBtn) submitBtn.textContent = '사진 업로드 중...';
+          try {
+            const imgFile = dataUrlToFile(compressedPhoto, `diet-${mealKey}.jpg`);
+            const directImgId = await uploadDirectVideoFile(imgFile, state.memberName, state.token, '__diet_photo__');
+            updated = { ...updated, photos: [directImgId] };
+          } catch (imgErr) {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
+            showToast('사진 업로드 실패: ' + (imgErr?.message || '잠시 후 다시 시도'));
+            return;
+          }
+          if (submitBtn) submitBtn.textContent = '서버에 저장 중...';
+        }
+        state.record.diet[mealKey] = updated;
+        const ok = await saveFullRecordLive(state.memberName, state.record);
+        if (ok) {
+          try {
+            const verifyRes = await postAppsScript({
+              action: 'read',
+              member: state.memberName,
+              date: state.selectedDate,
+              token: state.token || '',
+              ...(state.trainerPassword ? { password: state.trainerPassword } : {})
+            });
+            const vObj = unwrapDailyRecord(verifyRes);
+            const savedMeal = vObj?.diet?.[mealKey];
+            const hasSaved = savedMeal && (String(savedMeal.desc || '').trim() || !!extractPhotoSrc(savedMeal) || Number(savedMeal.cal) > 0);
+            if (!hasSaved) {
+              state.record.diet[mealKey] = prevMeal;
+              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
+              showToast('서버 반영 확인 실패: ' + (verifyRes?.message || '잠시 후 다시 저장해 주세요'));
+              return;
+            }
+            if (compressedPhoto && !extractPhotoSrc(savedMeal)) {
+              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
+              showToast('⚠️ 글자는 저장됐지만 사진이 서버에서 빠졌어요 (' + compressedPhoto.length + '자)');
+              return;
+            }
+          } catch {}
+          saveCachedMemberData(state.selectedDate);
+          closeModal();
+          renderAll();
+          showToast(labelText + ' ✓');
+        } else {
+          state.record.diet[mealKey] = prevMeal;
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '저장하기';
+          }
+        }
+      }
+
       document.querySelectorAll('.pr-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const pr = presets[Number(btn.dataset.pr)];
           const updated = { desc: `[${pr.tag}] ${pr.desc}`, cal: pr.cal, carb: pr.carb, prot: pr.prot, fat: pr.fat, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
-          state.record.diet[mealKey] = updated;
-          closeModal();
-          showToast(`${mealLabel} (${pr.tag}) 저장 완료!`);
-          renderAll();
-          savePatchLive({ diet: { [mealKey]: updated } });
+          commitMealSave(updated, `${mealLabel} (${pr.tag}) 저장 완료`);
         });
       });
 
@@ -1551,13 +2087,12 @@
         e.preventDefault();
         const desc = document.getElementById('mf-desc').value.trim();
         const cal = document.getElementById('mf-cal').value.trim();
-        if (!desc && !cal && !compressedPhoto) return;
+        if (!desc && !cal && !compressedPhoto) {
+          showToast('메뉴, 칼로리 또는 사진 중 하나를 입력해 주세요');
+          return;
+        }
         const updated = { ...m, desc: desc || '사진 기록', cal, ...(compressedPhoto ? { photos: [compressedPhoto] } : {}) };
-        state.record.diet[mealKey] = updated;
-        closeModal();
-        showToast(`${mealLabel} 식단이 저장되었어요`);
-        renderAll();
-        savePatchLive({ diet: { [mealKey]: updated } });
+        commitMealSave(updated, `${mealLabel} 식단 저장 완료`);
       });
     }
 
@@ -1694,10 +2229,34 @@
       `;
     }
 
-    function openFormGuideModal(title, note) {
+    function buildVideoPlayerHtml(videoUrl) {
+      const u = String(videoUrl || '').trim();
+      if (!u) return '';
+      const ytMatch = u.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+      if (ytMatch) {
+        return `
+          <div class="rounded-[20px] overflow-hidden bg-black aspect-video shadow-sm">
+            <iframe src="https://www.youtube.com/embed/${ytMatch[1]}?playsinline=1&rel=0" class="w-full h-full" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          </div>
+        `;
+      }
+      return `
+        <div class="rounded-[20px] overflow-hidden bg-black shadow-sm">
+          <video src="${escapeHtml(u)}" controls playsinline preload="auto" class="w-full max-h-56 object-contain"></video>
+        </div>
+      `;
+    }
+
+    async function openFormGuideModal(title, note, videoUrl, videoId) {
       const profile = getExerciseProfile(title);
+      let resolvedUrl = String(videoUrl || '').trim();
+      if (!resolvedUrl && videoId) {
+        const cached = videoPlayUrlCache.get(videoId);
+        if (cached && (Date.now() - cached.ts < 240000)) resolvedUrl = cached.url;
+      }
       openModal(`자극 근육 · 자세 가이드`, `
         <div class="space-y-4">
+          <div id="fg-video-slot">${resolvedUrl ? buildVideoPlayerHtml(resolvedUrl) : (videoId ? '<div class="p-4 rounded-2xl bg-[#F4F6F9] text-center text-[12px] font-bold text-[#1D4ED8]">🎬 영상을 불러오는 중...</div>' : '')}</div>
           <div class="p-4 rounded-[24px] bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
             <div class="flex items-center justify-between text-[11px] font-bold">
               <span class="text-[#111827] text-[13px] font-extrabold">${escapeHtml(title)}</span>
@@ -1734,6 +2293,17 @@
         </div>
       `);
       document.getElementById('btn-close-guide').addEventListener('click', closeModal);
+      if (!resolvedUrl && videoId && state.isLive) {
+        try {
+          const playUrl = await resolvePlayableVideoUrl(videoId);
+          const slot = document.getElementById('fg-video-slot');
+          if (playUrl && slot) slot.innerHTML = buildVideoPlayerHtml(playUrl);
+          else if (slot) slot.innerHTML = '<div class="p-3 rounded-2xl bg-[#F4F6F9] text-center text-[11px] text-[#6B7280]">등록된 영상을 불러오지 못했습니다.</div>';
+        } catch {
+          const slot = document.getElementById('fg-video-slot');
+          if (slot) slot.innerHTML = '<div class="p-3 rounded-2xl bg-[#F4F6F9] text-center text-[11px] text-[#6B7280]">영상을 불러오지 못했습니다.</div>';
+        }
+      }
     }
 
     function openAddRoutineModal() {
@@ -1824,7 +2394,137 @@
     }
 
     // --- Coach Modals (Unified One-Stop Detail & Immediate Reply Sheet) ---
-    function openTrainerLoginModal() {
+    async function enterCoachWithPassword(pw, isAuto) {
+      if (isLiveOrigin) {
+        try {
+          const v = await postRecords({ action: 'verify', password: pw, date: state.selectedDate });
+          if (v?.status !== 'success') {
+            if (isAuto) {
+              try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}
+              return false;
+            }
+            showToast('비밀번호가 일치하지 않아요');
+            return false;
+          }
+          state.trainerPassword = pw;
+          try { localStorage.setItem('fit_coach_pw_v2', pw); } catch {}
+          const [ovRes, fastRes, asListRes] = await Promise.allSettled([
+            postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate }),
+            postRecords({ action: 'listMembersFast', password: pw }),
+            postAppsScript({ action: 'listMembers', password: pw })
+          ]);
+          const ov = ovRes.status === 'fulfilled' ? ovRes.value : null;
+          const fast = fastRes.status === 'fulfilled' ? fastRes.value : null;
+          const asList = asListRes.status === 'fulfilled' ? asListRes.value : null;
+          const tokenMap = {};
+          try {
+            const savedMap = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
+            Object.assign(tokenMap, savedMap);
+          } catch {}
+          [fast, asList].forEach(src => {
+            const arr = Array.isArray(src) ? src : (Array.isArray(src?.members) ? src.members : (Array.isArray(src?.data) ? src.data : []));
+            arr.forEach(fm => {
+              if (!fm || typeof fm !== 'object') return;
+              const nm = fm.name || fm.member || '';
+              const tk = fm.token || fm.memberToken || extractTokenValue(fm.url || fm.link || '');
+              if (nm && tk) tokenMap[nm] = tk;
+            });
+          });
+          let serverMembers = [];
+          if (ov?.status === 'success' && Array.isArray(ov.members)) {
+            serverMembers = ov.members.map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' }));
+          }
+          const extraLists = [
+            ...(Array.isArray(fast?.members) ? fast.members : []),
+            ...(Array.isArray(asList?.members) ? asList.members : (Array.isArray(asList?.data) ? asList.data : []))
+          ];
+          extraLists.forEach(fn => {
+            const nm = typeof fn === 'string' ? fn.trim() : String(fn?.name || fn?.member || '').trim();
+            if (nm && !serverMembers.some(sm => sm.name === nm)) {
+              serverMembers.push({ name: nm, lastDate: '', activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0, token: tokenMap[nm] || '' });
+            }
+          });
+          let localAdded = [];
+          try {
+            localAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]');
+          } catch {}
+          const merged = [...serverMembers];
+          localAdded.forEach(lm => {
+            if (lm?.name && !merged.some(sm => sm.name === lm.name)) {
+              merged.unshift(lm);
+            }
+          });
+          state.trainerOverview = merged;
+          state.isLive = true;
+          postAppsScript({ action: 'trainerOverview', password: pw, date: state.selectedDate }).then(asOv => {
+            if (asOv?.status === 'success' && Array.isArray(asOv.members)) {
+              const byName = new Map(asOv.members.map(m => [m.name, m]));
+              let changed = false;
+              state.trainerOverview = (state.trainerOverview || []).map(m => {
+                const am = byName.get(m.name);
+                if (!am) return m;
+                changed = true;
+                return {
+                  ...m,
+                  lastDate: (am.lastDate || '') > (m.lastDate || '') ? am.lastDate : m.lastDate,
+                  activeToday: Boolean(m.activeToday || am.activeToday),
+                  workoutToday: Boolean(m.workoutToday || am.workoutToday),
+                  dietToday: Boolean(m.dietToday || am.dietToday),
+                  pendingWorkout: Boolean(am.pendingWorkout ?? m.pendingWorkout),
+                  pendingDiet: Boolean(am.pendingDiet ?? m.pendingDiet),
+                  feedbackDone: Boolean(m.feedbackDone || am.feedbackDone),
+                  weeklyWorkoutDays: Math.max(Number(m.weeklyWorkoutDays) || 0, Number(am.weeklyWorkoutDays) || 0)
+                };
+              });
+              asOv.members.forEach(am => {
+                if (am?.name && !state.trainerOverview.some(x => x.name === am.name)) {
+                  state.trainerOverview.push({ ...am, token: tokenMap[am.name] || '' });
+                  changed = true;
+                }
+              });
+              if (changed && state.appMode === 'coach') renderAll();
+            }
+          }).catch(() => {});
+        } catch {
+          if (!isAuto) showToast('코치 인증 중 오류가 발생했어요');
+          return false;
+        }
+      } else {
+        state.trainerPassword = pw;
+        try { localStorage.setItem('fit_coach_pw_v2', pw); } catch {}
+        const baseMock = [
+          { name: '김윤지', lastDate: state.selectedDate, activeToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 2 },
+          { name: '이서연', lastDate: state.selectedDate, activeToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 3 },
+          { name: '최민수', lastDate: shiftDateStr(state.selectedDate, -5), activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0 }
+        ];
+        let localAdded = [];
+        try { localAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]'); } catch {}
+        localAdded.forEach(lm => {
+          if (lm?.name && !baseMock.some(sm => sm.name === lm.name)) baseMock.unshift(lm);
+        });
+        state.trainerOverview = baseMock;
+      }
+      state.appMode = 'coach';
+      state.coachTab = 'coaching';
+      const hasPending = state.trainerOverview.some(m => m.pendingWorkout || m.pendingDiet);
+      state.coachFilter = hasPending ? 'pending' : 'all';
+      state.fabOpen = false;
+      closeModal();
+      showToast(isAuto ? '저장된 코치 인증으로 바로 입장했어요' : '코치 모드로 전환되었어요');
+      renderAll();
+      return true;
+    }
+
+    async function openTrainerLoginModal() {
+      let savedPw = state.trainerPassword || '';
+      if (!savedPw) {
+        try { savedPw = localStorage.getItem('fit_coach_pw_v2') || ''; } catch {}
+      }
+      if (savedPw) {
+        showToast('코치 인증 확인 중...');
+        const ok = await enterCoachWithPassword(savedPw, true);
+        if (ok) return;
+      }
       openModal('코치 전용 로그인', `
         <form id="coach-login-form" class="space-y-3">
           <p class="text-[12px] text-[#6B7280]">기존 FIT-CONNECT 트레이너 비밀번호를 입력하면 전체 회원 현황을 불러옵니다.</p>
@@ -1837,57 +2537,150 @@
       document.getElementById('coach-login-form').addEventListener('submit', async e => {
         e.preventDefault();
         const pw = document.getElementById('coach-pw').value;
-        if (isLiveOrigin) {
-          try {
-            const v = await postRecords({ action: 'verify', password: pw, date: state.selectedDate });
-            if (v?.status !== 'success') { showToast('비밀번호가 일치하지 않아요'); return; }
-            state.trainerPassword = pw;
-            const ov = await postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate });
-            if (ov?.status === 'success' && Array.isArray(ov.members)) state.trainerOverview = ov.members;
-            state.isLive = true;
-          } catch {
-            showToast('코치 인증 중 오류가 발생했어요');
-            return;
-          }
-        } else {
-          state.trainerOverview = [
-            { name: '김윤지', lastDate: state.selectedDate, activeToday: true, pendingWorkout: true, pendingDiet: true, weeklyWorkoutDays: 2 },
-            { name: '이서연', lastDate: state.selectedDate, activeToday: true, pendingWorkout: false, pendingDiet: true, weeklyWorkoutDays: 3 },
-            { name: '최민수', lastDate: shiftDateStr(state.selectedDate, -5), activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0 }
-          ];
-        }
-        state.appMode = 'coach';
-        state.coachTab = 'coaching';
-        const hasPending = state.trainerOverview.some(m => m.pendingWorkout || m.pendingDiet);
-        state.coachFilter = hasPending ? 'pending' : 'all';
-        state.fabOpen = false;
-        closeModal();
-        showToast('코치 모드로 전환되었어요');
-        renderAll();
+        await enterCoachWithPassword(pw, false);
       });
     }
 
     async function fetchMemberForCoach(memberName) {
       if (!state.isLive || !state.trainerPassword) {
-        return { daily: state.record, history: { previous: { '고블릿 스쿼트': { weight: 14, reps: 12, date: shiftDateStr(state.selectedDate, -3) } } } };
+        return { daily: state.record, history: { previous: {} } };
       }
-      const [dRes, hRes] = await Promise.allSettled([
+      const weekDays = buildWeekDays(state.selectedDate);
+      const [dRecRes, dAsRes, hRes, vRes, ...weekPtRes] = await Promise.allSettled([
         postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
-        postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword })
+        postAppsScript({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
+        postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword }),
+        postRecords({ action: 'directVideoList', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
+        ...weekDays.map(wd => wd.fullDate === state.selectedDate
+          ? Promise.resolve(null)
+          : postRecords({ action: 'read', member: memberName, date: wd.fullDate, password: state.trainerPassword }))
       ]);
+      const recObj = dRecRes.status === 'fulfilled' ? unwrapDailyRecord(dRecRes.value) : null;
+      const asObj = dAsRes.status === 'fulfilled' ? unwrapDailyRecord(dAsRes.value) : null;
+      const hasDietData = obj => obj?.diet && ['breakfast', 'lunch', 'dinner', 'snack'].some(k => {
+        const ml = obj.diet[k];
+        return ml && (String(ml.desc || '').trim() || (Array.isArray(ml.photos) && ml.photos.length > 0) || Number(ml.cal) > 0);
+      });
+      const asHasRoutines = Array.isArray(asObj?.routines) && asObj.routines.length > 0;
+      const recHasRoutines = Array.isArray(recObj?.routines) && recObj.routines.length > 0;
+      const baseChosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
+      const chosen = (asObj && hasDietData(asObj) && baseChosen !== asObj)
+        ? { ...baseChosen, diet: asObj.diet, feedback: asObj.feedback || baseChosen.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen.memos }
+        : baseChosen;
+      const weekPtMap = {};
+      weekDays.forEach((wd, idx) => {
+        if (wd.fullDate === state.selectedDate) {
+          weekPtMap[wd.fullDate] = { scheduled: Boolean(chosen?.ptScheduled), time: String(chosen?.ptTime || '') };
+        } else {
+          const r = weekPtRes[idx]?.status === 'fulfilled' ? unwrapDailyRecord(weekPtRes[idx].value) : null;
+          weekPtMap[wd.fullDate] = { scheduled: Boolean(r?.ptScheduled), time: String(r?.ptTime || '') };
+        }
+      });
       return {
-        daily: (dRes.status === 'fulfilled' && dRes.value && typeof dRes.value === 'object') ? dRes.value : {},
-        history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} }
+        daily: chosen,
+        history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} },
+        directVideos: (vRes.status === 'fulfilled' && vRes.value?.status === 'success' && Array.isArray(vRes.value.videos)) ? vRes.value.videos : [],
+        weekPtMap
       };
+    }
+
+    function extractTokenValue(raw) {
+      const s = String(raw || '').trim();
+      if (!s) return '';
+      try {
+        if (s.includes('token=')) {
+          const u = new URL(s.startsWith('http') ? s : 'https://x.com/?' + s.split('?').pop());
+          return (u.searchParams.get('token') || '').trim();
+        }
+      } catch {}
+      return s;
+    }
+
+    function saveMemberTokenLocal(memberName, tokenVal) {
+      const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
+      if (mObj) mObj.token = tokenVal;
+      try {
+        const map = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
+        map[memberName] = tokenVal;
+        localStorage.setItem('fit_member_tokens_v2', JSON.stringify(map));
+        const prevAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]');
+        const idx = prevAdded.findIndex(x => x.name === memberName);
+        if (idx >= 0) prevAdded[idx].token = tokenVal;
+        else prevAdded.unshift({ name: memberName, lastDate: state.selectedDate, activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0, token: tokenVal });
+        localStorage.setItem('fit_added_members_v2', JSON.stringify(prevAdded));
+      } catch {}
+    }
+
+    async function resolveMemberToken(memberName) {
+      const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
+      let tok = mObj?.token || (memberName === state.memberName ? state.token : '');
+      if (tok) return tok;
+      if (state.isLive && state.trainerPassword) {
+        try {
+          const r = await postAppsScript({ action: 'getMemberLink', name: memberName, password: state.trainerPassword });
+          const rTok = r?.token || extractTokenValue(r?.url || r?.link || '');
+          if (r?.status === 'success' && rTok) {
+            saveMemberTokenLocal(memberName, rTok);
+            return rTok;
+          }
+        } catch {}
+        try {
+          const addR = await postAppsScript({ action: 'addMember', name: memberName, password: state.trainerPassword });
+          if (addR?.status === 'success' && addR.token) {
+            saveMemberTokenLocal(memberName, addR.token);
+            return addR.token;
+          }
+          if (addR?.message) showToast('서버 응답: ' + addR.message);
+        } catch {}
+      }
+      return '';
+    }
+
+    async function copyMemberLink(memberName) {
+      const base = isLiveOrigin ? (window.location.origin + window.location.pathname) : 'https://fit-connect.sinm54388.workers.dev/';
+      showToast(`${memberName}님 전용 링크 확인 중...`);
+      const tok = await resolveMemberToken(memberName);
+      if (tok) {
+        const u = new URL(base);
+        u.searchParams.set('name', memberName);
+        u.searchParams.set('token', tok);
+        copyTextSafe(u.toString());
+        showToast(`${memberName} 회원님 전용 링크 복사 완료! ✓`);
+        return;
+      }
+      openModal(`${memberName}님 전용 링크 연결`, `
+        <div class="space-y-3">
+          <p class="text-[12px] text-[#4B5563] leading-relaxed">
+            서버에서 <strong>${escapeHtml(memberName)}</strong>님의 토큰을 찾지 못했습니다. Google 시트에 등록된 링크(또는 토큰)가 있다면 아래에 붙여넣어 주세요.
+          </p>
+          <input id="tk-paste-inp" placeholder="회원 링크(?name=...&token=...) 또는 token 붙여넣기" class="w-full text-[12px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+          <button type="button" id="tk-save-copy-btn" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">저장 후 전용 링크 복사</button>
+        </div>
+      `);
+      document.getElementById('tk-save-copy-btn').addEventListener('click', () => {
+        const parsedTok = extractTokenValue(document.getElementById('tk-paste-inp').value);
+        if (!parsedTok) { showToast('링크 또는 토큰을 붙여넣어 주세요'); return; }
+        saveMemberTokenLocal(memberName, parsedTok);
+        const u = new URL(base);
+        u.searchParams.set('name', memberName);
+        u.searchParams.set('token', parsedTok);
+        copyTextSafe(u.toString());
+        closeModal();
+        showToast(`${memberName}님 전용 링크가 저장·복사되었어요!`);
+      });
     }
 
     // One-Stop Member Detail & Immediate Reply Bottom Sheet
     async function openCoachDetailSheet(memberName) {
       openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
-      const { daily, history } = await fetchMemberForCoach(memberName);
-      const routines = Array.isArray(daily.routines) && daily.routines.length
-        ? daily.routines.map(r => ({ ...r }))
-        : [{ id: Date.now(), name: '고블릿 스쿼트', weight: '16', sets: '4', reps: '12', note: '', completedSets: [true, true, true, true] }];
+      const { daily, history, directVideos, weekPtMap } = await fetchMemberForCoach(memberName);
+      const weekDaysList = buildWeekDays(state.selectedDate);
+      const ptDaysState = { ...(weekPtMap || {}) };
+      const initialPtDays = JSON.parse(JSON.stringify(ptDaysState));
+      let ptTimeInput = Object.values(ptDaysState).find(x => x?.scheduled && x?.time)?.time || daily.ptTime || '';
+      const routines = Array.isArray(daily.routines) ? daily.routines.map(r => ({ ...r })) : [];
+      const expandedSets = {};
+      let pendingNewVideoId = '';
 
       const prevMap = history.previous || {};
       const dietObj = daily.diet || {};
@@ -1908,6 +2701,7 @@
 
       let replyMsg = daily.headerMessage || daily.feedback?.workout || '';
       let dietMsg = daily.feedback?.diet || '';
+      let directVideosList = Array.isArray(directVideos) ? [...directVideos] : [];
 
       function renderDetailBody() {
         openModal(`${memberName} 회원님 · 상세 & 바로 답글`, `
@@ -1918,12 +2712,39 @@
                 <span class="text-[10px] font-bold text-[#5EEAD4]">${state.selectedDate} · 체크인 ${chk.workout === 'done' ? '운동완료' : '기록대기'}</span>
                 <p class="text-[13px] font-bold mt-0.5 truncate">최근 메모: ${escapeHtml(lastMemo)}</p>
               </div>
-              <button type="button" id="cd-copy-handover" class="tap-scale shrink-0 px-2.5 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계 복사</button>
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" id="cd-preview-member" class="tap-scale px-2 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">👁 보기</button>
+                <button type="button" id="cd-copy-link" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-white text-[11px] font-bold">🔗 링크</button>
+                <button type="button" id="cd-copy-handover" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계</button>
+              </div>
             </div>
             ${(() => {
               const vp = [...memos].reverse().find(m => m.photo);
               return vp ? `<div class="p-3 rounded-2xl bg-[#EFF6FF] space-y-1.5"><span class="text-[11px] font-extrabold text-[#1D4ED8]">📸 회원 현장 인증 사진</span><img src="${vp.photo}" alt="현장 인증" class="w-full h-36 object-cover rounded-xl" /></div>` : '';
             })()}
+
+            <!-- Weekly PT Schedule Picker -->
+            <div class="p-3.5 rounded-2xl bg-[#EFF6FF] space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[12px] font-extrabold text-[#1D4ED8]">🗓 이번 주 PT 예정 요일 설정</span>
+                <span class="text-[10px] font-semibold text-[#64748B]">선택한 요일에 회원 화면 배너 표시</span>
+              </div>
+              <div class="grid grid-cols-7 gap-1">
+                ${weekDaysList.map(wd => {
+                  const isOn = !!ptDaysState[wd.fullDate]?.scheduled;
+                  return `
+                    <button type="button" data-ptday="${wd.fullDate}" class="cd-pt-day-btn tap-scale py-1.5 rounded-xl flex flex-col items-center justify-center ${isOn ? 'card-teal text-white shadow-sm' : 'bg-white text-[#4B5563]'}">
+                      <span class="text-[10px] font-bold opacity-80">${wd.day}</span>
+                      <span class="text-[12px] font-extrabold tabular-nums">${wd.date}</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+              <div class="flex items-center gap-1.5 pt-0.5">
+                <input id="cd-pt-time" type="text" value="${escapeHtml(ptTimeInput)}" placeholder="수업 시간 (선택, 예: 19:00)" class="flex-1 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
+                <button type="button" id="cd-save-pt-days" class="tap-scale shrink-0 px-3 py-1.5 rounded-xl card-blue text-white text-[11px] font-extrabold">PT 일정 저장</button>
+              </div>
+            </div>
 
             <!-- Today's Diet & Photos -->
             <div class="p-3.5 rounded-2xl bg-[#F0FDFA] space-y-2">
@@ -1937,7 +2758,7 @@
                     <span class="font-bold text-[#111827]">${m.label}: ${escapeHtml(m.desc || '사진 기록')}</span>
                     ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${m.cal}kcal</span>` : ''}
                   </div>
-                  ${Array.isArray(m.photos) && m.photos[0] ? `<img src="${m.photos[0]}" alt="${m.label} 식단" class="w-full h-32 object-cover rounded-lg" />` : ''}
+                  ${extractPhotoSrc(m) ? renderDirectOrImg(extractPhotoSrc(m), m.label + ' 식단', memberName, 'w-full h-32 object-cover rounded-lg') : ''}
                 </div>
               `).join('') : '<p class="text-[12px] text-[#6B7280]">아직 오늘 올라온 식단이 없습니다.</p>'}
               <div class="flex flex-wrap gap-1 pt-1">
@@ -1948,14 +2769,24 @@
 
             <!-- Routines + Type Toggle + Add Routine -->
             <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴 (눌러서 PT수업/개인숙제 전환)</span>
+              <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                <span class="text-[12px] font-extrabold text-[#1D4ED8]">2. 운동 루틴</span>
+                <div class="flex items-center gap-1">
+                  <button type="button" id="cd-copy-routines-btn" class="tap-scale px-2 py-1 rounded-full bg-[#F4F6F9] text-[#4B5563] text-[11px] font-bold">루틴 복사</button>
+                  <button type="button" id="cd-paste-routines-btn" class="hidden tap-scale px-2 py-1 rounded-full bg-[#F0FDFA] text-[#0F766E] text-[11px] font-extrabold">붙여넣기</button>
+                  <button type="button" id="cd-load-prev-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">📋 직전 불러오기</button>
+                </div>
               </div>
-              ${routines.map((r, i) => {
+              ${routines.length ? routines.map((r, i) => {
                 const prev = prevMap[r.name];
                 const curW = Number(r.weight) || 0;
                 const diff = prev && prev.weight ? curW - Number(prev.weight) : null;
                 const isHw = r.routineType === 'homework';
+                const setsCount = Math.max(1, Number(r.sets) || 3);
+                if (!Array.isArray(r.setDetails) || !r.setDetails.length) {
+                  r.setDetails = Array.from({ length: setsCount }, () => ({ weight: String(r.weight || ''), reps: String(r.reps || '12') }));
+                }
+                const isExp = Boolean(expandedSets[i]);
                 return `
                   <div class="p-3 rounded-2xl bg-[#F4F6F9] space-y-2">
                     <div class="flex items-center justify-between gap-2">
@@ -1965,18 +2796,45 @@
                           <p class="text-[13px] font-bold text-[#111827] truncate">${escapeHtml(r.name)}</p>
                           ${diff !== null && diff !== 0 ? `<span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white text-[#1D4ED8]">${diff > 0 ? '+' + diff : diff}kg</span>` : ''}
                         </div>
-                        <p class="text-[11px] text-[#6B7280] mt-0.5">${r.reps || '12'}회 × ${r.sets || '3'}세트 ${prev?.weight ? `(직전 ${prev.weight}kg)` : ''}</p>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          <p class="text-[11px] text-[#6B7280]">${r.setDetails.length}세트 ${prev?.weight ? `(직전 ${prev.weight}kg)` : ''}</p>
+                          <button type="button" data-si="${i}" class="cd-set-toggle text-[11px] font-extrabold text-[#1D4ED8] underline">${isExp ? '세트 접기 ▲' : '세트별 무게·횟수 ▾'}</button>
+                        </div>
                       </div>
-                      <div class="flex items-center gap-1.5 shrink-0">
+                      <div class="flex items-center gap-1 shrink-0">
                         <button type="button" data-wi="${i}" data-wd="-2" class="cd-wt-btn w-7 h-7 rounded-lg bg-white text-[#4B5563] font-bold text-xs shadow-sm">-</button>
-                        <span class="text-[13px] font-extrabold text-[#1D4ED8] tabular-nums w-11 text-center">${curW}kg</span>
+                        <span class="text-[13px] font-extrabold text-[#1D4ED8] tabular-nums w-10 text-center">${curW}kg</span>
                         <button type="button" data-wi="${i}" data-wd="2" class="cd-wt-btn w-7 h-7 rounded-lg bg-[#1D4ED8] text-white font-bold text-xs shadow-sm">+</button>
+                        <button type="button" data-di="${i}" class="cd-del-btn w-7 h-7 rounded-lg bg-red-50 text-red-500 font-bold text-xs ml-0.5" aria-label="종목 삭제">✕</button>
                       </div>
                     </div>
+                    ${isExp ? `
+                      <div class="space-y-1.5 pt-1 border-t border-gray-200/70">
+                        ${r.setDetails.map((sd, sIdx) => `
+                          <div class="flex items-center gap-1.5">
+                            <span class="text-[11px] font-bold text-[#4B5563] w-10">${sIdx + 1}세트</span>
+                            <input type="number" step="0.5" min="0" data-ri="${i}" data-si="${sIdx}" value="${escapeHtml(sd.weight || '')}" placeholder="kg" class="cd-sd-wt w-20 text-[12px] font-bold px-2.5 py-1.5 rounded-xl bg-white text-center tabular-nums" />
+                            <span class="text-[11px] text-[#6B7280]">kg ×</span>
+                            <input type="number" min="1" data-ri="${i}" data-si="${sIdx}" value="${escapeHtml(sd.reps || '12')}" placeholder="회" class="cd-sd-rp w-16 text-[12px] font-bold px-2 py-1.5 rounded-xl bg-white text-center tabular-nums" />
+                            <span class="text-[11px] text-[#6B7280]">회</span>
+                            ${r.setDetails.length > 1 ? `<button type="button" data-ri="${i}" data-si="${sIdx}" class="cd-sd-del ml-auto w-6 h-6 rounded-lg bg-white text-red-500 text-[11px] font-bold">✕</button>` : ''}
+                          </div>
+                        `).join('')}
+                        <button type="button" data-ri="${i}" class="cd-sd-add tap-scale w-full py-1.5 rounded-xl bg-white text-[#1D4ED8] text-[11px] font-extrabold shadow-sm">+ 세트 추가</button>
+                      </div>
+                    ` : ''}
                     <input type="text" data-ni="${i}" value="${escapeHtml(r.note || '')}" placeholder="코치 핵심 큐잉 입력 (예: 발바닥 3점 지지, 3초 하강)" class="cd-note-inp w-full text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
+                    <div class="flex items-center gap-1.5">
+                      <input type="url" data-vi="${i}" value="${escapeHtml(r.videoUrl || '')}" placeholder="${r.videoId ? '📹 사진첩 영상이 연결되어 있습니다' : '🎬 영상 링크 또는 오른쪽 버튼으로 사진첩 업로드'}" class="cd-vid-inp flex-1 min-w-0 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#1D4ED8] focus:outline-none" />
+                      <label class="tap-scale shrink-0 px-2.5 py-1.5 rounded-xl ${r.videoId ? 'card-teal text-white' : 'bg-[#EFF6FF] text-[#1D4ED8]'} text-[11px] font-extrabold cursor-pointer">
+                        <input type="file" accept="video/mp4,video/quicktime,video/webm,video/*" data-vfi="${i}" class="cd-vid-file hidden" />
+                        <span>${r.videoId ? '📹 변경' : '📹 영상 올리기'}</span>
+                      </label>
+                      ${(r.videoId || r.videoUrl) ? `<button type="button" data-vdi="${i}" class="cd-vid-del tap-scale shrink-0 px-2.5 py-1.5 rounded-xl bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>` : ''}
+                    </div>
                   </div>
                 `;
-              }).join('')}
+              }).join('') : '<p class="text-[12px] text-[#6B7280] py-2">등록된 루틴이 없습니다. 아래에서 종목을 추가해 보세요.</p>'}
               <div class="p-3 rounded-2xl bg-[#EFF6FF]/70 space-y-2">
                 <div class="flex gap-1.5">
                   <select id="cd-new-type" class="text-[11px] font-bold px-2 py-2 rounded-xl bg-white text-[#1D4ED8]">
@@ -1986,6 +2844,13 @@
                   <input id="cd-new-name" placeholder="새 종목명 (예: 랫풀다운)" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
                 </div>
                 <input id="cd-new-note" placeholder="핵심 큐잉 메모 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                <div class="flex items-center gap-1.5">
+                  <input id="cd-new-video" type="url" placeholder="🎬 시범 영상 링크 또는 오른쪽 버튼으로 올리기" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+                  <label class="tap-scale shrink-0 px-3 py-2 rounded-xl bg-white text-[#1D4ED8] text-[11px] font-extrabold shadow-sm cursor-pointer">
+                    <input id="cd-new-vid-file" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+                    <span id="cd-new-vid-lbl">📹 영상 올리기</span>
+                  </label>
+                </div>
                 <div class="flex gap-1.5">
                   <input id="cd-new-weight" type="number" min="0" placeholder="무게(kg)" class="w-20 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
                   <input id="cd-new-sets" type="number" min="1" value="3" placeholder="세트" class="w-16 text-[12px] px-2.5 py-2 rounded-xl bg-white" />
@@ -1994,6 +2859,32 @@
                 </div>
               </div>
             </div>
+
+            ${directVideosList.length ? `
+              <div class="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-[12px] font-extrabold text-[#111827]">🎬 업로드된 서버 영상 (${directVideosList.length})</span>
+                  <span class="text-[10px] font-semibold text-[#6B7280]">테스트·불필요 영상 삭제 가능</span>
+                </div>
+                <div class="space-y-1.5 max-h-72 overflow-y-auto">
+                  ${directVideosList.map((dv, dIdx) => `
+                    <div class="p-2.5 rounded-xl bg-white space-y-2 shadow-sm">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="min-w-0">
+                          <p class="text-[12px] font-bold text-[#111827] truncate">${escapeHtml(dv.name || '운동 영상')}</p>
+                          <p class="text-[10px] text-[#6B7280] truncate">${escapeHtml((dv.createdAt || '').slice(0, 10))}${dv.question ? ' · ' + escapeHtml(dv.question) : ''}</p>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                          <button type="button" data-dvplay="${dIdx}" class="cd-dv-server-play tap-scale px-2 py-1 rounded-lg bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">▶ 보기</button>
+                          <button type="button" data-dvdel="${dIdx}" class="cd-dv-server-del tap-scale px-2 py-1 rounded-lg bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>
+                        </div>
+                      </div>
+                      <div id="cd-dv-preview-${dIdx}" class="hidden"></div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
 
             <!-- Sticky Reply Box -->
             <div class="pt-2 border-t border-gray-100 space-y-2">
@@ -2018,9 +2909,204 @@
           </div>
         `);
 
+        document.getElementById('cd-preview-member').addEventListener('click', async () => {
+          const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
+          state.memberName = memberName;
+          state.token = mObj?.token || '';
+          state.session = '';
+          state.appMode = 'member';
+          closeModal();
+          state.loading = true;
+          renderAll();
+          await loadMemberDateData(state.selectedDate);
+          state.loading = false;
+          renderAll();
+        });
+
+        document.getElementById('cd-copy-link').addEventListener('click', () => copyMemberLink(memberName));
+
         document.getElementById('cd-copy-handover').addEventListener('click', () => {
           copyTextSafe(handoverText);
           showToast('인수인계 요약이 복사되었어요');
+        });
+
+        const pasteBtn = document.getElementById('cd-paste-routines-btn');
+        try {
+          const copiedRaw = JSON.parse(localStorage.getItem('fit_copied_routines_v2') || '[]');
+          if (Array.isArray(copiedRaw) && copiedRaw.length && pasteBtn) {
+            pasteBtn.classList.remove('hidden');
+            pasteBtn.textContent = `📥 붙여넣기 (${copiedRaw.length})`;
+          }
+        } catch {}
+
+        hydrateDirectImages(memberName);
+        document.querySelectorAll('.cd-pt-day-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const dStr = btn.dataset.ptday;
+            const prevOn = !!ptDaysState[dStr]?.scheduled;
+            ptDaysState[dStr] = { scheduled: !prevOn, time: document.getElementById('cd-pt-time')?.value.trim() || '' };
+            ptTimeInput = document.getElementById('cd-pt-time')?.value.trim() || '';
+            renderDetailBody();
+          });
+        });
+
+        const ptTimeEl = document.getElementById('cd-pt-time');
+        if (ptTimeEl) {
+          ptTimeEl.addEventListener('input', e => { ptTimeInput = e.target.value; });
+        }
+
+        const savePtBtn = document.getElementById('cd-save-pt-days');
+        if (savePtBtn) {
+          savePtBtn.addEventListener('click', async () => {
+            const tVal = document.getElementById('cd-pt-time')?.value.trim() || '';
+            ptTimeInput = tVal;
+            const changedDates = weekDaysList.map(w => w.fullDate).filter(dStr => {
+              const nowOn = !!ptDaysState[dStr]?.scheduled;
+              const wasOn = !!initialPtDays[dStr]?.scheduled;
+              const wasTime = String(initialPtDays[dStr]?.time || '');
+              return nowOn !== wasOn || (nowOn && tVal !== wasTime);
+            });
+            if (!changedDates.length) {
+              showToast('변경된 PT 예정일이 없습니다');
+              return;
+            }
+            savePtBtn.disabled = true;
+            savePtBtn.textContent = '저장 중...';
+            try {
+              let okCount = 0;
+              let lastErr = '';
+              for (const dStr of changedDates) {
+                const isOn = !!ptDaysState[dStr]?.scheduled;
+                const ptTimeVal = isOn ? tVal : '';
+                let res = await postAppsScript({
+                  action: 'patchData',
+                  member: memberName,
+                  date: dStr,
+                  password: state.trainerPassword,
+                  patch: { ptScheduled: isOn, ptTime: ptTimeVal }
+                }).catch(() => null);
+                if (!res || res.status !== 'success') {
+                  const existingRaw = await postAppsScript({ action: 'read', member: memberName, date: dStr, password: state.trainerPassword }).catch(() => null);
+                  const baseRec = unwrapDailyRecord(existingRaw) || {
+                    headerMessage: '',
+                    routines: [],
+                    reflection: { good: '', bad: '' },
+                    diet: { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
+                    feedback: { workout: '', diet: '', time: '' },
+                    memos: [],
+                    dailyCheckin: { workout: '', diet: '', mood: '' }
+                  };
+                  res = await postAppsScript({
+                    member: memberName,
+                    date: dStr,
+                    password: state.trainerPassword,
+                    data: { ...baseRec, ptScheduled: isOn, ptTime: ptTimeVal }
+                  }).catch(e => ({ status: 'error', message: e?.message || 'network' }));
+                }
+                if (res?.status === 'success') {
+                  okCount++;
+                  initialPtDays[dStr] = { scheduled: isOn, time: ptTimeVal };
+                } else {
+                  lastErr = res?.message || res?.error || 'unknown';
+                }
+              }
+              if (okCount === changedDates.length) {
+                daily.ptScheduled = !!ptDaysState[state.selectedDate]?.scheduled;
+                daily.ptTime = daily.ptScheduled ? tVal : '';
+                showToast('이번 주 PT 예정일이 저장되었어요 ✓');
+              } else {
+                showToast(`일부 날짜 저장 실패 (${okCount}/${changedDates.length}${lastErr ? ': ' + lastErr : ''})`);
+              }
+            } catch {
+              showToast('PT 일정 저장 중 오류가 발생했어요');
+            } finally {
+              savePtBtn.disabled = false;
+              savePtBtn.textContent = 'PT 일정 저장';
+            }
+          });
+        }
+
+        document.getElementById('cd-copy-routines-btn').addEventListener('click', () => {
+          if (!routines.length) {
+            showToast('복사할 루틴 종목이 아직 없어요');
+            return;
+          }
+          try {
+            localStorage.setItem('fit_copied_routines_v2', JSON.stringify(routines));
+            if (pasteBtn) {
+              pasteBtn.classList.remove('hidden');
+              pasteBtn.textContent = `📥 붙여넣기 (${routines.length})`;
+            }
+            showToast(`${routines.length}개 종목을 복사했어요! 다른 회원에서 붙여넣으세요`);
+          } catch {
+            showToast('루틴 복사에 실패했어요');
+          }
+        });
+
+        if (pasteBtn) {
+          pasteBtn.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            try {
+              const copiedRaw = JSON.parse(localStorage.getItem('fit_copied_routines_v2') || '[]');
+              if (!Array.isArray(copiedRaw) || !copiedRaw.length) return;
+              const cloned = copiedRaw.map((r, idx) => ({
+                ...r,
+                id: Date.now() + idx,
+                completedSets: Array(Math.max(1, Number(r.sets) || (Array.isArray(r.setDetails) ? r.setDetails.length : 3))).fill(false)
+              }));
+              routines.push(...cloned);
+              showToast(`복사한 ${cloned.length}개 종목을 붙여넣었어요!`);
+              renderDetailBody();
+            } catch {}
+          });
+        }
+
+        document.getElementById('cd-load-prev-btn').addEventListener('click', async () => {
+          replyMsg = document.getElementById('cd-reply-msg').value;
+          dietMsg = document.getElementById('cd-diet-msg').value;
+          let loaded = [];
+          if (state.isLive && state.trainerPassword) {
+            const prevDays = (Array.isArray(history.days) ? history.days : [])
+              .filter(d => d < state.selectedDate)
+              .sort();
+            const lastDay = prevDays[prevDays.length - 1];
+            if (lastDay) {
+              try {
+                const prevRaw = await postRecords({ action: 'read', member: memberName, date: lastDay, password: state.trainerPassword });
+                const prevDaily = unwrapDailyRecord(prevRaw);
+                if (Array.isArray(prevDaily?.routines) && prevDaily.routines.length) {
+                  loaded = prevDaily.routines.map((r, idx) => ({
+                    ...r,
+                    id: Date.now() + idx,
+                    completedSets: Array(Math.max(1, Number(r.sets) || 3)).fill(false)
+                  }));
+                }
+              } catch {}
+            }
+          }
+          if (!loaded.length) {
+            const entries = Object.entries(prevMap);
+            if (entries.length) {
+              loaded = entries.map(([k, v], idx) => ({
+                id: Date.now() + idx,
+                routineType: 'pt',
+                name: k,
+                weight: String(v?.weight || ''),
+                sets: String(v?.sets || '3'),
+                reps: String(v?.reps || '12'),
+                note: '',
+                completedSets: Array(Math.max(1, Number(v?.sets) || 3)).fill(false)
+              }));
+            }
+          }
+          if (!loaded.length) {
+            showToast('불러올 직전 수업 루틴 기록이 아직 없어요');
+            return;
+          }
+          routines.splice(0, routines.length, ...loaded);
+          showToast(`직전 수업 루틴 ${loaded.length}종목을 불러왔어요!`);
+          renderDetailBody();
         });
 
         document.querySelectorAll('.cd-dp-btn').forEach(b => {
@@ -2054,8 +3140,11 @@
             sets: String(sets),
             reps: document.getElementById('cd-new-reps').value.trim() || '12',
             note: document.getElementById('cd-new-note').value.trim(),
+            videoUrl: document.getElementById('cd-new-video')?.value.trim() || '',
+            ...(pendingNewVideoId ? { videoId: pendingNewVideoId } : {}),
             completedSets: Array(sets).fill(false)
           });
+          pendingNewVideoId = '';
           renderDetailBody();
         });
 
@@ -2065,13 +3154,229 @@
           });
         });
 
+        document.querySelectorAll('.cd-vid-inp').forEach(inp => {
+          inp.addEventListener('input', e => {
+            routines[Number(inp.dataset.vi)].videoUrl = e.target.value.trim();
+          });
+        });
+
+        document.querySelectorAll('.cd-vid-del').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const ri = Number(btn.dataset.vdi);
+            const target = routines[ri];
+            if (!target) return;
+            const oldVidId = String(target.videoId || '');
+            delete target.videoId;
+            target.videoUrl = '';
+            if (oldVidId) videoPlayUrlCache.delete(oldVidId);
+            replyMsg = document.getElementById('cd-reply-msg')?.value || '';
+            dietMsg = document.getElementById('cd-diet-msg')?.value || '';
+            renderDetailBody();
+            showToast('영상을 삭제하고 저장 중입니다...');
+            if (oldVidId.startsWith('direct:') && state.trainerPassword) {
+              postRecords({ action: 'directVideoDelete', id: oldVidId, member: memberName, date: state.selectedDate, password: state.trainerPassword }).catch(() => {});
+            }
+            const autoPayload = {
+              headerMessage: replyMsg || daily.headerMessage || '',
+              routines,
+              reflection: daily.reflection || { good: '', bad: '' },
+              diet: daily.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
+              feedback: daily.feedback || { workout: '', diet: '', time: '' },
+              memos: Array.isArray(daily.memos) ? daily.memos : [],
+              dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' },
+              ptScheduled: Boolean(daily.ptScheduled),
+              ptTime: daily.ptTime || ''
+            };
+            const savedOk = await saveFullRecordLive(memberName, autoPayload);
+            if (savedOk) showToast('영상이 삭제되고 일지에 반영되었습니다 ✓');
+          });
+        });
+
+        const newVidFile = document.getElementById('cd-new-vid-file');
+        if (newVidFile) {
+          newVidFile.addEventListener('change', async e => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            const lbl = document.getElementById('cd-new-vid-lbl');
+            const mbTotal = (f.size / 1048576).toFixed(1);
+            if (lbl) lbl.textContent = `준비 중 (${mbTotal}MB)...`;
+            try {
+              const titleHint = document.getElementById('cd-new-name')?.value.trim() || '시범 영상';
+              pendingNewVideoId = await uploadDirectVideoFile(f, memberName, '', titleHint, (pct, loaded, total) => {
+                if (lbl) lbl.textContent = `업로드 ${pct}%`;
+                showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
+              });
+              if (lbl) lbl.textContent = '📹 업로드됨 ✓';
+              showToast('영상 업로드 완료! + 종목 추가 또는 저장을 눌러주세요 ✓');
+            } catch (err) {
+              if (lbl) lbl.textContent = '📹 영상 올리기';
+              showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 확인'));
+            }
+          });
+        }
+
+        document.querySelectorAll('.cd-vid-file').forEach(inp => {
+          inp.addEventListener('change', async e => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            const ri = Number(inp.dataset.vfi);
+            const mbTotal = (f.size / 1048576).toFixed(1);
+            showToast(`영상 업로드 시작 (${mbTotal}MB)...`);
+            try {
+              const directId = await uploadDirectVideoFile(f, memberName, '', routines[ri]?.name || '', (pct, loaded, total) => {
+                showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
+              });
+              routines[ri].videoId = directId;
+              routines[ri].videoUrl = '';
+              replyMsg = document.getElementById('cd-reply-msg').value;
+              dietMsg = document.getElementById('cd-diet-msg').value;
+              showToast('영상 업로드 완료! 저장 중...');
+              renderDetailBody();
+              const autoPayload = {
+                headerMessage: replyMsg || daily.headerMessage || '',
+                routines,
+                reflection: daily.reflection || { good: '', bad: '' },
+                diet: daily.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
+                feedback: daily.feedback || { workout: '', diet: '', time: '' },
+                memos: Array.isArray(daily.memos) ? daily.memos : [],
+                dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' },
+                ptScheduled: Boolean(daily.ptScheduled),
+                ptTime: daily.ptTime || ''
+              };
+              const savedOk = await saveFullRecordLive(memberName, autoPayload);
+              if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
+            } catch (err) {
+              showToast('영상 업로드 실패: ' + (err?.message || '용량(50MB 이하) 확인'));
+            }
+          });
+        });
+
+        document.querySelectorAll('.cd-dv-server-play').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const dIdx = Number(btn.dataset.dvplay);
+            const dv = directVideosList[dIdx];
+            const slot = document.getElementById(`cd-dv-preview-${dIdx}`);
+            if (!dv || !slot) return;
+            if (!slot.classList.contains('hidden')) {
+              slot.classList.add('hidden');
+              slot.innerHTML = '';
+              btn.textContent = '▶ 보기';
+              return;
+            }
+            slot.classList.remove('hidden');
+            slot.innerHTML = '<p class="text-[11px] text-[#6B7280] py-2 text-center">영상 불러오는 중...</p>';
+            btn.textContent = '닫기';
+            try {
+              const url = await resolvePlayableVideoUrl(dv.id, { password: state.trainerPassword }, memberName);
+              if (url) slot.innerHTML = buildVideoPlayerHtml(url);
+              else slot.innerHTML = '<p class="text-[11px] text-red-500 py-2 text-center">영상을 불러오지 못했습니다.</p>';
+            } catch {
+              slot.innerHTML = '<p class="text-[11px] text-red-500 py-2 text-center">영상을 불러오지 못했습니다.</p>';
+            }
+          });
+        });
+
+        document.querySelectorAll('.cd-dv-server-del').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const dIdx = Number(btn.dataset.dvdel);
+            const dv = directVideosList[dIdx];
+            if (!dv) return;
+            showToast('서버 영상을 삭제 중입니다...');
+            try {
+              const delRes = await postRecords({ action: 'directVideoDelete', id: dv.id, member: memberName, date: state.selectedDate, password: state.trainerPassword });
+              if (delRes?.status !== 'success') throw new Error(delRes?.code || '삭제 실패');
+              videoPlayUrlCache.delete(dv.id);
+              routines.forEach(rt => {
+                if (rt && rt.videoId === dv.id) delete rt.videoId;
+              });
+              directVideosList.splice(dIdx, 1);
+              renderDetailBody();
+              showToast('서버에서 영상이 삭제되었습니다 ✓');
+            } catch (err) {
+              showToast('영상 삭제 실패: ' + (err?.message || '잠시 후 다시 시도'));
+            }
+          });
+        });
+
+        document.querySelectorAll('.cd-del-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            routines.splice(Number(b.dataset.di), 1);
+            renderDetailBody();
+          });
+        });
+
+        document.querySelectorAll('.cd-set-toggle').forEach(b => {
+          b.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            const idx = Number(b.dataset.si);
+            expandedSets[idx] = !expandedSets[idx];
+            renderDetailBody();
+          });
+        });
+
+        document.querySelectorAll('.cd-sd-wt').forEach(inp => {
+          inp.addEventListener('input', e => {
+            const ri = Number(inp.dataset.ri);
+            const si = Number(inp.dataset.si);
+            routines[ri].setDetails[si].weight = e.target.value;
+            const maxW = Math.max(...routines[ri].setDetails.map(x => Number(x.weight) || 0));
+            routines[ri].weight = String(maxW || '');
+          });
+        });
+
+        document.querySelectorAll('.cd-sd-rp').forEach(inp => {
+          inp.addEventListener('input', e => {
+            const ri = Number(inp.dataset.ri);
+            const si = Number(inp.dataset.si);
+            routines[ri].setDetails[si].reps = e.target.value;
+            routines[ri].reps = String(routines[ri].setDetails[0]?.reps || '12');
+          });
+        });
+
+        document.querySelectorAll('.cd-sd-del').forEach(b => {
+          b.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            const ri = Number(b.dataset.ri);
+            const si = Number(b.dataset.si);
+            routines[ri].setDetails.splice(si, 1);
+            routines[ri].sets = String(routines[ri].setDetails.length);
+            if (Array.isArray(routines[ri].completedSets)) routines[ri].completedSets.splice(si, 1);
+            renderDetailBody();
+          });
+        });
+
+        document.querySelectorAll('.cd-sd-add').forEach(b => {
+          b.addEventListener('click', () => {
+            replyMsg = document.getElementById('cd-reply-msg').value;
+            dietMsg = document.getElementById('cd-diet-msg').value;
+            const ri = Number(b.dataset.ri);
+            const last = routines[ri].setDetails[routines[ri].setDetails.length - 1] || { weight: routines[ri].weight || '', reps: routines[ri].reps || '12' };
+            routines[ri].setDetails.push({ weight: String(last.weight || ''), reps: String(last.reps || '12') });
+            routines[ri].sets = String(routines[ri].setDetails.length);
+            if (!Array.isArray(routines[ri].completedSets)) routines[ri].completedSets = [];
+            routines[ri].completedSets.push(false);
+            renderDetailBody();
+          });
+        });
+
         document.querySelectorAll('.cd-wt-btn').forEach(b => {
           b.addEventListener('click', () => {
             const idx = Number(b.dataset.wi);
+            const delta = Number(b.dataset.wd);
             replyMsg = document.getElementById('cd-reply-msg').value;
             dietMsg = document.getElementById('cd-diet-msg').value;
             const cur = Number(routines[idx].weight) || 0;
-            routines[idx].weight = String(Math.max(0, cur + Number(b.dataset.wd)));
+            const nextW = String(Math.max(0, cur + delta));
+            routines[idx].weight = nextW;
+            if (Array.isArray(routines[idx].setDetails)) {
+              routines[idx].setDetails.forEach(sd => {
+                sd.weight = String(Math.max(0, (Number(sd.weight) || 0) + delta));
+              });
+            }
             renderDetailBody();
           });
         });
@@ -2130,19 +3435,57 @@
         });
 
         document.getElementById('cd-save-all').addEventListener('click', async () => {
+          const pendingNameEl = document.getElementById('cd-new-name');
+          const pendingName = pendingNameEl ? pendingNameEl.value.trim() : '';
+          if (pendingName) {
+            const pSets = Math.max(1, Number(document.getElementById('cd-new-sets')?.value) || 3);
+            const pWt = document.getElementById('cd-new-weight')?.value.trim() || '';
+            const pRp = document.getElementById('cd-new-reps')?.value.trim() || '12';
+            routines.push({
+              id: Date.now(),
+              routineType: document.getElementById('cd-new-type')?.value || 'pt',
+              name: pendingName,
+              weight: pWt,
+              sets: String(pSets),
+              reps: pRp,
+              setDetails: Array.from({ length: pSets }, () => ({ weight: pWt, reps: pRp })),
+              note: document.getElementById('cd-new-note')?.value.trim() || '',
+              videoUrl: document.getElementById('cd-new-video')?.value.trim() || '',
+              ...(pendingNewVideoId ? { videoId: pendingNewVideoId } : {}),
+              completedSets: Array(pSets).fill(false)
+            });
+          }
+
           const finalReply = document.getElementById('cd-reply-msg').value.trim();
           const finalDiet = document.getElementById('cd-diet-msg').value.trim();
           const fullPayload = {
-            ...daily,
             headerMessage: finalReply || daily.headerMessage || '',
             routines,
+            reflection: daily.reflection || { good: '', bad: '' },
+            diet: daily.diet || {
+              breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+              lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+              dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+              snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
+              water: 0
+            },
             feedback: {
               ...(daily.feedback || {}),
               ...(finalReply ? { workout: finalReply } : {}),
               ...(finalDiet ? { diet: finalDiet } : {}),
               time: nowTimeHHMM()
-            }
+            },
+            memos: Array.isArray(daily.memos) ? daily.memos : [],
+            dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' }
           };
+
+          const saveBtn = document.getElementById('cd-save-all');
+          if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중...'; }
+          const ok = await saveFullRecordLive(memberName, fullPayload);
+          if (!ok) {
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '이 회원만 저장하기'; }
+            return;
+          }
 
           const ovTarget = state.trainerOverview.find(x => x.name === memberName);
           if (ovTarget) {
@@ -2150,18 +3493,84 @@
             if (finalDiet) ovTarget.pendingDiet = false;
           }
           if (memberName === state.memberName) {
-            state.record.headerMessage = fullPayload.headerMessage;
-            state.record.routines = routines;
-            state.record.feedback = fullPayload.feedback;
+            state.record = fullPayload;
+            saveCachedMemberData(state.selectedDate);
           }
           closeModal();
           triggerConfetti();
-          showToast(`${memberName} 회원님 피드백 저장 완료!`);
+          showToast(`${memberName} 회원님 루틴 · 피드백 저장 완료!`);
           renderAll();
-          await saveFullRecordLive(memberName, fullPayload);
         });
       }
       renderDetailBody();
+    }
+
+    function openAddMemberModal() {
+      openModal('새 회원 등록', `
+        <form id="add-member-form" class="space-y-3">
+          <p class="text-[12px] text-[#6B7280]">새 회원님의 이름을 입력하면 서버에 정식 등록되고 전용 링크가 자동 발급됩니다.</p>
+          <input id="am-name" required minlength="2" maxlength="30" placeholder="회원 이름 (예: 박지훈)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+          <input id="am-msg" placeholder="첫 인사말 (비워두면 오늘의 코칭 팁 자동 적용)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+          <button type="submit" id="am-submit-btn" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-extrabold">회원 등록 및 링크 복사</button>
+        </form>
+      `);
+      document.getElementById('add-member-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const mName = document.getElementById('am-name').value.trim();
+        if (!mName) return;
+        const btn = document.getElementById('am-submit-btn');
+        if (btn) { btn.disabled = true; btn.textContent = '등록 중...'; }
+
+        let issuedTok = '';
+        if (state.isLive && state.trainerPassword) {
+          try {
+            const addRes = await postAppsScript({ action: 'addMember', name: mName, password: state.trainerPassword });
+            if (addRes?.status !== 'success' || !addRes?.token) {
+              showToast('회원 등록 실패: ' + (addRes?.message || '서버 오류'));
+              if (btn) { btn.disabled = false; btn.textContent = '회원 등록 및 링크 복사'; }
+              return;
+            }
+            issuedTok = addRes.token;
+          } catch (err) {
+            showToast('회원 등록 오류: ' + (err?.message || '네트워크 확인'));
+            if (btn) { btn.disabled = false; btn.textContent = '회원 등록 및 링크 복사'; }
+            return;
+          }
+        }
+
+        const firstMsg = document.getElementById('am-msg').value.trim();
+        const newMemberObj = {
+          name: mName,
+          lastDate: state.selectedDate,
+          activeToday: false,
+          pendingWorkout: false,
+          pendingDiet: false,
+          weeklyWorkoutDays: 0,
+          token: issuedTok
+        };
+        if (!state.trainerOverview.some(x => x.name === mName)) {
+          state.trainerOverview.unshift(newMemberObj);
+        }
+        if (issuedTok) saveMemberTokenLocal(mName, issuedTok);
+
+        if (firstMsg && state.isLive && state.trainerPassword) {
+          await savePatchLive({ headerMessage: firstMsg }, mName);
+        }
+
+        closeModal();
+        triggerConfetti();
+        if (issuedTok) {
+          const base = isLiveOrigin ? (window.location.origin + window.location.pathname) : 'https://fit-connect.sinm54388.workers.dev/';
+          const u = new URL(base);
+          u.searchParams.set('name', mName);
+          u.searchParams.set('token', issuedTok);
+          copyTextSafe(u.toString());
+          showToast(`${mName} 회원 등록 완료! 전용 링크가 복사되었어요 ✓`);
+        } else {
+          showToast(`${mName} 회원님이 등록되었어요!`);
+        }
+        renderAll();
+      });
     }
 
     function openColumnWriteModal() {
@@ -2223,7 +3632,15 @@
               <button type="button" id="btn-ask-coach" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#1D4ED8] shadow-sm whitespace-nowrap shrink-0">질문</button>
             </div>
           </div>
-          <div class="grid grid-cols-7 gap-1 mt-3.5">
+          <div class="flex items-center justify-between gap-2 mt-2.5 px-0.5">
+            <button type="button" id="m-prev-week" class="tap-scale px-2.5 py-1 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">‹ 지난주</button>
+            <div class="flex items-center gap-1.5">
+              <input id="m-date-picker" type="date" value="${state.selectedDate}" class="text-[12px] font-extrabold text-[#1E3A8A] bg-white px-2.5 py-1 rounded-full shadow-sm tabular-nums focus:outline-none" />
+              ${state.selectedDate !== getTodayKST() ? '<button type="button" id="m-today-btn" class="tap-scale px-2 py-1 rounded-full bg-[#EFF6FF] text-[10px] font-extrabold text-[#1D4ED8]">오늘</button>' : ''}
+            </div>
+            <button type="button" id="m-next-week" class="tap-scale px-2.5 py-1 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">다음주 ›</button>
+          </div>
+          <div class="grid grid-cols-7 gap-1 mt-2">
             ${state.weekDays.map(d => {
               const sel = d.fullDate === state.selectedDate;
               const worked = state.workoutDays.includes(d.fullDate);
@@ -2237,22 +3654,29 @@
             }).join('')}
           </div>
         `;
-        hdr.querySelectorAll('.day-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            state.selectedDate = btn.dataset.fdate;
-            state.weekDays = buildWeekDays(state.selectedDate);
-            if (state.isLive) {
-              const hadCache = applyCachedMemberData(state.selectedDate);
-              state.loading = !hadCache;
-              renderAll();
-              await loadMemberDateData(state.selectedDate);
-              saveCachedMemberData(state.selectedDate);
-              state.loading = false;
-            }
-            loadLocalMemberExtras();
+        const switchMemberDate = async newDate => {
+          if (!newDate) return;
+          state.selectedDate = newDate;
+          state.weekDays = buildWeekDays(state.selectedDate);
+          if (state.isLive) {
+            const hadCache = applyCachedMemberData(state.selectedDate);
+            state.loading = !hadCache;
             renderAll();
-          });
+            await loadMemberDateData(state.selectedDate);
+            saveCachedMemberData(state.selectedDate);
+            state.loading = false;
+          }
+          loadLocalMemberExtras();
+          renderAll();
+        };
+        hdr.querySelectorAll('.day-btn').forEach(btn => {
+          btn.addEventListener('click', () => switchMemberDate(btn.dataset.fdate));
         });
+        document.getElementById('m-prev-week').addEventListener('click', () => switchMemberDate(shiftDateStr(state.selectedDate, -7)));
+        document.getElementById('m-next-week').addEventListener('click', () => switchMemberDate(shiftDateStr(state.selectedDate, 7)));
+        document.getElementById('m-date-picker').addEventListener('change', e => switchMemberDate(e.target.value));
+        const mToday = document.getElementById('m-today-btn');
+        if (mToday) mToday.addEventListener('click', () => switchMemberDate(getTodayKST()));
         document.getElementById('btn-hdr-timer').addEventListener('click', openTimerModal);
         document.getElementById('btn-ask-coach').addEventListener('click', () => { state.memberTab = 'feedback'; renderAll(); });
         document.getElementById('btn-coach-switch').addEventListener('click', openTrainerLoginModal);
@@ -2266,14 +3690,57 @@
               <span class="text-[15px] font-extrabold tracking-tight text-[#0F172A] whitespace-nowrap shrink-0">FIT-CONNECT</span>
               <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#1E3A8A] text-white whitespace-nowrap shrink-0">COACH</span>
             </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-              <button type="button" id="btn-new-col" class="tap-scale h-7 px-2.5 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8] whitespace-nowrap shrink-0">+ 칼럼</button>
-              <button type="button" id="btn-back-member" class="tap-scale h-7 px-2.5 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm whitespace-nowrap shrink-0">회원 화면</button>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" id="btn-new-col" class="tap-scale h-7 px-2 rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1D4ED8] whitespace-nowrap shrink-0">+ 칼럼</button>
+              <button type="button" id="btn-back-member" class="tap-scale h-7 px-2 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm whitespace-nowrap shrink-0">회원 화면</button>
+              <button type="button" id="btn-coach-logout" class="tap-scale h-7 px-2 rounded-full bg-gray-200/80 text-[10px] font-bold text-[#4B5563] whitespace-nowrap shrink-0">로그아웃</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-2 mt-2.5">
+            <div class="flex items-center gap-1">
+              <button type="button" id="c-prev-day" class="tap-scale px-2.5 py-1 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">‹ 전날</button>
+              <button type="button" id="c-next-day" class="tap-scale px-2.5 py-1 rounded-full bg-white text-[11px] font-bold text-[#4B5563] shadow-sm">다음날 ›</button>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <input id="c-date-picker" type="date" value="${state.selectedDate}" class="text-[12px] font-extrabold text-[#1E3A8A] bg-white px-3 py-1 rounded-full shadow-sm tabular-nums focus:outline-none" />
+              ${state.selectedDate !== getTodayKST() ? '<button type="button" id="c-today-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[11px] font-extrabold text-[#1D4ED8]">오늘</button>' : ''}
             </div>
           </div>
         `;
         document.getElementById('btn-new-col').addEventListener('click', openColumnWriteModal);
-        document.getElementById('btn-back-member').addEventListener('click', () => { state.appMode = 'member'; renderAll(); });
+        document.getElementById('btn-back-member').addEventListener('click', async () => {
+          state.appMode = 'member';
+          renderAll();
+          if (state.isLive && (state.session || state.token)) {
+            await loadMemberDateData(state.selectedDate);
+            saveCachedMemberData(state.selectedDate);
+            renderAll();
+          }
+        });
+        const switchCoachDate = async newDate => {
+          if (!newDate) return;
+          state.selectedDate = newDate;
+          state.weekDays = buildWeekDays(newDate);
+          if (state.isLive && state.trainerPassword) {
+            showToast(`${newDate} 현황 불러오는 중...`);
+            await enterCoachWithPassword(state.trainerPassword, true);
+          } else {
+            renderAll();
+          }
+        };
+        document.getElementById('c-prev-day').addEventListener('click', () => switchCoachDate(shiftDateStr(state.selectedDate, -1)));
+        document.getElementById('c-next-day').addEventListener('click', () => switchCoachDate(shiftDateStr(state.selectedDate, 1)));
+        document.getElementById('c-date-picker').addEventListener('change', e => switchCoachDate(e.target.value));
+        const cToday = document.getElementById('c-today-btn');
+        if (cToday) cToday.addEventListener('click', () => switchCoachDate(getTodayKST()));
+
+        document.getElementById('btn-coach-logout').addEventListener('click', () => {
+          state.trainerPassword = '';
+          try { localStorage.removeItem('fit_coach_pw_v2'); } catch {}
+          state.appMode = 'member';
+          showToast('코치 로그인이 해제되었어요');
+          renderAll();
+        });
       }
     }
 
@@ -2379,15 +3846,25 @@
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
-      const hasRoutines = (state.record.routines || []).length > 0;
-      const pendingRoutine = (state.record.routines || []).find(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
+      const routinesArr = state.record.routines || [];
+      const hasRoutines = routinesArr.length > 0;
+      const hasPtClass = routinesArr.some(r => r.routineType !== 'homework');
+      const pendingRoutine = routinesArr.find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
       const missionDone = hasRoutines && !pendingRoutine;
+      const isPtDay = Boolean(state.record.ptScheduled);
+      const ptTimeBadge = state.record.ptTime ? ` (${state.record.ptTime})` : '';
+      const missionLabel = pendingRoutine
+        ? `오늘의 개인 운동 숙제 (${wr.done}/${wr.total})`
+        : (missionDone ? (hasPtClass ? '오늘 PT 수업 일지' : '오늘 개인 운동 완료') : (isPtDay ? '오늘의 PT 일정' : '오늘의 운동 일정'));
       const missionTitle = pendingRoutine
         ? pendingRoutine.name
-        : (missionDone ? '오늘 배정된 루틴 모두 완료!' : '오늘 배정된 루틴이 없어요');
+        : (missionDone ? (hasPtClass ? `오늘 진행한 PT 수업 (${routinesArr.length}종목)` : '오늘 배정된 개인 운동 완료!') : (isPtDay ? `🗓 오늘은 PT 예정일입니다${ptTimeBadge}` : '예정된 수업 · 루틴이 없어요'));
+      const missionSub = pendingRoutine
+        ? '수업일지에서 체크하기 ›'
+        : (missionDone ? '수업 내용 확인하기 ›' : (isPtDay ? '수업일지 보기 ›' : '휴식 · 회복일'));
       const missionNote = pendingRoutine
         ? pendingRoutine.note
-        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : '코치님이 루틴을 등록하면 이곳에 바로 표시됩니다.');
+        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : (isPtDay ? '오늘 PT 수업이 예정되어 있어요. 수업 후 코치님이 운동일지를 올려드릴 예정입니다.' : '코치님이 일지를 등록하면 이곳에 바로 표시됩니다.'));
 
       if (state.memberTab === 'report') {
         return `
@@ -2445,7 +3922,7 @@
                 <button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>
               </div>
               <div class="space-y-2">
-                ${state.columns.slice(0, 1).map((col, idx) => `
+                ${state.columns.slice(0, 2).map((col, idx) => `
                   <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
                     <div class="min-w-0">
                       <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
@@ -2478,18 +3955,19 @@
               </button>
             </div>
 
-            <!-- Compact Today's Mission -->
+            <!-- Compact Today's Lesson Shortcut -->
             <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
               <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
                 <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
                 </div>
                 <div class="min-w-0">
+                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${missionLabel}</span>
                   <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
-                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/85' : 'text-[#1D4ED8]'}">${missionDone ? '수업일지 전체 보기 ›' : (hasRoutines ? '터치해서 완료 체크 (+타이머)' : '휴식 · 회복일')}</p>
+                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/90' : 'text-[#1D4ED8]'}">${missionSub}</p>
                 </div>
               </button>
-              <button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold ${missionDone ? 'bg-white/20 text-white' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">자세 팁 ▶</button>
+              ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
             </div>
 
             <!-- Compact 1-Line Water Bar -->
@@ -2509,6 +3987,10 @@
 
       if (state.memberTab === 'lesson') {
         const rs = state.record.routines || [];
+        const normKey = n => String(n || '').trim().toLowerCase().replace(/\s+/g, '');
+        const libItems = Object.values(state.exerciseLibrary || {})
+          .filter(it => !state.lessonSearch || it.name.toLowerCase().includes(state.lessonSearch.toLowerCase()))
+          .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''));
         return `
           <div class="space-y-3.5 animate-in">
             <div class="hero-navy rounded-[24px] p-5 text-white">
@@ -2522,29 +4004,105 @@
               <p class="text-[13px] text-white/90 mt-2.5 leading-relaxed">${escapeHtml(coachNote)}</p>
             </div>
 
-            <div class="bg-white rounded-[24px] p-5 space-y-2.5">
-              <div class="flex items-center justify-between mb-1">
-                <h3 class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
-                <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
-              </div>
-              ${rs.length ? rs.map((r, i) => {
-                const done = Array.isArray(r.completedSets) && r.completedSets.some(Boolean);
-                return `
-                  <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-center justify-between gap-2">
-                    <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
-                      <div class="flex items-center gap-1.5 flex-wrap">
-                        <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${r.routineType === 'homework' ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${r.routineType === 'homework' ? '개인 숙제' : 'PT 수업'}</span>
-                        <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
-                        <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">자세 · 부위 ›</span>
-                      </div>
-                      <p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>
-                      ${r.note ? `<p class="text-[11px] text-[#1D4ED8] mt-0.5">${escapeHtml(r.note)}</p>` : ''}
-                    </button>
-                    <button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-blue text-white' : 'bg-white text-[#4B5563] shadow-sm'}">${done ? '완료' : '체크'}</button>
+            ${state.record.ptScheduled ? `
+              <div class="p-4 rounded-[22px] bg-[#F0FDFA] border border-[#99F6E4] flex items-start gap-3">
+                <div class="w-9 h-9 rounded-2xl card-teal text-white flex items-center justify-center text-base shrink-0">🗓</div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[14px] font-extrabold text-[#0F766E]">오늘은 PT 예정일입니다</span>
+                    ${state.record.ptTime ? `<span class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-white text-[#0F766E] shadow-sm">${escapeHtml(state.record.ptTime)} 수업</span>` : ''}
                   </div>
-                `;
-              }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}
+                  <p class="text-[12px] text-[#115E59] mt-0.5 leading-snug">
+                    ${rs.length ? '오늘 PT 수업일지가 등록되었어요. 아래 종목별 자세 포인트를 확인해 보세요!' : '오늘 PT 수업이 예정되어 있어요. 수업이 끝나면 코치님이 운동일지를 올려드릴 예정입니다!'}
+                  </p>
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Lesson Sub-Tabs: Today Routine vs Saved Exercise/Video Archive -->
+            <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-white shadow-sm">
+              <button type="button" data-lview="today" class="lview-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${state.lessonView === 'today' ? 'hero-navy text-white shadow-sm' : 'text-[#6B7280]'}">오늘 루틴 (${wr.total})</button>
+              <button type="button" data-lview="library" class="lview-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${state.lessonView === 'library' ? 'hero-navy text-white shadow-sm' : 'text-[#6B7280]'}">📚 내 종목 · 영상 (${Object.keys(state.exerciseLibrary || {}).length})</button>
             </div>
+
+            ${state.lessonView === 'library' ? `
+              <div class="bg-white rounded-[24px] p-5 space-y-3">
+                <div>
+                  <h3 class="text-[15px] font-extrabold text-[#111827]">종목별 누적 기록 · 영상 사전</h3>
+                  <p class="text-[11px] text-[#6B7280] mt-0.5">지난 수업에서 배운 영상·자세 포인트·최고 중량을 언제든 꺼내보세요</p>
+                </div>
+                <input id="lesson-lib-search" value="${escapeHtml(state.lessonSearch)}" placeholder="종목 이름으로 바로 찾기 (예: 스쿼트, 랫풀다운)..." class="w-full text-[13px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+                <div class="space-y-2.5">
+                  ${libItems.length ? libItems.map(it => `
+                    <div class="p-3.5 rounded-2xl bg-[#F4F6F9] space-y-2">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="min-w-0">
+                          <p class="text-[14px] font-extrabold text-[#111827] truncate">${escapeHtml(it.name)}</p>
+                          <div class="flex items-center gap-1.5 flex-wrap mt-1">
+                            ${it.lastWeight ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">최근 ${escapeHtml(it.lastWeight)}kg${it.lastReps ? '×' + escapeHtml(it.lastReps) + '회' : ''}</span>` : ''}
+                            ${it.bestWeight ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#F0FDFA] text-[#0F766E]">최고 ${escapeHtml(it.bestWeight)}kg</span>` : ''}
+                            ${it.lastDate ? `<span class="text-[10px] text-[#6B7280]">${escapeHtml(it.lastDate)}</span>` : ''}
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                          <button type="button" data-gtitle="${escapeHtml(it.name)}" data-gnote="${escapeHtml(it.note || '')}" data-gvid="${escapeHtml(it.videoUrl || '')}" data-gvidid="${escapeHtml(it.videoId || '')}" class="routine-guide-btn tap-scale px-3 py-1.5 rounded-full ${it.videoUrl || it.videoId ? 'card-blue text-white' : 'bg-white text-[#1D4ED8] shadow-sm'} text-[11px] font-extrabold">${it.videoUrl || it.videoId ? '🎬 영상 보기' : '자세 · 부위'}</button>
+                          ${state.trainerPassword ? `<button type="button" data-libdel="${escapeHtml(it.name)}" data-libvidid="${escapeHtml(it.videoId || '')}" data-libdate="${escapeHtml(it.lastDate || '')}" class="lib-del-btn tap-scale px-2.5 py-1.5 rounded-full bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>` : ''}
+                        </div>
+                      </div>
+                      ${it.note ? `<div class="p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><p class="text-[12px] font-medium text-[#1E293B] leading-relaxed">💡 ${escapeHtml(it.note)}</p></div>` : ''}
+                    </div>
+                  `).join('') : '<p class="py-6 text-center text-[12px] text-[#6B7280]">아직 누적된 종목 기록이 없어요. 수업일지가 쌓이면 자동으로 정리됩니다!</p>'}
+                </div>
+              </div>
+            ` : `
+              <div class="bg-white rounded-[24px] p-5 space-y-2.5">
+                <div class="flex items-center justify-between mb-1">
+                  <h3 class="text-[15px] font-bold text-[#111827]">오늘 운동 종목 (${wr.done}/${wr.total})</h3>
+                  <button type="button" id="btn-add-routine" class="tap-scale text-[12px] font-bold px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">+ 개인운동 추가</button>
+                </div>
+                ${rs.length ? rs.map((r, i) => {
+                  const isHw = r.routineType === 'homework';
+                  const done = isRoutineDone(r);
+                  const libMatch = state.exerciseLibrary?.[normKey(r.name)];
+                  const showPrevBadge = libMatch && libMatch.lastWeight && libMatch.lastDate && libMatch.lastDate < state.selectedDate;
+                  return `
+                    <div class="p-3.5 rounded-2xl bg-[#F4F6F9] flex items-start justify-between gap-2">
+                      <button type="button" data-gtitle="${escapeHtml(r.name || '운동')}" data-gnote="${escapeHtml(r.note || libMatch?.note || '')}" data-gvid="${escapeHtml(r.videoUrl || libMatch?.videoUrl || '')}" data-gvidid="${escapeHtml(r.videoId || r.demoKey || libMatch?.videoId || '')}" class="routine-guide-btn tap-scale flex-1 min-w-0 text-left">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isHw ? 'bg-[#F0FDFA] text-[#0F766E]' : 'bg-[#EFF6FF] text-[#1D4ED8]'}">${isHw ? '개인 숙제' : 'PT 수업'}</span>
+                          <p class="text-[14px] font-bold text-[#111827]">${String(i + 1).padStart(2, '0')}. ${escapeHtml(r.name || '운동')}</p>
+                          <span class="text-[10px] font-bold text-[#1D4ED8] bg-white px-1.5 py-0.5 rounded-full shadow-sm">${r.videoUrl || r.videoId || r.demoKey || libMatch?.videoUrl || libMatch?.videoId ? '🎬 영상 · 자세 ›' : '자세 · 부위 ›'}</span>
+                        </div>
+                        ${showPrevBadge ? `<p class="text-[11px] font-bold text-[#0F766E] mt-1">📌 직전 참고: ${escapeHtml(libMatch.lastWeight)}kg${libMatch.lastReps ? '×' + escapeHtml(libMatch.lastReps) + '회' : ''} (${escapeHtml(libMatch.lastDate.slice(5))})</p>` : ''}
+                        ${Array.isArray(r.setDetails) && r.setDetails.length
+                          ? `<div class="flex flex-wrap gap-1 mt-1">${r.setDetails.map((sd, sIdx) => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white text-[#4B5563] tabular-nums">${sIdx + 1}set ${sd.weight ? sd.weight + 'kg×' : ''}${sd.reps || r.reps || '12'}회</span>`).join('')}</div>`
+                          : `<p class="text-[12px] text-[#6B7280] mt-0.5">${r.weight ? r.weight + 'kg · ' : ''}${r.reps ? r.reps + '회 ' : ''}${r.sets ? '× ' + r.sets + '세트' : ''}</p>`}
+                        ${r.note ? `<div class="mt-2 p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><span class="text-[10px] font-extrabold text-[#1D4ED8] block mb-0.5">💡 코치 자세 포인트</span><p class="text-[13px] font-medium text-[#1E293B] leading-relaxed">${escapeHtml(r.note)}</p></div>` : ''}
+                      </button>
+                      ${isHw ? `<button type="button" data-ridx="${i}" class="routine-toggle tap-scale shrink-0 mt-1 px-3 py-1.5 rounded-full text-[12px] font-bold ${done ? 'card-teal text-white' : 'bg-white text-[#0F766E] shadow-sm'}">${done ? '완료 ✓' : '체크'}</button>` : ''}
+                    </div>
+                  `;
+                }).join('') : `<div class="py-8 text-center text-[13px] text-[#6B7280]">등록된 루틴이 아직 없어요. 상단 '+ 개인운동 추가'로 직접 기록해 보세요!</div>`}
+              </div>
+            `}
+
+            ${state.directVideos.length ? `
+              <div class="bg-white rounded-[24px] p-5 space-y-2.5">
+                <h3 class="text-[15px] font-bold text-[#111827]">업로드된 운동 영상 (${state.directVideos.length})</h3>
+                ${state.directVideos.map(v => `
+                  <div class="p-3.5 rounded-2xl bg-[#EFF6FF] flex items-center justify-between gap-2">
+                    <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.name || '운동 영상')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale flex-1 min-w-0 text-left flex items-center justify-between gap-2">
+                      <div class="min-w-0">
+                        <p class="text-[13px] font-bold text-[#111827] truncate">🎬 ${escapeHtml(v.name || '운동 영상')}</p>
+                        ${v.feedback ? `<p class="text-[11px] font-semibold text-[#0F766E] mt-0.5 truncate">코치 피드백: ${escapeHtml(v.feedback)}</p>` : (v.question ? `<p class="text-[11px] text-[#6B7280] mt-0.5 truncate">${escapeHtml(v.question)}</p>` : '')}
+                      </div>
+                      <span class="shrink-0 px-3 py-1.5 rounded-full card-blue text-white text-[11px] font-extrabold">재생 ▶</span>
+                    </button>
+                    ${state.trainerPassword ? `<button type="button" data-dvdelid="${escapeHtml(v.id)}" class="dv-del-btn tap-scale shrink-0 px-2.5 py-1.5 rounded-full bg-red-50 text-red-500 text-[11px] font-extrabold">삭제</button>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
           </div>
         `;
       }
@@ -2571,7 +4129,7 @@
                     </div>
                     <button type="button" data-mkey="${key}" data-mlabel="${label}" class="meal-btn px-3.5 py-2 rounded-full text-[12px] font-bold ${logged ? 'bg-[#F0FDFA] text-[#0F766E]' : 'hero-navy text-white'}">${ml.cal ? ml.cal + ' kcal' : '기록하기'}</button>
                   </div>
-                  ${hasPhoto ? `<img src="${ml.photos[0]}" alt="${label} 식단" class="w-full h-32 object-cover rounded-xl" />` : ''}
+                  ${extractPhotoSrc(ml) ? renderDirectOrImg(extractPhotoSrc(ml), label + ' 식단', state.memberName, 'w-full h-32 object-cover rounded-xl') : ''}
                 </div>
               `;
             }).join('')}
@@ -2591,10 +4149,22 @@
               </div>
               ${weeklyCurveSvg()}
             </section>
+            ${(() => {
+              const vol = computeTodayVolumeFun();
+              return `
+                <div class="hero-navy rounded-[24px] p-5 text-white flex items-center justify-between gap-3">
+                  <div>
+                    <span class="text-[10px] font-extrabold text-[#5EEAD4]">TODAY'S LIFT VOLUME</span>
+                    <p class="text-[20px] font-extrabold mt-0.5 tabular-nums">${vol.totalKg.toLocaleString()}kg 들어 올렸어요</p>
+                    <p class="text-[12px] font-bold text-white/85 mt-0.5">${vol.analogy}</p>
+                  </div>
+                  <button type="button" id="btn-body-ounwan" class="tap-scale shrink-0 px-3 py-2 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">오운완 카드</button>
+                </div>
+              `;
+            })()}
             <div class="bg-white rounded-[24px] p-5 space-y-3">
               <div class="flex items-center justify-between">
                 <h2 class="text-[16px] font-bold text-[#111827]">이번 주 성장 요약</h2>
-                <button type="button" id="btn-body-ounwan" class="tap-scale px-3 py-1 rounded-full hero-navy text-white text-[11px] font-bold">오운완 카드</button>
               </div>
               <div class="grid grid-cols-3 gap-2 text-center">
                 <div class="p-3 rounded-2xl bg-[#F4F6F9]"><p class="text-[11px] text-[#6B7280]">운동 일수</p><p class="text-[18px] font-extrabold text-[#1D4ED8] mt-0.5">${w.days}일</p></div>
@@ -2608,6 +4178,44 @@
                 </div>
               ` : `<div class="py-5 text-center text-[12px] text-[#6B7280] bg-[#F4F6F9] rounded-2xl">꾸준히 중량을 기록하면 지난주 대비 성장 그래프가 자동으로 채워져요!</div>`}
             </div>
+
+            ${(() => {
+              const fatKg = Math.max(0, Number(state.bodyValue.fatLostKg) || 0);
+              const musKg = Math.max(0, Number(state.bodyValue.muscleGainedKg) || 0);
+              const fatVal = Math.round(fatKg * 77); // 만원 단위 (지방 1kg = 7,700kcal → 77만원)
+              const musVal = Math.round(musKg * 150); // 만원 단위 (근육 1kg = 2~3개월 근력·단백질·대사연금 → 150만원)
+              const totalVal = fatVal + musVal;
+              return `
+                <section class="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] space-y-3.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <div>
+                      <span class="text-[10px] font-extrabold text-[#0F766E] uppercase tracking-wider">BODY ASSET VALUE</span>
+                      <h2 class="text-[16px] font-extrabold text-[#111827] mt-0.5">내 몸 자산 가치 리포트 💰</h2>
+                    </div>
+                    <button type="button" id="btn-copy-bodyval" class="tap-scale px-3 py-1.5 rounded-xl bg-[#F0FDFA] text-[#0F766E] text-[11px] font-extrabold">자랑 복사</button>
+                  </div>
+                  <div class="p-4 rounded-2xl card-teal text-white space-y-1">
+                    <p class="text-[11px] font-bold text-white/85">지방 1kg = 77만원 · 근육 1kg = 150만원 환산</p>
+                    <p id="bv-total-text" class="text-[24px] font-extrabold tabular-nums">총 +${totalVal.toLocaleString()}만원 벌었어요!</p>
+                    <p id="bv-sub-text" class="text-[12px] text-white/90">체지방 -${fatKg}kg (${fatVal.toLocaleString()}만원) · 골격근 +${musKg}kg (${musVal.toLocaleString()}만원)</p>
+                  </div>
+                  <div class="p-3 rounded-2xl bg-[#F0FDFA] text-[11px] text-[#0F766E] space-y-1 leading-relaxed">
+                    <p>• <strong>지방 1kg = 77만원</strong>: 7,700kcal를 참아내고 태워 내 몸에서 덜어낸 2주의 노력 값</p>
+                    <p>• <strong>근육 1kg = 150만원</strong>: 2~3개월 땀으로 만든 지치지 않는 체력 · 대사 엔진</p>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2.5">
+                    <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                      <label class="text-[11px] font-bold text-[#4B5563] block mb-1">감량한 체지방 (kg)</label>
+                      <input id="bv-fat-inp" type="number" step="0.1" min="0" value="${fatKg || ''}" placeholder="예: 1.5" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-extrabold text-[#111827] tabular-nums focus:outline-none" />
+                    </div>
+                    <div class="p-3 rounded-2xl bg-[#F4F6F9]">
+                      <label class="text-[11px] font-bold text-[#4B5563] block mb-1">늘어난 골격근 (kg)</label>
+                      <input id="bv-mus-inp" type="number" step="0.1" min="0" value="${musKg || ''}" placeholder="예: 0.8" class="w-full bg-white rounded-xl px-3 py-2 text-[14px] font-extrabold text-[#1D4ED8] tabular-nums focus:outline-none" />
+                    </div>
+                  </div>
+                </section>
+              `;
+            })()}
           </div>
         `;
       }
@@ -2616,7 +4224,13 @@
       return `
         <div class="space-y-3.5 animate-in">
           <div class="bg-white rounded-[24px] p-5 space-y-2.5">
-            <h2 class="text-[16px] font-bold text-[#111827]">코치 · 회원 메모</h2>
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-[16px] font-bold text-[#111827]">코치 · 회원 메모</h2>
+              <label class="tap-scale px-3 py-1.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold cursor-pointer">
+                <input id="member-vid-upload" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+                <span>📹 자세 영상 올리기</span>
+              </label>
+            </div>
             ${memos.length ? memos.map(f => `
               <div class="p-3.5 rounded-2xl ${f.from === 'trainer' ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'}">
                 <div class="flex justify-between text-[11px] mb-1">
@@ -2739,9 +4353,12 @@
             </div>
           </section>
 
-          <!-- All Members Search & List -->
+          <!-- All Members Search & Add -->
           <section class="space-y-2.5">
-            <input id="coach-search-inp" value="${escapeHtml(state.coachSearch)}" placeholder="전체 회원 이름 검색 (${list.length}명)..." class="w-full text-[13px] px-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none" />
+            <div class="flex items-center gap-2">
+              <input id="coach-search-inp" value="${escapeHtml(state.coachSearch)}" placeholder="회원 이름 검색 (${list.length}명)..." class="flex-1 text-[13px] px-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none" />
+              <button type="button" id="btn-add-member" class="tap-scale shrink-0 px-3.5 py-3 rounded-2xl hero-navy text-white text-[12px] font-extrabold shadow-sm">+ 회원 추가</button>
+            </div>
             ${matchedMembers.map(m => `
               <button type="button" data-cname="${escapeHtml(m.name)}" class="c-detail-btn tap-scale w-full bg-white rounded-[22px] p-4 shadow-sm text-left flex items-center justify-between gap-2">
                 <div>
@@ -2773,6 +4390,7 @@
       updateFabUI();
       updateFloatingTimerUI();
       bindEvents();
+      hydrateDirectImages();
     }
 
     function bindEvents() {
@@ -2794,6 +4412,33 @@
       if (ounwanBtn) ounwanBtn.addEventListener('click', openOunwanCardModal);
       const bodyOunwan = document.getElementById('btn-body-ounwan');
       if (bodyOunwan) bodyOunwan.addEventListener('click', openOunwanCardModal);
+
+      const bvFat = document.getElementById('bv-fat-inp');
+      const bvMus = document.getElementById('bv-mus-inp');
+      const updateBodyValueUI = () => {
+        const fk = Math.max(0, Number(bvFat?.value) || 0);
+        const mk = Math.max(0, Number(bvMus?.value) || 0);
+        state.bodyValue = { fatLostKg: fk, muscleGainedKg: mk };
+        try { localStorage.setItem(`fit_bodyval_${state.memberName}`, JSON.stringify(state.bodyValue)); } catch {}
+        const fv = Math.round(fk * 77);
+        const mv = Math.round(mk * 150);
+        const totEl = document.getElementById('bv-total-text');
+        const subEl = document.getElementById('bv-sub-text');
+        if (totEl) totEl.textContent = `총 +${(fv + mv).toLocaleString()}만원 벌었어요!`;
+        if (subEl) subEl.textContent = `체지방 -${fk}kg (${fv.toLocaleString()}만원) · 골격근 +${mk}kg (${mv.toLocaleString()}만원)`;
+      };
+      if (bvFat) bvFat.addEventListener('input', updateBodyValueUI);
+      if (bvMus) bvMus.addEventListener('input', updateBodyValueUI);
+      const bvCopy = document.getElementById('btn-copy-bodyval');
+      if (bvCopy) {
+        bvCopy.addEventListener('click', () => {
+          const fk = state.bodyValue.fatLostKg || 0;
+          const mk = state.bodyValue.muscleGainedKg || 0;
+          const tv = Math.round(fk * 77) + Math.round(mk * 150);
+          copyTextSafe(`[FIT-CONNECT 몸 자산 리포트] ${state.memberName}님 · 체지방 -${fk}kg & 근육 +${mk}kg 달성 = 총 +${tv.toLocaleString()}만원 건강 자산 획득! 💰`);
+          showToast('몸 자산 리포트 문구가 복사되었어요!');
+        });
+      }
 
       document.querySelectorAll('.fb-react-btn').forEach(b => {
         b.addEventListener('click', () => {
@@ -2830,20 +4475,9 @@
       const hmBtn = document.getElementById('btn-home-mission');
       if (hmBtn) {
         hmBtn.addEventListener('click', () => {
-          const idx = (state.record.routines || []).findIndex(r => !Array.isArray(r.completedSets) || !r.completedSets.some(Boolean));
-          if (idx >= 0) {
-            const r = state.record.routines[idx];
-            r.completedSets = Array(Math.max(1, Number(r.sets) || 3)).fill(true);
-            state.timer.setsDone += 1;
-            triggerConfetti();
-            showToast(`${r.name} 완료 체크!`);
-            if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
-            renderAll();
-            saveFullRecordLive();
-          } else {
-            state.memberTab = 'lesson';
-            renderAll();
-          }
+          state.memberTab = 'lesson';
+          renderAll();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }
 
@@ -2886,8 +4520,81 @@
       });
 
       document.querySelectorAll('.routine-guide-btn').forEach(b => {
-        b.addEventListener('click', () => openFormGuideModal(b.dataset.gtitle, b.dataset.gnote));
+        b.addEventListener('click', () => openFormGuideModal(b.dataset.gtitle, b.dataset.gnote, b.dataset.gvid, b.dataset.gvidid));
       });
+
+      document.querySelectorAll('.dv-play-btn').forEach(b => {
+        b.addEventListener('click', () => openFormGuideModal(b.dataset.dvname, b.dataset.dvfb, '', b.dataset.dvid));
+      });
+
+      document.querySelectorAll('.dv-del-btn').forEach(b => {
+        b.addEventListener('click', async () => {
+          const dvid = b.dataset.dvdelid;
+          if (!dvid || !state.trainerPassword) return;
+          showToast('영상을 삭제 중입니다...');
+          try {
+            const delRes = await postRecords({ action: 'directVideoDelete', id: dvid, member: state.memberName, date: state.selectedDate, password: state.trainerPassword });
+            if (delRes?.status !== 'success') throw new Error(delRes?.code || '삭제 실패');
+            videoPlayUrlCache.delete(dvid);
+            state.directVideos = state.directVideos.filter(x => x.id !== dvid);
+            renderAll();
+            showToast('영상이 삭제되었습니다 ✓');
+          } catch (err) {
+            showToast('삭제 실패: ' + (err?.message || '오류'));
+          }
+        });
+      });
+
+      document.querySelectorAll('.lview-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          state.lessonView = b.dataset.lview;
+          renderAll();
+        });
+      });
+
+      document.querySelectorAll('.lib-del-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const exName = btn.dataset.libdel || '';
+          const vidId = btn.dataset.libvidid || '';
+          const lastDate = btn.dataset.libdate || '';
+          const normKey = String(exName).trim().toLowerCase().replace(/\s+/g, '');
+          if (!normKey) return;
+          addHiddenExerciseKey(state.memberName, normKey);
+          if (state.exerciseLibrary && state.exerciseLibrary[normKey]) {
+            delete state.exerciseLibrary[normKey];
+            try { localStorage.setItem(`fit_ex_lib_v2_${state.memberName}`, JSON.stringify(state.exerciseLibrary)); } catch {}
+          }
+          if (vidId && vidId.startsWith('direct:') && state.trainerPassword) {
+            postRecords({ action: 'directVideoDelete', id: vidId, member: state.memberName, date: state.selectedDate, password: state.trainerPassword }).catch(() => {});
+            videoPlayUrlCache.delete(vidId);
+            state.directVideos = state.directVideos.filter(v => v.id !== vidId);
+          }
+          if (lastDate && state.trainerPassword && state.isLive) {
+            try {
+              const asDay = await postAppsScript({ action: 'read', member: state.memberName, date: lastDate, password: state.trainerPassword });
+              const dayObj = unwrapDailyRecord(asDay);
+              if (dayObj && Array.isArray(dayObj.routines)) {
+                const nextRoutines = dayObj.routines.filter(r => String(r?.name || '').trim().toLowerCase().replace(/\s+/g, '') !== normKey);
+                if (nextRoutines.length !== dayObj.routines.length) {
+                  await postAppsScript({ member: state.memberName, date: lastDate, data: { ...dayObj, routines: nextRoutines }, password: state.trainerPassword });
+                }
+              }
+            } catch {}
+          }
+          renderAll();
+          showToast(`'${exName}' 항목을 서버(${lastDate || '목록'})에서도 삭제했어요 ✓`);
+        });
+      });
+
+      const libSearch = document.getElementById('lesson-lib-search');
+      if (libSearch) {
+        libSearch.addEventListener('input', e => {
+          state.lessonSearch = e.target.value;
+          renderAll();
+          const n = document.getElementById('lesson-lib-search');
+          if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+        });
+      }
 
       const addR = document.getElementById('btn-add-routine');
       if (addR) addR.addEventListener('click', openAddRoutineModal);
@@ -2902,6 +4609,35 @@
       document.querySelectorAll('.mag-item-btn').forEach(b => {
         b.addEventListener('click', () => openMagazineModal(Number(b.dataset.colidx)));
       });
+
+      const mVidInp = document.getElementById('member-vid-upload');
+      if (mVidInp) {
+        mVidInp.addEventListener('change', async e => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          if (!state.isLive || !state.token) {
+            showToast('라이브 회원 링크에서만 영상 업로드가 가능해요');
+            return;
+          }
+          showToast('자세 영상을 업로드 중입니다... ⏳');
+          try {
+            const directId = await uploadDirectVideoFile(f, state.memberName, state.token, '회원 자세 체크 영상');
+            state.record.memos.push({
+              id: Date.now() + '-vid',
+              from: 'member',
+              text: `📹 자세 영상을 올렸어요 (${f.name || '영상'})`,
+              time: nowTimeHHMM(),
+              videoId: directId
+            });
+            state.directVideos.unshift({ id: directId, name: f.name || '자세 영상', question: '회원 자세 체크 영상', feedback: '' });
+            showToast('자세 영상 업로드 완료! 수업일지 · 메모에 반영되었어요 ✓');
+            renderAll();
+            savePatchLive({ memos: state.record.memos });
+          } catch (err) {
+            showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 MP4/MOV만 가능'));
+          }
+        });
+      }
 
       const memoForm = document.getElementById('memo-form');
       if (memoForm) {
@@ -2936,6 +4672,9 @@
       document.querySelectorAll('.c-detail-btn').forEach(b => {
         b.addEventListener('click', () => openCoachDetailSheet(b.dataset.cname));
       });
+
+      const addMemberBtn = document.getElementById('btn-add-member');
+      if (addMemberBtn) addMemberBtn.addEventListener('click', openAddMemberModal);
 
       const coachColBtn = document.getElementById('btn-coach-tab-col');
       if (coachColBtn) coachColBtn.addEventListener('click', openColumnWriteModal);

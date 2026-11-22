@@ -2596,8 +2596,8 @@
                   activeToday: Boolean(m.activeToday || am.activeToday),
                   workoutToday: Boolean(m.workoutToday || am.workoutToday),
                   dietToday: Boolean(m.dietToday || am.dietToday),
-                  pendingWorkout: Boolean(am.pendingWorkout ?? m.pendingWorkout),
-                  pendingDiet: Boolean(am.pendingDiet ?? m.pendingDiet),
+                  pendingWorkout: Boolean(m.pendingWorkout || am.pendingWorkout),
+                  pendingDiet: Boolean(m.pendingDiet || am.pendingDiet),
                   feedbackDone: Boolean(m.feedbackDone || am.feedbackDone),
                   weeklyWorkoutDays: Math.max(Number(m.weeklyWorkoutDays) || 0, Number(am.weeklyWorkoutDays) || 0)
                 };

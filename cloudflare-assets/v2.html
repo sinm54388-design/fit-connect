@@ -865,15 +865,16 @@
     }
 
     const videoPlayUrlCache = new Map();
-    async function resolvePlayableVideoUrl(videoId, authOverride) {
+    async function resolvePlayableVideoUrl(videoId, authOverride, memberOverride) {
       if (!videoId) return '';
       const cached = videoPlayUrlCache.get(videoId);
       if (cached && (Date.now() - cached.ts < 240000)) return cached.url;
+      const targetMember = memberOverride || state.memberName;
       const auth = authOverride || (state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword }));
       const isDirect = String(videoId).startsWith('direct:');
       const vRes = isDirect
-        ? await postRecords({ action: 'directVideoPlay', id: videoId, member: state.memberName, date: state.selectedDate, ...auth })
-        : await postRecords({ action: 'videoPlaybackUrl', fileId: videoId, videoId, member: state.memberName, date: state.selectedDate, ...auth });
+        ? await postRecords({ action: 'directVideoPlay', id: videoId, member: targetMember, date: state.selectedDate, ...auth })
+        : await postRecords({ action: 'videoPlaybackUrl', fileId: videoId, videoId, member: targetMember, date: state.selectedDate, ...auth });
       const playUrl = vRes?.url || vRes?.playbackUrl || vRes?.data?.url || '';
       if (playUrl) videoPlayUrlCache.set(videoId, { url: playUrl, ts: Date.now() });
       return playUrl;
@@ -2651,14 +2652,20 @@
                   <span class="text-[12px] font-extrabold text-[#111827]">🎬 업로드된 서버 영상 (${directVideosList.length})</span>
                   <span class="text-[10px] font-semibold text-[#6B7280]">테스트·불필요 영상 삭제 가능</span>
                 </div>
-                <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                <div class="space-y-1.5 max-h-72 overflow-y-auto">
                   ${directVideosList.map((dv, dIdx) => `
-                    <div class="p-2.5 rounded-xl bg-white flex items-center justify-between gap-2 shadow-sm">
-                      <div class="min-w-0">
-                        <p class="text-[12px] font-bold text-[#111827] truncate">${escapeHtml(dv.name || '운동 영상')}</p>
-                        <p class="text-[10px] text-[#6B7280] truncate">${escapeHtml((dv.createdAt || '').slice(0, 10))}${dv.question ? ' · ' + escapeHtml(dv.question) : ''}</p>
+                    <div class="p-2.5 rounded-xl bg-white space-y-2 shadow-sm">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="min-w-0">
+                          <p class="text-[12px] font-bold text-[#111827] truncate">${escapeHtml(dv.name || '운동 영상')}</p>
+                          <p class="text-[10px] text-[#6B7280] truncate">${escapeHtml((dv.createdAt || '').slice(0, 10))}${dv.question ? ' · ' + escapeHtml(dv.question) : ''}</p>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                          <button type="button" data-dvplay="${dIdx}" class="cd-dv-server-play tap-scale px-2 py-1 rounded-lg bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">▶ 보기</button>
+                          <button type="button" data-dvdel="${dIdx}" class="cd-dv-server-del tap-scale px-2 py-1 rounded-lg bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>
+                        </div>
                       </div>
-                      <button type="button" data-dvdel="${dIdx}" class="cd-dv-server-del tap-scale shrink-0 px-2.5 py-1 rounded-lg bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>
+                      <div id="cd-dv-preview-${dIdx}" class="hidden"></div>
                     </div>
                   `).join('')}
                 </div>
@@ -2935,6 +2942,31 @@
               if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
             } catch (err) {
               showToast('영상 업로드 실패: ' + (err?.message || '용량(50MB 이하) 확인'));
+            }
+          });
+        });
+
+        document.querySelectorAll('.cd-dv-server-play').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const dIdx = Number(btn.dataset.dvplay);
+            const dv = directVideosList[dIdx];
+            const slot = document.getElementById(`cd-dv-preview-${dIdx}`);
+            if (!dv || !slot) return;
+            if (!slot.classList.contains('hidden')) {
+              slot.classList.add('hidden');
+              slot.innerHTML = '';
+              btn.textContent = '▶ 보기';
+              return;
+            }
+            slot.classList.remove('hidden');
+            slot.innerHTML = '<p class="text-[11px] text-[#6B7280] py-2 text-center">영상 불러오는 중...</p>';
+            btn.textContent = '닫기';
+            try {
+              const url = await resolvePlayableVideoUrl(dv.id, { password: state.trainerPassword }, memberName);
+              if (url) slot.innerHTML = buildVideoPlayerHtml(url);
+              else slot.innerHTML = '<p class="text-[11px] text-red-500 py-2 text-center">영상을 불러오지 못했습니다.</p>';
+            } catch {
+              slot.innerHTML = '<p class="text-[11px] text-red-500 py-2 text-center">영상을 불러오지 못했습니다.</p>';
             }
           });
         });

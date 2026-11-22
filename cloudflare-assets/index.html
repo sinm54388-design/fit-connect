@@ -2803,7 +2803,7 @@
         e.preventDefault();
         const desc = document.getElementById('mf-desc').value.trim();
         const cal = document.getElementById('mf-cal').value.trim();
-        if (!desc && !cal && !compressedPhoto) {
+        if (!desc && !cal && !compressedPhoto && !foodItemsChanged) {
           showToast('메뉴, 칼로리 또는 사진 중 하나를 입력해 주세요');
           return;
         }

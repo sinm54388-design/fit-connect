@@ -134,6 +134,7 @@
     <div class="flex items-center justify-between gap-2"><span id="video-upload-text" class="text-[12px] font-bold truncate">영상 준비 중…</span><span id="video-upload-pct" class="text-[11px] font-extrabold">0%</span></div>
     <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden"><div id="video-upload-bar" class="h-full bg-[#5EEAD4] rounded-full" style="width:0%"></div></div>
     <p class="text-[10px] text-white/70 mt-1">다른 기록도 확인할 수 있어요.</p>
+    <button type="button" id="video-upload-retry" class="hidden mt-2 px-3 py-2 rounded-xl bg-white text-[#0B132B] text-[12px] font-bold pointer-events-auto">같은 영상 다시 시도</button>
   </div>
   <!-- Toast -->
   <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
@@ -1180,6 +1181,8 @@
     });
 
     // --- UI Feedback ---
+    let failedVideoFile = null;
+    let videoUploadInFlight = false;
     function setVideoUploadStatus(message,pct,visible=true) {
       const root=document.getElementById('video-upload-status');
       if(!root)return;
@@ -5183,14 +5186,16 @@
       });
 
       const mVidInp = document.getElementById('member-vid-upload');
-      if (mVidInp) {
-        mVidInp.addEventListener('change', async e => {
-          const f = e.target.files?.[0];
+      const handleMemberVideoFile = async f => {
+          if (videoUploadInFlight) return;
           if (!f) return;
           if (!state.isLive || !state.token) {
             showToast('라이브 회원 링크에서만 영상 업로드가 가능해요');
             return;
           }
+          videoUploadInFlight = true;
+          failedVideoFile = null;
+          document.getElementById('video-upload-retry')?.classList.add('hidden');
           showToast('자세 영상을 업로드 중입니다... ⏳');
           setVideoUploadStatus('운동 영상 준비 중',0);
           try {
@@ -5211,11 +5216,24 @@
             savePatchLive({ memos: state.record.memos });
             setVideoUploadStatus('',0,false);
           } catch (err) {
-            setVideoUploadStatus('업로드 실패 · 파일을 다시 선택해 주세요',0,true);
+            failedVideoFile = f;
+            setVideoUploadStatus('업로드 실패 · 다시 시도할 수 있어요',0,true);
+            document.getElementById('video-upload-retry')?.classList.remove('hidden');
             showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 MP4/MOV만 가능'));
+          } finally {
+            videoUploadInFlight = false;
           }
-        });
-      }
+      };
+      if (mVidInp) mVidInp.addEventListener('change', e => {
+        const file = e.target.files?.[0];
+        if (file) handleMemberVideoFile(file);
+        e.target.value = '';
+      });
+      document.getElementById('video-upload-retry')?.addEventListener('click', () => {
+        if (failedVideoFile) handleMemberVideoFile(failedVideoFile);
+      });
+
+
 
       const memoForm = document.getElementById('memo-form');
       if (memoForm) {

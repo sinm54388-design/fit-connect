@@ -890,8 +890,11 @@
         return;
       }
       const hadCache = applyCachedMemberData(state.selectedDate);
+      state.mealReadVerified = false;
       state.isLive = true;
-      state.loading = !hadCache;
+      // Cached data can render the shell, but must not be presented as a
+      // verified meal after reload while the canonical server is loading.
+      state.loading = true;
       renderAll();
       try {
         // Begin the daily Apps Script fetch alongside session verification.
@@ -980,10 +983,14 @@
       if (!stillCurrent()) return;
       const recObj = canonicalDaily.status === 'fulfilled' ? unwrapDailyRecord(canonicalDaily.value) : null;
       const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
-      if (!recObj && wasRecentlySaved(requestedMember, dateStr)) {
-        showToast('최신 식단 확인에 실패했어요. 저장된 화면을 유지하고 다시 확인해 주세요.');
+      if (!recObj) {
+        // Do not silently fall back to potentially stale Apps Script diet.
+        // The member must retry a real Supabase read before editing a meal.
+        state.mealReadVerified = false;
+        showToast('최신 식단을 불러오지 못했어요. 연결 확인 후 새로고침해 주세요.');
         return;
       }
+      state.mealReadVerified = true;
       const asHasData = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos);
       const baseLoadDaily = asHasData ? asObj : (recObj || asObj);
       const chosenDaily = (baseLoadDaily && typeof baseLoadDaily === 'object')
@@ -2312,6 +2319,10 @@
     }
 
     function openMealModal(mealKey, mealLabel) {
+      if (state.isLive && (state.loading || !state.mealReadVerified)) {
+        showToast('최신 식단 확인 중이에요. 불러오기가 끝난 뒤 다시 눌러주세요.');
+        return;
+      }
       const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
       const presets = [
         { tag: '클린식', cal: '450', carb: '40', prot: '35', fat: '10', desc: '닭가슴살 · 현미밥 · 샐러드' },
@@ -4602,7 +4613,8 @@
           state.weekDays = buildWeekDays(state.selectedDate);
           if (state.isLive) {
             const hadCache = applyCachedMemberData(state.selectedDate);
-            state.loading = !hadCache;
+            state.mealReadVerified = false;
+            state.loading = true;
             renderAll();
             await loadMemberDateData(state.selectedDate);
             saveCachedMemberData(state.selectedDate);

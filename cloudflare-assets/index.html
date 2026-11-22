@@ -2596,8 +2596,8 @@
                   activeToday: Boolean(m.activeToday || am.activeToday),
                   workoutToday: Boolean(m.workoutToday || am.workoutToday),
                   dietToday: Boolean(m.dietToday || am.dietToday),
-                  pendingWorkout: Boolean(am.pendingWorkout ?? m.pendingWorkout),
-                  pendingDiet: Boolean(am.pendingDiet ?? m.pendingDiet),
+                  pendingWorkout: Boolean(m.pendingWorkout || am.pendingWorkout),
+                  pendingDiet: Boolean(m.pendingDiet || am.pendingDiet),
                   feedbackDone: Boolean(m.feedbackDone || am.feedbackDone),
                   weeklyWorkoutDays: Math.max(Number(m.weeklyWorkoutDays) || 0, Number(am.weeklyWorkoutDays) || 0)
                 };
@@ -4491,24 +4491,30 @@
     // --- Coach View (Slim 2-Tab Cockpit) ---
     function renderCoachView() {
       const list = state.trainerOverview || [];
-      const isPending = m => Boolean(m.pendingWorkout || m.pendingDiet);
+      const isPending = m => Boolean(m.pendingWorkout || m.pendingDiet || Number(m.directPendingVideos || 0) > 0);
       const isDormant = m => daysBetween(m.lastDate, state.selectedDate) >= 4;
 
       const pendingList = list.filter(isPending);
       const todayList = list.filter(m => m.activeToday);
       const dormantList = list.filter(isDormant);
+      const videoWaiting = list.reduce((n, m) => n + (Number(m.directPendingVideos) || 0), 0);
+      const pendingVideoMembers = list.filter(m => Number(m.directPendingVideos || 0) > 0);
+      const weeklyActiveMembers = list.filter(m => Number(m.weeklyActiveDays || 0) > 0).length;
 
       if (state.coachTab === 'coaching') {
         let filtered = list;
         if (state.coachFilter === 'pending') filtered = pendingList;
         else if (state.coachFilter === 'today') filtered = todayList;
         else if (state.coachFilter === 'dormant') filtered = dormantList;
+        else if (state.coachFilter === 'videos') filtered = pendingVideoMembers;
 
         // Sort so pending feedback members always come first
         const sorted = [...filtered].sort((a, b) => {
           const ap = isPending(a) ? 1 : 0;
           const bp = isPending(b) ? 1 : 0;
           if (ap !== bp) return bp - ap;
+          const av = Number(a.directPendingVideos) || 0, bv = Number(b.directPendingVideos) || 0;
+          if (av !== bv) return bv - av;
           return (b.activeToday ? 1 : 0) - (a.activeToday ? 1 : 0);
         });
 
@@ -4522,19 +4528,25 @@
               <h1 class="text-[21px] font-extrabold leading-snug">
                 ${pendingList.length ? `피드백 대기 ${pendingList.length}명부터<br/>바로 확인해 보세요` : `오늘 피드백 대기가 모두 완료되었어요 👍`}
               </h1>
-              <div class="grid grid-cols-4 gap-1.5">
+              <div class="grid grid-cols-5 gap-1">
                 ${[
-                  ['pending', '피드백 대기', pendingList.length],
-                  ['today', '오늘 활동', todayList.length],
-                  ['dormant', '휴면 4일+', dormantList.length],
+                  ['pending', '처리 필요', pendingList.length],
+                  ['videos', '영상 대기', videoWaiting],
+                  ['today', '오늘 기록', todayList.length],
+                  ['dormant', '4일+ 미접속', dormantList.length],
                   ['all', '전체', list.length]
                 ].map(([fid, label, cnt]) => `
                   <button type="button" data-cfilter="${fid}" class="c-filter-btn tap-scale py-2 px-1 rounded-2xl text-center transition ${state.coachFilter === fid ? 'bg-white text-[#1E3A8A] shadow-md' : 'bg-white/10 text-white'}">
                     <p class="text-[16px] font-extrabold tabular-nums leading-none">${cnt}</p>
-                    <p class="text-[10px] font-bold mt-1 opacity-85">${label}</p>
+                    <p class="text-[9px] font-bold mt-1 opacity-85 leading-tight">${label}</p>
                   </button>
                 `).join('')}
               </div>
+              <div class="rounded-xl bg-white/10 px-3 py-2.5 text-[11px] text-white/90">
+                <span class="font-bold text-[#5EEAD4]">최근 7일 체크인</span>
+                <span class="ml-1">활동 회원 ${weeklyActiveMembers}명 · 미답변 영상 ${videoWaiting}개</span>
+              </div>
+              <p class="text-[10px] text-white/65">미답변 기준은 선택한 날짜의 식단·운동 기록과 아직 피드백 없는 영상입니다.</p>
             </section>
 
             <div class="space-y-2.5">
@@ -4544,6 +4556,7 @@
                 const badges = [];
                 if (m.pendingDiet) badges.push('식단 미답변');
                 if (m.pendingWorkout) badges.push('운동 피드백');
+                if (Number(m.directPendingVideos || 0) > 0) badges.push(`영상 ${m.directPendingVideos}건`);
                 if (gapDays >= 4) badges.push(`${gapDays}일 미접속`);
                 return `
                   <button type="button" data-cname="${escapeHtml(m.name)}" class="c-detail-btn tap-scale w-full bg-white rounded-[22px] p-4 shadow-sm text-left flex items-center justify-between gap-3">
@@ -4554,6 +4567,7 @@
                         ${badges.map(bg => `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${bg.includes('미접속') ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}">${bg}</span>`).join('')}
                       </div>
                       <p class="text-[12px] text-[#6B7280] mt-1">최근 기록: ${escapeHtml(m.lastDate || '없음')}</p>
+                      <p class="text-[11px] font-semibold text-[#475569] mt-1">최근 7일 · 운동 ${Number(m.weeklyWorkoutDays)||0}일 / 식단 ${Number(m.weeklyDietDays)||0}일 / 체크인 ${Number(m.weeklyCheckinDays)||0}일${Number(m.weeklyTiredDays)>0 ? ` · 피곤 ${m.weeklyTiredDays}일` : ''}</p>
                     </div>
                     <span class="shrink-0 px-3 py-2 rounded-xl ${pending ? 'hero-navy text-white' : 'bg-[#F4F6F9] text-[#4B5563]'} text-[11px] font-extrabold">
                       ${pending ? '바로 답글 ›' : '상세 ›'}
@@ -4607,6 +4621,7 @@
                     <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">주 ${m.weeklyWorkoutDays || 0}회</span>
                   </div>
                   <p class="text-[12px] text-[#6B7280] mt-0.5">최근 기록: ${escapeHtml(m.lastDate || '없음')}</p>
+                  <p class="text-[11px] text-[#475569] mt-1">7일 운동 ${Number(m.weeklyWorkoutDays)||0}일 · 식단 ${Number(m.weeklyDietDays)||0}일 · 체크인 ${Number(m.weeklyCheckinDays)||0}일</p>
                 </div>
                 <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${isPending(m) ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">${isPending(m) ? '피드백 대기 ›' : '상세 보기 ›'}</span>
               </button>

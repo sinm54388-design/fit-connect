@@ -2266,6 +2266,7 @@
     // They are convenience conversions to grams, not independently verified label servings.
     function foodPortionOptions(food) {
       const n=food[0];
+      if (/계란 흰자/.test(n)) return [{label:'개',grams:33}];
       if (/계란|달걀|스크램블/.test(n)) return [{label:'개',grams:50}];
       if (/흰쌀밥|현미밥|잡곡밥|보리밥|흑미밥/.test(n)) return [{label:'공기',grams:210},{label:'반 공기',grams:105}];
       if (/바나나/.test(n)) return [{label:'개',grams:100}];

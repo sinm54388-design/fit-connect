@@ -513,7 +513,8 @@
     // --- API Helpers ---
     async function postRecords(payload) {
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+      const timeoutMs = (payload?.action === 'directVideoBegin' || payload?.action === 'directVideoFinish' || payload?.action === 'memberSession') ? 25000 : 12000;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
       try {
         const res = await fetch('/api/records', {
           method: 'POST',

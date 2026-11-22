@@ -832,7 +832,9 @@
         const cached = JSON.parse(raw);
         if (cached.record) state.record = cached.record;
         if (cached.insights) state.insights = cached.insights;
-        if (Array.isArray(cached.columns) && cached.columns.length) state.columns = cached.columns;
+        // Magazine articles are canonical server content, not date-scoped local mock/cache.
+        // Old caches may contain demo columns stamped with the current date.
+        if (!isLiveOrigin && Array.isArray(cached.columns) && cached.columns.length) state.columns = cached.columns;
         if (Array.isArray(cached.workoutDays)) state.workoutDays = cached.workoutDays;
         return true;
       } catch { return false; }
@@ -918,6 +920,8 @@
 
     // --- Live Initialization (Parallel + Instant Cache) ---
     async function initLiveMemberData() {
+      // Never show seeded demo magazine articles as newly published live content.
+      if (isLiveOrigin) state.columns = [];
       // Restore coach workspace when the installed app is opened again.
       // Do not override an explicit member-only URL.
       if (isLiveOrigin && !paramToken) {
@@ -5027,9 +5031,10 @@
                   <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">NEW</span>
                   <span class="text-[12px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
                 </div>
-                <button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>
+                ${state.columns.length ? '<button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>' : ''}
               </div>
               <div class="space-y-2">
+                ${!state.columns.length ? '<p class="text-[13px] leading-[1.7] text-[#64748B] py-2">발행된 매거진을 불러오는 중이거나 아직 표시할 글이 없어요.</p>' : ''}
                 ${state.columns.slice(0, 2).map((col, idx) => `
                   <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
                     <div class="min-w-0">

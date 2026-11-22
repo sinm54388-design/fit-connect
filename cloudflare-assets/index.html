@@ -633,9 +633,9 @@
       const s = String(src || '').trim();
       if (!s) return '';
       if (s.startsWith('direct:')) {
-        return `<img data-directimg="${escapeHtml(s)}" data-directmember="${escapeHtml(memberName || state.memberName)}" alt="${escapeHtml(alt || '사진')}" class="${cls} bg-[#F4F6F9]" />`;
+        return `<img loading="lazy" decoding="async" data-directimg="${escapeHtml(s)}" data-directmember="${escapeHtml(memberName || state.memberName)}" alt="${escapeHtml(alt || '사진')}" class="${cls} bg-[#F4F6F9]" />`;
       }
-      return `<img src="${escapeHtml(s)}" alt="${escapeHtml(alt || '사진')}" class="${cls}" />`;
+      return `<img loading="lazy" decoding="async" src="${escapeHtml(s)}" alt="${escapeHtml(alt || '사진')}" class="${cls}" />`;
     }
 
     function hydrateDirectImages(memberOverride) {
@@ -2037,7 +2037,9 @@
         }
       });
 
+      let savingMeal = false;
       async function commitMealSave(updated, labelText) {
+        if (savingMeal) return;
         if (!state.isLive) {
           showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
           return;
@@ -2047,6 +2049,8 @@
           submitBtn.disabled = true;
           submitBtn.textContent = '서버에 저장 중...';
         }
+        savingMeal = true;
+        document.querySelectorAll('.pr-btn').forEach(btn => { btn.disabled = true; });
         const prevMeal = state.record.diet[mealKey];
         state.record.diet[mealKey] = updated;
         const auth = (state.appMode === 'coach' && state.trainerPassword)
@@ -2055,13 +2059,14 @@
         try {
           // Apps Script deliberately strips photos. Finish that write BEFORE the
           // photo-bearing Supabase write, rather than racing two writers.
-          const lightRecord = {
-            ...state.record,
-            diet: {
-              ...state.record.diet,
-              [mealKey]: { ...updated, photos: [] }
-            }
-          };
+          // Apps Script stores only light meal metadata; image bytes belong to
+          // Supabase and must never be copied to Google Sheets or a full-record sync.
+          const lightDiet = {};
+          for (const [key, meal] of Object.entries(state.record.diet || {})) {
+            lightDiet[key] = meal && typeof meal === 'object' && key !== 'water'
+              ? { ...meal, photos: [] } : meal;
+          }
+          const lightRecord = { ...state.record, diet: lightDiet };
           const appsSaved = await saveFullRecordLive(state.memberName, lightRecord);
           if (!appsSaved) throw new Error('Apps Script 식단 기록 저장 실패');
           const dietPayload = {
@@ -2089,17 +2094,34 @@
           if (supaRes?.status !== 'success') {
             throw new Error(supaRes?.code || supaRes?.message || '사진 저장 실패');
           }
+          // Confirm that a newly uploaded photo survives a fresh server read.
+          if (hasNewPhoto && extractPhotoSrc(updated)) {
+            const verified = await postRecords({
+              action: 'read', member: state.memberName, date: state.selectedDate,
+              ...(state.appMode === 'coach' && state.trainerPassword
+                ? { password: state.trainerPassword }
+                : (state.session ? { session: state.session } : { token: state.token }))
+            });
+            const persisted = extractPhotoSrc(unwrapDailyRecord(verified)?.diet?.[mealKey]);
+            if (!persisted || persisted !== extractPhotoSrc(updated))
+              throw new Error('사진 저장 확인 실패 — 다시 시도해 주세요');
+          }
           saveCachedMemberData(state.selectedDate);
           closeModal();
           renderAll();
           showToast(labelText + ' ✓');
         } catch (err) {
+          // Apps Script may already have saved the meal text. Do not silently
+          // restore a stale local copy and imply that nothing was saved.
           state.record.diet[mealKey] = prevMeal;
           if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = '저장하기';
           }
-          showToast('식단 저장 실패: ' + (err?.message || '네트워크를 확인해 주세요'));
+          document.querySelectorAll('.pr-btn').forEach(btn => { btn.disabled = false; });
+          showToast('식단 저장을 완료하지 못했어요: ' + (err?.message || '네트워크를 확인해 주세요') + ' (일부 기록은 저장됐을 수 있어요)');
+        } finally {
+          savingMeal = false;
         }
       }
 
@@ -2744,6 +2766,7 @@
                 <p class="text-[13px] font-bold mt-0.5 truncate">최근 메모: ${escapeHtml(lastMemo)}</p>
               </div>
               <div class="flex items-center gap-1 shrink-0">
+                <button type="button" id="cd-jump-reply" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">답글 쓰기</button>
                 <button type="button" id="cd-preview-member" class="tap-scale px-2 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">👁 보기</button>
                 <button type="button" id="cd-copy-link" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-white text-[11px] font-bold">🔗 링크</button>
                 <button type="button" id="cd-copy-handover" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계</button>
@@ -2753,6 +2776,27 @@
               const vp = [...memos].reverse().find(m => m.photo);
               return vp ? `<div class="p-3 rounded-2xl bg-[#EFF6FF] space-y-1.5"><span class="text-[11px] font-extrabold text-[#1D4ED8]">📸 회원 현장 인증 사진</span><img src="${vp.photo}" alt="현장 인증" class="w-full h-36 object-cover rounded-xl" /></div>` : '';
             })()}
+
+            <!-- Today's Diet & Photos -->
+            <div class="p-3.5 rounded-2xl bg-[#F0FDFA] space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[12px] font-extrabold text-[#0F766E]">1. 오늘 식단 기록 (${mealList.length}끼)</span>
+                <span class="text-[11px] font-bold text-[#0F766E]">수분 ${((Number(dietObj.water) || 0) / 1000).toFixed(1)}L</span>
+              </div>
+              ${mealList.length ? mealList.map(m => `
+                <div class="p-2.5 rounded-xl bg-white space-y-1.5">
+                  <div class="flex items-center justify-between text-[12px]">
+                    <span class="font-bold text-[#111827]">${m.label}: ${escapeHtml(m.desc || '사진 기록')}</span>
+                    ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${m.cal}kcal</span>` : ''}
+                  </div>
+                  ${extractPhotoSrc(m) ? renderDirectOrImg(extractPhotoSrc(m), m.label + ' 식단', memberName, 'w-full h-32 object-cover rounded-lg') : ''}
+                </div>
+              `).join('') : '<p class="text-[12px] text-[#6B7280]">아직 오늘 올라온 식단이 없습니다.</p>'}
+              <div class="flex flex-wrap gap-1 pt-1">
+                ${dietPresets.map((dp, idx) => `<button type="button" data-dpidx="${idx}" class="cd-dp-btn tap-scale px-2 py-1 rounded-lg bg-white text-[#0F766E] text-[11px] font-bold shadow-sm">+ ${dp.slice(0, 11)}</button>`).join('')}
+              </div>
+              <input id="cd-diet-msg" value="${escapeHtml(dietMsg)}" placeholder="식단 피드백 한 줄 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
+            </div>
 
             <!-- Weekly PT Schedule Picker -->
             <div class="p-3.5 rounded-2xl bg-[#EFF6FF] space-y-2">
@@ -2775,27 +2819,6 @@
                 <input id="cd-pt-time" type="text" value="${escapeHtml(ptTimeInput)}" placeholder="수업 시간 (선택, 예: 19:00)" class="flex-1 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
                 <button type="button" id="cd-save-pt-days" class="tap-scale shrink-0 px-3 py-1.5 rounded-xl card-blue text-white text-[11px] font-extrabold">PT 일정 저장</button>
               </div>
-            </div>
-
-            <!-- Today's Diet & Photos -->
-            <div class="p-3.5 rounded-2xl bg-[#F0FDFA] space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-[12px] font-extrabold text-[#0F766E]">1. 오늘 식단 기록 (${mealList.length}끼)</span>
-                <span class="text-[11px] font-bold text-[#0F766E]">수분 ${((Number(dietObj.water) || 0) / 1000).toFixed(1)}L</span>
-              </div>
-              ${mealList.length ? mealList.map(m => `
-                <div class="p-2.5 rounded-xl bg-white space-y-1.5">
-                  <div class="flex items-center justify-between text-[12px]">
-                    <span class="font-bold text-[#111827]">${m.label}: ${escapeHtml(m.desc || '사진 기록')}</span>
-                    ${m.cal ? `<span class="font-bold text-[#0F766E] tabular-nums">${m.cal}kcal</span>` : ''}
-                  </div>
-                  ${extractPhotoSrc(m) ? renderDirectOrImg(extractPhotoSrc(m), m.label + ' 식단', memberName, 'w-full h-32 object-cover rounded-lg') : ''}
-                </div>
-              `).join('') : '<p class="text-[12px] text-[#6B7280]">아직 오늘 올라온 식단이 없습니다.</p>'}
-              <div class="flex flex-wrap gap-1 pt-1">
-                ${dietPresets.map((dp, idx) => `<button type="button" data-dpidx="${idx}" class="cd-dp-btn tap-scale px-2 py-1 rounded-lg bg-white text-[#0F766E] text-[11px] font-bold shadow-sm">+ ${dp.slice(0, 11)}</button>`).join('')}
-              </div>
-              <input id="cd-diet-msg" value="${escapeHtml(dietMsg)}" placeholder="식단 피드백 한 줄 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
             </div>
 
             <!-- Routines + Type Toggle + Add Routine -->
@@ -2940,6 +2963,10 @@
           </div>
         `);
 
+        document.getElementById('cd-jump-reply')?.addEventListener('click', () => {
+          document.getElementById('cd-reply-msg')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          document.getElementById('cd-reply-msg')?.focus({ preventScroll: true });
+        });
         document.getElementById('cd-preview-member').addEventListener('click', async () => {
           const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
           state.memberName = memberName;

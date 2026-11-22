@@ -23,6 +23,13 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   assert(html.includes("document.getElementById('meal-copy-yesterday')?.click()"), name + ': diet card shortcut must open prefilling modal');
   assert(html.includes("PT 세트 기록"), name + ': PT routines must expose per-set controls');
   assert(html.includes('routine-set-toggle'), name + ': per-set workout tracking missing');
+  assert(html.includes('function enqueueWorkoutSave()') && html.includes('function flushWorkoutSave(job)'), name + ': queued workout saves missing');
+  assert(html.includes("patch:{routines:snapshot}"), name + ': exercise save must patch routines only');
+  assert(!html.includes("postAppsScript({...auth,data:snapshot})"), name + ': full-day workout save fallback could overwrite meal data');
+  assert(html.includes('workout-save-retry'), name + ': failed-save retry button missing');
+  assert(html.includes('document.visibilityState'), name + ': background flush missing');
+  assert(html.includes('상세 통계 · 운동 달성률'), name + ': home details collapse missing');
+  assert(html.includes('운동·영양 읽을거리'), name + ': magazine collapse missing');
   assert(html.includes('cd-quick-tip'), name + ': coach quick reply chips missing');
   assert(html.includes('최근 7일 한눈에 보기'), name + ': coach instant overview missing');
   assert(html.includes('home-quick-workout') && html.includes('home-quick-diet'), name + ': member home shortcuts missing');

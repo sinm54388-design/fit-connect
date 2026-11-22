@@ -4322,6 +4322,30 @@
               </div>
             </section>
 
+            <!-- Magazine always visible on member home -->
+            <!-- High-Visibility FIT-CONNECT MAGAZINE -->
+            <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">NEW</span>
+                  <span class="text-[12px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
+                </div>
+                <button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>
+              </div>
+              <div class="space-y-2">
+                ${state.columns.slice(0, 2).map((col, idx) => `
+                  <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
+                      <p class="text-[14px] font-extrabold text-[#111827] mt-1.5 leading-snug line-clamp-1">${escapeHtml(col.title)}</p>
+                      <p class="text-[11px] text-[#4B5563] mt-0.5 truncate">${escapeHtml(col.summary || '')}</p>
+                    </div>
+                    <span class="w-8 h-8 rounded-full bg-white text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">›</span>
+                  </button>
+                `).join('')}
+              </div>
+            </section>
+
             <!-- Important shortcuts above educational content -->
             <section class="bg-white rounded-[24px] p-4 border border-[#DBEAFE] shadow-sm space-y-2.5">
               <div class="flex justify-between items-center"><h2 class="text-[15px] font-extrabold text-[#111827]">오늘 할 일</h2><span class="text-[11px] text-[#475569]">${checkedCount}/3 체크 완료</span></div>
@@ -4381,29 +4405,7 @@
 
               </div>
             </details>
-            <!-- Magazine always visible on member home -->
-            <!-- High-Visibility FIT-CONNECT MAGAZINE -->
-            <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="px-2 py-0.5 rounded-full hero-navy text-white text-[10px] font-extrabold">NEW</span>
-                  <span class="text-[12px] font-extrabold tracking-wider uppercase text-[#1D4ED8]">FIT-CONNECT MAGAZINE</span>
-                </div>
-                <button type="button" id="btn-open-magazine" class="tap-scale text-[12px] font-bold text-[#1D4ED8]">전체보기 ›</button>
-              </div>
-              <div class="space-y-2">
-                ${state.columns.slice(0, 2).map((col, idx) => `
-                  <button type="button" data-colidx="${idx}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
-                    <div class="min-w-0">
-                      <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
-                      <p class="text-[14px] font-extrabold text-[#111827] mt-1.5 leading-snug line-clamp-1">${escapeHtml(col.title)}</p>
-                      <p class="text-[11px] text-[#4B5563] mt-0.5 truncate">${escapeHtml(col.summary || '')}</p>
-                    </div>
-                    <span class="w-8 h-8 rounded-full bg-white text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">›</span>
-                  </button>
-                `).join('')}
-              </div>
-            </section>
+
 
 
           </div>

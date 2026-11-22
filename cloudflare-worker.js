@@ -379,6 +379,18 @@ async function handleRecords(request,env) {
       try{accepted=await appsScriptAcceptsMember(member,token,date);}
       catch{return json({status:'error',code:'apps_script_unreachable'},502);}
       if(!accepted)return json({status:'denied',code:'unauthorized'},403);
+      // Even a still-valid Apps Script link cannot mint a session for a
+      // member archived by the coach.
+      const checkBase=String(env.SUPABASE_URL||'').trim().replace(/\/+$/,'');
+      const checkKey=String(env.SUPABASE_SECRET_KEY||'').trim();
+      if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(checkBase)||!checkKey)
+        return json({status:'error',code:'missing_runtime_configuration'},503);
+      const archivedResponse=await fetch(checkBase+'/rest/v1/fit_members?select=is_archived&name=eq.'+
+        encodeURIComponent(member)+'&limit=1',{headers:{apikey:checkKey,...(checkKey.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+checkKey})},
+        signal:AbortSignal.timeout(8000)});
+      if(!archivedResponse.ok)return json({status:'error',code:'member_status_unavailable'},502);
+      const statusRows=await archivedResponse.json();
+      if(statusRows[0]?.is_archived)return json({status:'denied',code:'member_archived'},403);
       const session=await signMemberSession(sessionSecret,member);
       return json({status:'success',...session},200,{
         'Server-Timing':'session;dur='+(performance.now()-requestStarted).toFixed(1)

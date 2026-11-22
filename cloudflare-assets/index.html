@@ -2554,9 +2554,11 @@
               if (nm && tk) tokenMap[nm] = tk;
             });
           });
+          const archivedMembers = new Set(Array.isArray(fast?.archivedMembers) ? fast.archivedMembers : []);
+          state.archivedMemberNames = [...archivedMembers];
           let serverMembers = [];
           if (ov?.status === 'success' && Array.isArray(ov.members)) {
-            serverMembers = ov.members.map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' }));
+            serverMembers = ov.members.filter(m => !archivedMembers.has(m.name)).map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' }));
           }
           const extraLists = [
             ...(Array.isArray(fast?.members) ? fast.members : []),
@@ -2564,7 +2566,7 @@
           ];
           extraLists.forEach(fn => {
             const nm = typeof fn === 'string' ? fn.trim() : String(fn?.name || fn?.member || '').trim();
-            if (nm && !serverMembers.some(sm => sm.name === nm)) {
+            if (nm && !archivedMembers.has(nm) && !serverMembers.some(sm => sm.name === nm)) {
               serverMembers.push({ name: nm, lastDate: '', activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0, token: tokenMap[nm] || '' });
             }
           });
@@ -2574,7 +2576,7 @@
           } catch {}
           const merged = [...serverMembers];
           localAdded.forEach(lm => {
-            if (lm?.name && !merged.some(sm => sm.name === lm.name)) {
+            if (lm?.name && !archivedMembers.has(lm.name) && !merged.some(sm => sm.name === lm.name)) {
               merged.unshift(lm);
             }
           });
@@ -2601,7 +2603,7 @@
                 };
               });
               asOv.members.forEach(am => {
-                if (am?.name && !state.trainerOverview.some(x => x.name === am.name)) {
+                if (am?.name && !archivedMembers.has(am.name) && !state.trainerOverview.some(x => x.name === am.name)) {
                   state.trainerOverview.push({ ...am, token: tokenMap[am.name] || '' });
                   changed = true;
                 }
@@ -3696,6 +3698,11 @@
         const btn = document.getElementById('am-submit-btn');
         if (btn) { btn.disabled = true; btn.textContent = '등록 중...'; }
 
+        if (state.trainerOverview.some(x => x.name === mName)) {
+          showToast('이미 등록된 회원입니다');
+          if (btn) { btn.disabled = false; btn.textContent = '회원 등록 및 링크 복사'; }
+          return;
+        }
         let issuedTok = '';
         if (state.isLive && state.trainerPassword) {
           try {
@@ -3706,6 +3713,10 @@
               return;
             }
             issuedTok = addRes.token;
+            // Apps Script owns the member link. Supabase owns the coach's
+            // canonical active-member list, so both must be registered.
+            const dbRes = await postRecords({ action: 'memberRegister', name: mName, date: state.selectedDate, password: state.trainerPassword });
+            if (dbRes?.status !== 'success') throw new Error(dbRes?.code || '회원 DB 등록 실패');
           } catch (err) {
             showToast('회원 등록 오류: ' + (err?.message || '네트워크 확인'));
             if (btn) { btn.disabled = false; btn.textContent = '회원 등록 및 링크 복사'; }
@@ -3746,6 +3757,54 @@
         }
         renderAll();
       });
+    }
+
+    async function archiveCoachMember(memberName, button) {
+      if (!state.isLive || !state.trainerPassword) {
+        showToast('실제 코치 모드에서만 회원을 보관할 수 있어요');
+        return;
+      }
+      if (!window.confirm(`${memberName} 회원을 목록에서 제거할까요?\n\n운동·식단·영상 기록은 삭제하지 않고 보관합니다.`)) return;
+      const typed = window.prompt('실수 방지를 위해 회원 이름을 그대로 입력해 주세요.', '');
+      if (typed !== memberName) {
+        if (typed !== null) showToast('회원 이름이 일치하지 않아 취소했어요');
+        return;
+      }
+      button.disabled = true;
+      button.textContent = '처리 중';
+      try {
+        const res = await postRecords({ action: 'memberArchive', name: memberName, date: state.selectedDate, password: state.trainerPassword });
+        if (res?.status !== 'success') throw new Error(res?.code || '보관 실패');
+        state.trainerOverview = state.trainerOverview.filter(x => x.name !== memberName);
+        state.archivedMemberNames = [...new Set([...(state.archivedMemberNames || []), memberName])];
+        try {
+          const local = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]');
+          localStorage.setItem('fit_added_members_v2', JSON.stringify(local.filter(x => x?.name !== memberName)));
+        } catch {}
+        renderAll();
+        showToast(`${memberName} 회원을 목록에서 보관했어요. 기록은 유지됩니다.`);
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = '보관';
+        showToast('회원 보관 실패: ' + (err?.message || '네트워크 오류'));
+      }
+    }
+
+    async function restoreCoachMember(memberName, button) {
+      if (!state.isLive || !state.trainerPassword) return;
+      button.disabled = true;
+      button.textContent = '복원 중';
+      try {
+        const res = await postRecords({ action: 'memberRegister', name: memberName, date: state.selectedDate, password: state.trainerPassword });
+        if (res?.status !== 'success') throw new Error(res?.code || '복원 실패');
+        state.archivedMemberNames = (state.archivedMemberNames || []).filter(n => n !== memberName);
+        await enterCoachWithPassword(state.trainerPassword, true);
+        showToast(`${memberName} 회원을 복원했어요 ✓`);
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = '복원';
+        showToast('회원 복원 실패: ' + (err?.message || '네트워크 오류'));
+      }
     }
 
     function openColumnWriteModal() {
@@ -4540,7 +4599,8 @@
               <button type="button" id="btn-add-member" class="tap-scale shrink-0 px-3.5 py-3 rounded-2xl hero-navy text-white text-[12px] font-extrabold shadow-sm">+ 회원 추가</button>
             </div>
             ${matchedMembers.map(m => `
-              <button type="button" data-cname="${escapeHtml(m.name)}" class="c-detail-btn tap-scale w-full bg-white rounded-[22px] p-4 shadow-sm text-left flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 bg-white rounded-[22px] p-2 shadow-sm">
+              <button type="button" data-cname="${escapeHtml(m.name)}" class="c-detail-btn tap-scale flex-1 min-w-0 p-2 text-left flex items-center justify-between gap-2">
                 <div>
                   <div class="flex items-center gap-2">
                     <span class="text-[15px] font-bold text-[#111827]">${escapeHtml(m.name)}</span>
@@ -4550,7 +4610,18 @@
                 </div>
                 <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${isPending(m) ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">${isPending(m) ? '피드백 대기 ›' : '상세 보기 ›'}</span>
               </button>
+              <button type="button" data-archive-member="${escapeHtml(m.name)}" class="c-archive-btn tap-scale shrink-0 rounded-xl px-2.5 py-2.5 bg-red-50 text-red-700 text-[11px] font-bold">보관</button>
+              </div>
             `).join('')}
+            ${(state.archivedMemberNames || []).length ? `
+              <details class="rounded-2xl bg-white p-3">
+                <summary class="cursor-pointer text-[12px] font-bold text-[#64748B]">보관된 회원 (${state.archivedMemberNames.length}명) · 펼쳐서 복원</summary>
+                <div class="space-y-2 mt-3">${state.archivedMemberNames.map(name => `
+                  <div class="flex items-center justify-between gap-2 p-2 bg-[#F4F6F9] rounded-xl">
+                    <span class="text-[12px] font-semibold text-[#475569]">${escapeHtml(name)}</span>
+                    <button type="button" data-restore-member="${escapeHtml(name)}" class="c-restore-btn px-3 py-2 rounded-lg text-[11px] font-bold bg-[#EFF6FF] text-[#1D4ED8]">복원</button>
+                  </div>`).join('')}</div>
+              </details>` : ''}
           </section>
         </div>
       `;
@@ -4882,6 +4953,13 @@
 
       document.querySelectorAll('.c-detail-btn').forEach(b => {
         b.addEventListener('click', () => openCoachDetailSheet(b.dataset.cname));
+      });
+
+      document.querySelectorAll('.c-archive-btn').forEach(btn => {
+        btn.addEventListener('click', () => archiveCoachMember(btn.dataset.archiveMember, btn));
+      });
+      document.querySelectorAll('.c-restore-btn').forEach(btn => {
+        btn.addEventListener('click', () => restoreCoachMember(btn.dataset.restoreMember, btn));
       });
 
       const addMemberBtn = document.getElementById('btn-add-member');

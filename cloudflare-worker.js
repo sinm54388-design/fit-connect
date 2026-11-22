@@ -749,6 +749,7 @@ async function handleRecords(request,env) {
       const coach=coachRows[0];
       result.headerMessage=coach.header_message;
       result.feedback={...(result.feedback||{}),workout:coach.workout_feedback,diet:coach.diet_feedback};
+      result.coachFeedbackStored=true;
     }
     return json(result,200,{
       'Server-Timing':'member;dur='+lookupMs.toFixed(1)+

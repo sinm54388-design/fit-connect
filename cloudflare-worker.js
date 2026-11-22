@@ -155,8 +155,8 @@ async function buildOverview(supaGet,date,base) {
     const counts=new Map(),size=1000;
     for(let offset=0;;offset+=size){
       if(offset>=10000)throw Error('video overview pagination limit exceeded');
-      const rows=await supaGet('/rest/v1/fit_direct_videos?select=member_id,feedback&state=eq.ready&order=id.asc&limit='+size+'&offset='+offset,'overview_videos');
-      for(const row of rows)if(!String(row.feedback||'').trim())counts.set(String(row.member_id),(counts.get(String(row.member_id))||0)+1);
+      const rows=await supaGet('/rest/v1/fit_direct_videos?select=member_id,feedback,mime&state=eq.ready&order=id.asc&limit='+size+'&offset='+offset,'overview_videos');
+      for(const row of rows)if(!String(row.feedback||'').trim()&&!String(row.mime||'').startsWith('image/'))counts.set(String(row.member_id),(counts.get(String(row.member_id))||0)+1);
       if(rows.length<size)return counts;
     }
   })();
@@ -487,10 +487,10 @@ async function handleRecords(request,env) {
     try {
       const [members, videos]=await Promise.all([
         supaGet('/rest/v1/fit_members?select=id,name&limit=1000','video_queue_members'),
-        supaGet('/rest/v1/fit_direct_videos?select=member_id,name,created_at,feedback&state=eq.ready&order=created_at.desc&limit=1000','video_queue')
+        supaGet('/rest/v1/fit_direct_videos?select=member_id,name,created_at,feedback,mime&state=eq.ready&order=created_at.desc&limit=1000','video_queue')
       ]);
       const names=new Map(members.map(row=>[String(row.id),String(row.name||'').trim()]));
-      const queue=videos.filter(row=>!String(row.feedback||'').trim()&&names.has(String(row.member_id)))
+      const queue=videos.filter(row=>!String(row.feedback||'').trim()&&!String(row.mime||'').startsWith('image/')&&names.has(String(row.member_id)))
         .slice(0,12).map(row=>({member:names.get(String(row.member_id)),title:String(row.name||'운동 영상'),createdAt:row.created_at||''}));
       return json({status:'success',videos:queue},200,{'X-Fit-Function-Region':request.cf?.colo||'cloudflare'});
     }catch(error){ return failed(error); }
@@ -543,7 +543,7 @@ async function handleRecords(request,env) {
       const format=row=>({id:'direct:'+row.id,fileId:'direct:'+row.id,name:row.name,question:row.question,feedback:row.feedback,readAt:row.read_at||'',createdAt:row.created_at});
       if(action==='directVideoList'){
         const rows=await supaGet(table+'?select=*&'+scope+'&state=eq.ready&order=created_at.desc&limit=200','direct_list');
-        return json({status:'success',videos:rows.map(format)});
+        return json({status:'success',videos:rows.filter(row=>!String(row.mime||'').startsWith('image/')).map(format)});
       }
       const id=String(input.id||'').replace(/^direct:/,'');
       if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return json({status:'error',code:'invalid_id'},400);
@@ -551,7 +551,7 @@ async function handleRecords(request,env) {
       let row;
       if(action==='directVideoBegin'){
         const size=Number(input.size),mime=String(input.mime||''),name=String(input.name||'').trim().slice(0,150),question=String(input.question||'').slice(0,1000);
-        const ext={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}[mime];
+        const ext={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[mime];
         if(!ext||!name||!Number.isInteger(size)||size<1||size>50000000)return json({status:'error',code:'invalid_file'},400);
         const storage_path='member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
         // Insert and return the row in one round trip; conflicts are scoped to this member.

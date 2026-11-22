@@ -426,7 +426,7 @@ async function handleRecords(request,env) {
     step=label||step;
     const response=await fetch(base+path,{method,headers:{
       apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',
-      Prefer:'return=representation'
+      Prefer:path.includes('/fit_meal_photos?')?'return=representation,resolution=merge-duplicates':'return=representation'
     },body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
     if(!response.ok){
       let detail='';try{const body=await response.json();detail=clean(body?.message||body?.error||body?.code);}catch{}
@@ -562,7 +562,7 @@ async function handleRecords(request,env) {
           const photos=rawDiet[k]?.photos;
           const candidate=Array.isArray(photos)?photos[0]:null;
           const src=typeof candidate==='string'?candidate:(candidate?.url||candidate?.src||candidate?.data||'');
-          if(src && (/^data:image\\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(src)||/^https:\\/\\//.test(src))){
+          if(src && (src.startsWith('data:image/jpeg;base64,') || src.startsWith('data:image/png;base64,') || src.startsWith('data:image/webp;base64,') || src.startsWith('https://'))){
             await supaWrite('/rest/v1/fit_meal_photos?on_conflict=member_id,record_date,meal_key','POST',
               {member_id:memberId,record_date:date,meal_key:k,photo:src,updated_at:new Date().toISOString()},'meal_photo_write');
           }

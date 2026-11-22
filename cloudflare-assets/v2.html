@@ -3785,7 +3785,7 @@
         showToast(`${memberName} 회원을 목록에서 보관했어요. 기록은 유지됩니다.`);
       } catch (err) {
         button.disabled = false;
-        button.textContent = '보관';
+        button.textContent = '삭제';
         showToast('회원 보관 실패: ' + (err?.message || '네트워크 오류'));
       }
     }
@@ -4610,7 +4610,7 @@
                 </div>
                 <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${isPending(m) ? 'bg-amber-50 text-amber-700' : 'bg-[#F0FDFA] text-[#0F766E]'}">${isPending(m) ? '피드백 대기 ›' : '상세 보기 ›'}</span>
               </button>
-              <button type="button" data-archive-member="${escapeHtml(m.name)}" class="c-archive-btn tap-scale shrink-0 rounded-xl px-2.5 py-2.5 bg-red-50 text-red-700 text-[11px] font-bold">보관</button>
+              <button type="button" data-archive-member="${escapeHtml(m.name)}" class="c-archive-btn tap-scale shrink-0 rounded-xl px-2.5 py-2.5 bg-red-50 text-red-700 text-[11px] font-bold">삭제</button>
               </div>
             `).join('')}
             ${(state.archivedMemberNames || []).length ? `

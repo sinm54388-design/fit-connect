@@ -873,7 +873,31 @@ async function handleAppsScriptPost(request,env) {
 }
 export default {
   async fetch(request,env) {
-    const path=new URL(request.url).pathname;
+    const requestUrl = new URL(request.url);
+    const path=requestUrl.pathname;
+    if(path==='/member-manifest.webmanifest') {
+      const name=String(requestUrl.searchParams.get('name')||'').trim();
+      const token=String(requestUrl.searchParams.get('token')||'').trim();
+      if(!name||name.length>100||!token||token.length>200)
+        return json({status:'error',code:'invalid_manifest'},400);
+      const q=new URLSearchParams({name,token});
+      const manifest={
+        name:'FIT-CONNECT | '+name,
+        short_name:'FIT-CONNECT',
+        description:'운동과 식단 기록, 코치 피드백',
+        start_url:'/?'+q.toString(),
+        scope:'/',
+        display:'standalone',
+        background_color:'#F4F6F9',
+        theme_color:'#0B132B',
+        icons:[{src:'/fit-icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]
+      };
+      return new Response(JSON.stringify(manifest),{headers:{
+        'Content-Type':'application/manifest+json; charset=utf-8',
+        'Cache-Control':'no-store',
+        'X-Content-Type-Options':'nosniff'
+      }});
+    }
     if(path==='/api/records')return handleRecords(request,env);
     if(path==='/api/apps-script')return handleAppsScriptPost(request,env);
     if(path.startsWith('/api/'))return json({status:'error',code:'not_found'},404);

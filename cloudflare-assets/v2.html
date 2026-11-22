@@ -2151,18 +2151,18 @@
       ['그릭요거트 (무지방)','그릭 요거트',59,3.6,10.3,0.4,100],
       ['두부 (일반)','두부',76,1.9,8.1,4.8,150],
       ['우유','우유',61,4.8,3.2,3.3,200],
-      ["닭다리살 구이","닭고기 닭다리",209,0,26,11,150],
-      ["소고기 우둔살 구이","소고기 우둔",180,0,28,7,150],
-      ["소고기 등심 구이","소고기 스테이크",250,0,26,16,150],
-      ["돼지고기 안심 구이","돼지 안심",170,0,27,6,150],
-      ["돼지고기 목살 구이","목살",265,0,25,18,150],
-      ["삼겹살 구이","삼겹살",410,0,23,36,150],
+      ["닭다리살 (생것·조리 전)","닭고기 닭다리",152,0,19.4,7.7,150],
+      ["소고기 우둔살 (생것·조리 전)","소고기 우둔",130,0,21,4,150],
+      ["소고기 등심 (생것·조리 전)","소고기 스테이크",210,0,20,14,150],
+      ["돼지고기 안심 (생것·조리 전)","돼지 안심",110,0,21,2.5,150],
+      ["돼지고기 목살 (생것·조리 전)","목살",225,0,18,17,150],
+      ["삼겹살 (생것·조리 전)","삼겹살",360,0,14,33,150],
       ["훈제오리","오리 오리고기",290,3,19,23,100],
-      ["연어 구이","연어",205,0,22,13,150],
-      ["고등어 구이","고등어",250,0,24,17,120],
+      ["연어 (생것·조리 전)","연어",208,0,20,13,150],
+      ["고등어 (생것·조리 전)","고등어",205,0,19,14,120],
       ["참치 통조림 (물)","참치캔 참치",116,0,26,1,100],
-      ["새우 삶은 것","새우",99,0.2,24,0.3,100],
-      ["오징어 삶은 것","오징어",92,3.1,16,1.4,100],
+      ["새우 (생것·조리 전)","새우",85,0,20,0.5,100],
+      ["오징어 (생것·조리 전)","오징어",92,3.1,15.6,1.4,100],
       ["계란 프라이","계란후라이 후라이",196,0.8,13.6,15,50],
       ["스크램블 에그","계란 달걀 스크램블",150,2,10,11,100],
       ["검은콩 삶은 것","검정콩 콩",132,23.7,8.9,0.5,100],
@@ -2253,6 +2253,15 @@
       ["탄산수 무가당","탄산수",0,0,0,0,250]
     ];
 
+    function foodWeightBasis(food) {
+      const name = food[0];
+      if (/생것·조리 전/.test(name)) return '조리 전 생것(가식부)';
+      if (/구운 후|조리 후|삶은|찐 |데친|구이|계란 프라이|스크램블|감자튀김|구운김|훈제/.test(name)) return '조리 후 중량';
+      if (/밥|찌개|국$|계란찜|제육볶음|불고기|닭볶음탕|비빔밥|김밥|볶음밥|떡볶이|잡채|카레라이스|돈가스|치킨|피자|햄버거|라면|우동|쌀국수|짜장면|짬뽕|칼국수|삼계탕|샌드위치/.test(name)) return '완성 음식 중량';
+      if (/파우더|건조|오트밀|시리얼|그래놀라|에너지바|식빵|통밀빵|베이글|크루아상|가래떡|찹쌀떡|치즈|요거트|우유|두유|통조림|버터|주스|콜라|탄산수|아메리카노|라떼|참기름|오일/.test(name)) return '제품·먹는 상태 중량';
+      return '먹는 부분(가식부) 중량';
+    }
+
     function openMealModal(mealKey, mealLabel) {
       const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
       const presets = [
@@ -2304,7 +2313,7 @@
                 <p id="food-preview" class="text-[11px] text-[#475569]" aria-live="polite"></p>
               </div>
               <p id="food-totals" class="hidden text-[11px] font-semibold text-[#0F766E]"></p>
-              <p class="text-[10px] text-[#64748B]">영양성분은 100g당 일반적인 참고·추정치입니다. 브랜드 제품과 외식 메뉴는 실제 수치가 다를 수 있어요.</p>
+              <p class="text-[10px] text-[#64748B]">원재료는 조리 전 무게, 완성 요리는 조리 후 무게로 입력해 주세요. 기준은 검색 결과에 표시됩니다. 영양값은 일반적 추정치예요.</p>
               <a href="https://various.foodsafetykorea.go.kr/nutrient/" target="_blank" rel="noopener noreferrer" class="inline-block text-[11px] font-semibold text-[#1D4ED8] underline">공식 식품영양성분 검색 (식약처)</a>
             </div>
 
@@ -2504,7 +2513,7 @@
         const grams = Number(foodGrams.value);
         if (!(grams > 0 && grams <= 2000)) {foodPreview.textContent='1~2000g을 입력해 주세요';return;}
         const n=foodValues(selectedFood,grams);
-        foodPreview.innerHTML='<div class="rounded-lg border border-[#E2E8F0] overflow-hidden"><div class="bg-[#F1F5F9] px-2 py-1 text-[11px] font-bold text-[#334155]">예상 영양성분표 · '+grams+'g 기준</div><div class="grid grid-cols-4 divide-x divide-[#E2E8F0] text-center"><div class="p-1.5"><b class="block text-[#111827]">'+n.kcal+'</b>kcal</div><div class="p-1.5"><b class="block text-[#111827]">'+n.carb+'g</b>탄수화물</div><div class="p-1.5"><b class="block text-[#111827]">'+n.prot+'g</b>단백질</div><div class="p-1.5"><b class="block text-[#111827]">'+n.fat+'g</b>지방</div></div></div>';
+        foodPreview.innerHTML='<div class="rounded-lg border border-[#E2E8F0] overflow-hidden"><div class="bg-[#F1F5F9] px-2 py-1 text-[11px] font-bold text-[#334155]">예상 영양성분표 · '+grams+'g · '+foodWeightBasis(selectedFood)+'</div><div class="grid grid-cols-4 divide-x divide-[#E2E8F0] text-center"><div class="p-1.5"><b class="block text-[#111827]">'+n.kcal+'</b>kcal</div><div class="p-1.5"><b class="block text-[#111827]">'+n.carb+'g</b>탄수화물</div><div class="p-1.5"><b class="block text-[#111827]">'+n.prot+'g</b>단백질</div><div class="p-1.5"><b class="block text-[#111827]">'+n.fat+'g</b>지방</div></div></div>';
       };
       foodSearch?.addEventListener('input',()=>{
         const term=foodSearch.value.trim().toLowerCase().replace(/\s+/g,'');
@@ -2515,10 +2524,10 @@
           const btn=document.createElement('button');
           btn.type='button';btn.setAttribute('role','option');
           btn.className='block w-full text-left rounded-lg bg-white px-3 py-2 text-[12px] text-[#111827]';
-          btn.textContent=food[0]+' · 100g당 '+food[2]+'kcal / 단백질 '+food[4]+'g';
+          btn.textContent=food[0]+' · '+foodWeightBasis(food)+' · 100g당 '+food[2]+'kcal / 단백질 '+food[4]+'g';
           btn.addEventListener('click',()=>{
             selectedFood=food;
-            document.getElementById('food-choice-title').textContent=food[0];
+            document.getElementById('food-choice-title').textContent=food[0]+' · '+foodWeightBasis(food);
             foodGrams.value=food[6];
             foodChoice.classList.remove('hidden');
             foodOptions.classList.add('hidden');

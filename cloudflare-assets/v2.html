@@ -2802,6 +2802,26 @@
       });
     }
 
+    // Refresh only the Supabase coach summary, preserving member links and
+    // current UI state; avoids re-running login and the whole Apps Script list.
+    async function refreshCoachOverview() {
+      if (!state.isLive || !state.trainerPassword) return;
+      const btn = document.getElementById('coach-refresh-overview');
+      if (btn) { btn.disabled = true; btn.textContent = '갱신 중…'; }
+      try {
+        const result = await postRecords({ action: 'trainerOverview', date: state.selectedDate, password: state.trainerPassword });
+        if (result?.status !== 'success' || !Array.isArray(result.members)) throw new Error(result?.code || '현황 조회 실패');
+        const oldMembers = new Map((state.trainerOverview || []).map(m => [m.name, m]));
+        state.trainerOverview = result.members.map(m => ({ ...oldMembers.get(m.name), ...m }));
+        state.coachFilter = state.coachFilter || 'pending';
+        renderAll();
+        showToast('코치 현황을 최신 기록으로 갱신했어요 ✓');
+      } catch (err) {
+        if (btn) { btn.disabled = false; btn.textContent = '↻ 새로고침'; }
+        showToast('현황 갱신 실패: ' + (err?.message || '네트워크 오류'));
+      }
+    }
+
     // One-Stop Member Detail & Immediate Reply Bottom Sheet
     async function openCoachDetailSheet(memberName) {
       openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
@@ -3038,6 +3058,9 @@
                   이 회원만 저장하기
                 </button>
               </div>
+              <button type="button" id="cd-save-next" class="tap-scale w-full py-3 rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8] text-[12px] font-extrabold">
+                저장하고 다음 대기 회원 보기 →
+              </button>
             </div>
           </div>
         `);
@@ -3590,7 +3613,7 @@
           }
         });
 
-        document.getElementById('cd-save-all').addEventListener('click', async () => {
+        async function saveCoachDetailAndAdvance(goNext) {
           const pendingNameEl = document.getElementById('cd-new-name');
           const pendingName = pendingNameEl ? pendingNameEl.value.trim() : '';
           if (pendingName) {
@@ -3636,10 +3659,13 @@
           };
 
           const saveBtn = document.getElementById('cd-save-all');
+          const nextBtn = document.getElementById('cd-save-next');
           if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중...'; }
+          if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = '저장 중...'; }
           const ok = await saveFullRecordLive(memberName, fullPayload);
           if (!ok) {
             if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '이 회원만 저장하기'; }
+            if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '저장하고 다음 대기 회원 보기 →'; }
             return;
           }
           try {
@@ -3660,6 +3686,7 @@
               saveBtn.disabled = false;
               saveBtn.textContent = '다시 저장하기';
             }
+            if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '저장하고 다음 대기 회원 보기 →'; }
             showToast('피드백 서버 저장 확인 실패: ' + (err?.message || '다시 시도해 주세요'));
             return;
           }
@@ -3673,11 +3700,20 @@
             state.record = fullPayload;
             saveCachedMemberData(state.selectedDate);
           }
+          const nextMember = goNext ? (state.trainerOverview || []).find(m =>
+            m.name !== memberName && (m.pendingWorkout || m.pendingDiet || Number(m.directPendingVideos || 0) > 0)) : null;
           closeModal();
           triggerConfetti();
-          showToast(`${memberName} 회원님 루틴 · 피드백 저장 완료!`);
           renderAll();
-        });
+          if (nextMember) {
+            showToast(`${memberName} 저장 완료 · 다음 회원을 여는 중`);
+            openCoachDetailSheet(nextMember.name);
+          } else {
+            showToast(goNext ? `${memberName} 저장 완료 · 다음 대기 회원 없음 ✓` : `${memberName} 회원님 루틴 · 피드백 저장 완료!`);
+          }
+        }
+        document.getElementById('cd-save-all').addEventListener('click', () => saveCoachDetailAndAdvance(false));
+        document.getElementById('cd-save-next').addEventListener('click', () => saveCoachDetailAndAdvance(true));
       }
       renderDetailBody();
     }
@@ -4523,6 +4559,7 @@
             <section class="hero-navy rounded-[26px] p-5 text-white space-y-3.5">
               <div class="flex items-center justify-between">
                 <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-[#5EEAD4]">${state.selectedDate} 코칭 브리핑</span>
+                <button type="button" id="coach-refresh-overview" class="tap-scale text-[11px] font-bold bg-white/15 text-white px-3 py-2 rounded-xl">↻ 새로고침</button>
                 <span class="text-[11px] font-semibold text-white/75">전체 ${list.length}명</span>
               </div>
               <h1 class="text-[21px] font-extrabold leading-snug">
@@ -4959,6 +4996,7 @@
       if (goD) goD.addEventListener('click', () => { state.memberTab = 'diet'; renderAll(); });
 
       // Coach events
+      document.getElementById('coach-refresh-overview')?.addEventListener('click', refreshCoachOverview);
       document.querySelectorAll('.c-filter-btn').forEach(b => {
         b.addEventListener('click', () => {
           state.coachFilter = b.dataset.cfilter;

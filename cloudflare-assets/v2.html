@@ -4191,7 +4191,12 @@
     function trainerMemoSignature() {
       const messages = (state.record?.memos || []).filter(m => m.from === 'trainer');
       const last = messages[messages.length - 1];
-      return last ? String(last.id || '') + '|' + String(last.time || '') + '|' + String(last.text || '') : '';
+      if (!last) return '';
+      // Persist only a compact fingerprint, never the member's message text.
+      const source = String(last.id || '') + '|' + String(last.time || '') + '|' + String(last.text || '');
+      let hash = 2166136261;
+      for (let i = 0; i < source.length; i++) hash = Math.imul(hash ^ source.charCodeAt(i), 16777619);
+      return (hash >>> 0).toString(36);
     }
     function feedbackSeenKey() {
       return 'fit_feedback_seen_v1_' + encodeURIComponent(state.memberName || '');

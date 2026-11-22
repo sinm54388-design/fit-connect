@@ -3813,17 +3813,28 @@
           document.getElementById('cd-reply-msg')?.focus({ preventScroll: true });
         });
         document.getElementById('cd-preview-member').addEventListener('click', async () => {
-          const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
-          state.memberName = memberName;
-          state.token = mObj?.token || '';
-          state.session = '';
-          state.appMode = 'member';
-          closeModal();
-          state.loading = true;
-          renderAll();
-          await loadMemberDateData(state.selectedDate);
-          state.loading = false;
-          renderAll();
+          // Member preview must navigate to a real member URL. Merely switching
+          // appMode in memory leaves the coach URL in the address bar, and a
+          // browser refresh resets the page to the wrong member/session.
+          const btn = document.getElementById('cd-preview-member');
+          if (btn) { btn.disabled = true; btn.textContent = '링크 확인 중…'; }
+          try {
+            const token = await resolveMemberToken(memberName);
+            if (!token) {
+              showToast('회원 전용 링크를 확인할 수 없어요. 링크 버튼에서 먼저 연결해 주세요.');
+              return;
+            }
+            const url = new URL(window.location.origin + '/');
+            url.searchParams.set('name', memberName);
+            url.searchParams.set('token', token);
+            url.searchParams.set('date', state.selectedDate);
+            // A full navigation also removes any in-memory coach state.
+            window.location.assign(url.toString());
+          } catch (error) {
+            showToast('회원 화면을 열지 못했어요. 다시 시도해 주세요.');
+          } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '👁 보기'; }
+          }
         });
 
         document.getElementById('cd-copy-link').addEventListener('click', () => copyMemberLink(memberName));

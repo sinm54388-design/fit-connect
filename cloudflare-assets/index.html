@@ -5612,14 +5612,30 @@
     }
 
     function renderAll() {
-      renderHeader();
-      renderBottomNav();
-      document.getElementById('main-content').innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
-      updateFabUI();
-      updateFloatingTimerUI();
-      bindEvents();
-      hydrateDirectImages();
-      updateWorkoutSaveLabel();
+      try {
+        renderHeader();
+        renderBottomNav();
+        const main = document.getElementById('main-content');
+        if (!main) throw new Error('main-content missing');
+        main.innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
+        updateFabUI();
+        updateFloatingTimerUI();
+        bindEvents();
+        hydrateDirectImages();
+        updateWorkoutSaveLabel();
+      } catch (error) {
+        console.error('[FIT-CONNECT] 화면 렌더링 오류', error);
+        // Always show a recovery action instead of the white screen + FAB.
+        const main = document.getElementById('main-content');
+        if (main) {
+          main.innerHTML = '<section class="bg-white rounded-2xl p-6 space-y-4 m-4">' +
+            '<h2 class="text-lg font-extrabold text-[#0F172A]">화면을 불러오지 못했어요</h2>' +
+            '<p class="text-sm leading-relaxed text-[#475569]">저장된 운동·식단 기록이 삭제된 것은 아니에요. 다시 불러오기를 눌러 주세요.</p>' +
+            '<button type="button" id="fit-retry-render" class="w-full py-3 rounded-xl hero-navy text-white font-bold">다시 불러오기</button>' +
+            '<p class="text-[11px] text-[#64748B]">문제가 계속된다면 코치에게 알려 주세요.</p></section>';
+          document.getElementById('fit-retry-render')?.addEventListener('click', () => window.location.reload());
+        }
+      }
     }
 
     function bindEvents() {

@@ -3214,8 +3214,18 @@
       if (typeof idx === 'number') state.activeColumnIdx = idx;
       const item = state.columns[state.activeColumnIdx] || state.columns[0];
       if (!item) return;
-      const lines = (Array.isArray(item.content) ? item.content : [String(item.content || '')])
+      const rawLines = (Array.isArray(item.content) ? item.content : [String(item.content || '')])
         .map(line => String(line || '').trim()).filter(Boolean);
+      const sourceLines = rawLines.filter(line => line.startsWith('[[source]]'));
+      const lines = rawLines.filter(line => !line.startsWith('[[source]]'));
+      const references = sourceLines.map(line => {
+        const [label, link] = line.slice(10).split('|');
+        try {
+          const u = new URL(String(link || '').trim());
+          if (u.protocol !== 'https:') return null;
+          return { title: String(label || '').trim() || u.hostname, url: u.href };
+        } catch { return null; }
+      }).filter(Boolean);
       openModal('FIT-CONNECT MAGAZINE', `
         <article class="space-y-5 pb-2" aria-label="${escapeHtml(item.title || '매거진')}">
           <nav aria-label="매거진 글 선택" class="flex gap-2 overflow-x-auto pb-1">
@@ -3230,13 +3240,18 @@
             <h4 class="text-[22px] font-extrabold leading-[1.4] tracking-tight text-[#0F172A] break-keep">${escapeHtml(item.title)}</h4>
             ${item.summary ? `<p class="text-[15px] font-medium text-[#334155] leading-[1.75] break-keep">${escapeHtml(item.summary)}</p>` : ''}
           </header>
-          <div class="space-y-4 px-1">
-            ${lines.map((line, i) => `
-              <section class="rounded-2xl bg-white border border-[#E2E8F0] px-4 py-4">
-                <p class="text-[16px] leading-[1.9] font-normal text-[#1E293B] break-keep whitespace-pre-line">${escapeHtml(line)}</p>
-              </section>
-            `).join('')}
+          <div class="px-1 space-y-5">
+            ${lines.map(line => `<p class="text-[16px] leading-[1.95] text-[#1E293B] break-keep whitespace-pre-line">${escapeHtml(line)}</p>`).join('')}
           </div>
+          ${references.length ? `
+          <aside class="mx-1 border-t border-[#CBD5E1] pt-4 space-y-2.5" aria-label="참고 자료">
+            <h5 class="text-[13px] font-extrabold text-[#334155]">참고 자료 · 근거</h5>
+            <ol class="space-y-2">
+              ${references.map((ref, i) => `<li class="text-[12px] leading-[1.7] text-[#475569]">
+                <a href="${escapeHtml(ref.url)}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2 decoration-[#94A3B8] text-[#1D4ED8] break-words">[${i+1}] ${escapeHtml(ref.title)} ↗</a>
+              </li>`).join('')}
+            </ol>
+          </aside>` : ''}
           <footer class="border-t border-[#E2E8F0] pt-3 px-1 text-[12px] text-[#64748B] leading-relaxed">
             작성: ${escapeHtml(item.author || '담당 코치')} ${item.published_at ? `· ${escapeHtml(item.published_at)}` : ''}
           </footer>
@@ -4626,17 +4641,38 @@
           </select>
           <input id="cw-title" required minlength="3" maxlength="90" placeholder="제목 (예: 하체 운동 전 3분 스트레칭)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
           <input id="cw-summary" required minlength="10" maxlength="280" placeholder="한 줄 요약 (10자 이상)" class="w-full text-sm px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
-          <textarea id="cw-body" required rows="3" placeholder="본문 내용을 입력하세요 (줄바꿈으로 문단 구분)" class="w-full text-sm p-3.5 rounded-2xl bg-[#F4F6F9]"></textarea>
+          <textarea id="cw-body" required rows="5" placeholder="본문 내용을 입력하세요 (줄바꿈으로 문단 구분)" class="w-full text-[15px] leading-[1.7] p-3.5 rounded-2xl bg-[#F4F6F9]"></textarea>
+          <div class="border-t border-[#E2E8F0] pt-3 space-y-2">
+            <p class="text-[13px] font-bold text-[#334155]">참고 자료 · 근거 <span class="font-normal text-[#64748B]">(선택)</span></p>
+            <input id="cw-source-title" maxlength="180" placeholder="출처 이름 (예: ACSM 저항운동 권고문)" class="w-full text-[13px] px-3.5 py-3 rounded-xl bg-[#F4F6F9]" />
+            <input id="cw-source-url" type="url" placeholder="원문 링크 (https://...)" class="w-full text-[13px] px-3.5 py-3 rounded-xl bg-[#F4F6F9]" />
+            <p class="text-[11px] text-[#64748B] leading-relaxed">실제로 본문 내용과 관련된 출처만 입력해 주세요. 회원 화면에는 글 아래에 작게 표시됩니다.</p>
+          </div>
           <button type="submit" class="w-full py-3.5 rounded-2xl hero-navy text-white text-sm font-bold">매거진 발행하기</button>
         </form>
       `);
       document.getElementById('col-write-form').addEventListener('submit', async e => {
         e.preventDefault();
+        const sourceTitle = document.getElementById('cw-source-title').value.trim();
+        const sourceUrl = document.getElementById('cw-source-url').value.trim();
+        if (sourceTitle || sourceUrl) {
+          let parsedUrl;
+          try { parsedUrl = new URL(sourceUrl); } catch {}
+          if (!sourceTitle || !parsedUrl || parsedUrl.protocol !== 'https:' ||
+              sourceTitle.includes('|') || sourceTitle.includes('\\n') ||
+              sourceTitle.length + parsedUrl.href.length > 480) {
+            showToast('출처 이름과 https:// 원문 링크를 확인해 주세요');
+            return;
+          }
+        }
         const colObj = {
           category: document.getElementById('cw-cat').value,
           title: document.getElementById('cw-title').value.trim(),
           summary: document.getElementById('cw-summary').value.trim(),
-          content: document.getElementById('cw-body').value.split('\n').map(v => v.trim()).filter(Boolean),
+          content: [
+            ...document.getElementById('cw-body').value.split('\n').map(v => v.trim()).filter(Boolean),
+            ...(sourceTitle && sourceUrl ? ['[[source]]' + sourceTitle + '|' + sourceUrl] : [])
+          ],
           author: '명진 트레이너',
           published_at: state.selectedDate
         };

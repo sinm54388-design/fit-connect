@@ -47,6 +47,23 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   assert(html.includes('recObj?.coachFeedbackStored'), name + ': durable coach feedback hydration missing');
   assert(html.includes('mergeDietRecords(asObj?.diet, recObj?.diet, recObj?.deletedPhotoMeals || [])'), name + ': photo merge missing');
 }
+// Exercise the actual merge implementation, not just source string presence.
+const mergeSource = index.match(/    function mergeDietRecords\([\s\S]*?\n    }\n\n    function unwrapDailyRecord/);
+assert(mergeSource, 'mergeDietRecords source not found');
+const mergeContext = vm.createContext({
+  extractPhotoSrc: meal => (Array.isArray(meal?.photos) ? meal.photos[0] : '') || meal?.photo || ''
+});
+vm.runInContext(mergeSource[0].replace(/\n    function unwrapDailyRecord$/, ''), mergeContext);
+const oldDiet = { lunch: { desc: 'old mirror', cal: '100', foods: [], photos: [] } };
+const newDiet = { lunch: { desc: 'egg 2개', cal: '155', foods: [{ name: '삶은 계란', grams: 100, kcal: 155 }], photos: ['direct:photo'] } };
+const merged = mergeContext.mergeDietRecords(oldDiet, newDiet);
+assert.equal(merged.lunch.desc, 'egg 2개', 'stale mirror replaced saved meal text');
+assert.equal(merged.lunch.foods.length, 1, 'structured meal items disappeared');
+assert.equal(merged.lunch.photos[0], 'direct:photo', 'meal photo disappeared');
+const cleared = mergeContext.mergeDietRecords(oldDiet, { lunch: { desc: '', cal: '', foods: [], photos: [] } });
+assert.equal(cleared.lunch.foods.length, 0, 'deleted foods were resurrected');
+assert.equal(cleared.lunch.desc, '', 'deleted meal text was resurrected');
+
 new vm.SourceTextModule(worker, { identifier: 'cloudflare-worker.js' });
 assert(worker.includes("fit_meal_photos"), 'independent photo storage route missing');
 assert(worker.includes("action==='dietPhotoDelete'"), 'authenticated photo deletion route missing');

@@ -2262,6 +2262,26 @@
       return '먹는 부분(가식부) 중량';
     }
 
+    // Practical household portions (approximate edible/cooked weights).
+    // They are convenience conversions to grams, not independently verified label servings.
+    function foodPortionOptions(food) {
+      const n=food[0];
+      if (/계란|달걀|스크램블/.test(n)) return [{label:'개',grams:50}];
+      if (/흰쌀밥|현미밥|잡곡밥|보리밥|흑미밥/.test(n)) return [{label:'공기',grams:210},{label:'반 공기',grams:105}];
+      if (/바나나/.test(n)) return [{label:'개',grams:100}];
+      if (/사과|배|오렌지|복숭아/.test(n)) return [{label:'개',grams:150}];
+      if (/귤|키위/.test(n)) return [{label:'개',grams:100}];
+      if (/식빵|통밀빵|체다치즈/.test(n)) return [{label:'장',grams:/치즈/.test(n)?20:35}];
+      if (/베이글/.test(n)) return [{label:'개',grams:100}];
+      if (/크루아상/.test(n)) return [{label:'개',grams:60}];
+      if (/우유|두유|주스|콜라|아메리카노|라떼|탄산수/.test(n)) return [{label:'컵',grams:200}];
+      if (/김밥/.test(n)) return [{label:'줄',grams:250}];
+      if (/피자/.test(n)) return [{label:'조각',grams:120}];
+      if (/에너지바/.test(n)) return [{label:'개',grams:45}];
+      if (/구운김/.test(n)) return [{label:'장',grams:2}];
+      return [];
+    }
+
     function openMealModal(mealKey, mealLabel) {
       const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
       const presets = [
@@ -2305,11 +2325,15 @@
               <div id="food-options" class="hidden max-h-36 overflow-y-auto space-y-1" role="listbox"></div>
               <div id="food-choice" class="hidden rounded-xl bg-white p-2.5 space-y-2">
                 <p id="food-choice-title" class="text-[12px] font-bold text-[#111827]"></p>
-                <div class="flex gap-2 items-center">
-                  <label for="food-grams" class="text-[12px] text-[#475569]">중량(g)</label>
+                <div class="flex flex-wrap gap-2 items-center">
+                  <label for="food-unit" class="text-[12px] font-semibold text-[#475569]">단위</label>
+                  <select id="food-unit" class="max-w-28 rounded-lg border border-[#CBD5E1] bg-white px-2 py-2 text-[13px]" aria-label="음식 수량 단위"><option value="g">그램(g)</option></select>
+                  <label for="food-quantity" id="food-quantity-label" class="text-[12px] text-[#475569]">중량</label>
+                  <input id="food-quantity" type="number" min="0.5" max="20" step="0.5" inputmode="decimal" value="1" class="hidden w-16 border rounded-lg px-2 py-2 text-[14px]" />
                   <input id="food-grams" type="number" min="1" max="2000" step="1" inputmode="decimal" value="100" class="w-20 border rounded-lg px-2 py-2 text-[14px]" />
                   <button type="button" id="food-apply" class="ml-auto bg-[#1D4ED8] text-white rounded-xl px-3 py-2 text-[12px] font-bold">추가</button>
                 </div>
+                <p id="food-unit-note" class="text-[11px] text-[#64748B]"></p>
                 <p id="food-preview" class="text-[11px] text-[#475569]" aria-live="polite"></p>
               </div>
               <p id="food-totals" class="hidden text-[11px] font-semibold text-[#0F766E]"></p>
@@ -2501,6 +2525,27 @@
       const foodOptions = document.getElementById('food-options');
       const foodChoice = document.getElementById('food-choice');
       const foodGrams = document.getElementById('food-grams');
+      const foodUnit = document.getElementById('food-unit');
+      const foodQuantity = document.getElementById('food-quantity');
+      const foodQtyLabel = document.getElementById('food-quantity-label');
+      const foodUnitNote = document.getElementById('food-unit-note');
+      let foodPortions = [];
+      const selectedAmount = () => {
+        const index=Number(foodUnit.value);
+        if(foodUnit.value==='g') return {grams:Number(foodGrams.value),display:''};
+        const p=foodPortions[index],q=Number(foodQuantity.value);
+        if(!p || !Number.isFinite(q) || q<0.5 || q>20) return {grams:NaN,display:''};
+        return {grams:Math.round(p.grams*q*10)/10,display:q+p.label};
+      };
+      const refreshFoodUnit = () => {
+        const useGrams=foodUnit.value==='g';
+        foodGrams.classList.toggle('hidden',!useGrams);
+        foodQuantity.classList.toggle('hidden',useGrams);
+        foodQtyLabel.textContent=useGrams?'중량':'수량';
+        const index=Number(foodUnit.value),p=foodPortions[index];
+        foodUnitNote.textContent=useGrams?'직접 중량을 입력해 주세요.':p?'1'+p.label+' ≈ '+p.grams+'g (대표적인 참고 중량)':'';
+        previewFood();
+      };
       const foodPreview = document.getElementById('food-preview');
       const foodTotals = document.getElementById('food-totals');
       const foodValues = (food, grams) => {
@@ -2510,10 +2555,10 @@
       };
       const previewFood = () => {
         if (!selectedFood) return;
-        const grams = Number(foodGrams.value);
-        if (!(grams > 0 && grams <= 2000)) {foodPreview.textContent='1~2000g을 입력해 주세요';return;}
+        const {grams,display}=selectedAmount();
+        if (!(grams > 0 && grams <= 2000)) {foodPreview.textContent='중량 1~2000g 또는 수량 0.5~20 사이로 입력해 주세요';return;}
         const n=foodValues(selectedFood,grams);
-        foodPreview.innerHTML='<div class="rounded-lg border border-[#E2E8F0] overflow-hidden"><div class="bg-[#F1F5F9] px-2 py-1 text-[11px] font-bold text-[#334155]">예상 영양성분표 · '+grams+'g · '+foodWeightBasis(selectedFood)+'</div><div class="grid grid-cols-4 divide-x divide-[#E2E8F0] text-center"><div class="p-1.5"><b class="block text-[#111827]">'+n.kcal+'</b>kcal</div><div class="p-1.5"><b class="block text-[#111827]">'+n.carb+'g</b>탄수화물</div><div class="p-1.5"><b class="block text-[#111827]">'+n.prot+'g</b>단백질</div><div class="p-1.5"><b class="block text-[#111827]">'+n.fat+'g</b>지방</div></div></div>';
+        foodPreview.innerHTML='<div class="rounded-lg border border-[#E2E8F0] overflow-hidden"><div class="bg-[#F1F5F9] px-2 py-1 text-[11px] font-bold text-[#334155]">예상 영양성분표 · '+(display?display+' ≈ ':'')+grams+'g · '+foodWeightBasis(selectedFood)+'</div><div class="grid grid-cols-4 divide-x divide-[#E2E8F0] text-center"><div class="p-1.5"><b class="block text-[#111827]">'+n.kcal+'</b>kcal</div><div class="p-1.5"><b class="block text-[#111827]">'+n.carb+'g</b>탄수화물</div><div class="p-1.5"><b class="block text-[#111827]">'+n.prot+'g</b>단백질</div><div class="p-1.5"><b class="block text-[#111827]">'+n.fat+'g</b>지방</div></div></div>';
       };
       foodSearch?.addEventListener('input',()=>{
         const term=foodSearch.value.trim().toLowerCase().replace(/\s+/g,'');
@@ -2529,9 +2574,20 @@
             selectedFood=food;
             document.getElementById('food-choice-title').textContent=food[0]+' · '+foodWeightBasis(food);
             foodGrams.value=food[6];
+            foodPortions=foodPortionOptions(food);
+            foodUnit.replaceChildren();
+            if(foodPortions.length){
+              foodPortions.forEach((p,i)=>{
+                const o=document.createElement('option');o.value=String(i);o.textContent=p.label;foodUnit.appendChild(o);
+              });
+            }
+            const gramsOption=document.createElement('option');
+            gramsOption.value='g';gramsOption.textContent='그램(g)';foodUnit.appendChild(gramsOption);
+            foodUnit.value=foodPortions.length?'0':'g';
+            foodQuantity.value='1';
             foodChoice.classList.remove('hidden');
             foodOptions.classList.add('hidden');
-            previewFood();
+            refreshFoodUnit();
           });
           foodOptions.appendChild(btn);
         }
@@ -2543,17 +2599,19 @@
         foodOptions.classList.remove('hidden');
       });
       foodGrams?.addEventListener('input',previewFood);
+      foodQuantity?.addEventListener('input',previewFood);
+      foodUnit?.addEventListener('change',refreshFoodUnit);
       const invalidateAutomatic = () => { automaticNutrition=null; foodEntries.length=0; foodTotals.classList.add('hidden'); };
       descField?.addEventListener('input',invalidateAutomatic);
       calField?.addEventListener('input',invalidateAutomatic);
       document.getElementById('food-apply')?.addEventListener('click',()=>{
-        const grams=Number(foodGrams.value);
-        if(!selectedFood || !(grams>0 && grams<=2000)){showToast('중량을 1~2000g으로 입력해 주세요');return;}
+        const {grams,display}=selectedAmount();
+        if(!selectedFood || !(grams>0 && grams<=2000)){showToast('중량 또는 수량을 확인해 주세요');return;}
         const n=foodValues(selectedFood,grams);
-        foodEntries.push({name:selectedFood[0],grams,...n});
+        foodEntries.push({name:selectedFood[0],grams,display,...n});
         const t=foodEntries.reduce((a,v)=>({kcal:a.kcal+v.kcal,carb:a.carb+v.carb,prot:a.prot+v.prot,fat:a.fat+v.fat}),{kcal:0,carb:0,prot:0,fat:0});
         automaticNutrition={carb:Math.round(t.carb*10)/10,prot:Math.round(t.prot*10)/10,fat:Math.round(t.fat*10)/10};
-        descField.value=foodEntries.map(v=>v.name+' '+v.grams+'g').join(' + ');
+        descField.value=foodEntries.map(v=>v.name+' '+(v.display?v.display+' (약 '+v.grams+'g)':v.grams+'g')).join(' + ');
         calField.value=t.kcal;
         foodTotals.textContent='예상 영양성분 · '+foodEntries.length+'개 음식 합계: '+t.kcal+'kcal / 탄수화물 '+automaticNutrition.carb+'g / 단백질 '+automaticNutrition.prot+'g / 지방 '+automaticNutrition.fat+'g';
         foodTotals.classList.remove('hidden');

@@ -5206,6 +5206,8 @@
       const isDormant = m => daysBetween(m.lastDate, state.selectedDate) >= 4;
 
       const pendingList = list.filter(isPending);
+      const pendingDietList = list.filter(m => Boolean(m.pendingDiet));
+      const pendingWorkoutList = list.filter(m => Boolean(m.pendingWorkout));
       const todayList = list.filter(m => m.activeToday);
       const dormantList = list.filter(isDormant);
       const videoWaiting = list.reduce((n, m) => n + (Number(m.directPendingVideos) || 0), 0);
@@ -5215,6 +5217,8 @@
       if (state.coachTab === 'coaching') {
         let filtered = list;
         if (state.coachFilter === 'pending') filtered = pendingList;
+        else if (state.coachFilter === 'diet') filtered = pendingDietList;
+        else if (state.coachFilter === 'workout') filtered = pendingWorkoutList;
         else if (state.coachFilter === 'today') filtered = todayList;
         else if (state.coachFilter === 'dormant') filtered = dormantList;
         else if (state.coachFilter === 'videos') filtered = pendingVideoMembers;
@@ -5253,6 +5257,10 @@
                     <p class="text-[9px] font-bold mt-1 opacity-85 leading-tight">${label}</p>
                   </button>
                 `).join('')}
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" data-cfilter="diet" aria-pressed="${state.coachFilter === 'diet'}" class="c-filter-btn tap-scale rounded-full px-3 py-2 text-[12px] font-bold ${state.coachFilter==='diet'?'bg-white text-[#1E3A8A]':'bg-white/15 text-white'}">🍽 식단 미답변 ${pendingDietList.length}명</button>
+                <button type="button" data-cfilter="workout" aria-pressed="${state.coachFilter === 'workout'}" class="c-filter-btn tap-scale rounded-full px-3 py-2 text-[12px] font-bold ${state.coachFilter==='workout'?'bg-white text-[#1E3A8A]':'bg-white/15 text-white'}">🏋 운동 미답변 ${pendingWorkoutList.length}명</button>
               </div>
               <div class="rounded-xl bg-white/10 px-3 py-2.5 text-[11px] text-white/90">
                 <span class="font-bold text-[#5EEAD4]">최근 7일 체크인</span>

@@ -22,7 +22,7 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   assert(html.includes('meal-copy-yesterday'), name + ': yesterday meal quick entry missing');
   assert(html.includes('meal-yesterday-btn'), name + ': direct yesterday meal button missing on diet cards');
   assert(html.includes("document.getElementById('meal-copy-yesterday')?.click()"), name + ': diet card shortcut must open prefilling modal');
-  assert(html.includes("PT 세트 기록"), name + ': PT routines must expose per-set controls');
+  assert(html.includes("수업 완료"), name + ': PT completion badge missing');
   assert(html.includes('routine-set-toggle'), name + ': per-set workout tracking missing');
   assert(html.includes('function enqueueWorkoutSave(') && html.includes('function flushWorkoutSave(job)'), name + ': queued workout saves missing');
   assert(html.includes("action: 'setProgressBatch'") && html.includes("data: { routines: draft.routines }"), name + ": workout saves must use scoped writes");

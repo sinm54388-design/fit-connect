@@ -3575,60 +3575,179 @@
       });
     }
 
-    function getExerciseProfile(title) {
-      const t = String(title || '');
-      if (/데드버그|플랭크|복근|크런치|코어|레그레이즈/i.test(t)) {
-        return {
-          primary: ['abs'],
-          secondary: ['obliques', 'quads'],
-          primaryLabel: '복직근 · 속근육(코어)',
-          secondaryLabel: '복사근 · 장요근',
-          steps: [
-            '바닥에 등을 대고 누워 허리가 뜨지 않도록 복부를 지그시 눌러줍니다.',
-            '숨을 길게 내쉬며 팔·다리를 천천히 뻗었다가 코어 힘으로 원위치합니다.'
-          ]
-        };
-      }
-      if (/데드|힙|루마니안|백|로우|랫|풀다운/i.test(t)) {
-        return {
-          primary: ['glutes', 'hamstrings', 'lats'],
-          secondary: ['lowerback', 'traps', 'forearms'],
-          primaryLabel: '둔근 · 햄스트링 · 광배근',
-          secondaryLabel: '척추기립근 · 승모근',
-          steps: [
-            '발을 골반 너비로 두고 가슴을 펴 척추 중립 정렬을 맞춥니다.',
-            '고관절을 뒤로 접으며 내려갔다가 발바닥으로 지면을 밀며 일어납니다.'
-          ]
-        };
-      }
-      if (/프레스|벤치|푸쉬업|체스트|가슴|딥스/i.test(t)) {
-        return {
-          primary: ['chest', 'delts'],
-          secondary: ['triceps', 'abs'],
-          primaryLabel: '대흉근 · 전면 삼각근',
-          secondaryLabel: '상완삼두근 · 코어',
-          steps: [
-            '견갑골을 가볍게 모으고 내려 가슴 공간을 열어 자세를 고정합니다.',
-            '호흡을 마시며 천천히 내린 뒤, 내쉬면서 목표 부위 힘으로 밀어 올립니다.'
-          ]
-        };
-      }
-      return {
+    const EXERCISE_MUSCLE_LABELS = {
+      abs: '복직근',
+      obliques: '복사근',
+      chest: '대흉근',
+      frontDelts: '전면 삼각근',
+      sideDelts: '측면 삼각근',
+      rearDelts: '후면 삼각근',
+      biceps: '상완이두근',
+      triceps: '상완삼두근',
+      forearms: '전완근',
+      lats: '광배근',
+      traps: '승모근',
+      lowerback: '척추기립근',
+      glutes: '대둔근',
+      hipFlexors: '고관절 굴곡근',
+      quads: '대퇴사두근',
+      hamstrings: '햄스트링',
+      calves: '종아리 근육'
+    };
+    const EXERCISE_MUSCLE_COLORS = { primary: '#2563EB', secondary: '#0D9488' };
+
+    // Specific variations go before their broader movement patterns.
+    const EXERCISE_PROFILES = [
+      {
+        pattern: /레그프레스|legpress/,
         primary: ['quads', 'glutes'],
-        secondary: ['abs', 'calves', 'hamstrings'],
-        primaryLabel: '대퇴사두 · 둔근',
-        secondaryLabel: '코어 · 햄스트링',
-        steps: [
-          '발바닥 3점 지지(엄지·새끼·뒤꿈치)를 고정하고 복압을 가볍게 잡습니다.',
-          '무릎과 발끝 방향을 맞추며 3초간 천천히 내려갔다가 지면을 밀어 올라옵니다.'
-        ]
-      };
+        secondary: ['calves'],
+        cue: '발 전체로 발판을 밀고, 골반이 등받이에서 말리기 전까지만 내려오세요.'
+      },
+      {
+        pattern: /레그(?:익스텐션|익스텐숀|엑스텐션)|legextension/,
+        primary: ['quads'],
+        secondary: []
+      },
+      {
+        pattern: /레그(?:컬|컬링)|legcurl/,
+        primary: ['hamstrings'],
+        secondary: ['calves']
+      },
+      {
+        pattern: /카프(?:레이즈)?|calfraise/,
+        primary: ['calves'],
+        secondary: []
+      },
+      {
+        pattern: /불가리안스플릿|스플릿스쿼트|런지|스텝업|splitsquat|lunge|stepup/,
+        primary: ['quads', 'glutes'],
+        secondary: ['obliques', 'calves'],
+        cue: '앞발 전체로 바닥을 디디고 무릎이 발끝과 같은 방향으로 움직이게 해 주세요.'
+      },
+      {
+        pattern: /스쿼트|squat/,
+        primary: ['quads', 'glutes'],
+        secondary: ['abs', 'lowerback', 'calves'],
+        cue: '발바닥 전체로 바닥을 디디고 무릎과 발끝 방향을 맞춰 주세요.'
+      },
+      {
+        pattern: /힙[쓰스]러스트|힙브리[지쥐]|글루트브리지|hipthrust|glutebridge/,
+        primary: ['glutes'],
+        secondary: ['hamstrings'],
+        cue: '허리를 꺾지 않고 엉덩이에 힘을 주며 골반을 들어 올려 주세요.'
+      },
+      {
+        pattern: /(?:루마니안|로마니안|스티프|스티프레그)데드|romaniandeadlift|stiffleg(?:ged)?deadlift|^rdl$/,
+        primary: ['hamstrings', 'glutes'],
+        secondary: ['lowerback', 'forearms'],
+        cue: '무릎을 살짝 굽힌 채 고관절을 뒤로 접고, 중량은 몸 가까이 유지하세요.'
+      },
+      {
+        pattern: /데드리프트|deadlift|^데드$/,
+        primary: ['glutes', 'quads', 'hamstrings'],
+        secondary: ['lowerback', 'traps', 'forearms'],
+        cue: '몸통에 힘을 준 상태로 중량을 몸 가까이 두고 바닥을 밀어 일어나세요.'
+      },
+      {
+        pattern: /스트레이트암풀다운|암풀다운|straightarmpulldown/,
+        primary: ['lats'],
+        secondary: ['rearDelts']
+      },
+      {
+        pattern: /[랫렛]풀(?:다운)?|풀다운|풀업|친업|(?:lat)?pulldown|pullup|chinup/,
+        primary: ['lats'],
+        secondary: ['biceps', 'traps', 'forearms'],
+        cue: '몸통을 크게 젖히지 않고 팔꿈치를 아래로 당겨 주세요.'
+      },
+      {
+        pattern: /(?:업라이트로우|uprightrow)/,
+        primary: ['sideDelts', 'traps'],
+        secondary: ['biceps']
+      },
+      {
+        pattern: /^(?:(?:[가-힣]+)?로우(?:머신)?|[a-z]*row(?:machine)?)$/,
+        primary: ['lats', 'traps'],
+        secondary: ['rearDelts', 'biceps', 'forearms'],
+        cue: '몸통을 안정적으로 유지하면서 팔꿈치를 몸통 뒤쪽으로 당겨 주세요.'
+      },
+      {
+        pattern: /페이스풀|리버스(?:펙덱|플라이)|facepull|reverse(?:fly|pecdeck)/,
+        primary: ['rearDelts'],
+        secondary: ['traps']
+      },
+      {
+        pattern: /(?:레터럴|래터럴)레이즈|사이드레이즈|사레레|lateralraise/,
+        primary: ['sideDelts'],
+        secondary: ['traps']
+      },
+      {
+        pattern: /숄더프레스|오버헤드프레스|밀리터리프레스|아놀드프레스|(?:shoulder|overhead|military|arnold)press|^ohp$/,
+        primary: ['frontDelts', 'sideDelts'],
+        secondary: ['triceps', 'traps']
+      },
+      {
+        pattern: /^벤치$|벤치프레스|체스트프레스|푸[쉬시]업|벤치밀기|benchpress|chestpress|pushup/,
+        primary: ['chest'],
+        secondary: ['frontDelts', 'triceps']
+      },
+      {
+        pattern: /펙덱플라이|체스트플라이|덤벨플라이|케이블플라이|(?:chest|dumbbell|cable)fly|pecdeck/,
+        primary: ['chest'],
+        secondary: ['frontDelts']
+      },
+      {
+        pattern: /딥스|^dips?$/,
+        primary: ['triceps', 'chest'],
+        secondary: ['frontDelts']
+      },
+      {
+        pattern: /(?:바이셉스|이두|덤벨|바벨|해머|케이블|프리처)컬|(?:biceps|dumbbell|barbell|hammer|cable|preacher)curl/,
+        primary: ['biceps'],
+        secondary: ['forearms']
+      },
+      {
+        pattern: /푸[쉬시]다운|(?:트라이셉스|삼두|라잉트라이셉스)익스텐션|pushdown|tricepsextension/,
+        primary: ['triceps'],
+        secondary: []
+      },
+      {
+        pattern: /데드버그|deadbug/,
+        primary: ['abs', 'obliques'],
+        secondary: [],
+        cue: '갈비뼈와 골반 위치를 유지하면서 팔과 다리를 천천히 뻗어 주세요.'
+      },
+      {
+        pattern: /사이드플랭크|sideplank/,
+        primary: ['obliques'],
+        secondary: ['abs']
+      },
+      {
+        pattern: /플랭크|plank/,
+        primary: ['abs', 'obliques'],
+        secondary: ['glutes']
+      },
+      {
+        pattern: /레그레이즈|legraise/,
+        primary: ['hipFlexors'],
+        secondary: ['abs']
+      },
+      {
+        pattern: /크런치|crunch/,
+        primary: ['abs'],
+        secondary: ['obliques']
+      }
+    ];
+
+    function getExerciseProfile(title) {
+      const name = String(title || '').normalize('NFKC').toLowerCase().replace(/[\s_\-()[\]]/g, '');
+      return EXERCISE_PROFILES.find(({ pattern }) => pattern.test(name)) || null;
     }
 
     function buildAnatomicalBodyMap(profile) {
       const fillFor = m => {
-        if (profile.primary.includes(m)) return '#2563EB';
-        if (profile.secondary.includes(m)) return '#5EEAD4';
+        if (profile.primary.includes(m)) return EXERCISE_MUSCLE_COLORS.primary;
+        if (profile.secondary.includes(m)) return EXERCISE_MUSCLE_COLORS.secondary;
         return '#DCE3EE';
       };
       return `
@@ -3642,8 +3761,8 @@
               <!-- Traps (front) -->
               <path d="M52 44 L64 39 L76 39 L88 44 L80 51 L60 51 Z" fill="${fillFor('traps')}"/>
               <!-- Shoulders / Delts -->
-              <ellipse cx="43" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
-              <ellipse cx="97" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <ellipse cx="43" cy="54" rx="10" ry="11" fill="${fillFor('frontDelts')}"/>
+              <ellipse cx="97" cy="54" rx="10" ry="11" fill="${fillFor('frontDelts')}"/>
               <!-- Chest / Pecs -->
               <path d="M51 48 Q70 46 89 48 L86 71 Q70 74 54 71 Z" fill="${fillFor('chest')}"/>
               <!-- Abs / Core -->
@@ -3661,12 +3780,16 @@
               <rect x="99" y="93" width="10" height="27" rx="5" fill="${fillFor('forearms')}"/>
               <!-- Pelvis -->
               <path d="M50 110 L90 110 L86 124 L54 124 Z" fill="#CBD5E1"/>
+              <path d="M52 111 L68 115 L57 123 L54 123 Z" fill="${fillFor('hipFlexors')}"/>
+              <path d="M88 111 L72 115 L83 123 L86 123 Z" fill="${fillFor('hipFlexors')}"/>
               <!-- Quads -->
               <path d="M51 124 L68 124 L66 172 L52 172 Z" fill="${fillFor('quads')}"/>
               <path d="M72 124 L89 124 L88 172 L74 172 Z" fill="${fillFor('quads')}"/>
-              <!-- Calves (front) -->
-              <path d="M53 176 L65 176 L63 218 L55 218 Z" fill="${fillFor('calves')}"/>
-              <path d="M75 176 L87 176 L85 218 L77 218 Z" fill="${fillFor('calves')}"/>
+              <!-- Shins -->
+              <path d="M53 176 L65 176 L63 218 L55 218 Z" fill="#DCE3EE"/>
+              <path d="M75 176 L87 176 L85 218 L77 218 Z" fill="#DCE3EE"/>
+              <path d="M37 45 Q29 49 33 61 L38 62 Q34 53 43 45 Z" fill="${fillFor('sideDelts')}"/>
+              <path d="M103 45 Q111 49 107 61 L102 62 Q106 53 97 45 Z" fill="${fillFor('sideDelts')}"/>
             </svg>
             <span class="text-[10px] font-extrabold tracking-wider text-[#64748B] mt-1">FRONT</span>
           </div>
@@ -3680,8 +3803,8 @@
               <!-- Traps -->
               <path d="M51 44 L70 38 L89 44 L78 68 L62 68 Z" fill="${fillFor('traps')}"/>
               <!-- Rear Delts -->
-              <ellipse cx="43" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
-              <ellipse cx="97" cy="54" rx="10" ry="11" fill="${fillFor('delts')}"/>
+              <ellipse cx="43" cy="54" rx="10" ry="11" fill="${fillFor('rearDelts')}"/>
+              <ellipse cx="97" cy="54" rx="10" ry="11" fill="${fillFor('rearDelts')}"/>
               <!-- Lats -->
               <path d="M49 58 L61 67 L61 95 L51 88 Z" fill="${fillFor('lats')}"/>
               <path d="M91 58 L79 67 L79 95 L89 88 Z" fill="${fillFor('lats')}"/>
@@ -3701,6 +3824,8 @@
               <!-- Calves -->
               <path d="M52 176 L66 176 L63 218 L55 218 Z" fill="${fillFor('calves')}"/>
               <path d="M74 176 L88 176 L85 218 L77 218 Z" fill="${fillFor('calves')}"/>
+              <path d="M37 45 Q29 49 33 61 L38 62 Q34 53 43 45 Z" fill="${fillFor('sideDelts')}"/>
+              <path d="M103 45 Q111 49 107 61 L102 62 Q106 53 97 45 Z" fill="${fillFor('sideDelts')}"/>
             </svg>
             <span class="text-[10px] font-extrabold tracking-wider text-[#64748B] mt-1">BACK</span>
           </div>
@@ -3726,31 +3851,33 @@
       `;
     }
 
-    async function openFormGuideModal(title, note, videoUrl, videoId) {
-      const profile = getExerciseProfile(title);
+    async function openFormGuideModal(title, note, videoUrl, videoId, exerciseName = title) {
+      const profile = getExerciseProfile(exerciseName);
+      const muscleLabel = muscles => muscles.map(muscle => EXERCISE_MUSCLE_LABELS[muscle]).join(' · ');
       const resolvedUrl = String(videoUrl || '').trim();
       openModal(`자극 근육 · 자세 가이드`, `
         <div class="space-y-4">
           <div id="fg-video-slot">${resolvedUrl ? buildVideoPlayerHtml(resolvedUrl) : (videoId ? '<div class="p-4 rounded-2xl bg-[#F4F6F9] text-center text-[12px] font-bold text-[#1D4ED8]">🎬 영상을 불러오는 중...</div>' : '')}</div>
           <div class="p-4 rounded-[24px] bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
-            <div class="flex items-center justify-between text-[11px] font-bold">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold">
               <span class="text-[#111827] text-[13px] font-extrabold">${escapeHtml(title)}</span>
-              <div class="flex items-center gap-3">
-                <span class="flex items-center gap-1 text-[#2563EB]"><span class="w-2.5 h-2.5 rounded-full bg-[#2563EB]"></span>주동근</span>
-                <span class="flex items-center gap-1 text-[#0F766E]"><span class="w-2.5 h-2.5 rounded-full bg-[#5EEAD4]"></span>보조근</span>
-              </div>
+              ${profile ? `<div class="flex shrink-0 items-center gap-3">
+                <span class="flex items-center gap-1 text-[#2563EB]"><span class="w-2.5 h-2.5 rounded-full" style="background:${EXERCISE_MUSCLE_COLORS.primary}"></span>주동근</span>
+                <span class="flex items-center gap-1 text-[#0F766E]"><span class="w-2.5 h-2.5 rounded-full" style="background:${EXERCISE_MUSCLE_COLORS.secondary}"></span>보조근</span>
+              </div>` : ''}
             </div>
+            ${profile ? `
             ${buildAnatomicalBodyMap(profile)}
             <div class="grid grid-cols-2 gap-2 pt-1">
               <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
-                <span class="text-[10px] font-bold text-[#2563EB] block">주동근 (Main)</span>
-                <span class="text-[12px] font-extrabold text-[#111827]">${profile.primaryLabel}</span>
+                <span class="text-[10px] font-bold text-[#2563EB] block">주동근</span>
+                <span class="text-[12px] font-extrabold text-[#111827]">${muscleLabel(profile.primary)}</span>
               </div>
               <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
-                <span class="text-[10px] font-bold text-[#0F766E] block">보조근 (Sub)</span>
-                <span class="text-[12px] font-extrabold text-[#111827]">${profile.secondaryLabel}</span>
+                <span class="text-[10px] font-bold text-[#0F766E] block">보조근</span>
+                <span class="text-[12px] font-extrabold text-[#111827]">${muscleLabel(profile.secondary) || '—'}</span>
               </div>
-            </div>
+            </div>` : '<p class="text-[13px] text-[#475569]">이 종목의 근육 정보는 아직 등록되지 않았어요.</p>'}
           </div>
 
           <div class="p-4 rounded-2xl bg-[#EFF6FF]">
@@ -3758,11 +3885,7 @@
             <p class="text-[13px] font-bold text-[#111827] mt-0.5">${escapeHtml(note || '호흡을 일정하게 유지하고 반동 없이 천천히 수행해 보세요.')}</p>
           </div>
 
-          <div class="space-y-2 text-[13px] text-[#374151]">
-            ${profile.steps.map((st, idx) => `
-              <div class="p-3 rounded-xl bg-[#F4F6F9]"><strong class="text-[#1D4ED8]">${idx + 1}.</strong> ${st}</div>
-            `).join('')}
-          </div>
+          ${profile?.cue ? `<div class="p-3 rounded-xl bg-[#F4F6F9] text-[13px] text-[#374151]">${profile.cue}</div>` : ''}
 
           <button type="button" id="btn-close-guide" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[14px] font-bold">확인했어요</button>
         </div>
@@ -5878,6 +6001,7 @@
       const videos = state.directVideos.map(video => ({
         ...video,
         uploadDay: getMemberVideoDate(video.createdAt),
+        exerciseName: exercises.get(video.id) || video.name,
         bodyPart: getMemberVideoCategory(exercises.get(video.id) || video.question)
       })).sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
       const byPart = new Map();
@@ -5889,7 +6013,7 @@
         <div class="space-y-2">
           ${list.slice(0, videoLimit).map(v => `
             <div class="p-3 rounded-xl bg-[#EFF6FF] flex items-center justify-between gap-2">
-              <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.name || '운동 영상')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale flex-1 min-w-0 text-left flex items-center justify-between gap-2">
+              <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.name || '운동 영상')}" data-dvexercise="${escapeHtml(v.exerciseName || '')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale flex-1 min-w-0 text-left flex items-center justify-between gap-2">
                 <span class="min-w-0">
                   <span class="block truncate text-[13px] font-bold text-[#111827]">${escapeHtml(v.name || '운동 영상')}</span>
                   ${v.uploadDay ? `<span class="block text-[11px] text-[#475569]">${escapeHtml(v.uploadDay)}</span>` : ''}
@@ -6770,7 +6894,7 @@
       });
 
       document.querySelectorAll('.dv-play-btn').forEach(b => {
-        b.addEventListener('click', () => openFormGuideModal(b.dataset.dvname, b.dataset.dvfb, '', b.dataset.dvid));
+        b.addEventListener('click', () => openFormGuideModal(b.dataset.dvname, b.dataset.dvfb, '', b.dataset.dvid, b.dataset.dvexercise));
       });
 
       document.querySelectorAll('.dv-del-btn').forEach(b => {

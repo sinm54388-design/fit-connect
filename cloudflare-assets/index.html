@@ -898,6 +898,7 @@
       lessonView: 'today', // 'today' | 'library'
       lessonSearch: '',
       exerciseLibrary: {},
+      lessonLibraryLimit: 15,
       coachTab: 'coaching', // 'coaching' | 'members'
       coachFilter: 'pending', // 'pending' | 'today' | 'dormant' | 'all'
       coachSearch: '',
@@ -1427,10 +1428,11 @@
           ? Math.max(...r.setDetails.map(sd => Number(sd.weight) || 0))
           : w;
         const bestW = Math.max(Number(prev.bestWeight) || 0, maxSetW);
+        const latest = dateStr >= (prev.lastDate || '');
         lib[key] = {
           name,
-          lastWeight: maxSetW > 0 ? String(maxSetW) : (prev.lastWeight || ''),
-          lastReps: String(r.reps || prev.lastReps || ''),
+          lastWeight: latest ? (maxSetW > 0 ? String(maxSetW) : '') : prev.lastWeight,
+          lastReps: latest ? String(r.reps || '') : prev.lastReps,
           lastDate: dateStr >= (prev.lastDate || '') ? dateStr : prev.lastDate,
           bestWeight: bestW > 0 ? String(bestW) : '',
           note: String(r.note || '').trim() || prev.note || '',
@@ -1438,7 +1440,23 @@
           videoId: String(r.videoId || r.demoKey || '').trim() || prev.videoId || ''
         };
       });
-      (state.insights?.progress || []).forEach(p => {
+      const savedExercises = state.insights?.exerciseLibrary;
+      if (Array.isArray(savedExercises)) {
+        savedExercises.forEach(item => {
+          const key = norm(item.name);
+          if (!key || hidden.has(key)) return;
+          const prev = lib[key] || {};
+          const latest = item.lastDate >= (prev.lastDate || '') ? item : prev;
+          lib[key] = {
+            ...prev,
+            ...latest,
+            bestWeight: Math.max(Number(prev.bestWeight) || 0, Number(item.bestWeight) || 0) || '',
+            note: latest.note || item.note || prev.note || '',
+            videoId: latest.videoId || item.videoId || prev.videoId || '',
+            videoUrl: latest.videoUrl || item.videoUrl || prev.videoUrl || ''
+          };
+        });
+      } else (state.insights?.progress || []).forEach(p => {
         const name = String(p.name || '').trim();
         const key = norm(name);
         if (!key || hidden.has(key) || !Array.isArray(p.points) || !p.points.length) return;
@@ -1455,7 +1473,7 @@
         };
       });
       const currentNames = new Set((state.record?.routines || []).map(r => norm(r.name)).filter(Boolean));
-      const progressNames = new Set((state.insights?.progress || []).map(p => norm(p.name)).filter(Boolean));
+      const progressNames = new Set((savedExercises || state.insights?.progress || []).map(p => norm(p.name)).filter(Boolean));
       Object.keys(lib).forEach(k => {
         if (lib[k]?.lastDate === dateStr && !currentNames.has(k) && !progressNames.has(k)) {
           delete lib[k];
@@ -5855,6 +5873,31 @@
         </section>`;
     }
 
+    function openExerciseRecord(name) {
+      const key = String(name || '').trim().toLowerCase().replace(/\s+/g, '');
+      const item = state.exerciseLibrary?.[key];
+      if (!item) return;
+      const guideLabel = item.videoId || item.videoUrl ? '자세 · 영상 보기' : '자세 보기';
+      openModal(item.name, `
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-2">
+            <div class="rounded-xl bg-[#EFF6FF] p-3">
+              <p class="text-[12px] font-bold text-[#475569]">최근 기록</p>
+              <p class="mt-1 text-[15px] font-extrabold text-[#111827]">${item.lastWeight ? escapeHtml(item.lastWeight) + 'kg' : '중량 미입력'}${item.lastReps ? ' · ' + escapeHtml(item.lastReps) + '회' : ''}</p>
+              ${item.lastDate ? `<p class="mt-1 text-[11px] text-[#475569]">${escapeHtml(item.lastDate)}</p>` : ''}
+            </div>
+            <div class="rounded-xl bg-[#F0FDFA] p-3">
+              <p class="text-[12px] font-bold text-[#475569]">최고 무게</p>
+              <p class="mt-1 text-[15px] font-extrabold text-[#111827]">${item.bestWeight ? escapeHtml(item.bestWeight) + 'kg' : '기록 없음'}</p>
+            </div>
+          </div>
+          ${item.note ? `<p class="rounded-xl bg-[#F4F6F9] p-3 text-[13px] text-[#111827]">${escapeHtml(item.note)}</p>` : ''}
+          <button type="button" id="exercise-record-guide" class="w-full rounded-xl bg-[#EFF6FF] py-3 text-[13px] font-bold text-[#1D4ED8]">${guideLabel}</button>
+        </div>`);
+      document.getElementById('exercise-record-guide')?.addEventListener('click', () =>
+        openFormGuideModal(item.name, item.note, item.videoUrl, item.videoId));
+    }
+
     function renderMemberView() {
       if (state.loading) {
         return `<div class="space-y-3.5"><div class="h-60 rounded-[26px] skeleton"></div><div class="grid grid-cols-2 gap-3"><div class="h-32 rounded-[22px] skeleton"></div><div class="h-32 rounded-[22px] skeleton"></div></div><div class="h-40 rounded-[24px] skeleton"></div></div>`;
@@ -6029,7 +6072,7 @@
         const hasPersonalWorkout = rs.some(r => r.routineType === 'homework');
         const normKey = n => String(n || '').trim().toLowerCase().replace(/\s+/g, '');
         const libItems = Object.values(state.exerciseLibrary || {})
-          .filter(it => !state.lessonSearch || it.name.toLowerCase().includes(state.lessonSearch.toLowerCase()))
+          .filter(it => normKey(it.name).includes(normKey(state.lessonSearch)))
           .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''));
         return `
           <div class="space-y-3.5 animate-in">
@@ -6062,37 +6105,27 @@
             <!-- Lesson Sub-Tabs: Today Routine vs Saved Exercise/Video Archive -->
             <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-white shadow-sm">
               <button type="button" data-lview="today" class="lview-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${state.lessonView === 'today' ? 'hero-navy text-white shadow-sm' : 'text-[#6B7280]'}">오늘 루틴 (${wr.total})</button>
-              <button type="button" data-lview="library" class="lview-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${state.lessonView === 'library' ? 'hero-navy text-white shadow-sm' : 'text-[#6B7280]'}">📚 내 종목 · 영상 (${Object.keys(state.exerciseLibrary || {}).length})</button>
+              <button type="button" data-lview="library" class="lview-btn tap-scale py-2 rounded-xl text-[12px] font-extrabold transition ${state.lessonView === 'library' ? 'hero-navy text-white shadow-sm' : 'text-[#6B7280]'}">내 종목 (${Object.keys(state.exerciseLibrary || {}).length})</button>
             </div>
 
             ${state.lessonView === 'library' ? `
               <div class="bg-white rounded-[24px] p-5 space-y-3">
                 <div>
-                  <h3 class="text-[15px] font-extrabold text-[#111827]">종목별 누적 기록 · 영상 사전</h3>
-                  <p class="text-[11px] text-[#6B7280] mt-0.5">지난 수업에서 배운 영상·자세 포인트·최고 중량을 언제든 꺼내보세요</p>
+                  <h3 class="text-[15px] font-extrabold text-[#111827]">종목별 기록</h3>
                 </div>
                 <input id="lesson-lib-search" value="${escapeHtml(state.lessonSearch)}" placeholder="종목 이름으로 바로 찾기 (예: 스쿼트, 랫풀다운)..." class="w-full text-[13px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
-                <div class="space-y-2.5">
-                  ${libItems.length ? libItems.map(it => `
-                    <div class="p-3.5 rounded-2xl bg-[#F4F6F9] space-y-2">
-                      <div class="flex items-center justify-between gap-2">
-                        <div class="min-w-0">
-                          <p class="text-[14px] font-extrabold text-[#111827] truncate">${escapeHtml(it.name)}</p>
-                          <div class="flex items-center gap-1.5 flex-wrap mt-1">
-                            ${it.lastWeight ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8]">최근 ${escapeHtml(it.lastWeight)}kg${it.lastReps ? '×' + escapeHtml(it.lastReps) + '회' : ''}</span>` : ''}
-                            ${it.bestWeight ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#F0FDFA] text-[#0F766E]">최고 ${escapeHtml(it.bestWeight)}kg</span>` : ''}
-                            ${it.lastDate ? `<span class="text-[10px] text-[#6B7280]">${escapeHtml(it.lastDate)}</span>` : ''}
-                          </div>
-                        </div>
-                        <div class="flex items-center gap-1.5 shrink-0">
-                          <button type="button" data-gtitle="${escapeHtml(it.name)}" data-gnote="${escapeHtml(it.note || '')}" data-gvid="${escapeHtml(it.videoUrl || '')}" data-gvidid="${escapeHtml(it.videoId || '')}" class="routine-guide-btn tap-scale px-3 py-1.5 rounded-full ${it.videoUrl || it.videoId ? 'card-blue text-white' : 'bg-white text-[#1D4ED8] shadow-sm'} text-[11px] font-extrabold">${it.videoUrl || it.videoId ? '🎬 영상 보기' : '자세 · 부위'}</button>
-                          ${state.trainerPassword ? `<button type="button" data-libdel="${escapeHtml(it.name)}" data-libvidid="${escapeHtml(it.videoId || '')}" data-libdate="${escapeHtml(it.lastDate || '')}" class="lib-del-btn tap-scale px-2.5 py-1.5 rounded-full bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>` : ''}
-                        </div>
-                      </div>
-                      ${it.note ? `<div class="p-2.5 rounded-xl bg-white border border-[#DBEAFE]"><p class="text-[12px] font-medium text-[#1E293B] leading-relaxed">💡 ${escapeHtml(it.note)}</p></div>` : ''}
+                <div class="divide-y divide-[#E2E8F0]">
+                  ${libItems.length ? libItems.slice(0, state.lessonLibraryLimit).map(it => `
+                    <div class="flex items-center gap-2">
+                      <button type="button" data-exercise-record="${escapeHtml(it.name)}" class="flex min-w-0 flex-1 items-center justify-between gap-3 py-3 text-left text-[13px] font-bold text-[#111827]">
+                        <span class="min-w-0 break-words">${escapeHtml(it.name)}</span>
+                        <span aria-hidden="true" class="shrink-0 text-[#1D4ED8]">›</span>
+                      </button>
+                      ${state.trainerPassword ? `<button type="button" data-libdel="${escapeHtml(it.name)}" data-libvidid="${escapeHtml(it.videoId || '')}" data-libdate="${escapeHtml(it.lastDate || '')}" class="lib-del-btn shrink-0 rounded-full bg-red-50 px-2.5 py-1.5 text-[11px] font-bold text-red-600">삭제</button>` : ''}
                     </div>
-                  `).join('') : '<p class="py-6 text-center text-[12px] text-[#6B7280]">아직 누적된 종목 기록이 없어요. 수업일지가 쌓이면 자동으로 정리됩니다!</p>'}
+                  `).join('') : `<p class="py-5 text-center text-[12px] text-[#475569]">${state.lessonSearch ? '검색 결과가 없어요.' : '아직 종목 기록이 없어요.'}</p>`}
                 </div>
+                ${libItems.length > state.lessonLibraryLimit ? '<button type="button" id="lesson-library-more" class="w-full rounded-xl bg-[#F4F6F9] py-2 text-[12px] font-bold text-[#1D4ED8]">종목 더 보기</button>' : ''}
               </div>
             ` : `
               <div class="bg-white rounded-[24px] p-5 space-y-2.5">
@@ -6725,6 +6758,14 @@
         });
       });
 
+      document.querySelectorAll('[data-exercise-record]').forEach(button => {
+        button.addEventListener('click', () => openExerciseRecord(button.dataset.exerciseRecord));
+      });
+      document.getElementById('lesson-library-more')?.addEventListener('click', () => {
+        state.lessonLibraryLimit += 15;
+        renderAll();
+      });
+
       document.querySelectorAll('.lib-del-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const exName = btn.dataset.libdel || '';
@@ -6763,6 +6804,7 @@
       if (libSearch) {
         libSearch.addEventListener('input', e => {
           state.lessonSearch = e.target.value;
+          state.lessonLibraryLimit = 15;
           renderAll();
           const n = document.getElementById('lesson-lib-search');
           if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }

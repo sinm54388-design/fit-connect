@@ -327,6 +327,7 @@ function buildMemberInsights(rows,date) {
   const monthBucket=()=>({days:new Set(),sets:0,exercises:0,dietDays:new Set()});
   const monthly={current:monthBucket(),previous:monthBucket()};
   const progress=new Map();
+  const exerciseLibrary=new Map();
   const care={workoutDays:new Set(),dietDays:new Set(),feedbackDays:new Set()};
   for(const row of rows) {
     const d=row.date,data=row.data||{},done=doneRoutines(data);
@@ -361,6 +362,29 @@ function buildMemberInsights(rows,date) {
           (Array.isArray(food.foods)&&food.foods.length>0);
       }))mb.dietDays.add(d);
     }
+    for(const r of (Array.isArray(data.routines)?data.routines:[])) {
+      const name=String(r?.name||'').trim();
+      if(!name||name.length>80)continue;
+      const key=name.toLowerCase().replace(/\s+/g,'');
+      const validWeight=value=>{
+        const weight=Number(value);
+        return Number.isFinite(weight)&&weight>0&&weight<=1500?weight:0;
+      };
+      const topSet=(Array.isArray(r.setDetails)?r.setDetails:[]).reduce((best,set)=>
+        validWeight(set?.weight)>validWeight(best?.weight)?set:best,null);
+      const routineWeight=validWeight(r.weight),setWeight=validWeight(topSet?.weight);
+      const weight=Math.max(routineWeight,setWeight);
+      const reps=Number((setWeight>=routineWeight&&setWeight?topSet.reps:null)||r.reps);
+      const previous=exerciseLibrary.get(key);
+      exerciseLibrary.set(key,{
+        name,lastDate:d,lastWeight:weight||'',
+        lastReps:Number.isFinite(reps)&&reps>0?reps:'',
+        bestWeight:Math.max(weight,previous?.bestWeight||0)||'',
+        note:String(r.note||'').trim().slice(0,1000)||previous?.note||'',
+        videoId:String(r.videoId||r.demoKey||'').trim()||previous?.videoId||'',
+        videoUrl:String(r.videoUrl||'').trim()||previous?.videoUrl||''
+      });
+    }
     for(const r of done) {
       const name=String(r.name||'').trim();
       const key=name.toLowerCase().replace(/\s+/g,'');
@@ -386,7 +410,7 @@ function buildMemberInsights(rows,date) {
     weekly:{start,end,current:weeklyStat(week.current),previous:weeklyStat(week.previous),improvements},
     monthly:{month,previousMonth:prevMonth,current:monthlyStat(monthly.current),
       previous:monthlyStat(monthly.previous),inbodyChange:null},
-    progress:exercises};
+    progress:exercises,exerciseLibrary:[...exerciseLibrary.values()]};
 }
 async function handleRecords(request,env) {
   const requestStarted=performance.now();

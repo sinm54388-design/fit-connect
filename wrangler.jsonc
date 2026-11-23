@@ -9,5 +9,12 @@
       "/api/*"
     ]
   },
-  "previews": {}
+  "previews": {
+    "r2_buckets": [
+      {
+        "binding": "FIT_MEDIA",
+        "bucket_name": "fit-connect-media-preview"
+      }
+    ]
+  }
 }

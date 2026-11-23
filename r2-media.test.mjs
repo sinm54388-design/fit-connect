@@ -127,7 +127,8 @@ test('R2 media uses member-scoped records and preserves existing Supabase playba
   assert.equal((await media(play.url, { headers: { Range: 'bytes=4-' } })).status, 416);
 
   const large = crypto.randomUUID();
-  const file = new Blob([new Uint8Array(partBytes), 'end']);
+  const file = new Blob([new Uint8Array(partBytes * 8), 'end']);
+  assert.ok(file.size > 50_000_000);
   const multipart = await create(large, file.size);
   const job = {};
   const sentParts = [];
@@ -142,10 +143,21 @@ test('R2 media uses member-scoped records and preserves existing Supabase playba
   await assert.rejects(sendR2Video(file, multipart, job, transfer, () => {}, () => {}), /403/);
   interrupted = true;
   await sendR2Video(file, multipart, job, transfer, () => {}, () => {});
-  assert.deepEqual(sentParts, ['1', '2', '2']);
+  assert.deepEqual(sentParts, ['1', '2', '2', '3', '4', '5', '6', '7', '8', '9']);
   assert.equal((await record('directVideoFinish', { id: large })).status, 200);
   const largePlay = await (await record('directVideoPlay', { id: large })).json();
   assert.equal(await (await media(largePlay.url, { headers: { Range: 'bytes=-3' } })).text(), 'end');
+
+  const maximum = await create(crypto.randomUUID(), 100_000_000);
+  assert.equal(maximum.storage, 'r2');
+  const overLimit = await record('directVideoBegin', {
+    id: crypto.randomUUID(), size: 100_000_001, name: 'too-large.mp4', mime: 'video/mp4'
+  });
+  assert.equal(overLimit.status, 413);
+  const overLegacyLimit = await record('directVideoBegin', {
+    id: crypto.randomUUID(), size: 50_000_001, name: 'large.mp4', mime: 'video/mp4'
+  }, {}, { ...env, FIT_MEDIA: undefined });
+  assert.equal(overLegacyLimit.status, 413);
 
   const old = crypto.randomUUID();
   const legacy = await create(old, 4, { ...env, FIT_MEDIA: undefined });

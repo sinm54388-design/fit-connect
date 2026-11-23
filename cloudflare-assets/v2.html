@@ -150,7 +150,7 @@
     <button type="button" id="video-upload-retry" class="hidden mt-2 px-3 py-2 rounded-xl bg-white text-[#0B132B] text-[12px] font-bold pointer-events-auto">같은 영상 다시 시도</button>
   </div>
   <!-- Toast -->
-  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 w-max max-w-[calc(100%-24px)] text-center break-words"></div>
 
   <script>
     // Register a network-only service worker: never cache private member/API data.
@@ -1248,7 +1248,8 @@
       return (bytes / 1_000_000).toFixed(1) + 'MB';
     }
 
-    const MAX_VIDEO_UPLOAD_BYTES = 50_000_000;
+    const VIDEO_COMPRESSION_TARGET_BYTES = 50_000_000;
+    const MAX_VIDEO_UPLOAD_BYTES = 100_000_000;
     let recentUploadRate;
     function lastUploadRate() {
       return recentUploadRate && performance.now() - recentUploadRate.at < 180_000 ? recentUploadRate.rate : 0;
@@ -1260,7 +1261,7 @@
       const rate = lastUploadRate();
       // On a fast connection, the potential transfer savings may be smaller
       // than the time spent re-encoding. Keep that preparation window short.
-      const budget = rate && file.size <= MAX_VIDEO_UPLOAD_BYTES
+      const budget = rate && file.size <= VIDEO_COMPRESSION_TARGET_BYTES
         ? Math.min(9000, file.size * 350 / rate) : 9000;
       if (budget < 1500) return file;
       const controller = new AbortController();
@@ -1301,7 +1302,7 @@
       const report = upload.onStage || (() => {});
       const [auth, prepared] = await Promise.all([authPromise, upload.file || prepareDirectVideo(file, report)]);
       if (prepared.size > MAX_VIDEO_UPLOAD_BYTES) {
-        throw new Error('50MB 이하로 줄이지 못했어요. 영상을 짧게 잘라 다시 선택해 주세요');
+        throw new Error('영상은 100MB까지 올릴 수 있어요. 영상을 짧게 잘라 다시 선택해 주세요.');
       }
       upload.file = prepared;
       const sendFile = upload.file;
@@ -1312,11 +1313,19 @@
       };
       if (!upload.transferred) {
         report('전송 준비 중', 0);
-        const begin = await postRecords({
-          ...payload, action: 'directVideoBegin',
-          name: (file.name || 'workout-video.mp4').slice(0, 150),
-          question: String(questionText || '').slice(0, 1000), mime, size: sendFile.size
-        });
+        let begin;
+        try {
+          begin = await postRecords({
+            ...payload, action: 'directVideoBegin',
+            name: (file.name || 'workout-video.mp4').slice(0, 150),
+            question: String(questionText || '').slice(0, 1000), mime, size: sendFile.size
+          });
+        } catch (err) {
+          if (err?.code === 'video_size_limit') {
+            throw new Error('현재 저장소는 영상 50MB까지 지원해요. 영상을 짧게 잘라 다시 선택해 주세요.');
+          }
+          throw err;
+        }
         if (begin?.status !== 'success') throw new Error('업로드 시작 실패');
         if (begin.alreadyReady) return 'direct:' + upload.id;
         if (!begin.url) throw new Error('업로드 주소를 받지 못했어요');
@@ -4787,7 +4796,7 @@
               showToast('영상 업로드 완료! + 종목 추가 또는 저장을 눌러주세요 ✓');
             } catch (err) {
               if (lbl) lbl.textContent = '📹 영상 올리기';
-              showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 확인'));
+              showToast('영상 업로드 실패: ' + (err?.message || '다시 시도해 주세요'));
             }
           });
         }
@@ -4815,7 +4824,7 @@
               const savedOk = await savePatchLive({ routines }, memberName);
               if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
             } catch (err) {
-              showToast('영상 업로드 실패: ' + (err?.message || '용량(50MB 이하) 확인'));
+              showToast('영상 업로드 실패: ' + (err?.message || '다시 시도해 주세요'));
             }
           });
         });
@@ -6665,7 +6674,7 @@
             failedVideoUpload = { file: f, upload, member };
             setVideoUploadStatus('업로드 실패 · 다시 시도할 수 있어요',0,true);
             document.getElementById('video-upload-retry')?.classList.remove('hidden');
-            showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 MP4/MOV만 가능'));
+            showToast('영상 업로드 실패: ' + (err?.message || '다시 시도해 주세요'));
           } finally {
             videoUploadInFlight = false;
           }

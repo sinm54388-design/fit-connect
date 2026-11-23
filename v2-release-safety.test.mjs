@@ -461,19 +461,28 @@ test('the video file picker accepts common iPhone recordings and rejects documen
   assert.match(html, /id="member-vid-file" type="file"/);
 });
 
-test('a large source can upload if preparation produces a file below the Storage limit', async () => {
+test('large videos can upload with or without compression and report the active limit', async () => {
   const calls = [];
+  let legacy = false;
   const run = app(async (_, request) => {
     const body = JSON.parse(request.body);
     calls.push(body);
+    if (legacy && body.action === 'directVideoBegin') {
+      return Response.json({ code: 'video_size_limit' }, { status: 413 });
+    }
     return Response.json({ status: 'success', url: 'https://storage.fixture.test/put' });
   });
+  const upload = "uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)";
   run("state.session='valid'; xhrVideoTransfer=async()=>({ok:true}); prepareDirectVideo=async()=>({name:'compact.mp4',type:'video/mp4',size:15_000_000});");
-  await run("uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)");
+  await run(upload);
   assert.equal(calls[0].size, 15_000_000);
   run("prepareDirectVideo=async file=>file;");
-  await assert.rejects(run("uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)"), /50MB 이하로 줄이지 못했어요/);
-  assert.equal(calls.length, 2);
+  await run(upload);
+  assert.equal(calls[2].size, 64_000_000);
+  await assert.rejects(run("uploadDirectVideoFile({name:'original.mov',size:100_000_001},'QA','fixture','',null)"), /영상은 100MB까지/);
+  assert.equal(calls.length, 4);
+  legacy = true;
+  await assert.rejects(run(upload), /현재 저장소는 영상 50MB까지/);
 });
 
 test('workout points stay stable and do not repeat through the end of 2027', () => {

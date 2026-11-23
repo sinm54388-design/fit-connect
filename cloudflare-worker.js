@@ -14,13 +14,16 @@ const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1
 const MEMBER_SESSION_HOURS=8;
 const R2_MEDIA_ROUTE='/api/media';
 const R2_MEDIA_PREFIX='r2/';
-const MEDIA_MAX_BYTES=50_000_000;
+const LEGACY_MEDIA_MAX_BYTES=50_000_000;
+const R2_VIDEO_MAX_BYTES=100_000_000;
+const MEDIA_PART_LIST_MAX_BYTES=8192;
 const MEDIA_PART_BYTES=6*1024*1024;
 const MEDIA_UPLOAD_TTL=45*60_000;
 const MEDIA_TYPES=new Map([
   ['video/mp4','mp4'],['video/webm','webm'],['video/quicktime','mov'],
   ['image/jpeg','jpg'],['image/png','png'],['image/webp','webp']
 ]);
+const mediaMaxBytes=(mime,usesR2)=>usesR2&&mime.startsWith('video/')?R2_VIDEO_MAX_BYTES:LEGACY_MEDIA_MAX_BYTES;
 const mediaPath=path=>typeof path==='string'&&path.length<=650&&
   path.split('/').every(part=>part!=='.'&&part!=='..'&&/^[a-zA-Z0-9_.-]+$/.test(part));
 const r2MediaReady=env=>Boolean(env.FIT_MEDIA&&String(env.MEMBER_SESSION_SECRET||'').length>=32);
@@ -80,8 +83,7 @@ async function handleR2Multipart(request,env,grant) {
     return json(await upload.uploadPart(partNumber,request.body));
   }
   if(request.method==='POST'){
-    // The browser supplies at most eight ETags for a 50 MB upload.
-    if(Number(request.headers.get('content-length'))>4096)return json({status:'error',code:'invalid_media_parts'},422);
+    if(Number(request.headers.get('content-length'))>MEDIA_PART_LIST_MAX_BYTES)return json({status:'error',code:'invalid_media_parts'},422);
     const existing=await env.FIT_MEDIA.head(path);
     if(existing?.size===size&&existing.httpMetadata?.contentType===mime)return json({complete:true});
     const reader=request.body?.getReader();
@@ -92,7 +94,7 @@ async function handleR2Multipart(request,env,grant) {
       const {done,value}=await reader.read();
       if(done)break;
       bytes+=value.byteLength;
-      if(bytes>4096){
+      if(bytes>MEDIA_PART_LIST_MAX_BYTES){
         await reader.cancel();
         return json({status:'error',code:'invalid_media_parts'},422);
       }
@@ -124,7 +126,7 @@ async function handleR2Media(request,env) {
   try {
     if(['upload','multipart'].includes(mode)){
       if(!sameOriginRequest(request))return denied();
-      if(!MEDIA_TYPES.has(mime)||!Number.isSafeInteger(size)||size<1||size>MEDIA_MAX_BYTES)
+      if(!MEDIA_TYPES.has(mime)||!Number.isSafeInteger(size)||size<1||size>mediaMaxBytes(mime,true))
         return json({status:'error',code:'invalid_media_body'},422);
       if(size>MEDIA_PART_BYTES)return await handleR2Multipart(request,env,grant);
       if(method!=='PUT'||mode!=='upload')return denied();
@@ -1003,8 +1005,10 @@ async function handleRecords(request,env) {
       if(action==='directVideoBegin'){
         const size=Number(input.size),mime=String(input.mime||''),name=String(input.name||'').trim().slice(0,150),question=String(input.question||'').slice(0,1000);
         const ext=MEDIA_TYPES.get(mime);
-        if(!ext||!name||!Number.isInteger(size)||size<1||size>MEDIA_MAX_BYTES)return json({status:'error',code:'invalid_file'},400);
-        const storage_path=(r2MediaReady(env)?R2_MEDIA_PREFIX:'')+'member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
+        if(!ext||!name||!Number.isInteger(size)||size<1)return json({status:'error',code:'invalid_file'},400);
+        const useR2=r2MediaReady(env);
+        if(size>mediaMaxBytes(mime,useR2))return json({status:'error',code:'video_size_limit'},413);
+        const storage_path=(useR2?R2_MEDIA_PREFIX:'')+'member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
         // Insert and return the row in one round trip; conflicts are scoped to this member.
         const inserted=await send(table+'?on_conflict=id','POST',{id,member_id:String(memberId),storage_path,name,question,mime,size_bytes:size},{Prefer:'resolution=ignore-duplicates,return=representation'});
         row=Array.isArray(inserted)?inserted[0]:null;

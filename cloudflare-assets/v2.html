@@ -1667,7 +1667,7 @@
     }
 
     const videoPlayUrlCache = new Map();
-    function resolvePlayableVideoUrl(videoId, authOverride, memberOverride) {
+    function resolvePlayableVideoUrl(videoId, authOverride, memberOverride, date = state.selectedDate) {
       if (!videoId) return Promise.resolve('');
       const member = memberOverride || state.memberName;
       const auth = authOverride || (state.appMode === 'coach' ? { password: state.trainerPassword }
@@ -1678,7 +1678,6 @@
       const action = String(videoId).startsWith('direct:') ? { action: 'directVideoPlay', id: videoId }
         : { action: 'videoPlaybackUrl', fileId: videoId, videoId };
       const entry = { member, scope, ts: Date.now() };
-      const date = state.selectedDate;
       const legacyAuth = auth.password ? auth : { token: state.token };
       entry.promise = postRecords({ ...action, member, date, ...auth }).then(async result => {
         if (result?.status === 'not_migrated') {
@@ -4061,17 +4060,16 @@
       });
     }
 
-    async function fetchMemberForCoach(memberName) {
+    async function fetchMemberForCoach(memberName, detailDate) {
       if (!state.isLive || !state.trainerPassword) {
         return { daily: state.record, history: { previous: {} } };
       }
-      const weekDays = buildWeekDays(state.selectedDate);
-      const [dRecRes, dAsRes, hRes, vRes, ...weekPtRes] = await Promise.allSettled([
-        postRecords({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
-        postAppsScript({ action: 'read', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
-        postRecords({ action: 'workoutHistory', member: memberName, date: state.selectedDate, month: state.selectedDate.slice(0, 7), password: state.trainerPassword }),
-        postRecords({ action: 'directVideoList', member: memberName, date: state.selectedDate, password: state.trainerPassword }),
-        ...weekDays.map(wd => wd.fullDate === state.selectedDate
+      const weekDays = buildWeekDays(detailDate);
+      const [dRecRes, dAsRes, hRes, ...weekPtRes] = await Promise.allSettled([
+        postRecords({ action: 'read', member: memberName, date: detailDate, password: state.trainerPassword }),
+        postAppsScript({ action: 'read', member: memberName, date: detailDate, password: state.trainerPassword }),
+        postRecords({ action: 'workoutHistory', member: memberName, date: detailDate, month: detailDate.slice(0, 7), password: state.trainerPassword }),
+        ...weekDays.map(wd => wd.fullDate === detailDate
           ? Promise.resolve(null)
           : postRecords({ action: 'read', member: memberName, date: wd.fullDate, password: state.trainerPassword }))
       ]);
@@ -4095,7 +4093,7 @@
       };
       const weekPtMap = {};
       weekDays.forEach((wd, idx) => {
-        if (wd.fullDate === state.selectedDate) {
+        if (wd.fullDate === detailDate) {
           weekPtMap[wd.fullDate] = { scheduled: Boolean(chosen?.ptScheduled), time: String(chosen?.ptTime || '') };
         } else {
           const r = weekPtRes[idx]?.status === 'fulfilled' ? unwrapDailyRecord(weekPtRes[idx].value) : null;
@@ -4105,7 +4103,6 @@
       return {
         daily: chosen,
         history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} },
-        directVideos: (vRes.status === 'fulfilled' && vRes.value?.status === 'success' && Array.isArray(vRes.value.videos)) ? vRes.value.videos : [],
         weekPtMap
       };
     }
@@ -4217,10 +4214,12 @@
     }
 
     // One-Stop Member Detail & Immediate Reply Bottom Sheet
-    async function openCoachDetailSheet(memberName) {
-      openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div class="h-48 rounded-2xl skeleton"></div>');
-      const { daily, history, directVideos, weekPtMap } = await fetchMemberForCoach(memberName);
-      const weekDaysList = buildWeekDays(state.selectedDate);
+    async function openCoachDetailSheet(memberName, detailDate = state.selectedDate) {
+      openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div id="cd-loading" class="h-48 rounded-2xl skeleton"></div>');
+      const loading = document.getElementById('cd-loading');
+      const { daily, history, weekPtMap } = await fetchMemberForCoach(memberName, detailDate);
+      if (!loading?.isConnected || !document.getElementById('modal-backdrop').classList.contains('flex')) return;
+      const weekDaysList = buildWeekDays(detailDate);
       const ptDaysState = { ...(weekPtMap || {}) };
       const initialPtDays = JSON.parse(JSON.stringify(ptDaysState));
       let ptTimeInput = Object.values(ptDaysState).find(x => x?.scheduled && x?.time)?.time || daily.ptTime || '';
@@ -4248,11 +4247,20 @@
 
       let replyMsg = daily.headerMessage || daily.feedback?.workout || '';
       let dietMsg = daily.feedback?.diet || '';
-      let directVideosList = Array.isArray(directVideos) ? [...directVideos] : [];
+      const initialReply = replyMsg;
+      const initialDiet = dietMsg;
+      let initialRoutines;
+      let uploadsInProgress = 0;
+      let videoManagerOpen = false;
+      let videoPage = 0;
 
       function renderDetailBody() {
         openModal(`${memberName} 회원님 · 상세 & 바로 답글`, `
           <div class="space-y-4">
+            <label class="flex items-center justify-between gap-3 rounded-2xl bg-[#F8FAFC] px-3.5 py-2">
+              <span class="text-[13px] font-extrabold text-[#111827]">일지·피드백 날짜</span>
+              <input id="cd-record-date" type="date" value="${escapeHtml(detailDate)}" class="min-w-0 rounded-xl border border-[#CBD5E1] bg-white px-3 py-2 text-[14px] font-bold text-[#111827]" />
+            </label>
             <!-- Member snapshot before lengthy details -->
             <div class="rounded-2xl p-3.5 bg-[#EFF6FF] border border-[#DBEAFE]">
               <p class="text-[12px] font-extrabold text-[#1E3A8A]">최근 7일 한눈에 보기</p>
@@ -4264,7 +4272,7 @@
             <!-- Quick Status & Handover -->
             <div class="p-3.5 rounded-2xl hero-navy text-white flex items-center justify-between gap-2">
               <div class="min-w-0">
-                <span class="text-[10px] font-bold text-[#5EEAD4]">${state.selectedDate} · 체크인 ${chk.workout === 'done' ? '운동완료' : '기록대기'}</span>
+                <span class="text-[10px] font-bold text-[#5EEAD4]">${detailDate} · 체크인 ${chk.workout === 'done' ? '운동완료' : '기록대기'}</span>
                 <p class="text-[13px] font-bold mt-0.5 truncate">최근 메모: ${escapeHtml(lastMemo)}</p>
               </div>
               <div class="flex items-center gap-1 shrink-0">
@@ -4421,32 +4429,6 @@
               </div>
             </div>
 
-            ${directVideosList.length ? `
-              <div class="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-[12px] font-extrabold text-[#111827]">🎬 업로드된 서버 영상 (${directVideosList.length})</span>
-                  <span class="text-[10px] font-semibold text-[#6B7280]">테스트·불필요 영상 삭제 가능</span>
-                </div>
-                <div class="space-y-1.5 max-h-72 overflow-y-auto">
-                  ${directVideosList.map((dv, dIdx) => `
-                    <div class="p-2.5 rounded-xl bg-white space-y-2 shadow-sm">
-                      <div class="flex items-center justify-between gap-2">
-                        <div class="min-w-0">
-                          <p class="text-[12px] font-bold text-[#111827] truncate">${escapeHtml(dv.name || '운동 영상')}</p>
-                          <p class="text-[10px] text-[#6B7280] truncate">${escapeHtml((dv.createdAt || '').slice(0, 10))}${dv.question ? ' · ' + escapeHtml(dv.question) : ''}</p>
-                        </div>
-                        <div class="flex items-center gap-1 shrink-0">
-                          <button type="button" data-dvplay="${dIdx}" class="cd-dv-server-play tap-scale px-2 py-1 rounded-lg bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold">▶ 보기</button>
-                          <button type="button" data-dvdel="${dIdx}" class="cd-dv-server-del tap-scale px-2 py-1 rounded-lg bg-red-50 text-red-500 text-[11px] font-extrabold">🗑 삭제</button>
-                        </div>
-                      </div>
-                      <div id="cd-dv-preview-${dIdx}" class="hidden"></div>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            ` : ''}
-
             <!-- Sticky Reply Box -->
             <div class="pt-2 border-t border-gray-100 space-y-2">
               <div class="flex items-center justify-between gap-1.5">
@@ -4473,9 +4455,39 @@
                 저장하고 다음 대기 회원 보기 →
               </button>
             </div>
+            ${state.isLive && state.trainerPassword ? `
+              <details id="cd-video-manager" class="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]" ${videoManagerOpen ? 'open' : ''}>
+                <summary class="cursor-pointer px-3.5 py-3 text-[13px] font-extrabold text-[#334155]">업로드 영상 관리 <span class="font-semibold text-[#64748B]">· ${escapeHtml(detailDate)}</span></summary>
+                <div id="cd-video-page" class="space-y-2 px-3 pb-3"></div>
+              </details>
+            ` : ''}
+
           </div>
         `);
 
+        const datePicker = document.getElementById('cd-record-date');
+        datePicker.addEventListener('change', () => {
+          const nextDate = datePicker.value;
+          if (!nextDate || nextDate === detailDate) {
+            datePicker.value = detailDate;
+            return;
+          }
+          if (uploadsInProgress || document.getElementById('cd-save-all').disabled) {
+            datePicker.value = detailDate;
+            showToast('저장이나 업로드가 끝난 뒤 날짜를 바꿔 주세요.');
+            return;
+          }
+          const changed = JSON.stringify(routines) !== initialRoutines ||
+            document.getElementById('cd-reply-msg').value !== initialReply ||
+            document.getElementById('cd-diet-msg').value !== initialDiet ||
+            ['cd-new-name', 'cd-new-note', 'cd-new-video', 'cd-new-weight'].some(id => document.getElementById(id)?.value.trim()) ||
+            pendingNewVideoId;
+          if (changed && !window.confirm('저장하지 않은 일지나 피드백이 있어요. 날짜를 바꿀까요?')) {
+            datePicker.value = detailDate;
+            return;
+          }
+          openCoachDetailSheet(memberName, nextDate);
+        });
         document.querySelectorAll('.cd-quick-tip').forEach(btn => {
           btn.addEventListener('click', () => {
             const field=document.getElementById('cd-reply-msg');
@@ -4492,10 +4504,10 @@
             btn.disabled = true;
             btn.textContent = '삭제 중...';
             try {
-              const res = await deleteMealPhoto(memberName, state.selectedDate, mealKey, { password: state.trainerPassword });
+              const res = await deleteMealPhoto(memberName, detailDate, mealKey, { password: state.trainerPassword });
               if (res?.status !== 'success') throw new Error(res?.code || '삭제 실패');
               showToast(`${label} 사진을 삭제했어요`);
-              await openCoachDetailSheet(memberName);
+              await openCoachDetailSheet(memberName, detailDate);
             } catch (err) {
               btn.disabled = false;
               btn.textContent = '사진만 삭제';
@@ -4524,7 +4536,7 @@
             const url = new URL(window.location.origin + '/');
             url.searchParams.set('name', memberName);
             url.searchParams.set('token', token);
-            url.searchParams.set('date', state.selectedDate);
+            url.searchParams.set('date', detailDate);
             // A full navigation also removes any in-memory coach state.
             window.location.assign(url.toString());
           } catch (error) {
@@ -4622,7 +4634,7 @@
                 }
               }
               if (okCount === changedDates.length) {
-                daily.ptScheduled = !!ptDaysState[state.selectedDate]?.scheduled;
+                daily.ptScheduled = !!ptDaysState[detailDate]?.scheduled;
                 daily.ptTime = daily.ptScheduled ? tVal : '';
                 showToast('이번 주 PT 예정일이 저장되었어요 ✓');
               } else {
@@ -4679,7 +4691,7 @@
           let loaded = [];
           if (state.isLive && state.trainerPassword) {
             const prevDays = (Array.isArray(history.days) ? history.days : [])
-              .filter(d => d < state.selectedDate)
+              .filter(d => d < detailDate)
               .sort();
             const lastDay = prevDays[prevDays.length - 1];
             if (lastDay) {
@@ -4785,9 +4797,9 @@
             renderDetailBody();
             showToast('영상을 삭제하고 저장 중입니다...');
             if (oldVidId.startsWith('direct:') && state.trainerPassword) {
-              postRecords({ action: 'directVideoDelete', id: oldVidId, member: memberName, date: state.selectedDate, password: state.trainerPassword }).catch(() => {});
+              postRecords({ action: 'directVideoDelete', id: oldVidId, member: memberName, date: detailDate, password: state.trainerPassword }).catch(() => {});
             }
-            const savedOk = await savePatchLive({ routines }, memberName);
+            const savedOk = await savePatchLive({ routines }, memberName, detailDate);
             if (savedOk) showToast('영상이 삭제되고 일지에 반영되었습니다 ✓');
           });
         });
@@ -4801,19 +4813,23 @@
             const mbTotal = (f.size / 1048576).toFixed(1);
             if (lbl) lbl.textContent = `준비 중 (${mbTotal}MB)...`;
             try {
+              uploadsInProgress++;
               const titleHint = document.getElementById('cd-new-name')?.value.trim() || '시범 영상';
               setVideoUploadStatus('시범 영상 준비 중',0);
               pendingNewVideoId = await uploadDirectVideoFile(f, memberName, '', titleHint, (pct, loaded, total) => {
                 setVideoUploadStatus('시범 영상 전송 중',pct);
                 if (lbl) lbl.textContent = `업로드 ${pct}%`;
                 showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
-              });
+              }, { date: detailDate });
               setVideoUploadStatus('',0,false);
               if (lbl) lbl.textContent = '📹 업로드됨 ✓';
               showToast('영상 업로드 완료! + 종목 추가 또는 저장을 눌러주세요 ✓');
+              if (videoManagerOpen) loadVideoPage();
             } catch (err) {
               if (lbl) lbl.textContent = '📹 영상 올리기';
               showToast('영상 업로드 실패: ' + (err?.message || '다시 시도해 주세요'));
+            } finally {
+              uploadsInProgress--;
             }
           });
         }
@@ -4826,11 +4842,12 @@
             const mbTotal = (f.size / 1048576).toFixed(1);
             showToast(`영상 업로드 시작 (${mbTotal}MB)...`);
             try {
+              uploadsInProgress++;
               setVideoUploadStatus('운동 영상 준비 중',0);
               const directId = await uploadDirectVideoFile(f, memberName, '', routines[ri]?.name || '', (pct, loaded, total) => {
                 setVideoUploadStatus('운동 영상 전송 중',pct);
                 showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
-              });
+              }, { date: detailDate });
               setVideoUploadStatus('',0,false);
               routines[ri].videoId = directId;
               routines[ri].videoUrl = '';
@@ -4838,61 +4855,131 @@
               dietMsg = document.getElementById('cd-diet-msg').value;
               showToast('영상 업로드 완료! 저장 중...');
               renderDetailBody();
-              const savedOk = await savePatchLive({ routines }, memberName);
+              const savedOk = await savePatchLive({ routines }, memberName, detailDate);
               if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
             } catch (err) {
               showToast('영상 업로드 실패: ' + (err?.message || '다시 시도해 주세요'));
+            } finally {
+              uploadsInProgress--;
             }
           });
         });
 
-        document.querySelectorAll('.cd-dv-server-play').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const dIdx = Number(btn.dataset.dvplay);
-            const dv = directVideosList[dIdx];
-            const slot = document.getElementById(`cd-dv-preview-${dIdx}`);
-            if (!dv || !slot) return;
-            if (!slot.classList.contains('hidden')) {
-              slot.classList.add('hidden');
-              slot.innerHTML = '';
-              btn.textContent = '▶ 보기';
+        const videoManager = document.getElementById('cd-video-manager');
+        const videoPanel = document.getElementById('cd-video-page');
+        let videoRequest = 0;
+        async function loadVideoPage() {
+          const request = ++videoRequest;
+          videoPanel.textContent = '영상을 불러오는 중…';
+          try {
+            const data = await postRecords({
+              action: 'directVideoList', page: videoPage, member: memberName, date: detailDate,
+              password: state.trainerPassword
+            });
+            if (!videoPanel.isConnected || request !== videoRequest) return;
+            if (data?.status !== 'success' || !Array.isArray(data.videos)) throw Error('영상 조회 실패');
+            const videos = data.videos;
+            if (!videos.length && videoPage > 0) {
+              videoPage--;
+              await loadVideoPage();
               return;
             }
-            slot.classList.remove('hidden');
-            slot.innerHTML = '<p class="text-[11px] text-[#6B7280] py-2 text-center">영상 불러오는 중...</p>';
-            btn.textContent = '닫기';
-            try {
-              const url = await resolvePlayableVideoUrl(dv.id, { password: state.trainerPassword }, memberName);
-              if (slot.classList.contains('hidden') || !slot.isConnected || !document.getElementById('modal-backdrop').classList.contains('flex')) return;
-              if (url) slot.innerHTML = buildVideoPlayerHtml(url);
-              else slot.innerHTML = '<p class="text-[11px] text-red-500 py-2 text-center">영상을 불러오지 못했습니다.</p>';
-            } catch {
-              slot.innerHTML = '<p class="text-[11px] text-red-500 py-2 text-center">영상을 불러오지 못했습니다.</p>';
+            videoPanel.innerHTML = videos.map((dv, index) => `
+              <div class="rounded-xl bg-white p-2.5">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-[12px] font-bold text-[#111827]">${escapeHtml(dv.name || '운동 영상')}</p>
+                    ${dv.question ? `<p class="truncate text-[11px] text-[#64748B]">${escapeHtml(dv.question)}</p>` : ''}
+                  </div>
+                  <div class="flex shrink-0 gap-1">
+                    <button type="button" data-dvplay="${index}" class="rounded-lg bg-[#EFF6FF] px-2 py-2 text-[12px] font-bold text-[#1D4ED8]">재생</button>
+                    <button type="button" data-dvdel="${index}" class="rounded-lg bg-red-50 px-2 py-2 text-[12px] font-bold text-red-600">삭제</button>
+                  </div>
+                </div>
+                <div data-dvslot="${index}" class="hidden mt-2"></div>
+              </div>`).join('') || '<p class="py-2 text-[12px] text-[#64748B]">이 날짜에 올라온 영상이 없어요.</p>';
+            if (videoPage || data.hasNext) {
+              videoPanel.insertAdjacentHTML('beforeend', `
+                <div class="grid grid-cols-3 items-center gap-2 text-center text-[12px]">
+                  <button type="button" data-video-step="-1" ${videoPage ? '' : 'disabled'} class="rounded-lg border bg-white px-2 py-2 font-bold disabled:opacity-40">이전</button>
+                  <span>${videoPage + 1}페이지</span>
+                  <button type="button" data-video-step="1" ${data.hasNext ? '' : 'disabled'} class="rounded-lg border bg-white px-2 py-2 font-bold disabled:opacity-40">다음</button>
+                </div>`);
+              videoPanel.querySelectorAll('[data-video-step]').forEach(button => button.addEventListener('click', () => {
+                videoPage += Number(button.dataset.videoStep);
+                loadVideoPage();
+              }));
             }
+            videoPanel.querySelectorAll('[data-dvplay]').forEach(button => button.addEventListener('click', async () => {
+              const index = Number(button.dataset.dvplay);
+              const video = videos[index];
+              const slot = videoPanel.querySelector(`[data-dvslot="${index}"]`);
+              if (!slot.classList.contains('hidden')) {
+                slot.classList.add('hidden');
+                slot.replaceChildren();
+                button.textContent = '재생';
+                return;
+              }
+              slot.classList.remove('hidden');
+              slot.textContent = '영상을 불러오는 중…';
+              button.textContent = '닫기';
+              try {
+                const url = await resolvePlayableVideoUrl(video.id, { password: state.trainerPassword }, memberName, detailDate);
+                if (slot.isConnected && videoManager.open && !slot.classList.contains('hidden')) {
+                  slot.innerHTML = buildVideoPlayerHtml(url);
+                }
+              } catch {
+                slot.textContent = '영상을 불러오지 못했어요.';
+              }
+            }));
+            videoPanel.querySelectorAll('[data-dvdel]').forEach(button => button.addEventListener('click', async () => {
+              const video = videos[Number(button.dataset.dvdel)];
+              if (!window.confirm(`'${video.name || '운동 영상'}' 영상을 삭제할까요?`)) return;
+              button.disabled = true;
+              try {
+                const result = await postRecords({
+                  action: 'directVideoDelete', id: video.id, member: memberName,
+                  date: detailDate, password: state.trainerPassword
+                });
+                if (result?.status !== 'success') throw Error('삭제 실패');
+                videoPlayUrlCache.delete(video.id);
+                routines.forEach((routine, index) => {
+                  if (routine.videoId !== video.id) return;
+                  delete routine.videoId;
+                  if (!videoPanel.isConnected) return;
+                  const field = document.querySelector(`.cd-vid-inp[data-vi="${index}"]`);
+                  field.placeholder = '🎬 영상 링크 또는 오른쪽 버튼으로 사진첩 업로드';
+                  const label = document.querySelector(`.cd-vid-file[data-vfi="${index}"]`).closest('label');
+                  label.classList.remove('card-teal', 'text-white');
+                  label.classList.add('bg-[#EFF6FF]', 'text-[#1D4ED8]');
+                  label.querySelector('span').textContent = '📹 영상 올리기';
+                  if (!routine.videoUrl) document.querySelector(`.cd-vid-del[data-vdi="${index}"]`)?.remove();
+                });
+                if (pendingNewVideoId === video.id) {
+                  pendingNewVideoId = '';
+                  if (videoPanel.isConnected) document.getElementById('cd-new-vid-lbl').textContent = '📹 영상 올리기';
+                }
+                showToast('영상을 삭제했어요.');
+                if (videoPanel.isConnected) await loadVideoPage();
+              } catch {
+                button.disabled = false;
+                showToast('영상을 삭제하지 못했어요. 다시 시도해 주세요.');
+              }
+            }));
+          } catch {
+            if (!videoPanel.isConnected || request !== videoRequest) return;
+            videoPanel.innerHTML = '<button type="button" class="py-2 text-[12px] font-bold text-[#1D4ED8]">영상 조회 실패 · 다시 시도</button>';
+            videoPanel.querySelector('button').addEventListener('click', loadVideoPage);
+          }
+        }
+        if (videoManager) {
+          videoManager.addEventListener('toggle', () => {
+            videoManagerOpen = videoManager.open;
+            if (videoManagerOpen && !videoPanel.hasChildNodes()) loadVideoPage();
+            if (!videoManagerOpen) videoPanel.querySelectorAll('video').forEach(video => video.pause());
           });
-        });
-
-        document.querySelectorAll('.cd-dv-server-del').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const dIdx = Number(btn.dataset.dvdel);
-            const dv = directVideosList[dIdx];
-            if (!dv) return;
-            showToast('서버 영상을 삭제 중입니다...');
-            try {
-              const delRes = await postRecords({ action: 'directVideoDelete', id: dv.id, member: memberName, date: state.selectedDate, password: state.trainerPassword });
-              if (delRes?.status !== 'success') throw new Error(delRes?.code || '삭제 실패');
-              videoPlayUrlCache.delete(dv.id);
-              routines.forEach(rt => {
-                if (rt && rt.videoId === dv.id) delete rt.videoId;
-              });
-              directVideosList.splice(dIdx, 1);
-              renderDetailBody();
-              showToast('서버에서 영상이 삭제되었습니다 ✓');
-            } catch (err) {
-              showToast('영상 삭제 실패: ' + (err?.message || '잠시 후 다시 시도'));
-            }
-          });
-        });
+          if (videoManagerOpen) loadVideoPage();
+        }
 
         document.querySelectorAll('.cd-del-btn').forEach(b => {
           b.addEventListener('click', () => {
@@ -5014,7 +5101,7 @@
             showToast('전체 적용할 코치 한마디를 먼저 선택하거나 입력해 주세요');
             return;
           }
-          state.record.headerMessage = finalReply;
+          if (detailDate === state.selectedDate) state.record.headerMessage = finalReply;
           const members = state.trainerOverview || [];
           closeModal();
           triggerConfetti();
@@ -5022,7 +5109,7 @@
           renderAll();
           if (state.isLive && members.length) {
             await Promise.allSettled(
-              members.map(m => savePatchLive({ headerMessage: finalReply }, m.name))
+              members.map(m => savePatchLive({ headerMessage: finalReply }, m.name, detailDate))
             );
             showToast(`전체 ${members.length}명 회원님께 통일 적용 완료!`);
           } else {
@@ -5069,7 +5156,7 @@
           const nextBtn = document.getElementById('cd-save-next');
           if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중...'; }
           if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = '저장 중...'; }
-          const ok = await savePatchLive(patch, memberName);
+          const ok = await savePatchLive(patch, memberName, detailDate);
           if (!ok) {
             if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '이 회원만 저장하기'; }
             if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '저장하고 다음 대기 회원 보기 →'; }
@@ -5078,7 +5165,7 @@
           try {
             const savedFeedback = await postRecords({
               action: 'coachFeedbackSave',
-              member: memberName, date: state.selectedDate,
+              member: memberName, date: detailDate,
               password: state.trainerPassword,
               headerMessage: patch.headerMessage,
               workoutFeedback: patch.feedback.workout || '',
@@ -5099,13 +5186,13 @@
           }
 
           const ovTarget = state.trainerOverview.find(x => x.name === memberName);
-          if (ovTarget) {
+          if (ovTarget && detailDate === state.selectedDate) {
             if (finalReply) ovTarget.pendingWorkout = false;
             if (finalDiet) ovTarget.pendingDiet = false;
           }
-          if (memberName === state.memberName) {
+          if (memberName === state.memberName && detailDate === state.selectedDate) {
             state.record = { ...state.record, ...patch };
-            saveCachedMemberData(state.selectedDate);
+            saveCachedMemberData(detailDate);
           }
           const nextMember = goNext ? (state.trainerOverview || []).find(m =>
             m.name !== memberName && (m.pendingWorkout || m.pendingDiet || Number(m.directPendingVideos || 0) > 0)) : null;
@@ -5114,7 +5201,7 @@
           renderAll();
           if (nextMember) {
             showToast(`${memberName} 저장 완료 · 다음 회원을 여는 중`);
-            openCoachDetailSheet(nextMember.name);
+            openCoachDetailSheet(nextMember.name, detailDate);
           } else {
             showToast(goNext ? `${memberName} 저장 완료 · 다음 대기 회원 없음 ✓` : `${memberName} 회원님 루틴 · 피드백 저장 완료!`);
           }
@@ -5123,6 +5210,7 @@
         document.getElementById('cd-save-next').addEventListener('click', () => saveCoachDetailAndAdvance(true));
       }
       renderDetailBody();
+      initialRoutines = JSON.stringify(routines);
     }
 
     function openAddMemberModal() {

@@ -23,10 +23,9 @@
   </script>
   <link rel="icon" href="/fit-icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon.png?v=20261123" />
-  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" media="print" onload="this.media=\'all\'" />
+  <link rel="stylesheet" href="/v2.tailwind.css?v=20261123-stability" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" /></noscript>
   <style>
     body {
@@ -147,7 +146,7 @@
   <div id="video-upload-status" role="status" aria-live="polite" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 w-[calc(100%-24px)] max-w-[406px] z-50 rounded-2xl bg-[#0F172A] text-white p-3 shadow-xl pointer-events-none">
     <div class="flex items-center justify-between gap-2"><span id="video-upload-text" class="text-[12px] font-bold truncate">영상 준비 중…</span><span id="video-upload-pct" class="text-[11px] font-extrabold">0%</span></div>
     <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden"><div id="video-upload-bar" class="h-full bg-[#5EEAD4] rounded-full" style="width:0%"></div></div>
-    <p class="text-[10px] text-white/70 mt-1">다른 기록도 확인할 수 있어요.</p>
+    <p id="video-upload-detail" class="text-[10px] text-white/70 mt-1">다른 기록도 확인할 수 있어요.</p>
     <button type="button" id="video-upload-retry" class="hidden mt-2 px-3 py-2 rounded-xl bg-white text-[#0B132B] text-[12px] font-bold pointer-events-auto">같은 영상 다시 시도</button>
   </div>
   <!-- Toast -->
@@ -400,7 +399,11 @@
         }
       } catch {}
     }
-    const paramDate = /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date') || '') ? urlParams.get('date') : getTodayKST();
+    const requestedDay = urlParams.get('date') || '';
+    const parsedDay = new Date(requestedDay + 'T00:00:00Z');
+    const paramDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDay) &&
+      Number.isFinite(parsedDay.getTime()) && parsedDay.toISOString().slice(0, 10) === requestedDay
+      ? requestedDay : getTodayKST();
     const isLiveOrigin = window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
 
     // --- App State ---
@@ -566,7 +569,36 @@
     }
 
     // --- API Helpers ---
+    let sessionExchange;
+    async function memberSession(member, date, rejectedSession = '') {
+      const token = state.token;
+      if (!token || state.appMode !== 'member' || member !== state.memberName) throw Error('회원 전용 링크가 필요해요');
+      if (state.session && state.session !== rejectedSession) return state.session;
+      if (sessionExchange?.member === member && sessionExchange.token === token) return sessionExchange.promise;
+      const exchange = { member, token };
+      exchange.promise = requestRecords({ action: 'memberSession', member, date, token }).then(res => {
+        if (res?.status !== 'success' || !res.session) throw Error('회원 인증을 확인하지 못했어요');
+        if (state.appMode === 'member' && state.memberName === member && state.token === token) state.session = res.session;
+        return res.session;
+      }).finally(() => { if (sessionExchange === exchange) sessionExchange = null; });
+      sessionExchange = exchange;
+      return exchange.promise;
+    }
+
     async function postRecords(payload) {
+      const session = payload?.session;
+      try {
+        return await requestRecords(payload);
+      } catch (err) {
+        if (err?.status !== 403 || err.code !== 'session_invalid' || !session ||
+            payload.password !== undefined || payload.member !== state.memberName ||
+            state.appMode !== 'member' || !state.token) throw err;
+        const renewed = await memberSession(payload.member, payload.date, session);
+        return requestRecords({ ...payload, session: renewed });
+      }
+    }
+
+    async function requestRecords(payload) {
       if (payload?.password === 'coach-cookie') {
         payload = { ...payload };
         delete payload.password;
@@ -602,7 +634,14 @@
           e.code = errCode;
           throw e;
         }
-        return res.json();
+        const result = await res.json();
+        if (result?.status === 'error' || result?.status === 'denied') {
+          const err = new Error(result.message || result.code || '서버 요청을 완료하지 못했어요');
+          err.status = result.status === 'denied' ? 403 : res.status;
+          err.code = result.code;
+          throw err;
+        }
+        return result;
       } finally {
         if (timer) clearTimeout(timer);
       }
@@ -627,16 +666,6 @@
       return res.json();
     }
 
-    function markJustSaved(memberName, dateStr) {
-      try { localStorage.setItem(`fit_just_saved_${memberName}_${dateStr}`, String(Date.now())); } catch {}
-    }
-    function wasRecentlySaved(memberName, dateStr) {
-      try {
-        const ts = Number(localStorage.getItem(`fit_just_saved_${memberName}_${dateStr}`) || 0);
-        return ts > 0 && (Date.now() - ts) < 120000;
-      } catch { return false; }
-    }
-
     function extractPhotoSrc(meal) {
       if (!meal || typeof meal !== 'object') return '';
       const raw = (Array.isArray(meal.photos) && meal.photos[0]) || meal.photo || '';
@@ -659,15 +688,14 @@
         // This also covers manual descriptions and calories (not just foods).
         const mergedMeal = { ...pm, ...sm };
         if (Array.isArray(sm.foods)) mergedMeal.foods = sm.foods;
-        if (!pPhoto && sPhoto) mergedMeal.photos = [sPhoto];
-        else if (pPhoto) mergedMeal.photos = [pPhoto];
+        if (sPhoto || pPhoto) mergedMeal.photos = [sPhoto || pPhoto];
         if (deletedPhotoMeals.includes(k)) {
           mergedMeal.photos = [];
           mergedMeal.photo = '';
         }
         if (Object.keys(mergedMeal).length) out[k] = mergedMeal;
       });
-      out.water = Math.max(Number(p.water) || 0, Number(s.water) || 0);
+      out.water = Number(p.water ?? s.water) || 0;
       return out;
     }
 
@@ -688,6 +716,7 @@
 
     function normalizeVideoMime(file) {
       const t = String(file?.type || '').toLowerCase();
+      if (t === 'video/x-m4v') return 'video/mp4';
       if (t === 'video/mp4' || t === 'video/webm' || t === 'video/quicktime' || t === 'image/jpeg' || t === 'image/png' || t === 'image/webp') return t;
       const n = String(file?.name || '').toLowerCase();
       if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg';
@@ -695,7 +724,8 @@
       if (n.endsWith('.webp')) return 'image/webp';
       if (n.endsWith('.mov')) return 'video/quicktime';
       if (n.endsWith('.webm')) return 'video/webm';
-      return 'video/mp4';
+      if (/\.(mp4|m4v)$/.test(n)) return 'video/mp4';
+      return '';
     }
 
     function dataUrlToFile(dataUrl, filename) {
@@ -726,14 +756,14 @@
         if (!dvid) return;
         resolvePlayableVideoUrl(dvid, (state.appMode === 'coach' && state.trainerPassword) ? { password: state.trainerPassword } : null, mName).then(url => {
           if (url) img.src = url;
-        }).catch(() => {});
+        }).catch(() => { delete img.dataset.hydrated; });
       });
     }
 
-    function xhrPutFile(url, body, headers, onProgress) {
+    function xhrVideoTransfer(url, body, headers, onProgress, method = 'PUT') {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('PUT', url, true);
+        xhr.open(method, url, true);
         Object.entries(headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
         if (xhr.upload && typeof onProgress === 'function') {
           xhr.upload.onprogress = e => {
@@ -742,87 +772,131 @@
             }
           };
         }
-        xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: xhr.responseText || '' });
+        xhr.onload = () => resolve({
+          ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status,
+          location: method === 'POST' ? xhr.getResponseHeader('Location') : null,
+          offset: method !== 'PUT' ? xhr.getResponseHeader('Upload-Offset') : null
+        });
         xhr.onerror = () => reject(new Error('네트워크 연결이 불안정합니다'));
         xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다'));
-        xhr.timeout = 180000;
+        xhr.timeout = method === 'HEAD' ? 10000 : 180000;
         xhr.send(body);
       });
     }
 
-    async function uploadDirectVideoFile(file, memberName, memberToken, questionText, onProgress) {
-      if (!file) throw new Error('no_file');
-      if (file.size > 50000000) throw new Error('50MB 이하 영상만 업로드할 수 있어요');
-      let activeToken = memberToken || '';
-      let activeSession = (memberName === state.memberName && state.session) ? state.session : '';
-      const hasTrainerPw = !!state.trainerPassword;
-      if (!hasTrainerPw && !activeToken && !activeSession) throw new Error('회원 전용 토큰이 필요해요');
-      const mime = normalizeVideoMime(file);
-      const id = makeUuidV4();
-      const baseBegin = {
-        action: 'directVideoBegin',
-        member: memberName,
-        date: state.selectedDate,
-        id,
-        name: (file.name || 'workout-video.mp4').slice(0, 150),
-        question: String(questionText || '').slice(0, 1000),
-        mime,
-        size: file.size
-      };
-      const authPayload = () => hasTrainerPw
-        ? { password: state.trainerPassword }
-        : (activeSession ? { session: activeSession } : { token: activeToken });
-      let begin;
-      try {
-        begin = await postRecords({ ...baseBegin, ...authPayload() });
-      } catch (err) {
-        if (!hasTrainerPw && (err?.status === 403 || String(err?.message || '').includes('records_403'))) {
-          let diag = err?.code || '403';
-          if (activeToken) {
-            try {
-              const sr = await postRecords({ action: 'memberSession', member: memberName, date: state.selectedDate, token: activeToken });
-              if (sr?.status === 'success' && sr.session) activeSession = sr.session;
-            } catch (se) {
-              diag += '/sess:' + (se?.code || se?.status || 'fail');
-            }
-          }
-          try {
-            begin = await postRecords({ ...baseBegin, ...authPayload() });
-          } catch (retryErr) {
-            if (retryErr?.status === 403 || String(retryErr?.message || '').includes('records_403')) {
-              throw new Error('토큰 인증 실패(403: ' + (retryErr?.code || diag) + ')');
-            }
-            throw retryErr;
-          }
-        } else {
-          throw err;
-        }
-      }
-      if (begin?.status !== 'success') {
-        throw new Error(begin?.code || begin?.message || '업로드 시작 실패');
-      }
-      if (!begin.alreadyReady && begin.url) {
-        let putRes = await xhrPutFile(begin.url, file, { 'Content-Type': mime, 'x-upsert': 'true' }, onProgress);
-        if (!putRes.ok && (putRes.status === 400 || putRes.status === 415)) {
-          const fd = new FormData();
-          fd.append('cacheControl', '3600');
-          fd.append('', file);
-          putRes = await xhrPutFile(begin.url, fd, {}, onProgress);
-        }
-        if (!putRes.ok) {
-          const errTxt = String(putRes.text || '').slice(0, 60);
-          throw new Error('영상 전송 실패 (' + putRes.status + (errTxt ? ': ' + errTxt : '') + ')');
-        }
-      }
-      const fin = await postRecords({
-        action: 'directVideoFinish',
-        member: memberName,
-        date: state.selectedDate,
-        ...authPayload(),
-        id
+    function videoSizeLabel(bytes) {
+      return (bytes / 1_000_000).toFixed(1) + 'MB';
+    }
+
+    const MAX_VIDEO_UPLOAD_BYTES = 50_000_000;
+    let recentUploadRate;
+    function lastUploadRate() {
+      return recentUploadRate && performance.now() - recentUploadRate.at < 180_000 ? recentUploadRate.rate : 0;
+    }
+
+    async function prepareDirectVideo(file, report) {
+      if (file.size < 12_000_000 || !normalizeVideoMime(file).startsWith('video/') ||
+          typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') return file;
+      const rate = lastUploadRate();
+      // On a fast connection, the potential transfer savings may be smaller
+      // than the time spent re-encoding. Keep that preparation window short.
+      const budget = rate && file.size <= MAX_VIDEO_UPLOAD_BYTES
+        ? Math.min(9000, file.size * 350 / rate) : 9000;
+      if (budget < 1500) return file;
+      const controller = new AbortController();
+      let timer;
+      const deadline = new Promise(resolve => {
+        timer = setTimeout(() => {
+          controller.abort();
+          resolve(file);
+        }, budget);
       });
-      if (fin?.status !== 'success') throw new Error(fin?.code || '업로드 마무리 실패');
-      return 'direct:' + id;
+      try {
+        const preparation = import('/fit-video-encode.mjs?v=2').then(({ compressIfWorthwhile }) => {
+          controller.signal.throwIfAborted();
+          return compressIfWorthwhile(file, controller.signal, percent => {
+            if (!controller.signal.aborted) report('고화질 압축 중', Math.min(99, percent));
+          }, rate);
+        });
+        return await Promise.race([preparation, deadline]);
+      } catch {
+        return file;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    async function uploadDirectVideoFile(file, memberName, memberToken, questionText, onProgress, upload = {}) {
+      if (!file?.size) throw new Error('비어 있지 않은 영상 파일을 선택해 주세요');
+      upload.date ||= state.selectedDate;
+      const attemptStarted = performance.now();
+      if (!normalizeVideoMime(file)) throw new Error('MP4, MOV 또는 WebM 영상을 선택해 주세요');
+      const password = state.trainerPassword;
+      if (!password && !memberToken) throw new Error('회원 전용 토큰이 필요해요');
+      const authPromise = password ? Promise.resolve({ password })
+        : memberName === state.memberName && memberToken === state.token
+          ? memberSession(memberName, upload.date).then(session => ({ session }))
+          : Promise.resolve({ token: memberToken });
+      const timing = upload.timing ||= {};
+      const report = upload.onStage || (() => {});
+      const [auth, prepared] = await Promise.all([authPromise, upload.file || prepareDirectVideo(file, report)]);
+      if (prepared.size > MAX_VIDEO_UPLOAD_BYTES) {
+        throw new Error('50MB 이하로 줄이지 못했어요. 영상을 짧게 잘라 다시 선택해 주세요');
+      }
+      upload.file = prepared;
+      const sendFile = upload.file;
+      const mime = normalizeVideoMime(sendFile);
+      upload.id ||= makeUuidV4();
+      const payload = {
+        member: memberName, date: upload.date, id: upload.id, ...auth
+      };
+      if (!upload.transferred) {
+        report('전송 준비 중', 0);
+        const begin = await postRecords({
+          ...payload, action: 'directVideoBegin',
+          name: (file.name || 'workout-video.mp4').slice(0, 150),
+          question: String(questionText || '').slice(0, 1000), mime, size: sendFile.size
+        });
+        if (begin?.status !== 'success') throw new Error('업로드 시작 실패');
+        if (begin.alreadyReady) return 'direct:' + upload.id;
+        if (!begin.url) throw new Error('업로드 주소를 받지 못했어요');
+        const transferStart = performance.now();
+        timing.prepare = transferStart - attemptStarted;
+        report('영상 전송 중 · ' + videoSizeLabel(sendFile.size), 0);
+        let sent = false;
+        const canResume = sendFile.size > 6 * 1024 * 1024 && begin.uploadToken && begin.tusEndpoint && begin.objectName;
+        if (!upload.usePut && canResume) {
+          try {
+            const { sendResumableVideo } = await import('/fit-video-transfer.mjs?v=1');
+            sent = await sendResumableVideo(sendFile, mime, begin, upload, xhrVideoTransfer, onProgress, report);
+          } catch (error) {
+            // Once Storage has given us a resumable URL, retain it on failure.
+            if (upload.tusUrl) throw error;
+          }
+        }
+        if (!sent) {
+          upload.usePut = true;
+          let result = await xhrVideoTransfer(begin.url, sendFile, { 'Content-Type': mime, 'x-upsert': 'true' }, onProgress);
+          if (!result.ok && [400, 415].includes(result.status)) {
+            const form = new FormData();
+            form.append('cacheControl', '3600');
+            form.append('', sendFile);
+            result = await xhrVideoTransfer(begin.url, form, {}, onProgress);
+          }
+          if (!result.ok) throw new Error('영상 전송 실패 (' + result.status + ')');
+        }
+        timing.transfer = performance.now() - transferStart;
+        if (sendFile.size >= 1_000_000 && timing.transfer >= 300) {
+          recentUploadRate = { rate: sendFile.size * 1000 / timing.transfer, at: performance.now() };
+        }
+        upload.transferred = true;
+      }
+      report('전송 완료 · 영상 등록 중', 99);
+      const finishStart = performance.now();
+      const finish = await postRecords({ ...payload, action: 'directVideoFinish' });
+      if (finish?.status !== 'success') throw new Error('업로드 마무리 실패');
+      timing.finish = performance.now() - finishStart;
+      return 'direct:' + upload.id;
     }
 
     function applyCachedMemberData(dateStr) {
@@ -959,39 +1033,15 @@
         }
         return;
       }
-      const hadCache = applyCachedMemberData(state.selectedDate);
+      applyCachedMemberData(state.selectedDate);
       state.mealReadVerified = false;
       state.isLive = true;
       // Cached data can render the shell, but must not be presented as a
       // verified meal after reload while the canonical server is loading.
       state.loading = true;
       renderAll();
-      try {
-        // Begin the daily Apps Script fetch alongside session verification.
-        const initialAppsRead = postAppsScript({
-          action: 'read', member: state.memberName,
-          date: state.selectedDate, token: state.token
-        }).catch(() => null);
-        const sessRes = await postRecords({
-          action: 'memberSession',
-          member: state.memberName,
-          token: state.token,
-          date: state.selectedDate
-        }).catch(() => null);
-        if (sessRes?.status === 'success' && sessRes.session) {
-          state.session = sessRes.session;
-        }
-        await loadMemberDateData(state.selectedDate, initialAppsRead);
-        saveCachedMemberData(state.selectedDate);
-        loadLocalMemberExtras();
-        maybeShowPrivacyConsent();
-      } catch {
-        state.isLive = false;
-        if (!hadCache) showToast('미리보기 데이터로 표시 중입니다');
-      } finally {
-        state.loading = false;
-        renderAll();
-      }
+      await loadMemberDateData(state.selectedDate);
+      if (state.mealReadVerified) maybeShowPrivacyConsent();
     }
 
     function maybeShowPrivacyConsent() {
@@ -1019,62 +1069,42 @@
       });
     }
 
-    async function loadMemberDateData(dateStr, prefetchedAppsRead) {
+    let memberReadVersion = 0;
+    let memberColumnsRequest;
+    let memberVideoVersion = 0;
+    async function loadMemberDateData(dateStr) {
       if (!state.isLive) return;
-      const requestedMember = state.memberName;
-      const auth = state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword });
-      const month = dateStr.slice(0, 7);
-      const stillCurrent = () => state.isLive && state.memberName === requestedMember && state.selectedDate === dateStr;
-
-      // Start the non-essential work in parallel, but don't block the first
-      // useful member screen on analytics, articles, history and video lists.
-      const secondaryPromise = Promise.allSettled([
-        postRecords({ action: 'memberInsights', member: requestedMember, date: dateStr, ...auth }),
-        postRecords({ action: 'columnList', member: requestedMember, date: dateStr, ...auth }),
-        postRecords({ action: 'workoutHistory', member: requestedMember, date: dateStr, month, ...auth }),
-        postRecords({ action: 'directVideoList', member: requestedMember, date: dateStr, ...auth })
-      ]);
-      const [dailyRec, dailyAs] = await Promise.allSettled([
-        postRecords({ action: 'read', member: requestedMember, date: dateStr, ...auth }),
-        prefetchedAppsRead || postAppsScript({ action: 'read', member: requestedMember, date: dateStr, ...(state.token ? { token: state.token } : { password: state.trainerPassword }) })
-      ]);
+      const version = ++memberReadVersion;
+      const member = state.memberName;
+      const stillCurrent = () => version === memberReadVersion && state.isLive &&
+        state.appMode === 'member' && state.memberName === member && state.selectedDate === dateStr;
+      const payload = { member, date: dateStr };
+      const appRead = postAppsScript({ ...payload, action: 'read', token: state.token });
+      const dbRead = memberSession(member, dateStr).then(session => postRecords({ ...payload, action: 'read', session }));
+      const [dailyRec, dailyAs] = await Promise.allSettled([dbRead, appRead]);
       if (!stillCurrent()) return;
 
-      // A transient Supabase read failure must not replace a just-saved
-      // meal with an older Apps Script snapshot after a page refresh.
-      let canonicalDaily = dailyRec;
-      if (canonicalDaily.status !== 'fulfilled') {
-        try {
-          canonicalDaily = { status: 'fulfilled', value: await postRecords({
-            action: 'read', member: requestedMember, date: dateStr, ...auth
-          }) };
-        } catch { /* preserve cached data and show a read warning below */ }
-      }
-      if (!stillCurrent()) return;
-      const recObj = canonicalDaily.status === 'fulfilled' &&
-        canonicalDaily.value?.status !== 'error' &&
-        canonicalDaily.value?.status !== 'denied'
-        ? unwrapDailyRecord(canonicalDaily.value) : null;
-      const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
+      const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
+      const asObj = dailyAs.status === 'fulfilled' && !['error', 'denied'].includes(dailyAs.value?.status)
+        ? unwrapDailyRecord(dailyAs.value) : null;
+      state.mealReadVerified = Boolean(recObj);
+      state.workoutReadVerified = Boolean(asObj);
+      state.loading = false;
       if (!recObj) {
-        // Do not silently fall back to potentially stale Apps Script diet.
-        // The member must retry a real Supabase read before editing a meal.
-        state.mealReadVerified = false;
-        showToast('최신 식단을 불러오지 못했어요. 연결 확인 후 새로고침해 주세요.');
+        if (dailyRec.reason?.status === 403 || !applyCachedMemberData(dateStr)) {
+          state.record = emptyDailyRecord();
+        }
+        renderAll();
+        showToast('최신 기록을 불러오지 못했어요. 연결 확인 후 새로고침해 주세요.');
         return;
       }
-      state.mealReadVerified = true;
-      const asHasData = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos);
-      const baseLoadDaily = asHasData ? asObj : (recObj || asObj);
-      const chosenDaily = (baseLoadDaily && typeof baseLoadDaily === 'object')
-        ? {
-            ...baseLoadDaily,
-            diet: mergeDietRecords(asObj?.diet, recObj?.diet, recObj?.deletedPhotoMeals || []),
-            ...(recObj?.coachFeedbackStored
-              ? { headerMessage: recObj.headerMessage, feedback: recObj.feedback }
-              : {})
-          }
-        : baseLoadDaily;
+      const baseDaily = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos) ? asObj : recObj;
+      const chosenDaily = {
+        ...baseDaily,
+        dailyCheckin: { ...baseDaily.dailyCheckin, ...recObj.dailyCheckin },
+        diet: mergeDietRecords(asObj?.diet, recObj?.diet, recObj?.deletedPhotoMeals || []),
+        ...(recObj.coachFeedbackStored ? { headerMessage: recObj.headerMessage, feedback: recObj.feedback } : {})
+      };
 
       if (chosenDaily && typeof chosenDaily === 'object') {
         const d = chosenDaily;
@@ -1096,54 +1126,88 @@
           ptTime: String(d.ptTime || '')
         };
       }
+      if (asObj) restoreWorkoutSave();
       syncExerciseLibrary(dateStr);
+      saveCachedMemberData(dateStr);
+      loadLocalMemberExtras();
+      renderAll();
 
-      // Follow-up data refreshes the already visible screen only when the
-      // same member/date is still selected. Never overwrite a newer day.
-      secondaryPromise.then(([ins, cols, hist, dVid]) => {
+      // Let the daily screen paint before optional dashboard requests start.
+      const afterPaint = typeof requestAnimationFrame === 'function'
+        ? callback => requestAnimationFrame(() => requestAnimationFrame(callback))
+        : callback => setTimeout(callback, 0);
+      afterPaint(async () => {
         if (!stillCurrent()) return;
-        if (ins.status === 'fulfilled' && ins.value?.status === 'success') state.insights = ins.value;
-        if (cols.status === 'fulfilled' && cols.value?.status === 'success' && Array.isArray(cols.value.columns) && cols.value.columns.length) {
-          state.columns = cols.value.columns;
+        const auth = { ...payload, session: state.session };
+        if (!memberColumnsRequest || memberColumnsRequest.member !== member) {
+          const columns = { member };
+          columns.promise = postRecords({ ...auth, action: 'columnList' }).catch(error => {
+            if (memberColumnsRequest === columns) memberColumnsRequest = null;
+            throw error;
+          });
+          memberColumnsRequest = columns;
         }
-        if (hist.status === 'fulfilled' && hist.value?.status === 'success' && Array.isArray(hist.value.days)) {
-          state.workoutDays = hist.value.days;
-        }
-        if (dVid.status === 'fulfilled' && dVid.value?.status === 'success' && Array.isArray(dVid.value.videos)) {
-          state.directVideos = dVid.value.videos;
-        }
+        const videoVersion = memberVideoVersion;
+        const [ins, cols, hist, videos] = await Promise.allSettled([
+          postRecords({ ...auth, action: 'memberInsights' }),
+          memberColumnsRequest.promise,
+          postRecords({ ...auth, action: 'workoutHistory', month: dateStr.slice(0, 7) }),
+          postRecords({ ...auth, action: 'directVideoList' })
+        ]);
+        if (!stillCurrent()) return;
+        if (ins.value?.status === 'success') state.insights = ins.value;
+        if (Array.isArray(cols.value?.columns)) state.columns = cols.value.columns;
+        if (Array.isArray(hist.value?.days)) state.workoutDays = hist.value.days;
+        if (videoVersion === memberVideoVersion && Array.isArray(videos.value?.videos)) state.directVideos = videos.value.videos;
         syncExerciseLibrary(dateStr);
         saveCachedMemberData(dateStr);
-        // Keep input focus / user-initiated interactions stable where possible.
-        if (!document.querySelector('input:focus, textarea:focus, select:focus') && !document.getElementById('modal-backdrop')?.classList.contains('flex')) {
-          renderAll();
-        }
-        prefetchRoutineVideos(state.record.routines, auth);
-      }).catch(() => {});
+        if (!document.querySelector('input:focus, textarea:focus, select:focus') &&
+            !document.getElementById('modal-backdrop')?.classList.contains('flex')) renderAll();
+      });
+    }
+
+    function emptyDailyRecord() {
+      return {
+        headerMessage: '', routines: [], reflection: { good: '', bad: '' },
+        diet: { water: 0 }, feedback: { workout: '', diet: '', time: '' }, memos: [],
+        dailyCheckin: { workout: '', diet: '', mood: '' }, ptScheduled: false, ptTime: ''
+      };
     }
 
     const videoPlayUrlCache = new Map();
-    async function resolvePlayableVideoUrl(videoId, authOverride, memberOverride) {
-      if (!videoId) return '';
+    function resolvePlayableVideoUrl(videoId, authOverride, memberOverride) {
+      if (!videoId) return Promise.resolve('');
+      const member = memberOverride || state.memberName;
+      const auth = authOverride || (state.appMode === 'coach' ? { password: state.trainerPassword }
+        : state.session ? { session: state.session } : { token: state.token });
+      const scope = auth.password ? 'coach' : 'member';
       const cached = videoPlayUrlCache.get(videoId);
-      if (cached && (Date.now() - cached.ts < 240000)) return cached.url;
-      const targetMember = memberOverride || state.memberName;
-      const auth = authOverride || (state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword }));
-      const isDirect = String(videoId).startsWith('direct:');
-      const vRes = isDirect
-        ? await postRecords({ action: 'directVideoPlay', id: videoId, member: targetMember, date: state.selectedDate, ...auth })
-        : await postRecords({ action: 'videoPlaybackUrl', fileId: videoId, videoId, member: targetMember, date: state.selectedDate, ...auth });
-      const playUrl = vRes?.url || vRes?.playbackUrl || vRes?.data?.url || '';
-      if (playUrl) videoPlayUrlCache.set(videoId, { url: playUrl, ts: Date.now() });
-      return playUrl;
-    }
-
-    function prefetchRoutineVideos(routines, auth) {
-      if (!state.isLive || !Array.isArray(routines)) return;
-      const ids = [...new Set(routines.map(r => r?.videoId).filter(Boolean))];
-      ids.slice(0, 6).forEach(vid => {
-        resolvePlayableVideoUrl(vid, auth).catch(() => {});
+      if (cached?.member === member && cached.scope === scope && Date.now() - cached.ts < 240000) return cached.promise;
+      const action = String(videoId).startsWith('direct:') ? { action: 'directVideoPlay', id: videoId }
+        : { action: 'videoPlaybackUrl', fileId: videoId, videoId };
+      const entry = { member, scope, ts: Date.now() };
+      const date = state.selectedDate;
+      const legacyAuth = auth.password ? auth : { token: state.token };
+      entry.promise = postRecords({ ...action, member, date, ...auth }).then(async result => {
+        if (result?.status === 'not_migrated') {
+          const legacy = await postAppsScript({ action: 'videoDownload', member, date, fileId: videoId, ...legacyAuth });
+          if (legacy?.status === 'success' && legacy.base64) {
+            const bytes = Uint8Array.from(atob(legacy.base64), byte => byte.charCodeAt(0));
+            entry.objectUrl = URL.createObjectURL(new Blob([bytes], { type: legacy.mime || 'video/mp4' }));
+            return entry.objectUrl;
+          }
+        }
+        const url = result?.url || result?.playbackUrl || result?.data?.url;
+        if (!url) throw Error('영상 주소를 받지 못했어요');
+        return url;
+      }).catch(error => {
+        if (videoPlayUrlCache.get(videoId) === entry) videoPlayUrlCache.delete(videoId);
+        throw error;
       });
+      const previous = videoPlayUrlCache.get(videoId);
+      if (previous?.objectUrl) URL.revokeObjectURL(previous.objectUrl);
+      videoPlayUrlCache.set(videoId, entry);
+      return entry.promise;
     }
 
     // --- Live Save Wrappers ---
@@ -1156,53 +1220,28 @@
       }
     }
 
-    async function savePatchLive(patchObj, targetMember) {
-      if (!state.isLive) {
-        showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
-        return false;
-      }
-      const mName = targetMember || state.memberName;
-      try {
-        const res = await postAppsScript({
-          action: 'patchData',
-          member: mName,
-          date: state.selectedDate,
-          token: state.token || '',
-          ...(state.trainerPassword ? { password: state.trainerPassword } : {}),
-          patch: patchObj
-        });
-        if (!res || res.status !== 'success') {
-          return await saveFullRecordLive(mName, state.record);
-        }
-        markJustSaved(mName, state.selectedDate);
-        return true;
-      } catch (err) {
-        return await saveFullRecordLive(mName, state.record);
-      }
+    async function writeAppsRecord(fields, member, date, auth) {
+      const result = await postAppsScript({ member, date, ...auth, ...fields });
+      if (result?.status !== 'success') throw Error(result?.message || result?.error || '기록 저장 실패');
     }
 
-    async function saveFullRecordLive(targetMember, fullData) {
+    function appsWriteAuth() {
+      return state.appMode === 'coach' ? { password: state.trainerPassword } : { token: state.token };
+    }
+
+    async function savePatchLive(patch, member = state.memberName, date = state.selectedDate) {
       if (!state.isLive) {
         showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
         return false;
       }
-      const mName = targetMember || state.memberName;
       try {
-        const res = await postAppsScript({
-          member: mName,
-          date: state.selectedDate,
-          token: state.token || '',
-          ...(state.trainerPassword ? { password: state.trainerPassword } : {}),
-          data: fullData || state.record
-        });
-        if (!res || res.status !== 'success') {
-          showToast('저장 실패: ' + (res?.message || res?.error || '서버 응답 오류'));
-          return false;
-        }
-        markJustSaved(mName, state.selectedDate);
+        // Apps Script accepts routines in the data envelope and merges
+        // submitted fields with the live record. patchData excludes routines.
+        const fields = Object.hasOwn(patch, 'routines') ? { data: patch } : { action: 'patchData', patch };
+        await writeAppsRecord(fields, member, date, appsWriteAuth());
         return true;
-      } catch (err) {
-        showToast('저장 오류: ' + (err?.message || '네트워크 확인'));
+      } catch {
+        showToast('저장을 확인하지 못했어요. 연결 확인 후 다시 시도해 주세요.');
         return false;
       }
     }
@@ -1210,7 +1249,56 @@
     // Serialized workout saves: capture the member/date at edit time. Rapid
     // taps are coalesced and no older request can finish AFTER the latest one.
     const workoutSaveJobs = new Map();
-    function workoutSaveKey(member,date){return JSON.stringify([member,date]);}
+    function workoutSaveKey(member, date) { return JSON.stringify([member, date]); }
+    function workoutDraftKey(key) { return 'fit_workout_draft_v1_' + key; }
+    function combineWorkoutDrafts(earlier, later) {
+      if (!earlier || !later) return later || earlier;
+      if (earlier.routines || later.routines) {
+        if (later.routines) return later;
+        const routines = structuredClone(earlier.routines);
+        applyWorkoutChanges(routines, later.changes);
+        return { routines };
+      }
+      const changes = new Map();
+      for (const change of [...earlier.changes, ...later.changes]) {
+        changes.set(JSON.stringify([String(change.id), change.index]), change);
+      }
+      return { changes: [...changes.values()] };
+    }
+
+    function applyWorkoutChanges(routines, changes) {
+      for (const { id, index, checked } of changes) {
+        const routine = routines.find(item => String(item.id) === String(id));
+        if (!routine || index >= Number(routine.sets)) continue;
+        if (!Array.isArray(routine.completedSets)) routine.completedSets = [];
+        routine.completedSets[index] = checked;
+      }
+    }
+
+    function persistWorkoutDraft(job) {
+      const key = workoutDraftKey(job.key);
+      const draft = combineWorkoutDrafts(job.sending, job.pending);
+      try {
+        if (draft) sessionStorage.setItem(key, JSON.stringify(draft));
+        else sessionStorage.removeItem(key);
+      } catch {}
+    }
+
+    function restoreWorkoutSave() {
+      const member = state.memberName, date = state.selectedDate, key = workoutSaveKey(member, date);
+      let job = workoutSaveJobs.get(key);
+      if (!job) {
+        let pending;
+        try { pending = JSON.parse(sessionStorage.getItem(workoutDraftKey(key))); } catch {}
+        if (!Array.isArray(pending?.changes) && !Array.isArray(pending?.routines)) return;
+        job = { member, date, key, auth: appsWriteAuth(), pending, status: 'queued' };
+        workoutSaveJobs.set(key, job);
+      }
+      const draft = combineWorkoutDrafts(job.sending, job.pending);
+      if (draft?.routines) state.record.routines = structuredClone(draft.routines);
+      if (draft?.changes) applyWorkoutChanges(state.record.routines, draft.changes);
+      if (job.pending && !job.processing) flushWorkoutSave(job);
+    }
     function workoutStatus() {
       return workoutSaveJobs.get(workoutSaveKey(state.memberName,state.selectedDate))?.status || '';
     }
@@ -1224,46 +1312,67 @@
       const retry=document.getElementById('workout-save-retry');
       if(retry)retry.classList.toggle('hidden',status!=='failed');
     }
-    function enqueueWorkoutSave() {
-      if(!state.isLive){showToast('미리보기에서는 운동 기록이 저장되지 않아요');return;}
-      const member=state.memberName,date=state.selectedDate,key=workoutSaveKey(member,date);
-      let job=workoutSaveJobs.get(key);
-      if(!job){job={member,date,key,token:state.token,password:state.trainerPassword,version:0,status:'',timer:null,pending:null,processing:false};workoutSaveJobs.set(key,job);}
-      job.version++;
-      // Keep a dated, immutable routines-only snapshot. Never replace the
-      // whole day while saving a set: diet/photos and coach notes are separate.
-      job.pending=JSON.parse(JSON.stringify(state.record.routines||[]));
-      job.status='queued';
-      if(job.timer)clearTimeout(job.timer);
-      job.timer=setTimeout(()=>{job.timer=null;flushWorkoutSave(job);},420);
+    function enqueueWorkoutSave(routine, indexes) {
+      if (!state.isLive || !state.workoutReadVerified) {
+        showToast('운동을 저장하려면 최신 기록을 먼저 불러와 주세요.');
+        return;
+      }
+      const member = state.memberName, date = state.selectedDate, key = workoutSaveKey(member, date);
+      let job = workoutSaveJobs.get(key);
+      if (!job) {
+        job = { member, date, key, auth: appsWriteAuth(), status: '' };
+        workoutSaveJobs.set(key, job);
+      }
+      // A routine addition (or a legacy routine with no usable ID/count)
+      // needs the routines-only write. Identified sets use atomic changes.
+      const count = Number(routine?.sets);
+      const draft = routine?.id != null && String(routine.id) && Number.isInteger(count) && count <= 100 &&
+        indexes.every(index => index >= 0 && index < count)
+        ? { changes: indexes.map(index => ({ id: routine.id, index, checked: Boolean(routine.completedSets?.[index]) })) }
+        : { routines: structuredClone(state.record.routines || []) };
+      job.pending = combineWorkoutDrafts(job.pending, draft);
+      persistWorkoutDraft(job);
+      job.status = 'queued';
+      if (job.timer) clearTimeout(job.timer);
+      job.timer = setTimeout(() => { job.timer = null; flushWorkoutSave(job); }, 420);
       updateWorkoutSaveLabel();
     }
+
     async function flushWorkoutSave(job) {
-      if(job.processing||!job.pending)return;
-      job.processing=true;
-      try{
-        while(job.pending){
-          const snapshot=job.pending;
-          job.pending=null;
-          job.status='saving';updateWorkoutSaveLabel();
-          const auth={member:job.member,date:job.date,token:job.token||'',...(job.password?{password:job.password}:{})};
-          try{
-            // Patch only routines. Never fall back to writing the whole day:
-            // doing so could overwrite a meal/photo saved during workout.
-            const result=await postAppsScript({...auth,action:'patchData',patch:{routines:snapshot}});
-            if(result?.status!=='success')throw Error(result?.message||result?.error||'운동 세트 저장 실패');
-            markJustSaved(job.member,job.date);
-            if(!job.pending){job.status='saved';updateWorkoutSaveLabel();}
-          } catch(err){
-            // Do not roll back later taps or claim unsaved edits succeeded.
-            if(!job.pending)job.pending=snapshot;
-            job.status='failed';
-            updateWorkoutSaveLabel();
+      if (job.processing || !job.pending) return;
+      job.processing = true;
+      try {
+        while (job.pending) {
+          const draft = job.pending;
+          job.pending = null;
+          job.sending = draft;
+          job.status = 'saving';
+          updateWorkoutSaveLabel();
+          try {
+            if (draft.routines) {
+              await writeAppsRecord({ data: { routines: draft.routines } }, job.member, job.date, job.auth);
+            } else {
+              for (let offset = 0; offset < draft.changes.length; offset += 100) {
+                await writeAppsRecord({ action: 'setProgressBatch', changes: draft.changes.slice(offset, offset + 100) },
+                  job.member, job.date, job.auth);
+              }
+            }
+            job.sending = null;
+            persistWorkoutDraft(job);
+            if (!job.pending) job.status = 'saved';
+          } catch {
+            job.pending = combineWorkoutDrafts(draft, job.pending);
+            job.sending = null;
+            persistWorkoutDraft(job);
+            job.status = 'failed';
             showToast('운동 저장 실패 · 다시 시도 버튼을 눌러주세요');
             return;
           }
         }
-      } finally {job.processing=false;updateWorkoutSaveLabel();}
+      } finally {
+        job.processing = false;
+        updateWorkoutSaveLabel();
+      }
     }
     function retryWorkoutSave() {
       const job=workoutSaveJobs.get(workoutSaveKey(state.memberName,state.selectedDate));
@@ -1281,14 +1390,16 @@
     });
 
     // --- UI Feedback ---
-    let failedVideoFile = null;
+    let failedVideoUpload = null;
     let videoUploadInFlight = false;
-    function setVideoUploadStatus(message,pct,visible=true) {
+    let videoUploadStatusTimer;
+    function setVideoUploadStatus(message,pct,visible=true,detail='다른 기록도 확인할 수 있어요.') {
       const root=document.getElementById('video-upload-status');
       if(!root)return;
       root.classList.toggle('hidden',!visible);
       if(!visible)return;
       document.getElementById('video-upload-text').textContent=message;
+      document.getElementById('video-upload-detail').textContent=detail;
       document.getElementById('video-upload-pct').textContent=Math.round(pct)+'%';
       document.getElementById('video-upload-bar').style.width=Math.max(0,Math.min(100,pct))+'%';
     }
@@ -1997,6 +2108,7 @@
       const b = document.getElementById('modal-backdrop');
       b.classList.add('hidden');
       b.classList.remove('flex');
+      document.getElementById('modal-body')?.querySelectorAll('video').forEach(video => video.pause());
     }
 
     // --- Metrics & Visual SVGs ---
@@ -2223,16 +2335,33 @@
       });
     }
 
-    async function deleteMealPhoto(targetMember, targetDate, mealKey, auth) {
-      const payload = { action: 'dietPhotoDelete', member: targetMember, date: targetDate, mealKey };
-      try {
-        return await postRecords({ ...payload, ...auth });
-      } catch (err) {
-        if (err?.status !== 403 || !state.token || auth.password) throw err;
-        const fresh = await postRecords({ action: 'memberSession', member: targetMember, date: targetDate, token: state.token });
-        if (fresh?.status !== 'success' || !fresh.session) throw err;
-        state.session = fresh.session;
-        return postRecords({ ...payload, session: state.session });
+    function deleteMealPhoto(member, date, mealKey, auth) {
+      return postRecords({ action: 'dietPhotoDelete', member, date, mealKey, ...auth });
+    }
+
+    async function saveMealLive(member, date, mealKey, updated, newPhoto) {
+      const auth = appsWriteAuth();
+      const { photos, photo, ...meal } = updated;
+      // Sync only this meal's text. Photos live in the dedicated records API.
+      await writeAppsRecord({ action: 'patchData', patch: { diet: { [mealKey]: meal } } }, member, date, auth);
+      const recordsAuth = auth.password ? auth : state.session ? { session: state.session } : auth;
+      const result = await postRecords({
+        action: 'dietSave', member, date, ...recordsAuth,
+        diet: { [mealKey]: { ...meal, ...(newPhoto ? { photos: [newPhoto] } : {}) } }
+      });
+      if (result?.status !== 'success') throw Error('식단 서버 저장 실패');
+      const saved = result.data?.diet?.[mealKey];
+      if (!saved || saved.desc !== meal.desc || String(saved.cal ?? '') !== String(meal.cal ?? '')) {
+        throw Error('식단 서버 반영 확인 실패');
+      }
+      if (Array.isArray(meal.foods)) {
+        const signature = foods => JSON.stringify(foods.map(v => [
+          String(v.name || ''), Number(v.grams) || 0, String(v.display || ''),
+          Number(v.kcal) || 0, Number(v.carb) || 0, Number(v.prot) || 0, Number(v.fat) || 0
+        ]));
+        if (!Array.isArray(saved.foods) || signature(saved.foods) !== signature(meal.foods)) {
+          throw Error('음식별 기록 서버 반영 확인 실패');
+        }
       }
     }
 
@@ -2392,6 +2521,10 @@
     }
 
     function openMealModal(mealKey, mealLabel) {
+      if (state.isLive && !state.mealReadVerified) {
+        showToast('식단을 수정하려면 최신 기록을 먼저 불러와 주세요.');
+        return;
+      }
       const m = state.record.diet[mealKey] || { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] };
       const presets = [
         { tag: '클린식', cal: '450', carb: '40', prot: '35', fat: '10', desc: '닭가슴살 · 현미밥 · 샐러드' },
@@ -2572,67 +2705,20 @@
         }
         savingMeal = true;
         document.querySelectorAll('.pr-btn').forEach(btn => { btn.disabled = true; });
-        const prevMeal = state.record.diet[mealKey];
-        state.record.diet[mealKey] = updated;
-        const auth = (state.appMode === 'coach' && state.trainerPassword)
-          ? { password: state.trainerPassword }
-          : (state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword }));
+        const member = state.memberName, date = state.selectedDate;
+        const modalForm = document.getElementById('meal-form');
         try {
-          // Apps Script deliberately strips photos. Finish that write BEFORE the
-          // photo-bearing Supabase write, rather than racing two writers.
-          // Apps Script stores only light meal metadata; image bytes belong to
-          // Supabase and must never be copied to Google Sheets or a full-record sync.
-          const lightDiet = {};
-          for (const [key, meal] of Object.entries(state.record.diet || {})) {
-            lightDiet[key] = meal && typeof meal === 'object' && key !== 'water'
-              ? { ...meal, photos: [] } : meal;
+          await saveMealLive(member, date, mealKey, updated, hasNewPhoto ? compressedPhoto : '');
+          const stillCurrent = state.memberName === member && state.selectedDate === date;
+          if (stillCurrent) {
+            state.record.diet[mealKey] = updated;
+            saveCachedMemberData(date);
           }
-          const lightRecord = { ...state.record, diet: lightDiet };
-          const appsSaved = await saveFullRecordLive(state.memberName, lightRecord);
-          if (!appsSaved) throw new Error('Apps Script 식단 기록 저장 실패');
-          const dietPayload = {
-            action: 'dietSave',
-            member: state.memberName,
-            date: state.selectedDate,
-            diet: { [mealKey]: updated }
-          };
-          let supaRes;
-          try {
-            supaRes = await postRecords({ ...dietPayload, ...auth });
-          } catch (saveError) {
-            // Member sessions last eight hours. If a session expired while
-            // a member was filling out the meal form, validate the member link
-            // and transparently retry without losing the selected photo.
-            if (saveError?.status !== 403 || !state.token || state.appMode === 'coach') throw saveError;
-            const fresh = await postRecords({
-              action: 'memberSession', member: state.memberName,
-              date: state.selectedDate, token: state.token
-            });
-            if (fresh?.status !== 'success' || !fresh.session) throw saveError;
-            state.session = fresh.session;
-            supaRes = await postRecords({ ...dietPayload, session: state.session });
+          if (!stillCurrent || document.getElementById('meal-form') !== modalForm) {
+            try { sessionStorage.removeItem(mealDraftKey); } catch {}
+            showToast(labelText + ' ✓');
+            return;
           }
-          if (supaRes?.status !== 'success') {
-            throw new Error(supaRes?.code || supaRes?.message || '식단 서버 저장 실패');
-          }
-          // A generic success isn't enough: confirm that the DB stored the
-          // requested food items before notifying the member of success.
-          if (Array.isArray(updated.foods)) {
-            const savedMeal = supaRes?.data?.diet?.[mealKey];
-            const signature = foods => JSON.stringify(foods.map(v => [
-              String(v.name || ''), Number(v.grams) || 0, String(v.display || ''),
-              Number(v.kcal) || 0, Number(v.carb) || 0,
-              Number(v.prot) || 0, Number(v.fat) || 0
-            ]));
-            if (!savedMeal || !Array.isArray(savedMeal.foods) ||
-                signature(savedMeal.foods) !== signature(updated.foods)) {
-              throw new Error('음식별 기록 서버 반영 확인 실패');
-            }
-          }
-          // dietSave success and food echo are the write confirmation. Do not
-          // reject a successful write due to a separate, slower read request.
-          state.mealReadVerified = true;
-          saveCachedMemberData(state.selectedDate);
           // Only recent generic food choices in tab-scoped storage, never member identifiers/photos.
           try {
             const previous=JSON.parse(sessionStorage.getItem(recentKey)||'[]');
@@ -2647,15 +2733,12 @@
           renderAll();
           showToast(labelText + ' ✓');
         } catch (err) {
-          // Apps Script may already have saved the meal text. Do not silently
-          // restore a stale local copy and imply that nothing was saved.
-          state.record.diet[mealKey] = prevMeal;
           if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = '저장하기';
           }
           document.querySelectorAll('.pr-btn').forEach(btn => { btn.disabled = false; });
-          preserveMealDraft();
+          if (document.getElementById('meal-form') === modalForm) preserveMealDraft();
           showToast('식단 저장을 완료하지 못했어요: ' + (err?.message || '네트워크를 확인해 주세요') + ' (일부 기록은 저장됐을 수 있어요)');
         } finally {
           savingMeal = false;
@@ -3093,18 +3176,14 @@
       }
       return `
         <div class="rounded-[20px] overflow-hidden bg-black shadow-sm">
-          <video src="${escapeHtml(u)}" controls playsinline preload="auto" class="w-full max-h-56 object-contain"></video>
+          <video src="${escapeHtml(u)}" controls autoplay muted playsinline preload="auto" class="w-full max-h-56 object-contain"></video>
         </div>
       `;
     }
 
     async function openFormGuideModal(title, note, videoUrl, videoId) {
       const profile = getExerciseProfile(title);
-      let resolvedUrl = String(videoUrl || '').trim();
-      if (!resolvedUrl && videoId) {
-        const cached = videoPlayUrlCache.get(videoId);
-        if (cached && (Date.now() - cached.ts < 240000)) resolvedUrl = cached.url;
-      }
+      const resolvedUrl = String(videoUrl || '').trim();
       openModal(`자극 근육 · 자세 가이드`, `
         <div class="space-y-4">
           <div id="fg-video-slot">${resolvedUrl ? buildVideoPlayerHtml(resolvedUrl) : (videoId ? '<div class="p-4 rounded-2xl bg-[#F4F6F9] text-center text-[12px] font-bold text-[#1D4ED8]">🎬 영상을 불러오는 중...</div>' : '')}</div>
@@ -3145,19 +3224,21 @@
       `);
       document.getElementById('btn-close-guide').addEventListener('click', closeModal);
       if (!resolvedUrl && videoId && state.isLive) {
+        const slot = document.getElementById('fg-video-slot');
         try {
           const playUrl = await resolvePlayableVideoUrl(videoId);
-          const slot = document.getElementById('fg-video-slot');
-          if (playUrl && slot) slot.innerHTML = buildVideoPlayerHtml(playUrl);
-          else if (slot) slot.innerHTML = '<div class="p-3 rounded-2xl bg-[#F4F6F9] text-center text-[11px] text-[#6B7280]">등록된 영상을 불러오지 못했습니다.</div>';
+          if (slot?.isConnected && document.getElementById('modal-backdrop').classList.contains('flex')) slot.innerHTML = buildVideoPlayerHtml(playUrl);
         } catch {
-          const slot = document.getElementById('fg-video-slot');
-          if (slot) slot.innerHTML = '<div class="p-3 rounded-2xl bg-[#F4F6F9] text-center text-[11px] text-[#6B7280]">영상을 불러오지 못했습니다.</div>';
+          if (slot?.isConnected) slot.textContent = '영상을 불러오지 못했어요. 닫고 다시 시도해 주세요.';
         }
       }
     }
 
     function openAddRoutineModal() {
+      if (state.isLive && !state.workoutReadVerified) {
+        showToast('운동을 추가하려면 최신 기록을 먼저 불러와 주세요.');
+        return;
+      }
       openModal('개인운동 직접 추가', `
         <form id="add-routine-form" class="space-y-3">
           <input id="ar-name" required placeholder="운동 이름 (예: 힙 쓰러스트)" class="w-full text-sm px-4 py-3 rounded-2xl bg-[#F4F6F9]" />
@@ -3186,9 +3267,8 @@
         });
         closeModal();
         triggerConfetti();
-        showToast('개인운동이 추가되었어요!');
+        enqueueWorkoutSave();
         renderAll();
-        saveFullRecordLive();
       });
     }
 
@@ -3824,7 +3904,7 @@
                 <div class="flex items-center gap-1.5">
                   <input id="cd-new-video" type="url" placeholder="🎬 시범 영상 링크 또는 오른쪽 버튼으로 올리기" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
                   <label class="tap-scale shrink-0 px-3 py-2 rounded-xl bg-white text-[#1D4ED8] text-[11px] font-extrabold shadow-sm cursor-pointer">
-                    <input id="cd-new-vid-file" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+                    <input id="cd-new-vid-file" type="file" accept="video/mp4,video/quicktime,video/webm,video/*,.m4v" class="hidden" />
                     <span id="cd-new-vid-lbl">📹 영상 올리기</span>
                   </label>
                 </div>
@@ -4203,18 +4283,7 @@
             if (oldVidId.startsWith('direct:') && state.trainerPassword) {
               postRecords({ action: 'directVideoDelete', id: oldVidId, member: memberName, date: state.selectedDate, password: state.trainerPassword }).catch(() => {});
             }
-            const autoPayload = {
-              headerMessage: replyMsg || daily.headerMessage || '',
-              routines,
-              reflection: daily.reflection || { good: '', bad: '' },
-              diet: daily.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
-              feedback: daily.feedback || { workout: '', diet: '', time: '' },
-              memos: Array.isArray(daily.memos) ? daily.memos : [],
-              dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' },
-              ptScheduled: Boolean(daily.ptScheduled),
-              ptTime: daily.ptTime || ''
-            };
-            const savedOk = await saveFullRecordLive(memberName, autoPayload);
+            const savedOk = await savePatchLive({ routines }, memberName);
             if (savedOk) showToast('영상이 삭제되고 일지에 반영되었습니다 ✓');
           });
         });
@@ -4265,18 +4334,7 @@
               dietMsg = document.getElementById('cd-diet-msg').value;
               showToast('영상 업로드 완료! 저장 중...');
               renderDetailBody();
-              const autoPayload = {
-                headerMessage: replyMsg || daily.headerMessage || '',
-                routines,
-                reflection: daily.reflection || { good: '', bad: '' },
-                diet: daily.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
-                feedback: daily.feedback || { workout: '', diet: '', time: '' },
-                memos: Array.isArray(daily.memos) ? daily.memos : [],
-                dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' },
-                ptScheduled: Boolean(daily.ptScheduled),
-                ptTime: daily.ptTime || ''
-              };
-              const savedOk = await saveFullRecordLive(memberName, autoPayload);
+              const savedOk = await savePatchLive({ routines }, memberName);
               if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
             } catch (err) {
               showToast('영상 업로드 실패: ' + (err?.message || '용량(50MB 이하) 확인'));
@@ -4301,6 +4359,7 @@
             btn.textContent = '닫기';
             try {
               const url = await resolvePlayableVideoUrl(dv.id, { password: state.trainerPassword }, memberName);
+              if (slot.classList.contains('hidden') || !slot.isConnected || !document.getElementById('modal-backdrop').classList.contains('flex')) return;
               if (url) slot.innerHTML = buildVideoPlayerHtml(url);
               else slot.innerHTML = '<p class="text-[11px] text-red-500 py-2 text-center">영상을 불러오지 못했습니다.</p>';
             } catch {
@@ -4491,32 +4550,22 @@
 
           const finalReply = document.getElementById('cd-reply-msg').value.trim();
           const finalDiet = document.getElementById('cd-diet-msg').value.trim();
-          const fullPayload = {
+          const patch = {
             headerMessage: finalReply || daily.headerMessage || '',
             routines,
-            reflection: daily.reflection || { good: '', bad: '' },
-            diet: daily.diet || {
-              breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-              lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-              dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-              snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] },
-              water: 0
-            },
             feedback: {
               ...(daily.feedback || {}),
               ...(finalReply ? { workout: finalReply } : {}),
               ...(finalDiet ? { diet: finalDiet } : {}),
               time: nowTimeHHMM()
-            },
-            memos: Array.isArray(daily.memos) ? daily.memos : [],
-            dailyCheckin: daily.dailyCheckin || { workout: '', diet: '', mood: '' }
+            }
           };
 
           const saveBtn = document.getElementById('cd-save-all');
           const nextBtn = document.getElementById('cd-save-next');
           if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중...'; }
           if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = '저장 중...'; }
-          const ok = await saveFullRecordLive(memberName, fullPayload);
+          const ok = await savePatchLive(patch, memberName);
           if (!ok) {
             if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '이 회원만 저장하기'; }
             if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '저장하고 다음 대기 회원 보기 →'; }
@@ -4527,9 +4576,9 @@
               action: 'coachFeedbackSave',
               member: memberName, date: state.selectedDate,
               password: state.trainerPassword,
-              headerMessage: fullPayload.headerMessage,
-              workoutFeedback: fullPayload.feedback.workout || '',
-              dietFeedback: fullPayload.feedback.diet || ''
+              headerMessage: patch.headerMessage,
+              workoutFeedback: patch.feedback.workout || '',
+              dietFeedback: patch.feedback.diet || ''
             });
             if (savedFeedback?.status !== 'success')
               throw new Error(savedFeedback?.code || '피드백 서버 저장 실패');
@@ -4551,7 +4600,7 @@
             if (finalDiet) ovTarget.pendingDiet = false;
           }
           if (memberName === state.memberName) {
-            state.record = fullPayload;
+            state.record = { ...state.record, ...patch };
             saveCachedMemberData(state.selectedDate);
           }
           const nextMember = goNext ? (state.trainerOverview || []).find(m =>
@@ -4800,20 +4849,21 @@
           </div>
         `;
         const switchMemberDate = async newDate => {
-          if (!newDate) return;
+          if (!newDate || newDate === state.selectedDate) return;
+          closeModal();
           state.selectedDate = newDate;
           state.weekDays = buildWeekDays(state.selectedDate);
           if (state.isLive) {
-            const hadCache = applyCachedMemberData(state.selectedDate);
+            if (!applyCachedMemberData(newDate)) state.record = emptyDailyRecord();
             state.mealReadVerified = false;
+            state.workoutReadVerified = false;
             state.loading = true;
             renderAll();
-            await loadMemberDateData(state.selectedDate);
-            saveCachedMemberData(state.selectedDate);
-            state.loading = false;
+            await loadMemberDateData(newDate);
+          } else {
+            loadLocalMemberExtras();
+            renderAll();
           }
-          loadLocalMemberExtras();
-          renderAll();
         };
         hdr.querySelectorAll('.day-btn').forEach(btn => {
           btn.addEventListener('click', () => switchMemberDate(btn.dataset.fdate));
@@ -5585,10 +5635,14 @@
             <div class="flex items-center justify-between gap-2">
               <h2 class="text-[16px] font-bold text-[#111827]">코치 · 회원 메모</h2>
               <label class="tap-scale px-3 py-1.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold cursor-pointer">
-                <input id="member-vid-upload" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+                <input id="member-vid-upload" type="file" accept="video/mp4,video/quicktime,video/webm,video/*,.m4v" class="hidden" />
                 <span>📹 자세 영상 올리기</span>
               </label>
             </div>
+            <label class="inline-flex tap-scale px-3 py-1.5 rounded-full bg-[#F4F6F9] text-[#1D4ED8] text-[11px] font-bold cursor-pointer">
+              <input id="member-vid-file" type="file" class="hidden" />
+              <span>파일에서 영상 선택</span>
+            </label>
             ${memos.length ? memos.map(f => `
               <div class="p-3.5 rounded-2xl ${f.from === 'trainer' ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'}">
                 <div class="flex justify-between text-[11px] mb-1">
@@ -5958,7 +6012,7 @@
           const count=Math.max(1,Number(routine.sets)||routine.completedSets?.length||3);
           const sets=Array.from({length:count},(_,i)=>Boolean(routine.completedSets?.[i]));
           sets[si]=!sets[si];routine.completedSets=sets;
-          const completed=sets[si];enqueueWorkoutSave();renderAll();
+          const completed=sets[si];enqueueWorkoutSave(routine, [si]);renderAll();
           if(completed){
             state.timer.setsDone+=1;
             if(state.timer.autoStartOnCheck)startTimerCountdown(getConfiguredTimerSeconds());
@@ -5978,7 +6032,7 @@
             triggerConfetti();
             if (state.timer.autoStartOnCheck) startTimerCountdown(getConfiguredTimerSeconds());
           }
-          enqueueWorkoutSave();
+          enqueueWorkoutSave(r, r.completedSets.map((_, index) => index));
           renderAll();
         });
       });
@@ -6074,8 +6128,7 @@
         b.addEventListener('click', () => openMagazineModal(Number(b.dataset.colidx)));
       });
 
-      const mVidInp = document.getElementById('member-vid-upload');
-      const handleMemberVideoFile = async f => {
+      const handleMemberVideoFile = async (f, upload = {}) => {
           if (videoUploadInFlight) return;
           if (!f) return;
           if (!state.isLive || !state.token) {
@@ -6083,15 +6136,37 @@
             return;
           }
           videoUploadInFlight = true;
-          failedVideoFile = null;
+          failedVideoUpload = null;
+          clearTimeout(videoUploadStatusTimer);
+          const member = state.memberName;
+          upload.date ||= state.selectedDate;
           document.getElementById('video-upload-retry')?.classList.add('hidden');
           showToast('자세 영상을 업로드 중입니다... ⏳');
           setVideoUploadStatus('운동 영상 준비 중',0);
           try {
-            const directId = await uploadDirectVideoFile(f, state.memberName, state.token, '회원 자세 체크 영상', pct => {
-              setVideoUploadStatus('운동 영상 전송 중',pct);
-            });
-            setVideoUploadStatus('업로드 완료 · 기록 반영 중',100);
+            upload.onStage = (label, percent) => setVideoUploadStatus(label, percent);
+            const directId = await uploadDirectVideoFile(f, member, state.token, '회원 자세 체크 영상', (pct, loaded, total) => {
+              setVideoUploadStatus('전송 중 · ' + videoSizeLabel(loaded) + ' / ' + videoSizeLabel(total), pct);
+            }, upload);
+            memberVideoVersion++;
+            const seconds = ms => (ms / 1000).toFixed(1) + '초';
+            const size = upload.file.size < f.size
+              ? videoSizeLabel(f.size) + ' → ' + videoSizeLabel(upload.file.size)
+              : videoSizeLabel(f.size);
+            const phases = [
+              upload.timing.prepare >= 200 ? '준비 ' + seconds(upload.timing.prepare) : '',
+              Number.isFinite(upload.timing.transfer) ? '전송 ' + seconds(upload.timing.transfer) : '',
+              Number.isFinite(upload.timing.finish) ? '등록 ' + seconds(upload.timing.finish) : ''
+            ].filter(Boolean).join(' · ');
+            setVideoUploadStatus('업로드 완료 · ' + size, 100, true, phases || '피드백 탭에서 확인할 수 있어요.');
+            videoUploadStatusTimer = setTimeout(() => setVideoUploadStatus('', 0, false), 15_000);
+            if (state.appMode !== 'member' || state.memberName !== member) return;
+            state.directVideos.unshift({ id: directId, name: f.name || '자세 영상', question: '회원 자세 체크 영상', feedback: '' });
+            if (state.selectedDate !== upload.date) {
+              renderAll();
+              showToast('영상 업로드 완료! 피드백 탭에서 확인할 수 있어요 ✓');
+              return;
+            }
             state.record.memos.push({
               id: Date.now() + '-vid',
               from: 'member',
@@ -6099,13 +6174,11 @@
               time: nowTimeHHMM(),
               videoId: directId
             });
-            state.directVideos.unshift({ id: directId, name: f.name || '자세 영상', question: '회원 자세 체크 영상', feedback: '' });
-            showToast('자세 영상 업로드 완료! 수업일지 · 메모에 반영되었어요 ✓');
             renderAll();
-            savePatchLive({ memos: state.record.memos });
-            setVideoUploadStatus('',0,false);
+            showToast('영상 업로드 완료! 피드백 탭에서 확인할 수 있어요 ✓');
+            await savePatchLive({ memos: state.record.memos }, member, upload.date);
           } catch (err) {
-            failedVideoFile = f;
+            failedVideoUpload = { file: f, upload, member };
             setVideoUploadStatus('업로드 실패 · 다시 시도할 수 있어요',0,true);
             document.getElementById('video-upload-retry')?.classList.remove('hidden');
             showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 MP4/MOV만 가능'));
@@ -6113,14 +6186,19 @@
             videoUploadInFlight = false;
           }
       };
-      if (mVidInp) mVidInp.addEventListener('change', e => {
-        const file = e.target.files?.[0];
-        if (file) handleMemberVideoFile(file);
-        e.target.value = '';
+      ['member-vid-upload', 'member-vid-file'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', e => {
+          const file = e.target.files?.[0];
+          if (file && normalizeVideoMime(file).startsWith('video/')) handleMemberVideoFile(file);
+          else if (file) showToast('MP4, MOV 또는 WebM 영상을 선택해 주세요.');
+          e.target.value = '';
+        });
       });
-      document.getElementById('video-upload-retry')?.addEventListener('click', () => {
-        if (failedVideoFile) handleMemberVideoFile(failedVideoFile);
-      });
+      document.getElementById('video-upload-retry').onclick = () => {
+        if (failedVideoUpload?.member === state.memberName) {
+          handleMemberVideoFile(failedVideoUpload.file, failedVideoUpload.upload);
+        }
+      };
 
 
 

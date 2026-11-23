@@ -24,6 +24,7 @@ assert.equal(buildMemberInsights([{date:'2026-11-01',data:{diet:{breakfast:{desc
 
 const overview=await buildOverview(async(path)=>{
   if(path.includes('fit_members?'))return [{id:'one',name:'회원A'},{id:'two',name:'회원B'}];
+  if(path.includes('fit_coach_feedback?'))return [];
   if(path.includes('fit_direct_videos?'))return [{member_id:'one',feedback:''},{member_id:'one',feedback:'답변'},{member_id:'two',feedback:'  '},{member_id:'unknown',feedback:''}];
   return [{member_id:'one',record_date:'2026-11-18',routines:[routine],diet:{breakfast:{desc:'식사'}},feedback:{diet:'답변'}}];
 },'2026-11-18');

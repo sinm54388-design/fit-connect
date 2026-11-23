@@ -12,6 +12,158 @@
 // MEMBER_SESSION_HOURS.
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
 const MEMBER_SESSION_HOURS=8;
+const R2_MEDIA_ROUTE='/api/media';
+const R2_MEDIA_PREFIX='r2/';
+const LEGACY_MEDIA_MAX_BYTES=50_000_000;
+const R2_VIDEO_MAX_BYTES=100_000_000;
+const MEDIA_PART_LIST_MAX_BYTES=8192;
+const MEDIA_PART_BYTES=6*1024*1024;
+const MEDIA_UPLOAD_TTL=45*60_000;
+const MEDIA_TYPES=new Map([
+  ['video/mp4','mp4'],['video/webm','webm'],['video/quicktime','mov'],
+  ['image/jpeg','jpg'],['image/png','png'],['image/webp','webp']
+]);
+const mediaMaxBytes=(mime,usesR2)=>usesR2&&mime.startsWith('video/')?R2_VIDEO_MAX_BYTES:LEGACY_MEDIA_MAX_BYTES;
+const mediaPath=path=>typeof path==='string'&&path.length<=650&&
+  path.split('/').every(part=>part!=='.'&&part!=='..'&&/^[a-zA-Z0-9_.-]+$/.test(part));
+const r2MediaReady=env=>Boolean(env.FIT_MEDIA&&String(env.MEMBER_SESSION_SECRET||'').length>=32);
+async function mediaGrantUrl(request,env,{path,mime,size,uploadId},mode,ttl) {
+  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({path,mime,size,uploadId,mode,exp:Date.now()+ttl})));
+  const signed=new TextEncoder().encode('fit-r2-media-v1.'+payload);
+  const signature=await crypto.subtle.sign('HMAC',await sessionKey(env.MEMBER_SESSION_SECRET),signed);
+  const url=new URL(R2_MEDIA_ROUTE,request.url);
+  url.searchParams.set('grant',payload+'.'+b64url.encode(new Uint8Array(signature)));
+  return url.href;
+}
+async function readMediaGrant(request,env) {
+  const grant=new URL(request.url).searchParams.get('grant')||'';
+  if(grant.length>1800)return null;
+  const [payload,signature,extra]=grant.split('.');
+  if(!payload||!signature||extra!==undefined)return null;
+  try {
+    const signed=new TextEncoder().encode('fit-r2-media-v1.'+payload);
+    if(!await crypto.subtle.verify('HMAC',await sessionKey(env.MEMBER_SESSION_SECRET),b64url.decode(signature),signed))return null;
+    const data=JSON.parse(new TextDecoder().decode(b64url.decode(payload)));
+    return mediaPath(data.path)&&data.path.startsWith(R2_MEDIA_PREFIX)&&
+      Number.isSafeInteger(data.exp)&&data.exp>Date.now()?data:null;
+  }catch{return null;}
+}
+function mediaRange(header,size) {
+  const match=/^bytes=(\d{0,16})-(\d{0,16})$/.exec(header);
+  if(!match||(!match[1]&&!match[2]))return null;
+  const offset=match[1]?Number(match[1]):Math.max(0,size-Number(match[2]));
+  const end=match[1]&&match[2]?Math.min(size-1,Number(match[2])):size-1;
+  if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(end)||offset>end||offset>=size)return null;
+  return {offset,length:end-offset+1};
+}
+function validMediaBody(request,size,mime) {
+  return request.body&&request.headers.get('content-length')===String(size)&&
+    request.headers.get('content-type')===mime;
+}
+function validUploadedPart(part,index) {
+  return part?.partNumber===index+1&&typeof part.etag==='string'&&part.etag.length>0&&part.etag.length<=384;
+}
+async function handleR2Multipart(request,env,grant) {
+  const {path,mime,size,mode,uploadId}=grant;
+  const count=Math.ceil(size/MEDIA_PART_BYTES);
+  if(mode==='upload'&&request.method==='POST'){
+    if(await env.FIT_MEDIA.head(path))return json({complete:true});
+    const upload=await env.FIT_MEDIA.createMultipartUpload(path,{httpMetadata:{contentType:mime}});
+    const url=await mediaGrantUrl(request,env,{path,mime,size,uploadId:upload.uploadId},'multipart',MEDIA_UPLOAD_TTL);
+    return json({url});
+  }
+  if(mode!=='multipart')return json({status:'denied'},403);
+  const upload=env.FIT_MEDIA.resumeMultipartUpload(path,uploadId);
+  if(request.method==='PUT'){
+    const partNumber=Number(new URL(request.url).searchParams.get('part'));
+    const partSize=Math.min(MEDIA_PART_BYTES,size-(partNumber-1)*MEDIA_PART_BYTES);
+    if(!Number.isInteger(partNumber)||partNumber<1||partNumber>count||
+      !validMediaBody(request,partSize,'application/offset+octet-stream'))
+      return json({status:'error',code:'invalid_media_part'},422);
+    return json(await upload.uploadPart(partNumber,request.body));
+  }
+  if(request.method==='POST'){
+    if(Number(request.headers.get('content-length'))>MEDIA_PART_LIST_MAX_BYTES)return json({status:'error',code:'invalid_media_parts'},422);
+    const existing=await env.FIT_MEDIA.head(path);
+    if(existing?.size===size&&existing.httpMetadata?.contentType===mime)return json({complete:true});
+    const reader=request.body?.getReader();
+    if(!reader)return json({status:'error',code:'invalid_media_parts'},422);
+    let payload='',bytes=0;
+    const decoder=new TextDecoder();
+    for(;;){
+      const {done,value}=await reader.read();
+      if(done)break;
+      bytes+=value.byteLength;
+      if(bytes>MEDIA_PART_LIST_MAX_BYTES){
+        await reader.cancel();
+        return json({status:'error',code:'invalid_media_parts'},422);
+      }
+      payload+=decoder.decode(value,{stream:true});
+    }
+    let parts;
+    try{parts=JSON.parse(payload+decoder.decode());}catch{
+      return json({status:'error',code:'invalid_media_parts'},422);
+    }
+    if(!Array.isArray(parts)||parts.length!==count||!parts.every(validUploadedPart))
+      return json({status:'error',code:'invalid_media_parts'},422);
+    try {
+      await upload.complete(parts);
+    }catch(error){
+      const saved=await env.FIT_MEDIA.head(path);
+      if(saved?.size!==size||saved.httpMetadata?.contentType!==mime)throw error;
+    }
+    return json({complete:true});
+  }
+  return json({status:'denied'},403);
+}
+async function handleR2Media(request,env) {
+  const denied=()=>json({status:'denied'},403);
+  if(!r2MediaReady(env))return json({status:'error',code:'media_unavailable'},503);
+  const grant=await readMediaGrant(request,env);
+  if(!grant)return denied();
+  const {path,mime,size,mode}=grant;
+  const method=request.method;
+  try {
+    if(['upload','multipart'].includes(mode)){
+      if(!sameOriginRequest(request))return denied();
+      if(!MEDIA_TYPES.has(mime)||!Number.isSafeInteger(size)||size<1||size>mediaMaxBytes(mime,true))
+        return json({status:'error',code:'invalid_media_body'},422);
+      if(size>MEDIA_PART_BYTES)return await handleR2Multipart(request,env,grant);
+      if(method!=='PUT'||mode!=='upload')return denied();
+      if(!validMediaBody(request,size,mime))return json({status:'error',code:'invalid_media_body'},422);
+      const saved=await env.FIT_MEDIA.put(path,request.body,{
+        onlyIf:new Headers({'If-None-Match':'*'}),httpMetadata:{contentType:mime}
+      });
+      // A retry after a lost response can use the object already uploaded.
+      const stored=saved||await env.FIT_MEDIA.head(path);
+      if(stored?.size!==size||stored.httpMetadata?.contentType!==mime)
+        return json({status:'error',code:'upload_size_mismatch'},409);
+      return new Response(null,{status:204,headers:{'Cache-Control':'no-store'}});
+    }
+    if(mode!=='read'||!['GET','HEAD'].includes(method))return denied();
+    const rangeHeader=method==='GET'&&request.headers.get('Range');
+    const head=rangeHeader||method==='HEAD'?await env.FIT_MEDIA.head(path):null;
+    if((rangeHeader||method==='HEAD')&&!head)return json({status:'error',code:'video_not_found'},404);
+    const range=rangeHeader?mediaRange(rangeHeader,head.size):null;
+    if(rangeHeader&&!range)return new Response(null,{status:416,headers:{
+      'Content-Range':'bytes */'+head.size,'Cache-Control':'private, no-store'
+    }});
+    const object=method==='HEAD'?head:await env.FIT_MEDIA.get(path,range?{range}:undefined);
+    if(!object)return json({status:'error',code:'video_not_found'},404);
+    const contentType=object.httpMetadata?.contentType;
+    const headers=new Headers({
+      'Accept-Ranges':'bytes','Cache-Control':'private, no-store',
+      'Content-Type':MEDIA_TYPES.has(contentType)?contentType:'application/octet-stream',
+      'Content-Length':String(range?.length??object.size),
+      'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'
+    });
+    if(range)headers.set('Content-Range','bytes '+range.offset+'-'+(range.offset+range.length-1)+'/'+head.size);
+    return new Response(method==='HEAD'?null:object.body,{status:range?206:200,headers});
+  }catch {
+    return json({status:'error',code:'media_storage_unavailable'},502);
+  }
+}
+
 const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','dailyCheckin','dietSave','dietPhotoDelete','columnList','assessmentList'];
 const b64url={
   encode:bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
@@ -852,9 +1004,11 @@ async function handleRecords(request,env) {
       let row;
       if(action==='directVideoBegin'){
         const size=Number(input.size),mime=String(input.mime||''),name=String(input.name||'').trim().slice(0,150),question=String(input.question||'').slice(0,1000);
-        const ext={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[mime];
-        if(!ext||!name||!Number.isInteger(size)||size<1||size>50000000)return json({status:'error',code:'invalid_file'},400);
-        const storage_path='member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
+        const ext=MEDIA_TYPES.get(mime);
+        if(!ext||!name||!Number.isInteger(size)||size<1)return json({status:'error',code:'invalid_file'},400);
+        const useR2=r2MediaReady(env);
+        if(size>mediaMaxBytes(mime,useR2))return json({status:'error',code:'video_size_limit'},413);
+        const storage_path=(useR2?R2_MEDIA_PREFIX:'')+'member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
         // Insert and return the row in one round trip; conflicts are scoped to this member.
         const inserted=await send(table+'?on_conflict=id','POST',{id,member_id:String(memberId),storage_path,name,question,mime,size_bytes:size},{Prefer:'resolution=ignore-duplicates,return=representation'});
         row=Array.isArray(inserted)?inserted[0]:null;
@@ -862,6 +1016,11 @@ async function handleRecords(request,env) {
         if(row&&String(row.member_id)!==String(memberId))return json({status:'denied'},403);
         if(!row||row.size_bytes!=size||row.mime!==mime||row.state==='deleted')return json({status:'error',code:'upload_conflict'},409);
         if(row.state==='ready')return json({status:'success',alreadyReady:true});
+        if(row.storage_path.startsWith(R2_MEDIA_PREFIX)){
+          if(!r2MediaReady(env))return json({status:'error',code:'media_unavailable'},503);
+          const url=await mediaGrantUrl(request,env,{path:row.storage_path,mime,size},'upload',MEDIA_UPLOAD_TTL);
+          return json({status:'success',url,storage:'r2',partBytes:MEDIA_PART_BYTES});
+        }
         const path=row.storage_path.split('/').map(encodeURIComponent).join('/');
         const signed=await send(bucket+'/upload/sign/fit-direct-videos/'+path,'POST',{});
         const relative=String(signed.url||signed.signedURL||'');
@@ -876,8 +1035,11 @@ async function handleRecords(request,env) {
       if(action==='directVideoFinish'){
         if(row.state==='ready')return json({status:'success',video:format(row)});
         step='direct_finish_storage';
-        const info=await send(bucket+'/info/fit-direct-videos/'+path,'GET');
-        const bytes=Number(info.size??info.metadata?.size);
+        const usesR2=row.storage_path.startsWith(R2_MEDIA_PREFIX);
+        if(usesR2&&!r2MediaReady(env))return json({status:'error',code:'media_unavailable'},503);
+        const info=usesR2?await env.FIT_MEDIA.head(row.storage_path):
+          await send(bucket+'/info/fit-direct-videos/'+path,'GET');
+        const bytes=Number(info?.size??info?.metadata?.size);
         if(bytes!==Number(row.size_bytes))return json({status:'error',code:'upload_size_mismatch'},409);
         const updated=await send(table+'?'+filter+'&state=eq.pending','PATCH',{state:'ready'},{Prefer:'return=representation'});
         const ready=updated?.[0]||(await supaGet(table+'?select=*&'+filter+'&state=eq.ready&limit=1','direct_finish_retry'))[0];
@@ -886,6 +1048,14 @@ async function handleRecords(request,env) {
       }
       if(row.state!=='ready')return json({status:'error',code:'not_ready'},409);
       if(action==='directVideoPlay'){
+        const r2Path=row.storage_path.startsWith(R2_MEDIA_PREFIX)?row.storage_path:
+          R2_MEDIA_PREFIX+'fit-direct-videos/'+row.storage_path;
+        if(row.storage_path.startsWith(R2_MEDIA_PREFIX)&&!r2MediaReady(env))
+          return json({status:'error',code:'media_unavailable'},503);
+        if(r2MediaReady(env)&&(r2Path===row.storage_path||await env.FIT_MEDIA.head(r2Path).catch(()=>null))){
+          const url=await mediaGrantUrl(request,env,{path:r2Path},'read',60*60_000);
+          return json({status:'success',url});
+        }
         const signed=await send(bucket+'/sign/fit-direct-videos/'+path,'POST',{expiresIn:300});
         const partial=String(signed.signedURL||signed.signedUrl||'');
         if(!partial)return json({status:'error',code:'signature_missing'},502);
@@ -908,6 +1078,11 @@ async function handleRecords(request,env) {
       if(!matches.length)return json({status:'not_migrated'});
       const path=String(matches[0].storage_path||'');
       if(matches.length!==1||!path||path.includes('..')||!path.split('/').every(x=>/^[a-zA-Z0-9_.-]+$/.test(x)))return json({status:'error',code:'invalid_video_path'},409);
+      const r2Path=R2_MEDIA_PREFIX+'fit-private-videos/'+path;
+      if(r2MediaReady(env)&&await env.FIT_MEDIA.head(r2Path).catch(()=>null)){
+        const url=await mediaGrantUrl(request,env,{path:r2Path},'read',60*60_000);
+        return json({status:'success',url});
+      }
       const signed=await fetch(base+'/storage/v1/object/sign/fit-private-videos/'+path.split('/').map(encodeURIComponent).join('/'),{
         method:'POST',headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'},
         body:JSON.stringify({expiresIn:300}),signal:AbortSignal.timeout(10000)
@@ -1040,6 +1215,7 @@ export default {
         'X-Content-Type-Options':'nosniff'
       }});
     }
+    if(path===R2_MEDIA_ROUTE)return handleR2Media(request,env);
     if(path==='/api/records')return handleRecords(request,env);
     if(path==='/api/apps-script')return handleAppsScriptPost(request,env);
     if(path.startsWith('/api/'))return json({status:'error',code:'not_found'},404);

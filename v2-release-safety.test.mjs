@@ -333,7 +333,7 @@ test('video optimization keeps HDR and small savings intact and checks MP4 outpu
         hasHighDynamicRange: async () => this.metadata.hdr,
         canDecode: async () => this.metadata.supported !== false
       };
-      this.audio = this.metadata.audio ? [{}] : [];
+      this.audio = this.metadata.audio ? [{ getCodec: async () => this.metadata.audioCodec || 'aac' }] : [];
     }
     async getDurationFromMetadata() { return this.metadata.duration; }
     async getPrimaryVideoTrack() { return this.video; }
@@ -349,8 +349,13 @@ test('video optimization keeps HDR and small savings intact and checks MP4 outpu
     Output: class { constructor({ target }) { this.target = target; } },
     BlobSource: class { constructor(file) { this.file = file; } },
     Conversion: {
-      async init({ input, output, video }) {
+      async init({ input, output, video, audio }) {
         converted++;
+        const [track] = await input.getAudioTracks();
+        const sourceCodec = await track.getCodec();
+        const audioOptions = await audio(track);
+        assert.deepEqual(JSON.parse(JSON.stringify(audioOptions)), sourceCodec === 'aac'
+          ? { codec: 'aac' } : { codec: 'aac', bitrate: 128_000 });
         assert.equal(video.codec, 'avc');
         assert.equal(video.hardwareAcceleration, 'prefer-hardware');
         assert.deepEqual([video.width, video.height], [1080, 1920]);
@@ -387,17 +392,26 @@ test('video optimization keeps HDR and small savings intact and checks MP4 outpu
   const small = { ...sourceVideo, size: 15_000_000 };
   const hdr = { ...sourceVideo, metadata: { ...sourceVideo.metadata, hdr: true } };
   assert.equal(await compress(small, signal, () => {}), small);
-  assert.equal(await compress(hdr, signal, () => {}), hdr);
+  const reasons = [];
+  const onFallback = reason => reasons.push(reason);
+  assert.equal(await compress(hdr, signal, () => {}, 0, { onFallback }), hdr);
   const unsupported = { ...sourceVideo, metadata: { ...sourceVideo.metadata, supported: false } };
   assert.equal(await compress(unsupported, signal, () => {}), unsupported);
   assert.equal(converted, 0);
   const progress = [];
-  const result = await compress(sourceVideo, signal, percent => progress.push(percent));
+  const estimates = [];
+  const result = await compress(sourceVideo, signal, percent => progress.push(percent), 0, {
+    onEstimate: size => estimates.push(size)
+  });
+  assert.ok(estimates[0] < sourceVideo.size * 0.7);
   assert.equal(result.type, 'video/mp4');
   assert.equal(result.size, 12_000_000);
   assert.deepEqual(progress, [50]);
+  const nonAac = { ...sourceVideo, metadata: { ...sourceVideo.metadata, audioCodec: 'opus' } };
+  assert.equal((await compress(nonAac, signal, () => {})).type, 'video/mp4');
   stripAudio = true;
-  assert.equal(await compress(sourceVideo, signal, () => {}), sourceVideo);
+  assert.equal(await compress(sourceVideo, signal, () => {}, 0, { onFallback }), sourceVideo);
+  assert.deepEqual(reasons, ['hdr', 'verification']);
 });
 
 test('large uploads send data during creation and resume from Storage’s confirmed offset', async () => {
@@ -461,19 +475,28 @@ test('the video file picker accepts common iPhone recordings and rejects documen
   assert.match(html, /id="member-vid-file" type="file"/);
 });
 
-test('a large source can upload if preparation produces a file below the Storage limit', async () => {
+test('large videos can upload with or without compression and report the active limit', async () => {
   const calls = [];
+  let legacy = false;
   const run = app(async (_, request) => {
     const body = JSON.parse(request.body);
     calls.push(body);
+    if (legacy && body.action === 'directVideoBegin') {
+      return Response.json({ code: 'video_size_limit' }, { status: 413 });
+    }
     return Response.json({ status: 'success', url: 'https://storage.fixture.test/put' });
   });
+  const upload = "uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)";
   run("state.session='valid'; xhrVideoTransfer=async()=>({ok:true}); prepareDirectVideo=async()=>({name:'compact.mp4',type:'video/mp4',size:15_000_000});");
-  await run("uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)");
+  await run(upload);
   assert.equal(calls[0].size, 15_000_000);
   run("prepareDirectVideo=async file=>file;");
-  await assert.rejects(run("uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)"), /50MB 이하로 줄이지 못했어요/);
-  assert.equal(calls.length, 2);
+  await run(upload);
+  assert.equal(calls[2].size, 64_000_000);
+  await assert.rejects(run("uploadDirectVideoFile({name:'original.mov',size:100_000_001},'QA','fixture','',null)"), /영상은 100MB까지/);
+  assert.equal(calls.length, 4);
+  legacy = true;
+  await assert.rejects(run(upload), /현재 저장소는 영상 50MB까지/);
 });
 
 test('workout points stay stable and do not repeat through the end of 2027', () => {

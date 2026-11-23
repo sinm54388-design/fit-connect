@@ -492,3 +492,15 @@ test('workout points stay stable and do not repeat through the end of 2027', () 
   assert.equal(run("getDailyWorkoutPoint('2026-11-21').note"), '');
   assert.equal(run("getDailyWorkoutPoint('2028-01-01').note"), '');
 });
+
+test('member home renders both historical dates and dates with a scheduled workout point', () => {
+  const run = app(async () => Response.json({}));
+  run("state.memberTab='report'; state.loading=false; state.record.headerMessage=''; state.record.feedback={};");
+  assert.match(run("state.selectedDate='2026-11-19'; renderMemberView()"), /목요일/);
+  assert.match(run('renderMemberView()'), /수업일지에서 운동 기록을 확인해 보세요/);
+  run("state.selectedDate='2026-11-23'; state.record.headerMessage='코치가 남긴 운동 피드백';");
+  const today = run('renderMemberView()');
+  assert.match(today, /코치가 남긴 운동 피드백/);
+  assert.match(today, /월요일 운동 포인트/);
+  assert.ok(today.includes(run("getDailyWorkoutPoint('2026-11-23').note")));
+});

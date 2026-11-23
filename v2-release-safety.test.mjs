@@ -156,7 +156,7 @@ test('coach patches target the selected member with coach auth and preserve unre
 test('a failed set write is restored after reload without replacing coach routine edits', async () => {
   const store = new Map();
   const offline = app(async () => { throw Error('offline'); }, undefined, store);
-  offline("state.record.routines=[{id:'exercise',sets:2,completedSets:[true,false]}]; enqueueWorkoutSave(state.record.routines[0], [0])");
+  offline("state.record.routines=[{id:'exercise',routineType:'homework',sets:2,completedSets:[true,false]}]; enqueueWorkoutSave(state.record.routines[0], [0])");
   await offline("retryWorkoutSave(); flushWorkoutSave(workoutSaveJobs.values().next().value)");
   assert.equal(store.size, 1);
   const calls = [];
@@ -164,7 +164,7 @@ test('a failed set write is restored after reload without replacing coach routin
     calls.push(JSON.parse(request.body));
     return Response.json({ status: 'success' });
   }, undefined, store);
-  reopened("state.record.routines=[{id:'exercise',sets:2,weight:40,completedSets:[false,true]}]; restoreWorkoutSave()");
+  reopened("state.record.routines=[{id:'exercise',routineType:'homework',sets:2,weight:40,completedSets:[false,true]}]; restoreWorkoutSave()");
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(reopened('state.record.routines[0].completedSets[0]'), true);
   assert.equal(reopened('state.record.routines[0].weight'), 40);
@@ -503,4 +503,23 @@ test('member home renders both historical dates and dates with a scheduled worko
   assert.match(today, /코치가 남긴 운동 피드백/);
   assert.match(today, /월요일 운동 포인트/);
   assert.ok(today.includes(run("getDailyWorkoutPoint('2026-11-23').note")));
+});
+
+test('PT lessons are complete and read-only while personal workouts retain set controls', () => {
+  const run = app(async () => Response.json({}));
+  run(`state.memberTab='lesson'; state.lessonView='today'; state.loading=false;
+    state.record.routines=[{id:'pt', name:'PT 기록', sets:2, routineType:'pt', completedSets:[false, false]},
+      {id:'legacy', name:'이전 수업', sets:3}];`);
+  const ptOnly = run('renderMemberView()');
+  assert.match(ptOnly, /수업 완료/);
+  assert.match(ptOnly, /오늘 운동 종목 \(2\/2\)/);
+  assert.doesNotMatch(ptOnly, /class="routine-(?:set-)?toggle|workout-save-status/);
+  assert.doesNotMatch(ptOnly, /모두 체크/);
+
+  run("state.record.routines.push({id:'homework',name:'개인운동',sets:3,routineType:'homework',completedSets:[true,false,false]});");
+  const combined = run('renderMemberView()');
+  assert.match(combined, /data-ridx="2" class="routine-toggle /);
+  assert.match(combined, /data-set-ridx="2" data-set-idx="0"/);
+  assert.doesNotMatch(combined, /data-set-ridx="[01]"/);
+  assert.equal(run("enqueueWorkoutSave(state.record.routines[0],[0]); workoutSaveJobs.size"), 0);
 });

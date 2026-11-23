@@ -773,7 +773,7 @@ async function handleRecords(request,env) {
       }
       const table='/rest/v1/fit_daily_records';
       const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
-      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation,resolution=merge-duplicates'};
+      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
       for(let attempt=0;attempt<3;attempt++){
         const rows=await supaGet(table+'?select=id,data,updated_at&'+scope+'&limit=2','diet_read');
         if(rows.length>1)break;
@@ -802,8 +802,9 @@ async function handleRecords(request,env) {
           const candidate=Array.isArray(photos)?photos[0]:null;
           const src=typeof candidate==='string'?candidate:(candidate?.url||candidate?.src||candidate?.data||'');
           if(src && (src.startsWith('data:image/jpeg;base64,') || src.startsWith('data:image/png;base64,') || src.startsWith('data:image/webp;base64,') || src.startsWith('https://'))){
-            await supaWrite('/rest/v1/fit_meal_photos?on_conflict=member_id,record_date,meal_key','POST',
+            const photosWritten=await supaWrite('/rest/v1/fit_meal_photos?on_conflict=member_id,record_date,meal_key','POST',
               {member_id:memberId,record_date:date,meal_key:k,photo:src,updated_at:new Date().toISOString()},'meal_photo_write');
+            if(!photosWritten?.length)return json({status:'error',code:'photo_write_unconfirmed'},502);
           }
         }
         // Photo data is rehydrated from fit_meal_photos on reads. Avoid

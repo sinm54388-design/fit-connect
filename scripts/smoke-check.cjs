@@ -10,7 +10,8 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
   assert(scripts.length, name + ': missing inline app script');
   for (const [, code] of scripts) if (code.trim()) new vm.Script(code, { filename: name });
-  assert(html.includes("const appsSaved = await saveFullRecordLive"), name + ': Apps Script save ordering removed');
+  assert(html.includes('href="/v2.tailwind.css?') && !html.includes("cdn.tailwindcss.com"), name + ": static stylesheet missing");
+  assert(!html.includes("saveFullRecordLive"), name + ": full-day record write fallback is unsafe");
   assert(html.includes("action: 'dietSave'"), name + ': photo persistence route removed');
   assert(html.includes("action: 'dietPhotoDelete'"), name + ': photo deletion request missing');
   assert(html.includes("cd-meal-photo-delete"), name + ': coach photo delete control missing');
@@ -23,8 +24,8 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   assert(html.includes("document.getElementById('meal-copy-yesterday')?.click()"), name + ': diet card shortcut must open prefilling modal');
   assert(html.includes("PT 세트 기록"), name + ': PT routines must expose per-set controls');
   assert(html.includes('routine-set-toggle'), name + ': per-set workout tracking missing');
-  assert(html.includes('function enqueueWorkoutSave()') && html.includes('function flushWorkoutSave(job)'), name + ': queued workout saves missing');
-  assert(html.includes("patch:{routines:snapshot}"), name + ': exercise save must patch routines only');
+  assert(html.includes('function enqueueWorkoutSave(') && html.includes('function flushWorkoutSave(job)'), name + ': queued workout saves missing');
+  assert(html.includes("action: 'setProgressBatch'") && html.includes("data: { routines: draft.routines }"), name + ": workout saves must use scoped writes");
   assert(!html.includes("postAppsScript({...auth,data:snapshot})"), name + ': full-day workout save fallback could overwrite meal data');
   assert(html.includes('workout-save-retry'), name + ': failed-save retry button missing');
   assert(html.includes('document.visibilityState'), name + ': background flush missing');
@@ -76,3 +77,9 @@ assert(worker.includes("handleAppsScriptPost(request,env)"), 'archived member le
 assert(worker.includes("weeklyCheckinDays:_c.size"), '7-day check-in aggregation missing');
 assert(worker.includes("fit_coach_feedback?select=member_id"), 'coach overview lacks durable feedback read');
 console.log('FIT-CONNECT offline regression smoke checks passed.');
+
+const result = require('node:child_process').spawnSync(process.execPath, [
+  '--experimental-vm-modules', '--test', 'coaching-summary.test.mjs', 'coaching-workflow.test.mjs', 'v2-release-safety.test.mjs'
+], { stdio: 'inherit' });
+if (result.error) throw result.error;
+process.exitCode = result.status ?? 1;

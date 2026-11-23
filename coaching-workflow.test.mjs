@@ -92,12 +92,10 @@ test('weekly card reports period-specific changes and the coach completion date'
     ['운동 3일','스쿼트 40 → 45kg','자세 과제 완료 1개']);
 });
 
-test('the normal production member and coach paths load the new hooks',()=>{
-  assert.match(html,/defer src="\/fit-coaching\.js\?v=/);
-  assert.match(html,/fitCoaching\?\.refreshVideoTasks\(\)/);
-  assert.match(html,/fitCoaching\?\.renderHomework\(appData\)/);
-  assert.match(html,/fitCoaching\?\.recordSet\(ex,setIdx,checked\)/);
-  for (const [,code] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {
-    assert.doesNotThrow(()=>new Function(code));
-  }
+test('the normal production member and coach paths wire workout and feedback controls', () => {
+  assert.match(html, /class="routine-set-toggle /);
+  assert.match(html, /querySelectorAll\('\.routine-set-toggle'\)[\s\S]*?enqueueWorkoutSave\(routine, \[si\]\)/);
+  assert.match(html, /id="cd-save-all"/);
+  assert.match(html, /getElementById\('cd-save-all'\)\.addEventListener\('click', \(\) => saveCoachDetailAndAdvance\(false\)\)/);
+  assert.match(html, /saveCoachDetailAndAdvance[\s\S]*?action: 'coachFeedbackSave'/);
 });

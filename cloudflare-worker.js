@@ -1032,7 +1032,10 @@ export default {
         display:'standalone',
         background_color:'#F4F6F9',
         theme_color:'#0B132B',
-        icons:[{src:'/fit-icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]
+        icons:[
+          {src:'/fit-home-icon-192.png',sizes:'192x192',type:'image/png'},
+          {src:'/fit-home-icon-512.png',sizes:'512x512',type:'image/png'}
+        ]
       };
       return new Response(JSON.stringify(manifest),{headers:{
         'Content-Type':'application/manifest+json; charset=utf-8',

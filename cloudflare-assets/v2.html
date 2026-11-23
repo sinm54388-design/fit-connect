@@ -217,17 +217,27 @@
         .replace(/"/g, '&quot;');
     }
 
-    const DAILY_COACH_TIPS = [
-      '[운동] 중량을 올리는 것보다 내려놓는(신장성) 3초를 통제할 때 근섬유 자극이 가장 선명하게 들어갑니다.',
-      '[운동] 코어 복압을 먼저 채우고 움직이면 허리 개입은 줄고 목표 부위 가동범위가 훨씬 안정적으로 나옵니다.',
-      '[운동] 하체 루틴 시 엄지·새끼발가락·뒤꿈치 3점 지지를 유지하면 무릎 흔들림 없이 고관절에 정확히 실립니다.',
-      '[운동] 마지막 2회가 살짝 버겁지만 폼이 무너지지 않는 강도(RIR 2)가 오늘 가장 이상적인 자극입니다.',
-      '[다이어트] 식사 전 물 한 컵과 채소부터 먼저 드시면 혈당 스파이크가 완만해져 포만감이 오래 유지됩니다.',
-      '[다이어트] 전날 짠 음식을 드셨다면 끼니를 굶지 말고 수분 2L와 채소 섭취로 나트륨 배출을 도와주세요.',
-      '[다이어트] 단백질은 한 끼에 몰아먹기보다 3~4끼에 나누어 섭취해야 근합성과 포만감을 하루 종일 유지할 수 있습니다.',
-      '[일상] 식후 10~15분 가벼운 산책만으로도 혈당이 근육으로 빠르게 쓰여 체지방 축적을 크게 줄여줍니다.',
-      '[일상] 수면이 6시간 미만이면 식욕 호르몬(그렐린)이 올라가 가짜 허기가 생깁니다. 오늘은 30분 일찍 주무셔보세요.',
-      '[일상] 오래 앉아 있는 날엔 1시간마다 기지개와 흉추 스트레칭으로 굳은 어깨를 풀어줘야 운동 시 부상 위험이 줄어듭니다.'
+    const COACH_FEEDBACK_FOLLOW_UPS = [
+      '다음 수업 때 어떤 느낌이었는지 알려주세요.',
+      '해보고 편했던 점과 어려웠던 점을 한 가지씩 알려주세요.',
+      '다음 운동일지에 해본 느낌을 한 줄로 남겨보세요.',
+      '한 번 적용해 보고 본인에게 잘 맞는지 확인해봐요.',
+      '혼자 해보다 헷갈리는 부분은 다음 수업에서 같이 확인해요.',
+      '이번 주에 한 번 시도해 보고 어떤 차이가 있었는지 이야기해요.',
+      '바쁜 날에도 챙길 수 있도록 한 가지만 골라 실천해봐요.',
+      '잘 풀렸던 날에는 무엇이 도움이 됐는지 기억해두세요.',
+      '처음 느낌과 익숙해진 뒤의 느낌이 어떻게 다른지 살펴봐요.',
+      '다음 기록을 남길 때 지난번과 비교해 달라진 점을 확인해요.',
+      '해보고 부담스러웠다면 어떤 부분이 그랬는지 알려주세요.',
+      '편하게 해낼 수 있는 범위부터 시작해봐요.',
+      '다음에도 반복하기 쉬운 방법을 하나 찾아보세요.',
+      '잘 맞았다면 다음번에도 같은 방식으로 한 번 더 해봐요.',
+      '오늘 해본 것 중 이어가고 싶은 한 가지를 정해봐요.',
+      '꾸준히 해보면서 본인에게 편한 방법을 같이 찾아봐요.',
+      '다음번에는 가장 신경 쓰기 쉬웠던 것부터 다시 챙겨봐요.',
+      '원하는 대로 되지 않았던 부분은 다음에 함께 맞춰봐요.',
+      '오늘 기록을 짧게 남겨두면 다음에 돌아보기 좋아요.',
+      '궁금한 점이 생기면 기억해 뒀다가 다음 수업 때 물어봐 주세요.'
     ];
 
     const WORKOUT_POINT_WEEKDAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
@@ -697,6 +707,20 @@
       "연말엔 다음 주의 무게보다 다음에 운동할 시간을 먼저 정해봐요.",
       "올해 마지막 일지에는 앞으로도 남겨두고 싶은 자세 기준 한 가지를 적어요."
     ];
+
+    function getDailyCoachReplies(date = getTodayKST()) {
+      const elapsedDays = Math.max(0, daysBetween('2026-11-24', date));
+      const tips = [...new Set(DAILY_WORKOUT_POINTS)];
+      // Walk the tip pool once per cycle before pairing each tip with a new follow-up.
+      const replies = Array.from({ length: 8 }, (_, index) => {
+        const position = elapsedDays * 8 + index;
+        const tip = tips[position % tips.length];
+        const cycle = Math.floor(position / tips.length);
+        const followUp = COACH_FEEDBACK_FOLLOW_UPS[(cycle + COACH_FEEDBACK_FOLLOW_UPS.length - 1) % COACH_FEEDBACK_FOLLOW_UPS.length];
+        return cycle ? tip + ' ' + followUp : tip;
+      });
+      return replies.sort((a, b) => a.length - b.length);
+    }
 
     function getDailyWorkoutPoint(dateStr) {
       const selected = Date.parse(String(dateStr || getTodayKST()) + 'T00:00:00Z');
@@ -4402,14 +4426,11 @@
                 <span class="text-[12px] font-extrabold text-[#111827]">3. 코치 바로 답글 · 한마디</span>
                 <button type="button" id="cd-voice-btn" class="tap-scale px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold">🎙 음성 입력</button>
               </div>
-              <select id="cd-tip-select" class="w-full text-[12px] font-bold px-3 py-2.5 rounded-xl bg-[#F0FDFA] text-[#0F766E] focus:outline-none">
-                <option value="">✨ 전문 코칭 멘트 선택하기 (10종)...</option>
-                ${DAILY_COACH_TIPS.map((tip, idx) => `<option value="${idx}">${idx + 1}. ${escapeHtml(tip.slice(0, 32))}...</option>`).join('')}
-              </select>
-              <div class="flex gap-1.5 overflow-x-auto pb-1" aria-label="코치 빠른 피드백">
-                ${[['자세 좋아요','자세가 안정적으로 유지됐어요. 지금처럼 움직임의 정확도를 지켜주세요.'],['복압 유지','동작 시작 전 숨을 채우고 복압을 유지해 보세요.'],['단백질 챙기기','매 끼니 단백질 반찬을 함께 챙겨주세요.'],['회복 집중','오늘은 충분한 수면과 수분 섭취로 회복을 우선해 주세요.']].map(([label,tip])=>`<button type="button" data-quick-tip="${escapeHtml(tip)}" class="cd-quick-tip tap-scale shrink-0 px-3 py-2 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold">${label} +</button>`).join('')}
-              </div>
-              <textarea id="cd-reply-msg" rows="2" placeholder="회원님께 보낼 피드백과 오늘의 한마디를 입력하세요" class="w-full text-[13px] p-3 rounded-2xl bg-[#F4F6F9] focus:outline-none">${escapeHtml(replyMsg)}</textarea>
+              <textarea id="cd-reply-msg" rows="3" aria-label="회원 맞춤 피드백" placeholder="회원님께 전할 피드백을 직접 적어 주세요" class="w-full text-[14px] p-3 rounded-2xl bg-[#F4F6F9] focus:outline-none">${escapeHtml(replyMsg)}</textarea>
+              <details id="cd-reply-suggestions" class="rounded-xl bg-[#F8FAFC] px-3 py-2">
+                <summary class="cursor-pointer text-[12px] font-bold text-[#475569]">오늘의 예시·빠른 문구</summary>
+                <div id="cd-reply-options" class="mt-2 space-y-2"></div>
+              </details>
               <div class="grid grid-cols-2 gap-2">
                 <button type="button" id="cd-broadcast-all" class="tap-scale py-3.5 rounded-2xl bg-[#F0FDFA] text-[#0F766E] text-[12px] font-extrabold">
                   📢 전체 회원 통일
@@ -4455,13 +4476,27 @@
           }
           openCoachDetailSheet(memberName, nextDate);
         });
-        document.querySelectorAll('.cd-quick-tip').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const field=document.getElementById('cd-reply-msg');
-            if(!field)return;
-            field.value=[field.value.trim(),btn.dataset.quickTip].filter(Boolean).join('\n');
-            replyMsg=field.value;field.focus();
-          });
+        const suggestions = document.getElementById('cd-reply-suggestions');
+        const replyOptions = document.getElementById('cd-reply-options');
+        suggestions.addEventListener('toggle', () => {
+          const today = getTodayKST();
+          if (!suggestions.open || replyOptions.dataset.date === today) return;
+          replyOptions.dataset.date = today;
+          const replies = getDailyCoachReplies(today);
+          replyOptions.innerHTML = ['빠른 문구', '피드백 예시'].map((label, group) => `
+            <div class="space-y-1.5">
+              <p class="text-[12px] font-bold text-[#334155]">${label}</p>
+              ${replies.slice(group * 4, group * 4 + 4).map(example => `<button type="button" data-quick-tip="${escapeHtml(example)}" class="cd-quick-tip block w-full rounded-lg bg-white px-3 py-2 text-left text-[12px] text-[#1D4ED8]">${escapeHtml(example)}</button>`).join('')}
+            </div>`).join('');
+        });
+        replyOptions.addEventListener('click', e => {
+          const button = e.target.closest('[data-quick-tip]');
+          if (!button) return;
+          const field = document.getElementById('cd-reply-msg');
+          const separator = field.value && !field.value.endsWith('\n') ? '\n' : '';
+          replyMsg = field.value + separator + button.dataset.quickTip;
+          field.value = replyMsg;
+          field.focus();
         });
         document.querySelectorAll('.cd-meal-photo-delete').forEach(btn => {
           btn.addEventListener('click', async () => {
@@ -5029,15 +5064,6 @@
             }
             renderDetailBody();
           });
-        });
-
-        document.getElementById('cd-tip-select').addEventListener('change', e => {
-          if (e.target.value === '') return;
-          const picked = DAILY_COACH_TIPS[Number(e.target.value)];
-          if (picked) {
-            replyMsg = picked;
-            document.getElementById('cd-reply-msg').value = picked;
-          }
         });
 
         document.getElementById('cd-voice-btn').addEventListener('click', () => {

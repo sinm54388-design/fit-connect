@@ -843,6 +843,20 @@ async function handleRecords(request,env) {
       };
       const format=row=>({id:'direct:'+row.id,fileId:'direct:'+row.id,name:row.name,question:row.question,feedback:row.feedback,readAt:row.read_at||'',createdAt:row.created_at});
       if(action==='directVideoList'){
+        if(input.page!==undefined){
+          if(!trainer)return json({status:'denied',code:'coach_only'},403);
+          const pageSize=10;
+          const page=input.page;
+          if(!Number.isSafeInteger(page)||page<0||!Number.isSafeInteger(page*pageSize))
+            return json({status:'error',code:'invalid_page'},400);
+          const first=new Date(date+'T00:00:00+09:00').toISOString();
+          const next=new Date(shiftDay(date,1)+'T00:00:00+09:00').toISOString();
+          const records=await supaGet(table+'?select=id,name,question,created_at&'+scope+
+            '&state=eq.ready&mime=like.video.*&created_at=gte.'+encodeURIComponent(first)+
+            '&created_at=lt.'+encodeURIComponent(next)+'&order=created_at.desc,id.desc&limit='+(pageSize+1)+
+            '&offset='+(page*pageSize),'coach_daily_videos');
+          return json({status:'success',videos:records.slice(0,pageSize).map(format),hasNext:records.length>pageSize});
+        }
         const rows=await supaGet(table+'?select=*&'+scope+'&state=eq.ready&order=created_at.desc&limit=200','direct_list');
         return json({status:'success',videos:rows.filter(row=>!String(row.mime||'').startsWith('image/')).map(format)});
       }

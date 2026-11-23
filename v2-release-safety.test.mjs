@@ -523,3 +523,41 @@ test('PT lessons are complete and read-only while personal workouts retain set c
   assert.doesNotMatch(combined, /data-set-ridx="[01]"/);
   assert.equal(run("enqueueWorkoutSave(state.record.routines[0],[0]); workoutSaveJobs.size"), 0);
 });
+
+test('coach video management fetches ten videos from the selected day in Korea time', async () => {
+  const calls = [];
+  const context = vm.createContext({
+    URL, TextEncoder, TextDecoder, crypto, Headers, Response, Request, AbortSignal, performance,
+    setTimeout, clearTimeout, console,
+    fetch: async url => {
+      const parsed = new URL(url);
+      if (parsed.pathname === '/rest/v1/fit_members') return Response.json([{ id: 'test-member' }]);
+      assert.equal(parsed.pathname, '/rest/v1/fit_direct_videos');
+      calls.push(parsed.searchParams);
+      return Response.json(Array.from({ length: parsed.searchParams.has('offset') ? 11 : 2 }, (_, i) => ({
+        id: 'video-' + i, name: 'Video ' + i, mime: 'video/mp4'
+      })));
+    }
+  });
+  const mod = new vm.SourceTextModule(workerSource, { context });
+  await mod.link(() => assert.fail('Unexpected module dependency'));
+  await mod.evaluate();
+  const env = { SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SECRET_KEY: 'test-only', TRAINER_PASSWORD: 'coach-fixture' };
+  const list = details => mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
+    method: 'POST', body: JSON.stringify({
+      action: 'directVideoList', member: 'Test member', password: 'coach-fixture', date, ...details
+    })
+  }), env);
+  const first = await (await list({ page: 0 })).json();
+  assert.equal(first.videos.length, 10);
+  assert.equal(first.hasNext, true);
+  assert.deepEqual(calls[0].getAll('created_at'), ['gte.2026-11-18T15:00:00.000Z', 'lt.2026-11-19T15:00:00.000Z']);
+  assert.equal(calls[0].get('member_id'), 'eq.test-member');
+  assert.equal(calls[0].get('limit'), '11');
+  await list({ page: 5 });
+  assert.equal(calls[1].get('offset'), '50');
+  assert.equal((await list({ page: -1 })).status, 400);
+  const legacy = await (await list({})).json();
+  assert.equal(legacy.videos.length, 2);
+  assert.equal(calls[2].has('created_at'), false);
+});

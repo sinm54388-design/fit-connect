@@ -1255,33 +1255,50 @@
       return recentUploadRate && performance.now() - recentUploadRate.at < 180_000 ? recentUploadRate.rate : 0;
     }
 
-    async function prepareDirectVideo(file, report) {
-      if (file.size < 12_000_000 || !normalizeVideoMime(file).startsWith('video/') ||
-          typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') return file;
+    async function prepareDirectVideo(file, report, timing) {
+      if (file.size < 12_000_000 || !normalizeVideoMime(file).startsWith('video/')) return file;
+      const original = reason => {
+        timing.optimization = reason;
+        return file;
+      };
+      if (typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') return original('browser');
+
       const rate = lastUploadRate();
-      // On a fast connection, the potential transfer savings may be smaller
-      // than the time spent re-encoding. Keep that preparation window short.
-      const budget = rate && file.size <= VIDEO_COMPRESSION_TARGET_BYTES
-        ? Math.min(9000, file.size * 350 / rate) : 9000;
-      if (budget < 1500) return file;
+      const started = performance.now();
       const controller = new AbortController();
+      // Use at most 75% of the estimated transfer savings for compression.
+      const budgetFor = estimatedBytes => rate && file.size <= VIDEO_COMPRESSION_TARGET_BYTES
+        ? Math.min(9000, (file.size - estimatedBytes) * 750 / rate) : 9000;
+      const initialBudget = budgetFor(0);
+      if (initialBudget < 1500) return original('savings');
       let timer;
+      let stop;
       const deadline = new Promise(resolve => {
-        timer = setTimeout(() => {
+        stop = reason => {
+          resolve(original(reason));
           controller.abort();
-          resolve(file);
-        }, budget);
+        };
+        timer = setTimeout(() => stop('timeout'), initialBudget);
       });
+      const onEstimate = estimatedBytes => {
+        if (controller.signal.aborted) return;
+        clearTimeout(timer);
+        const remaining = budgetFor(estimatedBytes) - (performance.now() - started);
+        if (remaining < 1500) stop('savings');
+        else timer = setTimeout(() => stop('timeout'), remaining);
+      };
       try {
-        const preparation = import('/fit-video-encode.mjs?v=2').then(({ compressIfWorthwhile }) => {
+        const preparation = import('/fit-video-encode.mjs?v=3').then(({ compressIfWorthwhile }) => {
           controller.signal.throwIfAborted();
           return compressIfWorthwhile(file, controller.signal, percent => {
             if (!controller.signal.aborted) report('고화질 압축 중', Math.min(99, percent));
-          }, rate);
+          }, rate, { onEstimate, onFallback: reason => {
+            if (!controller.signal.aborted) timing.optimization = reason;
+          } });
         });
         return await Promise.race([preparation, deadline]);
       } catch {
-        return file;
+        return original('error');
       } finally {
         clearTimeout(timer);
       }
@@ -1300,7 +1317,7 @@
           : Promise.resolve({ token: memberToken });
       const timing = upload.timing ||= {};
       const report = upload.onStage || (() => {});
-      const [auth, prepared] = await Promise.all([authPromise, upload.file || prepareDirectVideo(file, report)]);
+      const [auth, prepared] = await Promise.all([authPromise, upload.file || prepareDirectVideo(file, report, timing)]);
       if (prepared.size > MAX_VIDEO_UPLOAD_BYTES) {
         throw new Error('영상은 100MB까지 올릴 수 있어요. 영상을 짧게 잘라 다시 선택해 주세요.');
       }
@@ -6651,7 +6668,13 @@
               Number.isFinite(upload.timing.transfer) ? '전송 ' + seconds(upload.timing.transfer) : '',
               Number.isFinite(upload.timing.finish) ? '등록 ' + seconds(upload.timing.finish) : ''
             ].filter(Boolean).join(' · ');
-            setVideoUploadStatus('업로드 완료 · ' + size, 100, true, phases || '피드백 탭에서 확인할 수 있어요.');
+            const originalReason = {
+              hdr: 'HDR 유지', browser: '이 브라우저에서 압축 미지원', codec: '이 영상의 압축 미지원',
+              format: '영상 형식 확인 불가', savings: '압축 효율이 낮음', timeout: '압축 시간이 길어짐',
+              verification: '압축 영상 검증 실패', error: '압축을 완료하지 못함'
+            }[upload.timing.optimization];
+            const detail = [phases, originalReason && '원본 전송 · ' + originalReason].filter(Boolean).join(' / ');
+            setVideoUploadStatus('업로드 완료 · ' + size, 100, true, detail || '피드백 탭에서 확인할 수 있어요.');
             videoUploadStatusTimer = setTimeout(() => setVideoUploadStatus('', 0, false), 15_000);
             if (state.appMode !== 'member' || state.memberName !== member) return;
             state.directVideos.unshift({ id: directId, name: f.name || '자세 영상', question: '회원 자세 체크 영상', feedback: '' });

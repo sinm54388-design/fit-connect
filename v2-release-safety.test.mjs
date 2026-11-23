@@ -333,7 +333,7 @@ test('video optimization keeps HDR and small savings intact and checks MP4 outpu
         hasHighDynamicRange: async () => this.metadata.hdr,
         canDecode: async () => this.metadata.supported !== false
       };
-      this.audio = this.metadata.audio ? [{}] : [];
+      this.audio = this.metadata.audio ? [{ getCodec: async () => this.metadata.audioCodec || 'aac' }] : [];
     }
     async getDurationFromMetadata() { return this.metadata.duration; }
     async getPrimaryVideoTrack() { return this.video; }
@@ -349,8 +349,13 @@ test('video optimization keeps HDR and small savings intact and checks MP4 outpu
     Output: class { constructor({ target }) { this.target = target; } },
     BlobSource: class { constructor(file) { this.file = file; } },
     Conversion: {
-      async init({ input, output, video }) {
+      async init({ input, output, video, audio }) {
         converted++;
+        const [track] = await input.getAudioTracks();
+        const sourceCodec = await track.getCodec();
+        const audioOptions = await audio(track);
+        assert.deepEqual(JSON.parse(JSON.stringify(audioOptions)), sourceCodec === 'aac'
+          ? { codec: 'aac' } : { codec: 'aac', bitrate: 128_000 });
         assert.equal(video.codec, 'avc');
         assert.equal(video.hardwareAcceleration, 'prefer-hardware');
         assert.deepEqual([video.width, video.height], [1080, 1920]);
@@ -387,17 +392,26 @@ test('video optimization keeps HDR and small savings intact and checks MP4 outpu
   const small = { ...sourceVideo, size: 15_000_000 };
   const hdr = { ...sourceVideo, metadata: { ...sourceVideo.metadata, hdr: true } };
   assert.equal(await compress(small, signal, () => {}), small);
-  assert.equal(await compress(hdr, signal, () => {}), hdr);
+  const reasons = [];
+  const onFallback = reason => reasons.push(reason);
+  assert.equal(await compress(hdr, signal, () => {}, 0, { onFallback }), hdr);
   const unsupported = { ...sourceVideo, metadata: { ...sourceVideo.metadata, supported: false } };
   assert.equal(await compress(unsupported, signal, () => {}), unsupported);
   assert.equal(converted, 0);
   const progress = [];
-  const result = await compress(sourceVideo, signal, percent => progress.push(percent));
+  const estimates = [];
+  const result = await compress(sourceVideo, signal, percent => progress.push(percent), 0, {
+    onEstimate: size => estimates.push(size)
+  });
+  assert.ok(estimates[0] < sourceVideo.size * 0.7);
   assert.equal(result.type, 'video/mp4');
   assert.equal(result.size, 12_000_000);
   assert.deepEqual(progress, [50]);
+  const nonAac = { ...sourceVideo, metadata: { ...sourceVideo.metadata, audioCodec: 'opus' } };
+  assert.equal((await compress(nonAac, signal, () => {})).type, 'video/mp4');
   stripAudio = true;
-  assert.equal(await compress(sourceVideo, signal, () => {}), sourceVideo);
+  assert.equal(await compress(sourceVideo, signal, () => {}, 0, { onFallback }), sourceVideo);
+  assert.deepEqual(reasons, ['hdr', 'verification']);
 });
 
 test('large uploads send data during creation and resume from Storage’s confirmed offset', async () => {

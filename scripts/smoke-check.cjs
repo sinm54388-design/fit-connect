@@ -79,7 +79,7 @@ assert(worker.includes("fit_coach_feedback?select=member_id"), 'coach overview l
 console.log('FIT-CONNECT offline regression smoke checks passed.');
 
 const result = require('node:child_process').spawnSync(process.execPath, [
-  '--experimental-vm-modules', '--test', 'coaching-summary.test.mjs', 'coaching-workflow.test.mjs', 'v2-release-safety.test.mjs'
+  '--experimental-vm-modules', '--test', 'coaching-summary.test.mjs', 'coaching-workflow.test.mjs', 'v2-release-safety.test.mjs', 'r2-media.test.mjs'
 ], { stdio: 'inherit' });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

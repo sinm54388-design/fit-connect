@@ -86,3 +86,56 @@ export async function sendResumableVideo(file, mime, options, job, transfer, onP
   }
   return true;
 }
+
+export async function sendR2Video(file, options, job, transfer, onProgress, report) {
+  const endpoint = new URL(options.url);
+  if (!job.r2Multipart || job.r2Multipart.expires < Date.now()) {
+    const creation = await fetch(endpoint, { method: 'POST' });
+    if (!creation.ok) throw new Error('이어 올리기 시작 실패 (' + creation.status + ')');
+    const result = await creation.json();
+    if (result.complete) return;
+    const url = new URL(result.url, endpoint);
+    if (url.origin !== endpoint.origin || url.pathname !== endpoint.pathname || !url.searchParams.has('grant')) {
+      throw new Error('이어 올리기 주소를 확인하지 못했어요');
+    }
+    job.r2Multipart = { url: url.href, parts: [], expires: Date.now() + 43 * 60_000 };
+  }
+
+  const { url, parts } = job.r2Multipart;
+  const partSize = options.partBytes;
+  for (let start = parts.length * partSize; start < file.size; start += partSize) {
+    const partNumber = parts.length + 1;
+    const partUrl = new URL(url);
+    partUrl.searchParams.set('part', partNumber);
+    const chunk = file.slice(start, start + partSize);
+    const progress = (_percent, loaded) => {
+      const uploaded = Math.min(file.size, start + loaded);
+      onProgress?.(Math.min(99, Math.round(uploaded / file.size * 100)), uploaded, file.size);
+    };
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const result = await transfer(partUrl.href, chunk, { 'Content-Type': 'application/offset+octet-stream' }, progress);
+        if (!result.ok) {
+          const error = new Error('이어 올리기 전송 실패 (' + result.status + ')');
+          error.permanent = result.status >= 400 && result.status < 500;
+          throw error;
+        }
+        const part = JSON.parse(result.text);
+        if (part.partNumber !== partNumber || !part.etag) throw new Error('전송 상태를 확인하지 못했어요');
+        parts.push(part);
+        break;
+      } catch (error) {
+        if (error.permanent || attempt >= RETRY_LIMIT) throw error;
+        report('연결 확인 중 · 이어서 전송합니다', Math.round(start / file.size * 100));
+        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 450));
+      }
+    }
+  }
+
+  const completion = await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parts)
+  });
+  if (!completion.ok || !(await completion.json()).complete) {
+    throw new Error('영상 전송을 마무리하지 못했어요 (' + completion.status + ')');
+  }
+}

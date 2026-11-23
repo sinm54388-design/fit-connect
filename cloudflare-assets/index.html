@@ -1234,7 +1234,8 @@
         xhr.onload = () => resolve({
           ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status,
           location: method === 'POST' ? xhr.getResponseHeader('Location') : null,
-          offset: method !== 'PUT' ? xhr.getResponseHeader('Upload-Offset') : null
+          offset: method !== 'PUT' ? xhr.getResponseHeader('Upload-Offset') : null,
+          text: xhr.responseText
         });
         xhr.onerror = () => reject(new Error('네트워크 연결이 불안정합니다'));
         xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다'));
@@ -1324,7 +1325,11 @@
         report('영상 전송 중 · ' + videoSizeLabel(sendFile.size), 0);
         let sent = false;
         const canResume = sendFile.size > 6 * 1024 * 1024 && begin.uploadToken && begin.tusEndpoint && begin.objectName;
-        if (!upload.usePut && canResume) {
+        if (begin.storage === 'r2' && sendFile.size > begin.partBytes) {
+          const { sendR2Video } = await import('/fit-video-transfer.mjs?v=2');
+          await sendR2Video(sendFile, begin, upload, xhrVideoTransfer, onProgress, report);
+          sent = true;
+        } else if (!upload.usePut && canResume) {
           try {
             const { sendResumableVideo } = await import('/fit-video-transfer.mjs?v=1');
             sent = await sendResumableVideo(sendFile, mime, begin, upload, xhrVideoTransfer, onProgress, report);
@@ -1335,8 +1340,10 @@
         }
         if (!sent) {
           upload.usePut = true;
-          let result = await xhrVideoTransfer(begin.url, sendFile, { 'Content-Type': mime, 'x-upsert': 'true' }, onProgress);
-          if (!result.ok && [400, 415].includes(result.status)) {
+          const headers = { 'Content-Type': mime };
+          if (begin.storage !== 'r2') headers['x-upsert'] = 'true';
+          let result = await xhrVideoTransfer(begin.url, sendFile, headers, onProgress);
+          if (begin.storage !== 'r2' && !result.ok && [400, 415].includes(result.status)) {
             const form = new FormData();
             form.append('cacheControl', '3600');
             form.append('', sendFile);

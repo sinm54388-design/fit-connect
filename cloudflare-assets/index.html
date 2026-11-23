@@ -230,23 +230,53 @@
       '[일상] 오래 앉아 있는 날엔 1시간마다 기지개와 흉추 스트레칭으로 굳은 어깨를 풀어줘야 운동 시 부상 위험이 줄어듭니다.'
     ];
 
-    // Date-based weekday messaging: the same selected date always shows
-    // the same coaching focus, including when browsing past/future dates.
-    const WEEKDAY_WORKOUT_NOTES = [
-      { day: '일요일', theme: '회복과 준비', note: '오늘은 충분히 회복하고 다음 주 운동을 준비해요. 가벼운 산책과 수면 리듬부터 챙겨주세요.' },
-      { day: '월요일', theme: '한 주의 시작', note: '이번 주 목표를 하나 정해보세요. 무게보다 정확한 자세와 일정한 운동 습관이 우선이에요.' },
-      { day: '화요일', theme: '움직임의 기본', note: '운동 전 호흡과 코어 안정성을 점검해요. 발의 지지와 고관절 움직임까지 연결해 보세요.' },
-      { day: '수요일', theme: '꾸준함 점검', note: '벌써 주중이에요! 운동 기록을 살펴보고, 무리한 증량보다 정확한 반복에 집중해 보세요.' },
-      { day: '목요일', theme: '균형 있는 운동', note: '좌우 움직임의 차이를 확인해요. 천천히 움직이며 목표 근육에 힘이 전달되는지 느껴보세요.' },
-      { day: '금요일', theme: '한 주 돌아보기', note: '이번 주 잘된 운동 한 가지를 기록해요. 작은 개선도 다음 주 변화를 만드는 중요한 기준이에요.' },
-      { day: '토요일', theme: '활동과 컨디션', note: '주말에는 몸 상태에 맞춰 움직여요. 피곤하면 강도를 낮추고 가볍게 활동하며 회복하세요.' }
+    const WORKOUT_POINT_WEEKDAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+    const WORKOUT_POINT_START = Date.UTC(2026, 10, 22);
+    const DAILY_WORKOUT_POINTS = [
+      // Week 1
+      '이번 주 운동할 날을 미리 정해보세요. 일정표에 시간을 잡아두면 시작하기 한결 쉬워요.',
+      '오늘 운동 목표를 하나만 정해보세요. 예를 들어 스쿼트 첫 세트는 매번 같은 깊이로 앉아보세요.',
+      '첫 준비 세트는 평소보다 가볍게 해보세요. 발바닥 전체로 바닥을 딛는 느낌을 확인해요.',
+      '같은 무게에서도 마지막 반복의 자세를 확인해보세요. 끝까지 같은 속도로 움직이는 게 오늘 목표예요.',
+      '좌우를 번갈아 쓰는 운동이라면 양쪽을 같은 속도로 해보세요. 어느 쪽이 더 안정적인지 느껴보세요.',
+      '이번 주 가장 자세가 안정적이었던 운동 한 가지를 적어두세요. 다음 운동을 시작할 때 그 감각을 떠올려요.',
+      '운동 시작이 부담스러운 날엔 첫 종목 준비 세트부터 시작해보세요. 몸이 풀리는 느낌에 맞춰 진행해요.',
+      // Week 2
+      '지난 운동 기록에서 무게와 반복 횟수를 확인해요. 다음 수업 때 다시 해보고 싶은 운동 하나를 골라보세요.',
+      '오늘은 첫 세트의 시작 자세를 챙겨보세요. 발 위치와 손잡이 위치를 먼저 맞추고 반복을 시작해요.',
+      '당기는 운동에서는 손잡이를 돌아가는 끝까지 천천히 놓아주세요. 마지막까지 힘을 조절해봐요.',
+      '오늘은 쉬는 시간을 일정하게 맞춰보세요. 같은 운동 안에서 세트별 반복이 어떻게 달라지는지 확인해요.',
+      '동작이 급해지면 한 번 멈춰 자세를 다시 잡아보세요. 다음 반복을 시작할 때 처음과 같은 위치를 찾아요.',
+      '수업이나 개인운동에서 기억하고 싶은 코치 한마디를 적어보세요. 다음 운동에서 한 번만 적용해요.',
+      '헬스장에 오래 있기 어려운 날엔 할 수 있는 종목을 먼저 정해요. 잡아둔 시간 안에서 여유 있게 마무리해요.',
+      // Week 3
+      '다음 운동에 입을 옷이나 챙길 물건을 미리 준비해요. 운동하러 나갈 때의 번거로움을 하나 줄여보세요.',
+      '쉬운 무게로 호흡과 동작의 리듬을 먼저 맞춰보세요. 본 세트에서도 그 리듬을 이어가요.',
+      '내리는 동작이 급해지기 쉬워요. 오늘은 한 종목만 골라 내리는 구간을 천천히 제어해보세요.',
+      '지난번과 같은 무게로 한 세트 해보고 체감 난도를 기록해요. 반복 수와 함께 남기면 다음에 비교하기 쉬워요.',
+      '한쪽씩 운동할 때는 좌우 모두 편하게 시작할 수 있는 무게로 맞춰요. 두 쪽의 움직임을 비교해보세요.',
+      '이번 주에 빼먹지 않고 챙긴 습관을 하나 찾아보세요. 다음 주에도 그 습관을 그대로 가져가요.',
+      '오늘 운동을 쉬는 날이라면 가볍게 걸어보세요. 평소보다 몸이 가벼운지 무거운지만 체크해요.',
+      // Week 4
+      '다음 주에 지킬 수 있는 운동 횟수를 정해보세요. 일정이 바쁜 날은 시간을 짧게 잡아도 괜찮아요.',
+      '오늘은 첫 종목을 어디까지 움직였는지 기준을 잡아보세요. 마지막 반복까지 같은 범위를 만들어봐요.',
+      '거울을 보거나 짧은 영상을 찍어 시작 자세를 한 번 확인해요. 다음 세트에서 바꿀 점은 하나만 골라요.',
+      '세트가 끝나면 무게와 반복 횟수를 바로 적어두세요. 다음에 기구 앞에서 기억을 더듬지 않아도 돼요.',
+      '마지막 반복에서 반동이 커진다면 세트를 마치고 다음 세트에서 무게나 횟수를 조절해보세요.',
+      '이번 주에 어떤 운동이 편해졌는지 한 줄로 적어보세요. 무게가 그대로여도 자세나 리듬이 좋아졌을 수 있어요.',
+      '다음 운동에서 궁금한 점을 한 가지 적어두세요. 수업 때 코치와 같이 움직여보면서 확인해요.'
     ];
-    function getWeekdayWorkoutNote(dateStr) {
-      const d = new Date(String(dateStr || getTodayKST()) + 'T00:00:00Z');
-      return WEEKDAY_WORKOUT_NOTES[Number.isNaN(d.getTime()) ? 0 : d.getUTCDay()];
-    }
-    function getDailyCoachTip(dateStr) {
-      return getWeekdayWorkoutNote(dateStr).note;
+
+    function getDailyWorkoutPoint(dateStr) {
+      const selected = Date.parse(String(dateStr || getTodayKST()) + 'T00:00:00Z');
+      const date = Number.isFinite(selected) ? selected : Date.parse(getTodayKST() + 'T00:00:00Z');
+      const elapsedDays = Math.floor((date - WORKOUT_POINT_START) / 86400000);
+      const cycleLength = DAILY_WORKOUT_POINTS.length;
+      const index = ((elapsedDays % cycleLength) + cycleLength) % cycleLength;
+      return {
+        day: WORKOUT_POINT_WEEKDAYS[new Date(date).getUTCDay()],
+        note: DAILY_WORKOUT_POINTS[index]
+      };
     }
 
     // Client-side Image Compression (fits Google Sheets 50k cell limit safely)
@@ -1835,7 +1865,7 @@
       const ds = getDietStats();
       const chk = state.record.dailyCheckin || {};
       const streak = state.insights?.careSummary?.workoutDays || state.workoutDays.length || 1;
-      const coachMsg = (state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate)).slice(0, 62);
+      const coachMsg = (state.record.headerMessage || state.record.feedback?.workout || getDailyWorkoutPoint(state.selectedDate).note).slice(0, 62);
 
       const q1Done = (wr.total > 0 && wr.done >= wr.total) || chk.workout === 'done';
       const q2Done = ds.water >= 2000;
@@ -5213,8 +5243,8 @@
       const score = computeCareScore();
       const chk = state.record.dailyCheckin || {};
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
-      const weekdayNote = getWeekdayWorkoutNote(state.selectedDate);
-      const coachNote = state.record.headerMessage || state.record.feedback?.workout || getDailyCoachTip(state.selectedDate);
+      const workoutPoint = getDailyWorkoutPoint(state.selectedDate);
+      const coachNote = state.record.headerMessage || state.record.feedback?.workout || workoutPoint.note;
       const dailyMagazinePicks = getDailyMagazinePicks(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
       const routinesArr = state.record.routines || [];
@@ -5249,7 +5279,7 @@
                     ${pr ? `<button type="button" id="btn-open-pr" class="tap-scale text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#5EEAD4]/20 text-[#5EEAD4]">🏆 ${escapeHtml(pr.name)} +${pr.current - pr.previous}kg ›</button>` : ''}
                   </div>
                   <h1 class="text-[22px] font-extrabold tracking-tight leading-snug mt-2">${escapeHtml(state.memberName)}님의<br/>오늘 운동노트</h1>
-                  <p class="text-[11px] font-semibold text-white/80 mt-1">${weekdayNote.day} · ${weekdayNote.theme} · 명진 트레이너의 1:1 PT 케어</p>
+                  <p class="text-[11px] font-semibold text-white/80 mt-1">${workoutPoint.day} · ${weekdayNote.theme} · 명진 트레이너의 1:1 PT 케어</p>
                   <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[11px] font-bold">
                     <span class="flex items-center gap-1 text-[#60A5FA]"><span class="w-2 h-2 rounded-full bg-[#60A5FA]"></span>관리 ${score}</span>
                     <span class="flex items-center gap-1 text-[#5EEAD4]"><span class="w-2 h-2 rounded-full bg-[#5EEAD4]"></span>식단 ${ds.pct}%</span>
@@ -5265,7 +5295,7 @@
                   <button type="button" id="go-lesson" class="text-[11px] font-bold text-[#60A5FA]">수업일지 ›</button>
                 </div>
                 <p class="text-[13px] text-white/95 leading-relaxed">${escapeHtml(coachNote)}</p>
-                ${(state.record.headerMessage || state.record.feedback?.workout) ? `<div class="pt-2 border-t border-white/15"><p class="text-[10px] font-bold text-[#5EEAD4] mb-1">${weekdayNote.day} 운동 포인트</p><p class="text-[12px] text-white/80 leading-relaxed">${escapeHtml(weekdayNote.note)}</p></div>` : ''}
+                ${(state.record.headerMessage || state.record.feedback?.workout) ? `<div class="pt-2 border-t border-white/15"><p class="text-[10px] font-bold text-[#5EEAD4] mb-1">${workoutPoint.day} 운동 포인트</p><p class="text-[12px] text-white/80 leading-relaxed">${escapeHtml(workoutPoint.note)}</p></div>` : ''}
                 <div class="flex items-center gap-2 pt-0.5">
                   <button type="button" data-rval="확인했어요 👍" class="fb-react-btn tap-scale px-3 py-1 rounded-full text-[11px] font-bold transition ${state.feedbackReaction === '확인했어요 👍' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white/90'}">확인했어요 👍</button>
                   <button type="button" data-rval="불태웠어요 🔥" class="fb-react-btn tap-scale px-3 py-1 rounded-full text-[11px] font-bold transition ${state.feedbackReaction === '불태웠어요 🔥' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white/90'}">불태웠어요 🔥</button>

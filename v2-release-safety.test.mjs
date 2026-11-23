@@ -475,3 +475,18 @@ test('a large source can upload if preparation produces a file below the Storage
   await assert.rejects(run("uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)"), /50MB 이하로 줄이지 못했어요/);
   assert.equal(calls.length, 2);
 });
+
+test('workout points stay stable per date and use a different tip every day for four weeks', () => {
+  const run = app(async () => Response.json({}));
+  const monday = "getDailyWorkoutPoint('2026-11-23')";
+  assert.equal(run(monday).day, '월요일');
+  assert.equal(run(monday).note, run(monday).note);
+  assert.notEqual(run(monday).note, run("getDailyWorkoutPoint('2026-11-30').note"));
+  assert.equal(run("getDailyWorkoutPoint('2026-11-21').day"), '토요일');
+  assert.ok(run("getDailyWorkoutPoint('2026-11-21').note"));
+  assert.equal(run(`new Set(Array.from({length: 28}, (_, index) => {
+    const date = new Date(Date.UTC(2026, 10, 22 + index)).toISOString().slice(0, 10);
+    return getDailyWorkoutPoint(date).note;
+  })).size`), 28);
+  assert.equal(run(monday).note, run("getDailyWorkoutPoint('2026-12-21').note"));
+});

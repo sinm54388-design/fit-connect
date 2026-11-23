@@ -1,0 +1,9 @@
+Mediabunny 1.66.2
+Unmodified source files and license: https://registry.npmjs.org/mediabunny/-/mediabunny-1.66.2.tgz
+Repository: https://github.com/Vanilagy/mediabunny
+The MPL 2.0 license is included in mediabunny.LICENSE.txt.
+
+The browser bundle uses esbuild 0.28.2 with
+--bundle --minify --format=esm --platform=browser --legal-comments=inline --target=safari16.4
+and an entry exporting BlobSource, BufferTarget, Conversion, Input, MP4,
+Mp4OutputFormat, Output, QTFF, and WEBM from mediabunny.

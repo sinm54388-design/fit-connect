@@ -23,7 +23,7 @@ function app(fetch, query = '&date=' + date, storage = new Map()) {
   const location = { protocol: 'https:', hostname: 'fixture.test', search: '?name=QA&token=fixture' + query };
   const context = vm.createContext({
     URL, URLSearchParams, Blob, Uint8Array, atob, structuredClone, fetch, document, location,
-    navigator: {}, setTimeout, clearTimeout, FormData, console,
+    navigator: {}, setTimeout, clearTimeout, FormData, console, performance,
     requestAnimationFrame() {},
     sessionStorage: {
       getItem: key => storage.get(key) ?? null,
@@ -201,12 +201,15 @@ test('upload finish retries reuse the transferred file and playback sign calls a
     }
     return Response.json({ status: 'success', url: 'https://storage.test/play.mp4' });
   });
-  run("state.session='valid'; globalThis.attempt={}; globalThis.puts=0; xhrPutFile=async()=>{puts++;return {ok:true}};");
+  run("state.session='valid'; globalThis.attempt={}; globalThis.puts=0; globalThis.prepares=0; globalThis.sentSize=0; prepareDirectVideo=async()=>{prepares++;return {size:40,type:'video/mp4'}}; xhrPutFile=async (_,file)=>{puts++;sentSize=file.size;return {ok:true}};");
   const upload = "uploadDirectVideoFile({size:100,type:'video/mp4',name:'QA.mp4'}, 'QA','fixture','',null,attempt)";
   await assert.rejects(run(upload));
   run("state.selectedDate='2026-11-20'");
   const id = await run(upload);
   assert.equal(run('puts'), 1);
+  assert.equal(run('prepares'), 1);
+  assert.equal(actions[0].size, 40);
+  assert.equal(run('sentSize'), 40);
   assert.equal(actions[1].id, actions[2].id);
   assert.ok(actions.every(item => item.date === date));
   await run(`Promise.all([resolvePlayableVideoUrl('${id}'),resolvePlayableVideoUrl('${id}')])`);
@@ -318,4 +321,81 @@ test('Worker diet save preserves another writer’s new day and confirms the pho
   assert.equal(record.diet.breakfast.desc, '기존 아침');
   assert.equal(record.diet.lunch.foods[0].name, '밥');
   assert.equal(record.diet.lunch.photos[0], image);
+});
+
+test('video optimization keeps HDR and small savings intact and checks MP4 output before switching files', async () => {
+  class Input {
+    constructor({ source }) {
+      this.metadata = source.file.metadata;
+      this.video = {
+        getDisplayWidth: async () => this.metadata.width,
+        getDisplayHeight: async () => this.metadata.height,
+        hasHighDynamicRange: async () => this.metadata.hdr,
+        canDecode: async () => this.metadata.supported !== false
+      };
+      this.audio = this.metadata.audio ? [{}] : [];
+    }
+    async getDurationFromMetadata() { return this.metadata.duration; }
+    async getPrimaryVideoTrack() { return this.video; }
+    async getVideoTracks() { return [this.video]; }
+    async getAudioTracks() { return this.audio; }
+    dispose() {}
+  }
+  let encodedMetadata;
+  let converted = 0;
+  let stripAudio = false;
+  const moduleExports = {
+    Input, MP4: {}, QTFF: {}, WEBM: {}, BufferTarget: class {}, Mp4OutputFormat: class {},
+    Output: class { constructor({ target }) { this.target = target; } },
+    BlobSource: class { constructor(file) { this.file = file; } },
+    Conversion: {
+      async init({ input, output, video }) {
+        converted++;
+        assert.equal(video.codec, 'avc');
+        assert.equal(video.hardwareAcceleration, 'prefer-hardware');
+        assert.deepEqual([video.width, video.height], [1080, 1920]);
+        return {
+          isValid: true, utilizedTracks: [...await input.getVideoTracks(), ...await input.getAudioTracks()],
+          async execute() {
+            output.target.buffer = new ArrayBuffer(12_000_000);
+            encodedMetadata = { duration: 24, width: video.width, height: video.height, audio: !stripAudio };
+            this.onProgress(0.5);
+          }
+        };
+      }
+    }
+  };
+  const context = vm.createContext({
+    File: class {
+      constructor([bytes], name, { type }) {
+        Object.assign(this, { size: bytes.byteLength, name, type, metadata: encodedMetadata });
+      }
+    }
+  });
+  const dependency = new vm.SyntheticModule(Object.keys(moduleExports), function () {
+    for (const [name, value] of Object.entries(moduleExports)) this.setExport(name, value);
+  }, { context });
+  const source = fs.readFileSync(new URL('./cloudflare-assets/fit-video-encode.mjs', import.meta.url), 'utf8');
+  const module = new vm.SourceTextModule(source, { context });
+  await module.link(() => dependency);
+  await module.evaluate();
+  const compress = module.namespace.compressIfWorthwhile;
+  const sourceVideo = { name: 'portrait.MOV', size: 36_000_000, metadata: {
+    duration: 24, width: 2160, height: 3840, audio: true
+  } };
+  const signal = new AbortController().signal;
+  const small = { ...sourceVideo, size: 15_000_000 };
+  const hdr = { ...sourceVideo, metadata: { ...sourceVideo.metadata, hdr: true } };
+  assert.equal(await compress(small, signal, () => {}), small);
+  assert.equal(await compress(hdr, signal, () => {}), hdr);
+  const unsupported = { ...sourceVideo, metadata: { ...sourceVideo.metadata, supported: false } };
+  assert.equal(await compress(unsupported, signal, () => {}), unsupported);
+  assert.equal(converted, 0);
+  const progress = [];
+  const result = await compress(sourceVideo, signal, percent => progress.push(percent));
+  assert.equal(result.type, 'video/mp4');
+  assert.equal(result.size, 12_000_000);
+  assert.deepEqual(progress, [50]);
+  stripAudio = true;
+  assert.equal(await compress(sourceVideo, signal, () => {}), sourceVideo);
 });

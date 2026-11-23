@@ -150,7 +150,7 @@
     <button type="button" id="video-upload-retry" class="hidden mt-2 px-3 py-2 rounded-xl bg-white text-[#0B132B] text-[12px] font-bold pointer-events-auto">같은 영상 다시 시도</button>
   </div>
   <!-- Toast -->
-  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap"></div>
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full hero-navy text-white text-[12px] font-bold shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 text-center" style="width:max-content;max-width:calc(100% - 24px);overflow-wrap:anywhere"></div>
 
   <script>
     // Register a network-only service worker: never cache private member/API data.
@@ -1260,7 +1260,8 @@
         xhr.onload = () => resolve({
           ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status,
           location: method === 'POST' ? xhr.getResponseHeader('Location') : null,
-          offset: method !== 'PUT' ? xhr.getResponseHeader('Upload-Offset') : null
+          offset: method !== 'PUT' ? xhr.getResponseHeader('Upload-Offset') : null,
+          text: xhr.responseText
         });
         xhr.onerror = () => reject(new Error('네트워크 연결이 불안정합니다'));
         xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다'));
@@ -1273,39 +1274,57 @@
       return (bytes / 1_000_000).toFixed(1) + 'MB';
     }
 
-    const MAX_VIDEO_UPLOAD_BYTES = 50_000_000;
+    const VIDEO_COMPRESSION_TARGET_BYTES = 50_000_000;
+    const MAX_VIDEO_UPLOAD_BYTES = 100_000_000;
     let recentUploadRate;
     function lastUploadRate() {
       return recentUploadRate && performance.now() - recentUploadRate.at < 180_000 ? recentUploadRate.rate : 0;
     }
 
-    async function prepareDirectVideo(file, report) {
-      if (file.size < 12_000_000 || !normalizeVideoMime(file).startsWith('video/') ||
-          typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') return file;
+    async function prepareDirectVideo(file, report, timing) {
+      if (file.size < 12_000_000 || !normalizeVideoMime(file).startsWith('video/')) return file;
+      const original = reason => {
+        timing.optimization = reason;
+        return file;
+      };
+      if (typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') return original('browser');
+
       const rate = lastUploadRate();
-      // On a fast connection, the potential transfer savings may be smaller
-      // than the time spent re-encoding. Keep that preparation window short.
-      const budget = rate && file.size <= MAX_VIDEO_UPLOAD_BYTES
-        ? Math.min(9000, file.size * 350 / rate) : 9000;
-      if (budget < 1500) return file;
+      const started = performance.now();
       const controller = new AbortController();
+      // Use at most 75% of the estimated transfer savings for compression.
+      const budgetFor = estimatedBytes => rate && file.size <= VIDEO_COMPRESSION_TARGET_BYTES
+        ? Math.min(9000, (file.size - estimatedBytes) * 750 / rate) : 9000;
+      const initialBudget = budgetFor(0);
+      if (initialBudget < 1500) return original('savings');
       let timer;
+      let stop;
       const deadline = new Promise(resolve => {
-        timer = setTimeout(() => {
+        stop = reason => {
+          resolve(original(reason));
           controller.abort();
-          resolve(file);
-        }, budget);
+        };
+        timer = setTimeout(() => stop('timeout'), initialBudget);
       });
+      const onEstimate = estimatedBytes => {
+        if (controller.signal.aborted) return;
+        clearTimeout(timer);
+        const remaining = budgetFor(estimatedBytes) - (performance.now() - started);
+        if (remaining < 1500) stop('savings');
+        else timer = setTimeout(() => stop('timeout'), remaining);
+      };
       try {
-        const preparation = import('/fit-video-encode.mjs?v=2').then(({ compressIfWorthwhile }) => {
+        const preparation = import('/fit-video-encode.mjs?v=3').then(({ compressIfWorthwhile }) => {
           controller.signal.throwIfAborted();
           return compressIfWorthwhile(file, controller.signal, percent => {
             if (!controller.signal.aborted) report('고화질 압축 중', Math.min(99, percent));
-          }, rate);
+          }, rate, { onEstimate, onFallback: reason => {
+            if (!controller.signal.aborted) timing.optimization = reason;
+          } });
         });
         return await Promise.race([preparation, deadline]);
       } catch {
-        return file;
+        return original('error');
       } finally {
         clearTimeout(timer);
       }
@@ -1324,9 +1343,9 @@
           : Promise.resolve({ token: memberToken });
       const timing = upload.timing ||= {};
       const report = upload.onStage || (() => {});
-      const [auth, prepared] = await Promise.all([authPromise, upload.file || prepareDirectVideo(file, report)]);
+      const [auth, prepared] = await Promise.all([authPromise, upload.file || prepareDirectVideo(file, report, timing)]);
       if (prepared.size > MAX_VIDEO_UPLOAD_BYTES) {
-        throw new Error('50MB 이하로 줄이지 못했어요. 영상을 짧게 잘라 다시 선택해 주세요');
+        throw new Error('영상은 100MB까지 올릴 수 있어요. 영상을 짧게 잘라 다시 선택해 주세요.');
       }
       upload.file = prepared;
       const sendFile = upload.file;
@@ -1337,11 +1356,19 @@
       };
       if (!upload.transferred) {
         report('전송 준비 중', 0);
-        const begin = await postRecords({
-          ...payload, action: 'directVideoBegin',
-          name: (file.name || 'workout-video.mp4').slice(0, 150),
-          question: String(questionText || '').slice(0, 1000), mime, size: sendFile.size
-        });
+        let begin;
+        try {
+          begin = await postRecords({
+            ...payload, action: 'directVideoBegin',
+            name: (file.name || 'workout-video.mp4').slice(0, 150),
+            question: String(questionText || '').slice(0, 1000), mime, size: sendFile.size
+          });
+        } catch (err) {
+          if (err?.code === 'video_size_limit') {
+            throw new Error('현재 저장소는 영상 50MB까지 지원해요. 영상을 짧게 잘라 다시 선택해 주세요.');
+          }
+          throw err;
+        }
         if (begin?.status !== 'success') throw new Error('업로드 시작 실패');
         if (begin.alreadyReady) return 'direct:' + upload.id;
         if (!begin.url) throw new Error('업로드 주소를 받지 못했어요');
@@ -1350,7 +1377,11 @@
         report('영상 전송 중 · ' + videoSizeLabel(sendFile.size), 0);
         let sent = false;
         const canResume = sendFile.size > 6 * 1024 * 1024 && begin.uploadToken && begin.tusEndpoint && begin.objectName;
-        if (!upload.usePut && canResume) {
+        if (begin.storage === 'r2' && sendFile.size > begin.partBytes) {
+          const { sendR2Video } = await import('/fit-video-transfer.mjs?v=3');
+          await sendR2Video(sendFile, begin, upload, xhrVideoTransfer, onProgress, report);
+          sent = true;
+        } else if (!upload.usePut && canResume) {
           try {
             const { sendResumableVideo } = await import('/fit-video-transfer.mjs?v=1');
             sent = await sendResumableVideo(sendFile, mime, begin, upload, xhrVideoTransfer, onProgress, report);
@@ -1361,8 +1392,10 @@
         }
         if (!sent) {
           upload.usePut = true;
-          let result = await xhrVideoTransfer(begin.url, sendFile, { 'Content-Type': mime, 'x-upsert': 'true' }, onProgress);
-          if (!result.ok && [400, 415].includes(result.status)) {
+          const headers = { 'Content-Type': mime };
+          if (begin.storage !== 'r2') headers['x-upsert'] = 'true';
+          let result = await xhrVideoTransfer(begin.url, sendFile, headers, onProgress);
+          if (begin.storage !== 'r2' && !result.ok && [400, 415].includes(result.status)) {
             const form = new FormData();
             form.append('cacheControl', '3600');
             form.append('', sendFile);
@@ -1915,7 +1948,7 @@
       document.getElementById('video-upload-pct').textContent=Math.round(pct)+'%';
       document.getElementById('video-upload-bar').style.width=Math.max(0,Math.min(100,pct))+'%';
     }
-    function showToast(msg) {
+    function showToast(msg, duration = 2200) {
       const t = document.getElementById('toast');
       t.textContent = msg;
       t.classList.remove('opacity-0');
@@ -1924,7 +1957,7 @@
       window.__toastTimer = setTimeout(() => {
         t.classList.remove('opacity-100');
         t.classList.add('opacity-0');
-      }, 2200);
+      }, duration);
     }
 
     function triggerConfetti() {
@@ -4263,6 +4296,7 @@
       let uploadsInProgress = 0;
       let videoManagerOpen = false;
       let videoPage = 0;
+      let detailDateInput;
 
       function renderDetailBody() {
         openModal(`${memberName} 회원님 · 상세 & 바로 답글`, `
@@ -4472,7 +4506,7 @@
           </div>
         `);
 
-        const datePicker = document.getElementById('cd-record-date');
+        const datePicker = detailDateInput = document.getElementById('cd-record-date');
         datePicker.addEventListener('change', () => {
           const nextDate = datePicker.value;
           if (!nextDate || nextDate === detailDate) {
@@ -4825,61 +4859,67 @@
           });
         });
 
-        const newVidFile = document.getElementById('cd-new-vid-file');
-        if (newVidFile) {
-          newVidFile.addEventListener('change', async e => {
-            const f = e.target.files?.[0];
-            if (!f) return;
-            const lbl = document.getElementById('cd-new-vid-lbl');
-            const mbTotal = (f.size / 1048576).toFixed(1);
-            if (lbl) lbl.textContent = `준비 중 (${mbTotal}MB)...`;
-            try {
-              uploadsInProgress++;
-              const titleHint = document.getElementById('cd-new-name')?.value.trim() || '시범 영상';
-              setVideoUploadStatus('시범 영상 준비 중',0);
-              pendingNewVideoId = await uploadDirectVideoFile(f, memberName, '', titleHint, (pct, loaded, total) => {
-                setVideoUploadStatus('시범 영상 전송 중',pct);
-                if (lbl) lbl.textContent = `업로드 ${pct}%`;
-                showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
-              }, { date: detailDate });
-              setVideoUploadStatus('',0,false);
-              if (lbl) lbl.textContent = '📹 업로드됨 ✓';
-              showToast('영상 업로드 완료! + 종목 추가 또는 저장을 눌러주세요 ✓');
-              if (videoManagerOpen) loadVideoPage();
-            } catch (err) {
-              if (lbl) lbl.textContent = '📹 영상 올리기';
-              showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 확인'));
-            } finally {
-              uploadsInProgress--;
-            }
-          });
+        async function uploadCoachVideo(file, title) {
+          clearTimeout(videoUploadStatusTimer);
+          document.getElementById('video-upload-retry')?.classList.add('hidden');
+          uploadsInProgress++;
+          videoUploadInFlight = true;
+          setVideoUploadStatus('운동 영상 준비 중', 0);
+          try {
+            return await uploadDirectVideoFile(file, memberName, '', title, (pct, loaded, total) => {
+              setVideoUploadStatus('전송 중 · ' + videoSizeLabel(loaded) + ' / ' + videoSizeLabel(total), pct);
+            }, { date: detailDate, onStage: setVideoUploadStatus });
+          } catch (err) {
+            showToast('영상 업로드 실패: ' + (err?.message || '다시 시도해 주세요'), 5000);
+            return '';
+          } finally {
+            setVideoUploadStatus('', 0, false);
+            videoUploadInFlight = false;
+            uploadsInProgress--;
+          }
         }
 
+        const newVidFile = document.getElementById('cd-new-vid-file');
+        newVidFile?.addEventListener('change', async () => {
+          const file = newVidFile.files?.[0];
+          newVidFile.value = '';
+          if (!file) return;
+          if (videoUploadInFlight) { showToast('올리고 있는 영상이 끝나면 다시 선택해 주세요'); return; }
+          const lbl = document.getElementById('cd-new-vid-lbl');
+          const title = document.getElementById('cd-new-name')?.value.trim() || '시범 영상';
+          if (lbl) lbl.textContent = '📹 업로드 중…';
+          const directId = await uploadCoachVideo(file, title);
+          if (!directId) {
+            if (lbl) lbl.textContent = pendingNewVideoId ? '📹 업로드됨 ✓' : '📹 영상 올리기';
+            return;
+          }
+          pendingNewVideoId = directId;
+          if (lbl) lbl.textContent = '📹 업로드됨 ✓';
+          showToast('영상 업로드 완료! + 종목 추가 또는 저장을 눌러주세요 ✓');
+          if (videoManagerOpen) loadVideoPage();
+        });
+
         document.querySelectorAll('.cd-vid-file').forEach(inp => {
-          inp.addEventListener('change', async e => {
-            const f = e.target.files?.[0];
-            if (!f) return;
-            const ri = Number(inp.dataset.vfi);
-            const mbTotal = (f.size / 1048576).toFixed(1);
-            showToast(`영상 업로드 시작 (${mbTotal}MB)...`);
-            try {
-              uploadsInProgress++;
-              setVideoUploadStatus('운동 영상 준비 중',0);
-              const directId = await uploadDirectVideoFile(f, memberName, '', routines[ri]?.name || '', (pct, loaded, total) => {
-                setVideoUploadStatus('운동 영상 전송 중',pct);
-                showToast(`영상 업로드 ${pct}% (${(loaded / 1048576).toFixed(1)}/${(total / 1048576).toFixed(1)}MB)`);
-              }, { date: detailDate });
-              setVideoUploadStatus('',0,false);
-              routines[ri].videoId = directId;
-              routines[ri].videoUrl = '';
-              replyMsg = document.getElementById('cd-reply-msg').value;
-              dietMsg = document.getElementById('cd-diet-msg').value;
-              showToast('영상 업로드 완료! 저장 중...');
+          inp.addEventListener('change', async () => {
+            const file = inp.files?.[0];
+            inp.value = '';
+            const routine = routines[Number(inp.dataset.vfi)];
+            if (!file || !routine) return;
+            if (videoUploadInFlight) { showToast('올리고 있는 영상이 끝나면 다시 선택해 주세요'); return; }
+            const directId = await uploadCoachVideo(file, routine.name || '');
+            if (!directId || !routines.includes(routine)) return;
+            routine.videoId = directId;
+            routine.videoUrl = '';
+            if (detailDateInput?.isConnected && document.getElementById('modal-backdrop').classList.contains('flex')) {
+              replyMsg = document.getElementById('cd-reply-msg')?.value ?? replyMsg;
+              dietMsg = document.getElementById('cd-diet-msg')?.value ?? dietMsg;
               renderDetailBody();
+            }
+            showToast('영상 업로드 완료! 저장 중...');
+            uploadsInProgress++;
+            try {
               const savedOk = await savePatchLive({ routines }, memberName, detailDate);
               if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
-            } catch (err) {
-              showToast('영상 업로드 실패: ' + (err?.message || '용량(50MB 이하) 확인'));
             } finally {
               uploadsInProgress--;
             }
@@ -6855,7 +6895,13 @@
               Number.isFinite(upload.timing.transfer) ? '전송 ' + seconds(upload.timing.transfer) : '',
               Number.isFinite(upload.timing.finish) ? '등록 ' + seconds(upload.timing.finish) : ''
             ].filter(Boolean).join(' · ');
-            setVideoUploadStatus('업로드 완료 · ' + size, 100, true, phases || '피드백 탭에서 확인할 수 있어요.');
+            const originalReason = {
+              hdr: 'HDR 유지', browser: '이 브라우저에서 압축 미지원', codec: '이 영상의 압축 미지원',
+              format: '영상 형식 확인 불가', savings: '압축 효율이 낮음', timeout: '압축 시간이 길어짐',
+              verification: '압축 영상 검증 실패', error: '압축을 완료하지 못함'
+            }[upload.timing.optimization];
+            const detail = [phases, originalReason && '원본 전송 · ' + originalReason].filter(Boolean).join(' / ');
+            setVideoUploadStatus('업로드 완료 · ' + size, 100, true, detail || '피드백 탭에서 확인할 수 있어요.');
             videoUploadStatusTimer = setTimeout(() => setVideoUploadStatus('', 0, false), 15_000);
             if (state.appMode !== 'member' || state.memberName !== member) return;
             state.directVideos.unshift({ id: directId, name: f.name || '자세 영상', question: '회원 자세 체크 영상', feedback: '', createdAt: new Date().toISOString() });
@@ -6878,7 +6924,7 @@
             failedVideoUpload = { file: f, upload, member };
             setVideoUploadStatus('업로드 실패 · 다시 시도할 수 있어요',0,true);
             document.getElementById('video-upload-retry')?.classList.remove('hidden');
-            showToast('영상 업로드 실패: ' + (err?.message || '50MB 이하 MP4/MOV만 가능'));
+            showToast('영상 업로드 실패: ' + (err?.message || '다시 시도해 주세요'), 5000);
           } finally {
             videoUploadInFlight = false;
           }

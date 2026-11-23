@@ -476,17 +476,19 @@ test('a large source can upload if preparation produces a file below the Storage
   assert.equal(calls.length, 2);
 });
 
-test('workout points stay stable per date and use a different tip every day for four weeks', () => {
+test('workout points stay stable and do not repeat through the end of 2027', () => {
   const run = app(async () => Response.json({}));
   const monday = "getDailyWorkoutPoint('2026-11-23')";
   assert.equal(run(monday).day, '월요일');
   assert.equal(run(monday).note, run(monday).note);
-  assert.notEqual(run(monday).note, run("getDailyWorkoutPoint('2026-11-30').note"));
-  assert.equal(run("getDailyWorkoutPoint('2026-11-21').day"), '토요일');
-  assert.ok(run("getDailyWorkoutPoint('2026-11-21').note"));
-  assert.equal(run(`new Set(Array.from({length: 28}, (_, index) => {
+  assert.notEqual(run(monday).note, run("getDailyWorkoutPoint('2026-12-21').note"));
+  const scheduled = run(`JSON.stringify(Array.from({length: 405}, (_, index) => {
     const date = new Date(Date.UTC(2026, 10, 22 + index)).toISOString().slice(0, 10);
     return getDailyWorkoutPoint(date).note;
-  })).size`), 28);
-  assert.equal(run(monday).note, run("getDailyWorkoutPoint('2026-12-21').note"));
+  }))`);
+  const points = JSON.parse(scheduled);
+  assert.ok(points.every(point => point.trim().length > 0));
+  assert.equal(new Set(points).size, points.length);
+  assert.equal(run("getDailyWorkoutPoint('2026-11-21').note"), '');
+  assert.equal(run("getDailyWorkoutPoint('2028-01-01').note"), '');
 });

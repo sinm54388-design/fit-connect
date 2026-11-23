@@ -201,7 +201,7 @@ test('upload finish retries reuse the transferred file and playback sign calls a
     }
     return Response.json({ status: 'success', url: 'https://storage.test/play.mp4' });
   });
-  run("state.session='valid'; globalThis.attempt={}; globalThis.puts=0; globalThis.prepares=0; globalThis.sentSize=0; prepareDirectVideo=async()=>{prepares++;return {size:40,type:'video/mp4'}}; xhrPutFile=async (_,file)=>{puts++;sentSize=file.size;return {ok:true}};");
+  run("state.session='valid'; globalThis.attempt={}; globalThis.puts=0; globalThis.prepares=0; globalThis.sentSize=0; prepareDirectVideo=async()=>{prepares++;return {size:40,type:'video/mp4'}}; xhrVideoTransfer=async (_,file)=>{puts++;sentSize=file.size;return {ok:true}};");
   const upload = "uploadDirectVideoFile({size:100,type:'video/mp4',name:'QA.mp4'}, 'QA','fixture','',null,attempt)";
   await assert.rejects(run(upload));
   run("state.selectedDate='2026-11-20'");
@@ -398,4 +398,80 @@ test('video optimization keeps HDR and small savings intact and checks MP4 outpu
   assert.deepEqual(progress, [50]);
   stripAudio = true;
   assert.equal(await compress(sourceVideo, signal, () => {}), sourceVideo);
+});
+
+test('large uploads send data during creation and resume from Storage’s confirmed offset', async () => {
+  const { sendResumableVideo } = await import('./cloudflare-assets/fit-video-transfer.mjs');
+  const chunk = 6 * 1024 * 1024;
+  const file = new Blob([new Uint8Array(chunk * 2 + 1200)]);
+  const endpoint = 'https://storage.fixture.test/storage/v1/upload/resumable/sign';
+  const location = endpoint + '/fixture-1';
+  const options = { tusEndpoint: endpoint, uploadToken: 'test-only', objectName: 'member-fixture/clip.mp4' };
+  const job = {};
+  const phases = [];
+  const requests = [];
+  const progress = [];
+  let serverOffset = 0;
+  const transfer = async (url, body, headers, onProgress, method) => {
+    requests.push(method);
+    assert.equal(headers['x-signature'], 'test-only');
+    if (method === 'POST') {
+      assert.equal(url, endpoint);
+      assert.equal(headers['Upload-Length'], String(file.size));
+      assert.equal(body.size, chunk);
+      serverOffset = chunk;
+      return { ok: true, location, offset: String(serverOffset) };
+    }
+    assert.equal(url, location);
+    if (method === 'HEAD') return { ok: true, offset: String(serverOffset) };
+    assert.equal(Number(headers['Upload-Offset']), serverOffset);
+    serverOffset += body.size;
+    onProgress(99, body.size);
+    if (serverOffset === chunk * 2) throw new Error('connection dropped after the chunk was accepted');
+    return { ok: true, offset: String(serverOffset) };
+  };
+  assert.equal(await sendResumableVideo(file, 'video/mp4', options, job, transfer,
+    (_percent, loaded) => progress.push(loaded), message => phases.push(message)), true);
+  assert.deepEqual(requests, ['POST', 'PATCH', 'HEAD', 'PATCH']);
+  assert.equal(serverOffset, file.size);
+  assert.equal(job.tusUrl, location);
+  assert.equal(progress.at(-1), file.size);
+  assert.match(phases[0], /이어서 전송/);
+});
+
+test('clean fallback leaves the resumable URL unset and never forwards the signature across hosts', async () => {
+  const { sendResumableVideo } = await import('./cloudflare-assets/fit-video-transfer.mjs');
+  const endpoint = 'https://storage.fixture.test/storage/v1/upload/resumable/sign';
+  const options = { tusEndpoint: endpoint, uploadToken: 'test-only', objectName: 'member-fixture/clip.mov' };
+  const job = {};
+  const file = new Blob([new Uint8Array(1024)]);
+  assert.equal(await sendResumableVideo(file, 'video/quicktime', options, job,
+    async () => ({ ok: false, status: 404 }), () => {}, () => {}), false);
+  assert.equal(job.tusUrl, undefined);
+  await assert.rejects(sendResumableVideo(file, 'video/quicktime', options, job,
+    async () => ({ ok: true, location: 'https://other.fixture.test/path' }), () => {}, () => {}), /이어 올리기 주소/);
+  assert.equal(job.tusUrl, undefined);
+});
+
+test('the video file picker accepts common iPhone recordings and rejects documents', () => {
+  const run = app(async () => Response.json({}));
+  assert.equal(run("normalizeVideoMime({name:'IMG_2134.MOV',type:''})"), 'video/quicktime');
+  assert.equal(run("normalizeVideoMime({name:'export.m4v',type:'video/x-m4v'})"), 'video/mp4');
+  assert.equal(run("normalizeVideoMime({name:'document.pdf',type:'application/pdf'})"), '');
+  assert.match(html, /id="member-vid-file" type="file"/);
+});
+
+test('a large source can upload if preparation produces a file below the Storage limit', async () => {
+  const calls = [];
+  const run = app(async (_, request) => {
+    const body = JSON.parse(request.body);
+    calls.push(body);
+    return Response.json({ status: 'success', url: 'https://storage.fixture.test/put' });
+  });
+  run("state.session='valid'; xhrVideoTransfer=async()=>({ok:true}); prepareDirectVideo=async()=>({name:'compact.mp4',type:'video/mp4',size:15_000_000});");
+  await run("uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)");
+  assert.equal(calls[0].size, 15_000_000);
+  run("prepareDirectVideo=async file=>file;");
+  await assert.rejects(run("uploadDirectVideoFile({name:'original.mov',size:64_000_000},'QA','fixture','',null)"), /50MB 이하로 줄이지 못했어요/);
+  assert.equal(calls.length, 2);
 });

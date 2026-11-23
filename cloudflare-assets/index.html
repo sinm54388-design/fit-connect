@@ -716,6 +716,7 @@
 
     function normalizeVideoMime(file) {
       const t = String(file?.type || '').toLowerCase();
+      if (t === 'video/x-m4v') return 'video/mp4';
       if (t === 'video/mp4' || t === 'video/webm' || t === 'video/quicktime' || t === 'image/jpeg' || t === 'image/png' || t === 'image/webp') return t;
       const n = String(file?.name || '').toLowerCase();
       if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg';
@@ -723,7 +724,8 @@
       if (n.endsWith('.webp')) return 'image/webp';
       if (n.endsWith('.mov')) return 'video/quicktime';
       if (n.endsWith('.webm')) return 'video/webm';
-      return 'video/mp4';
+      if (/\.(mp4|m4v)$/.test(n)) return 'video/mp4';
+      return '';
     }
 
     function dataUrlToFile(dataUrl, filename) {
@@ -758,10 +760,10 @@
       });
     }
 
-    function xhrPutFile(url, body, headers, onProgress) {
+    function xhrVideoTransfer(url, body, headers, onProgress, method = 'PUT') {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('PUT', url, true);
+        xhr.open(method, url, true);
         Object.entries(headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
         if (xhr.upload && typeof onProgress === 'function') {
           xhr.upload.onprogress = e => {
@@ -770,10 +772,14 @@
             }
           };
         }
-        xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: xhr.responseText || '' });
+        xhr.onload = () => resolve({
+          ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status,
+          location: method === 'POST' ? xhr.getResponseHeader('Location') : null,
+          offset: method !== 'PUT' ? xhr.getResponseHeader('Upload-Offset') : null
+        });
         xhr.onerror = () => reject(new Error('네트워크 연결이 불안정합니다'));
         xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다'));
-        xhr.timeout = 180000;
+        xhr.timeout = method === 'HEAD' ? 10000 : 180000;
         xhr.send(body);
       });
     }
@@ -782,23 +788,35 @@
       return (bytes / 1_000_000).toFixed(1) + 'MB';
     }
 
+    const MAX_VIDEO_UPLOAD_BYTES = 50_000_000;
+    let recentUploadRate;
+    function lastUploadRate() {
+      return recentUploadRate && performance.now() - recentUploadRate.at < 180_000 ? recentUploadRate.rate : 0;
+    }
+
     async function prepareDirectVideo(file, report) {
       if (file.size < 12_000_000 || !normalizeVideoMime(file).startsWith('video/') ||
           typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') return file;
+      const rate = lastUploadRate();
+      // On a fast connection, the potential transfer savings may be smaller
+      // than the time spent re-encoding. Keep that preparation window short.
+      const budget = rate && file.size <= MAX_VIDEO_UPLOAD_BYTES
+        ? Math.min(9000, file.size * 350 / rate) : 9000;
+      if (budget < 1500) return file;
       const controller = new AbortController();
       let timer;
       const deadline = new Promise(resolve => {
         timer = setTimeout(() => {
           controller.abort();
           resolve(file);
-        }, 9_000);
+        }, budget);
       });
       try {
-        const preparation = import('/fit-video-encode.mjs?v=1').then(({ compressIfWorthwhile }) => {
+        const preparation = import('/fit-video-encode.mjs?v=2').then(({ compressIfWorthwhile }) => {
           controller.signal.throwIfAborted();
           return compressIfWorthwhile(file, controller.signal, percent => {
             if (!controller.signal.aborted) report('고화질 압축 중', Math.min(99, percent));
-          });
+          }, rate);
         });
         return await Promise.race([preparation, deadline]);
       } catch {
@@ -809,17 +827,23 @@
     }
 
     async function uploadDirectVideoFile(file, memberName, memberToken, questionText, onProgress, upload = {}) {
-      if (!file?.size || file.size > 50000000) throw new Error('50MB 이하 영상만 업로드할 수 있어요');
+      if (!file?.size) throw new Error('비어 있지 않은 영상 파일을 선택해 주세요');
       upload.date ||= state.selectedDate;
       const attemptStarted = performance.now();
+      if (!normalizeVideoMime(file)) throw new Error('MP4, MOV 또는 WebM 영상을 선택해 주세요');
       const password = state.trainerPassword;
-      const auth = password ? { password }
-        : memberName === state.memberName && memberToken === state.token ? { session: await memberSession(memberName, upload.date) }
-        : { token: memberToken };
-      if (!auth.password && !auth.session && !auth.token) throw new Error('회원 전용 토큰이 필요해요');
+      if (!password && !memberToken) throw new Error('회원 전용 토큰이 필요해요');
+      const authPromise = password ? Promise.resolve({ password })
+        : memberName === state.memberName && memberToken === state.token
+          ? memberSession(memberName, upload.date).then(session => ({ session }))
+          : Promise.resolve({ token: memberToken });
       const timing = upload.timing ||= {};
       const report = upload.onStage || (() => {});
-      if (!upload.file) upload.file = await prepareDirectVideo(file, report);
+      const [auth, prepared] = await Promise.all([authPromise, upload.file || prepareDirectVideo(file, report)]);
+      if (prepared.size > MAX_VIDEO_UPLOAD_BYTES) {
+        throw new Error('50MB 이하로 줄이지 못했어요. 영상을 짧게 잘라 다시 선택해 주세요');
+      }
+      upload.file = prepared;
       const sendFile = upload.file;
       const mime = normalizeVideoMime(sendFile);
       upload.id ||= makeUuidV4();
@@ -839,15 +863,32 @@
         const transferStart = performance.now();
         timing.prepare = transferStart - attemptStarted;
         report('영상 전송 중 · ' + videoSizeLabel(sendFile.size), 0);
-        let result = await xhrPutFile(begin.url, sendFile, { 'Content-Type': mime, 'x-upsert': 'true' }, onProgress);
-        if (!result.ok && [400, 415].includes(result.status)) {
-          const form = new FormData();
-          form.append('cacheControl', '3600');
-          form.append('', sendFile);
-          result = await xhrPutFile(begin.url, form, {}, onProgress);
+        let sent = false;
+        const canResume = sendFile.size > 6 * 1024 * 1024 && begin.uploadToken && begin.tusEndpoint && begin.objectName;
+        if (!upload.usePut && canResume) {
+          try {
+            const { sendResumableVideo } = await import('/fit-video-transfer.mjs?v=1');
+            sent = await sendResumableVideo(sendFile, mime, begin, upload, xhrVideoTransfer, onProgress, report);
+          } catch (error) {
+            // Once Storage has given us a resumable URL, retain it on failure.
+            if (upload.tusUrl) throw error;
+          }
         }
-        if (!result.ok) throw new Error('영상 전송 실패 (' + result.status + ')');
+        if (!sent) {
+          upload.usePut = true;
+          let result = await xhrVideoTransfer(begin.url, sendFile, { 'Content-Type': mime, 'x-upsert': 'true' }, onProgress);
+          if (!result.ok && [400, 415].includes(result.status)) {
+            const form = new FormData();
+            form.append('cacheControl', '3600');
+            form.append('', sendFile);
+            result = await xhrVideoTransfer(begin.url, form, {}, onProgress);
+          }
+          if (!result.ok) throw new Error('영상 전송 실패 (' + result.status + ')');
+        }
         timing.transfer = performance.now() - transferStart;
+        if (sendFile.size >= 1_000_000 && timing.transfer >= 300) {
+          recentUploadRate = { rate: sendFile.size * 1000 / timing.transfer, at: performance.now() };
+        }
         upload.transferred = true;
       }
       report('전송 완료 · 영상 등록 중', 99);
@@ -3863,7 +3904,7 @@
                 <div class="flex items-center gap-1.5">
                   <input id="cd-new-video" type="url" placeholder="🎬 시범 영상 링크 또는 오른쪽 버튼으로 올리기" class="flex-1 text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
                   <label class="tap-scale shrink-0 px-3 py-2 rounded-xl bg-white text-[#1D4ED8] text-[11px] font-extrabold shadow-sm cursor-pointer">
-                    <input id="cd-new-vid-file" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+                    <input id="cd-new-vid-file" type="file" accept="video/mp4,video/quicktime,video/webm,video/*,.m4v" class="hidden" />
                     <span id="cd-new-vid-lbl">📹 영상 올리기</span>
                   </label>
                 </div>
@@ -5594,10 +5635,14 @@
             <div class="flex items-center justify-between gap-2">
               <h2 class="text-[16px] font-bold text-[#111827]">코치 · 회원 메모</h2>
               <label class="tap-scale px-3 py-1.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-extrabold cursor-pointer">
-                <input id="member-vid-upload" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+                <input id="member-vid-upload" type="file" accept="video/mp4,video/quicktime,video/webm,video/*,.m4v" class="hidden" />
                 <span>📹 자세 영상 올리기</span>
               </label>
             </div>
+            <label class="inline-flex tap-scale px-3 py-1.5 rounded-full bg-[#F4F6F9] text-[#1D4ED8] text-[11px] font-bold cursor-pointer">
+              <input id="member-vid-file" type="file" class="hidden" />
+              <span>파일에서 영상 선택</span>
+            </label>
             ${memos.length ? memos.map(f => `
               <div class="p-3.5 rounded-2xl ${f.from === 'trainer' ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'}">
                 <div class="flex justify-between text-[11px] mb-1">
@@ -6083,7 +6128,6 @@
         b.addEventListener('click', () => openMagazineModal(Number(b.dataset.colidx)));
       });
 
-      const mVidInp = document.getElementById('member-vid-upload');
       const handleMemberVideoFile = async (f, upload = {}) => {
           if (videoUploadInFlight) return;
           if (!f) return;
@@ -6142,10 +6186,13 @@
             videoUploadInFlight = false;
           }
       };
-      if (mVidInp) mVidInp.addEventListener('change', e => {
-        const file = e.target.files?.[0];
-        if (file) handleMemberVideoFile(file);
-        e.target.value = '';
+      ['member-vid-upload', 'member-vid-file'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', e => {
+          const file = e.target.files?.[0];
+          if (file && normalizeVideoMime(file).startsWith('video/')) handleMemberVideoFile(file);
+          else if (file) showToast('MP4, MOV 또는 WebM 영상을 선택해 주세요.');
+          e.target.value = '';
+        });
       });
       document.getElementById('video-upload-retry').onclick = () => {
         if (failedVideoUpload?.member === state.memberName) {

@@ -1006,7 +1006,7 @@
       ],
 
       directVideos: [],
-      memberVideoView: { mode: 'date', date: null, part: null, dateLimit: 10, videoLimit: 10 },
+      memberVideoView: { part: null, videoLimit: 10 },
       trainerOverview: []
     };
 
@@ -5811,7 +5811,7 @@
 
     function renderMemberVideoLibrary() {
       if (!state.directVideos.length) return '';
-      const { mode, date, part, dateLimit, videoLimit } = state.memberVideoView;
+      const { part, videoLimit } = state.memberVideoView;
       const exercises = new Map();
       for (const entry of [...Object.values(state.exerciseLibrary || {}), ...(state.record?.routines || [])]) {
         const id = entry.videoId || entry.demoKey;
@@ -5822,12 +5822,9 @@
         uploadDay: getMemberVideoDate(video.createdAt),
         bodyPart: getMemberVideoCategory(exercises.get(video.id) || video.question)
       })).sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
-      const byDate = new Map();
       const byPart = new Map();
       for (const video of videos) {
-        if (!byDate.has(video.uploadDay)) byDate.set(video.uploadDay, []);
         if (!byPart.has(video.bodyPart)) byPart.set(video.bodyPart, []);
-        byDate.get(video.uploadDay).push(video);
         byPart.get(video.bodyPart).push(video);
       }
       const renderRows = list => `
@@ -5837,7 +5834,7 @@
               <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.name || '운동 영상')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale flex-1 min-w-0 text-left flex items-center justify-between gap-2">
                 <span class="min-w-0">
                   <span class="block truncate text-[13px] font-bold text-[#111827]">${escapeHtml(v.name || '운동 영상')}</span>
-                  ${mode === 'part' && v.uploadDay ? `<span class="block text-[11px] text-[#475569]">${escapeHtml(v.uploadDay)}</span>` : ''}
+                  ${v.uploadDay ? `<span class="block text-[11px] text-[#475569]">${escapeHtml(v.uploadDay)}</span>` : ''}
                   ${v.feedback ? `<span class="block truncate text-[11px] font-semibold text-[#0F766E]">코치 피드백: ${escapeHtml(v.feedback)}</span>` : (v.question ? `<span class="block truncate text-[11px] text-[#475569]">${escapeHtml(v.question)}</span>` : '')}
                 </span>
                 <span class="shrink-0 rounded-full card-blue px-3 py-1.5 text-[11px] font-extrabold text-white">재생 ▶</span>
@@ -5851,26 +5848,10 @@
       return `
         <section class="bg-white rounded-[24px] p-5 space-y-3" aria-label="운동 영상">
           <h3 class="text-[15px] font-bold text-[#111827]">운동 영상 <span class="text-[12px] text-[#475569]">${videos.length}개</span></h3>
-          <div class="grid grid-cols-2 gap-1 rounded-xl bg-[#F4F6F9] p-1" aria-label="영상 보기 방식">
-            ${[['date', '날짜별'], ['part', '부위별']].map(([key, label]) => `<button type="button" data-video-mode="${key}" aria-pressed="${key === mode}" class="rounded-lg py-2 text-[13px] font-bold ${key === mode ? 'card-blue text-white' : 'text-[#475569]'}">${label}</button>`).join('')}
+          <div class="flex flex-wrap gap-1.5" aria-label="운동 부위">
+            ${labels.map(label => `<button type="button" data-video-part="${label}" aria-pressed="${part === label}" class="rounded-full px-3 py-2 text-[12px] font-bold ${part === label ? 'card-blue text-white' : 'bg-[#F4F6F9] text-[#475569]'}">${label} ${byPart.get(label)?.length || 0}</button>`).join('')}
           </div>
-          ${mode === 'part' ? `
-            <div class="flex flex-wrap gap-1.5" aria-label="운동 부위">
-              ${labels.map(label => `<button type="button" data-video-part="${label}" aria-pressed="${part === label}" class="rounded-full px-3 py-2 text-[12px] font-bold ${part === label ? 'card-blue text-white' : 'bg-[#F4F6F9] text-[#475569]'}">${label} ${byPart.get(label)?.length || 0}</button>`).join('')}
-            </div>
-            ${partVideos?.length ? renderRows(partVideos) : `<p class="px-1 py-2 text-[12px] text-[#475569]">${part ? '이 부위에 분류된 영상이 없어요.' : '운동 부위를 선택해 주세요.'}</p>`}
-          ` : `
-            <div class="space-y-2">
-              ${Array.from(byDate).slice(0, dateLimit).map(([day, list]) => `
-                <div class="space-y-2">
-                  <button type="button" data-video-date="${escapeHtml(day)}" aria-expanded="${day === date}" class="flex w-full items-center justify-between gap-2 rounded-xl bg-[#F4F6F9] px-3.5 py-3 text-[13px] font-bold text-[#111827]">
-                    <span>${day ? `${Number(day.slice(0, 4))}년 ${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일` : '날짜 미확인'}</span>
-                    <span class="text-[#1D4ED8]">${list.length}개 ${day === date ? '▴' : '▾'}</span>
-                  </button>
-                  ${day === date ? renderRows(list) : ''}
-                </div>`).join('')}
-              ${byDate.size > dateLimit ? '<button type="button" data-video-more="dates" class="w-full rounded-xl bg-[#F4F6F9] py-2 text-[12px] font-bold text-[#1D4ED8]">이전 날짜 더 보기</button>' : ''}
-            </div>`}
+          ${partVideos?.length ? renderRows(partVideos) : `<p class="px-1 py-2 text-[12px] text-[#475569]">${part ? '이 부위에 분류된 영상이 없어요.' : '운동 부위를 선택해 주세요.'}</p>`}
         </section>`;
     }
 
@@ -6702,16 +6683,15 @@
         b.addEventListener('click', () => openFormGuideModal(b.dataset.gtitle, b.dataset.gnote, b.dataset.gvid, b.dataset.gvidid));
       });
 
-      document.querySelectorAll('[data-video-mode], [data-video-date], [data-video-part], [data-video-more]').forEach(button => {
+      document.querySelectorAll('[data-video-part], [data-video-more]').forEach(button => {
         button.addEventListener('click', () => {
           const view = state.memberVideoView;
-          const { videoMode, videoDate, videoPart, videoMore } = button.dataset;
-          if (videoMode) view.mode = videoMode;
-          if (videoDate !== undefined) view.date = view.date === videoDate ? null : videoDate;
-          if (videoPart) view.part = videoPart;
-          if (videoMore === 'dates') view.dateLimit += 10;
-          if (videoMore === 'videos') view.videoLimit += 10;
-          if (!videoMore) view.videoLimit = 10;
+          if (button.dataset.videoPart) {
+            view.part = button.dataset.videoPart;
+            view.videoLimit = 10;
+          } else {
+            view.videoLimit += 10;
+          }
           renderAll();
         });
       });

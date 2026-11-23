@@ -1335,7 +1335,7 @@
         let sent = false;
         const canResume = sendFile.size > 6 * 1024 * 1024 && begin.uploadToken && begin.tusEndpoint && begin.objectName;
         if (begin.storage === 'r2' && sendFile.size > begin.partBytes) {
-          const { sendR2Video } = await import('/fit-video-transfer.mjs?v=2');
+          const { sendR2Video } = await import('/fit-video-transfer.mjs?v=3');
           await sendR2Video(sendFile, begin, upload, xhrVideoTransfer, onProgress, report);
           sent = true;
         } else if (!upload.usePut && canResume) {

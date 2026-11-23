@@ -1,5 +1,6 @@
 const CHUNK_BYTES = 6 * 1024 * 1024;
 const RETRY_LIMIT = 2;
+const R2_CONCURRENT_PARTS = 2;
 
 export async function sendResumableVideo(file, mime, options, job, transfer, onProgress, report) {
   const endpoint = new URL(options.tusEndpoint);
@@ -103,34 +104,60 @@ export async function sendR2Video(file, options, job, transfer, onProgress, repo
 
   const { url, parts } = job.r2Multipart;
   const partSize = options.partBytes;
-  for (let start = parts.length * partSize; start < file.size; start += partSize) {
-    const partNumber = parts.length + 1;
+  const partCount = Math.ceil(file.size / partSize);
+  const partProgress = Array.from({ length: partCount }, (_, index) =>
+    parts[index] ? Math.min(partSize, file.size - index * partSize) : 0);
+  const uploadedBytes = () => partProgress.reduce((total, loaded) => total + loaded, 0);
+  const percentDone = uploaded => Math.min(99, Math.round(uploaded / file.size * 100));
+  const updateProgress = (index, loaded) => {
+    partProgress[index] = Math.max(partProgress[index], loaded);
+    const uploaded = uploadedBytes();
+    onProgress?.(percentDone(uploaded), uploaded, file.size);
+  };
+
+  const sendPart = async index => {
+    const partNumber = index + 1;
     const partUrl = new URL(url);
     partUrl.searchParams.set('part', partNumber);
+    const start = index * partSize;
     const chunk = file.slice(start, start + partSize);
-    const progress = (_percent, loaded) => {
-      const uploaded = Math.min(file.size, start + loaded);
-      onProgress?.(Math.min(99, Math.round(uploaded / file.size * 100)), uploaded, file.size);
-    };
+    const progress = (_percent, loaded) => updateProgress(index, Math.min(chunk.size, loaded));
     for (let attempt = 0; ; attempt++) {
       try {
         const result = await transfer(partUrl.href, chunk, { 'Content-Type': 'application/offset+octet-stream' }, progress);
         if (!result.ok) {
           const error = new Error('이어 올리기 전송 실패 (' + result.status + ')');
-          error.permanent = result.status >= 400 && result.status < 500;
+          error.permanent = result.status >= 400 && result.status < 500 && result.status !== 429;
           throw error;
         }
         const part = JSON.parse(result.text);
         if (part.partNumber !== partNumber || !part.etag) throw new Error('전송 상태를 확인하지 못했어요');
-        parts.push(part);
-        break;
+        parts[index] = part;
+        updateProgress(index, chunk.size);
+        return;
       } catch (error) {
         if (error.permanent || attempt >= RETRY_LIMIT) throw error;
-        report('연결 확인 중 · 이어서 전송합니다', Math.round(start / file.size * 100));
+        report('연결 확인 중 · 이어서 전송합니다', percentDone(uploadedBytes()));
         await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 450));
       }
     }
-  }
+  };
+
+  let nextIndex = 0;
+  let failure;
+  const uploadPendingParts = async () => {
+    while (!failure && nextIndex < partCount) {
+      const index = nextIndex++;
+      if (parts[index]) continue;
+      try {
+        await sendPart(index);
+      } catch (error) {
+        failure ??= error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(R2_CONCURRENT_PARTS, partCount) }, uploadPendingParts));
+  if (failure) throw failure;
 
   const completion = await fetch(url, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parts)

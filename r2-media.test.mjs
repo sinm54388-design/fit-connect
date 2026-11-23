@@ -133,17 +133,35 @@ test('R2 media uses member-scoped records and preserves existing Supabase playba
   const job = {};
   const sentParts = [];
   let interrupted = false;
-  const transfer = async (url, body, headers) => {
+  let activeParts = 0;
+  let peakParts = 0;
+  const transfer = async (url, body, headers, onProgress) => {
     const part = new URL(url).searchParams.get('part');
     sentParts.push(part);
-    if (part === '2' && !interrupted) return { status: 403, ok: false };
-    const response = await media(url, { method: 'PUT', body, headers: { ...headers, 'Content-Length': String(body.size) } });
-    return { status: response.status, ok: response.ok, text: await response.text() };
+    activeParts++;
+    peakParts = Math.max(peakParts, activeParts);
+    try {
+      await new Promise(resolve => setTimeout(resolve, part === '2' ? 10 : 0));
+      if (part === '1' && !interrupted) return { status: 403, ok: false };
+      onProgress(50, Math.floor(body.size / 2));
+      const response = await media(url, { method: 'PUT', body, headers: { ...headers, 'Content-Length': String(body.size) } });
+      return { status: response.status, ok: response.ok, text: await response.text() };
+    } finally {
+      activeParts--;
+    }
   };
   await assert.rejects(sendR2Video(file, multipart, job, transfer, () => {}, () => {}), /403/);
+  assert.equal(activeParts, 0);
+  assert.equal(job.r2Multipart.parts[0], undefined);
+  assert.equal(job.r2Multipart.parts[1].partNumber, 2);
   interrupted = true;
-  await sendR2Video(file, multipart, job, transfer, () => {}, () => {});
-  assert.deepEqual(sentParts, ['1', '2', '2', '3', '4', '5', '6', '7', '8', '9']);
+  const progress = [];
+  await sendR2Video(file, multipart, job, transfer, (_percent, bytes) => progress.push(bytes), () => {});
+  assert.equal(peakParts, 2);
+  assert.deepEqual(sentParts, ['1', '2', '1', '3', '4', '5', '6', '7', '8', '9']);
+  assert.ok(progress[0] >= partBytes);
+  assert.ok(progress.every((bytes, index) => bytes >= (progress[index - 1] ?? 0) && bytes <= file.size));
+  assert.equal(progress.at(-1), file.size);
   assert.equal((await record('directVideoFinish', { id: large })).status, 200);
   const largePlay = await (await record('directVideoPlay', { id: large })).json();
   assert.equal(await (await media(largePlay.url, { headers: { Range: 'bytes=-3' } })).text(), 'end');

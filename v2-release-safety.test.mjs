@@ -112,15 +112,16 @@ test('cold member date renders before optional calls and reuses published column
   const run = app(async (url,request)=>{
     if (url === '/api/apps-script') return Response.json({ status: 'success' });
     const body = JSON.parse(request.body);
-    calls.push({action:body.action,session:body.session});
+    calls.push({action:body.action,session:body.session,includeDaily:body.includeDaily});
     if (body.action==='memberSession')
-      return Response.json({status:'success',session:'verified',exp:Date.now()+3600000});
+      return Response.json({status:'success',session:'verified',exp:Date.now()+3600000,daily:{headerMessage:'today first'}});
     if (body.action==='read') return Response.json({headerMessage:'today first'});
     return Response.json({status:'success',columns:[],days:[]});
   });
   run('globalThis.frames = []; globalThis.requestAnimationFrame = cb => frames.push(cb); refreshMemberSummaries = () => {};');
   await run('loadMemberDateData(state.selectedDate)');
-  assert.deepEqual(calls.map(item=>item.action),['memberSession','read']);
+  assert.deepEqual(calls.map(item=>item.action),['memberSession']);
+  assert.equal(calls[0].includeDaily,true);
   assert.equal(run('state.record.headerMessage'),'today first');
   assert.equal(run('state.loading'),false);
   run('frames.shift()(); frames.shift()();');
@@ -345,6 +346,54 @@ test('concurrent worker requests share one member ID lookup and keep projects is
   ]),[1,1]);
   assert.equal(await lookup('project-b','member',query),2);
   assert.equal(await lookup('project-a','member',query),1);
+});
+
+test('a combined member session and daily read performs one account lookup and protects archived members', async () => {
+  const calls = [];
+  let accepted = true;
+  let archived = false;
+  const fetch = async url => {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'script.google.com') {
+      calls.push('token');
+      return Response.json(accepted ? {} : {status:'denied'});
+    }
+    assert.equal(parsed.hostname, 'fixture-db.supabase.co');
+    calls.push(parsed.pathname.split('/').at(-1));
+    if (parsed.pathname.endsWith('/fit_members')) return Response.json([{ id:'fixture-member', is_archived:archived }]);
+    assert.equal(parsed.searchParams.get('member_id'), 'eq.fixture-member');
+    assert.equal(parsed.searchParams.get('record_date'), 'eq.' + date);
+    return Response.json(parsed.pathname.endsWith('/fit_daily_records') ? [{ data:{ headerMessage:'fixture' } }] : []);
+  };
+  const mod = new vm.SourceTextModule(workerSource, {
+    context: vm.createContext({ fetch, URL, Response, Request, Headers, TextEncoder, TextDecoder, AbortSignal, performance, crypto, btoa, atob })
+  });
+  await mod.link(() => {});
+  await mod.evaluate();
+  const dispatch = () => mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
+    method:'POST', body:JSON.stringify({action:'memberSession', includeDaily:true, member:'QA', date, token:'fixture'})
+  }), { SUPABASE_URL:'https://fixture-db.supabase.co', SUPABASE_SECRET_KEY:'fixture', MEMBER_SESSION_SECRET:'fixture-session-key-for-local-tests' });
+
+  const response = await dispatch();
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.ok(data.session);
+  assert.equal(data.daily.headerMessage, 'fixture');
+  assert.equal(calls.filter(call => call === 'fit_members').length, 1);
+
+  calls.length = 0;
+  archived = true;
+  const denied = await dispatch();
+  assert.equal(denied.status, 403);
+  assert.equal((await denied.json()).code, 'member_archived');
+  assert.deepEqual(calls, ['token','fit_members']);
+
+  calls.length = 0;
+  accepted = false;
+  const invalid = await dispatch();
+  assert.equal(invalid.status, 403);
+  assert.equal((await invalid.json()).code, 'unauthorized');
+  assert.deepEqual(calls, ['token']);
 });
 
 test('Worker retries a check-in write conflict and preserves intervening record fields', async () => {

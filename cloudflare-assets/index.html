@@ -1127,10 +1127,10 @@
     // --- API Helpers ---
     const MEMBER_SESSION_STORAGE_KEY = 'fit_member_session_v1';
     let sessionExchange;
-    async function memberSession(member, date, rejectedSession = '') {
+    async function memberAccess(member, date, { rejectedSession = '', includeDaily = false } = {}) {
       const token = state.token;
       if (!token || state.appMode !== 'member' || member !== state.memberName) throw Error('회원 전용 링크가 필요해요');
-      if (state.session && state.session !== rejectedSession) return state.session;
+      if (state.session && state.session !== rejectedSession) return { session: state.session };
       if (sessionExchange?.member === member && sessionExchange.token === token) return sessionExchange.promise;
       const exchange = { member, token };
       exchange.promise = (async () => {
@@ -1143,7 +1143,9 @@
         } catch {}
         const canRestore = tokenHash && cached?.member === member && cached.tokenHash === tokenHash &&
           typeof cached.session === 'string' && cached.session !== rejectedSession && cached.exp > Date.now();
-        const res = canRestore ? cached : await requestRecords({ action: 'memberSession', member, date, token });
+        const res = canRestore ? cached : await requestRecords({
+          action: 'memberSession', member, date, token, ...(includeDaily ? { includeDaily: true } : {})
+        });
         if ((!canRestore && res?.status !== 'success') || !res.session) throw Error('회원 인증을 확인하지 못했어요');
         if (state.appMode === 'member' && state.memberName === member && state.token === token) {
           state.session = res.session;
@@ -1155,10 +1157,18 @@
             } catch {}
           }
         }
-        return res.session;
+        return {
+          session: res.session,
+          ...(Object.hasOwn(res, 'daily') && !canRestore ? { daily: res.daily, date } : {})
+        };
       })().finally(() => { if (sessionExchange === exchange) sessionExchange = null; });
       sessionExchange = exchange;
       return exchange.promise;
+    }
+
+    async function memberSession(member, date, rejectedSession = '') {
+      const access = await memberAccess(member, date, { rejectedSession });
+      return access.session;
     }
 
     async function postRecords(payload) {
@@ -1738,7 +1748,9 @@
         state.appMode === 'member' && state.memberName === member && state.selectedDate === dateStr;
       const payload = { member, date: dateStr };
       const appRead = postAppsScript({ ...payload, action: 'read', token: state.token });
-      const dbRead = memberSession(member, dateStr).then(session => postRecords({ ...payload, action: 'read', session }));
+      const dbRead = memberAccess(member, dateStr, { includeDaily: true }).then(access =>
+        access.date === dateStr ? access.daily : postRecords({ ...payload, action: 'read', session: access.session })
+      );
       const [dailyRec, dailyAs] = await Promise.allSettled([dbRead, appRead]);
       if (!stillCurrent()) return;
 

@@ -6076,29 +6076,47 @@
       const coachNote = state.record.headerMessage || state.record.feedback?.workout || workoutPoint.note || '수업일지에서 운동 기록을 확인해 보세요.';
       const dailyMagazinePicks = getDailyMagazinePicks(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
-      const routinesArr = state.record.routines || [];
-      const hasRoutines = routinesArr.length > 0;
-      const hasPtClass = routinesArr.some(r => r.routineType !== 'homework');
-      const pendingRoutine = routinesArr.find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
-      const missionDone = hasRoutines && !pendingRoutine;
-      const isPtDay = Boolean(state.record.ptScheduled);
-      const ptTimeBadge = state.record.ptTime ? ` (${state.record.ptTime})` : '';
-      const missionLabel = pendingRoutine
-        ? `오늘의 개인 운동 숙제 (${wr.done}/${wr.total})`
-        : (missionDone ? (hasPtClass ? '오늘 PT 수업 일지' : '오늘 개인 운동 완료') : (isPtDay ? '오늘의 PT 일정' : '오늘의 운동 일정'));
-      const missionTitle = pendingRoutine
-        ? pendingRoutine.name
-        : (missionDone ? (hasPtClass ? `오늘 진행한 PT 수업 (${routinesArr.length}종목)` : '오늘 배정된 개인 운동 완료!') : (isPtDay ? `🗓 오늘은 PT 예정일입니다${ptTimeBadge}` : '예정된 수업 · 루틴이 없어요'));
-      const missionSub = pendingRoutine
-        ? '수업일지에서 체크하기 ›'
-        : (missionDone ? '수업 내용 확인하기 ›' : (isPtDay ? '수업일지 보기 ›' : '휴식 · 회복일'));
-      const missionNote = pendingRoutine
-        ? pendingRoutine.note
-        : (missionDone ? '수고하셨습니다! 수분 보충과 충분한 휴식을 챙겨주세요.' : (isPtDay ? '오늘 PT 수업이 예정되어 있어요. 수업 후 코치님이 운동일지를 올려드릴 예정입니다.' : '코치님이 일지를 등록하면 이곳에 바로 표시됩니다.'));
-
       if (state.memberTab === 'report') {
+        const routines = state.record.routines || [];
+        const ptCount = routines.filter(r => r.routineType !== 'homework').length;
+        const [, month, day] = state.selectedDate.split('-');
+        const ptDiaryTitle = state.selectedDate === getTodayKST()
+          ? '오늘 PT 수업 일지'
+          : `${Number(month)}월 ${Number(day)}일 PT 수업 일지`;
+        const pendingRoutine = routines.find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
+        const personalWorkoutDone = !ptCount && routines.length > 0 && !pendingRoutine;
+        const isPtDay = Boolean(state.record.ptScheduled);
+        const ptTimeBadge = state.record.ptTime ? ` (${state.record.ptTime})` : '';
+        const showMission = pendingRoutine || (!ptCount && (personalWorkoutDone || isPtDay));
+        const missionLabel = pendingRoutine
+          ? `오늘의 개인 운동 숙제 (${wr.done}/${wr.total})`
+          : (personalWorkoutDone ? '오늘 개인 운동 완료' : '오늘의 PT 일정');
+        const missionTitle = pendingRoutine
+          ? pendingRoutine.name
+          : (personalWorkoutDone ? '오늘 배정된 개인 운동 완료!' : `🗓 오늘은 PT 예정일입니다${ptTimeBadge}`);
+        const lessonIcon = '<svg aria-hidden="true" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 004 0a2 2 0 00-4 0"/></svg>';
+
         return `
           <div class="space-y-3.5 animate-in">
+            ${ptCount ? `
+              <button type="button" id="home-pt-diary" class="card-teal tap-scale w-full p-4 rounded-[22px] text-white text-left flex items-center gap-3 shadow-sm">
+                <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white/20">${lessonIcon}</span>
+                <span class="flex-1 min-w-0">
+                  <span class="block text-[15px] font-extrabold">${ptDiaryTitle}</span>
+                  <span class="block text-[12px] font-semibold mt-1">${ptCount}종목 · 수업 내용 보기</span>
+                </span>
+                <span class="shrink-0 text-lg font-bold" aria-hidden="true">›</span>
+              </button>
+            ` : ''}
+
+            <section class="bg-white rounded-[24px] p-4 border border-[#DBEAFE] shadow-sm space-y-2.5">
+              <div class="flex justify-between items-center"><h2 class="text-[15px] font-extrabold text-[#111827]">오늘 할 일</h2><span class="text-[11px] text-[#475569]">${checkedCount}/3 체크 완료</span></div>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="home-quick-workout" class="tap-scale p-3 rounded-2xl bg-[#EFF6FF] text-left"><p class="text-[13px] font-extrabold text-[#1D4ED8]">🏋️ 운동 기록</p><p class="text-[11px] text-[#475569] mt-1">${wr.done}/${wr.total} 종목 · 세트 체크</p></button>
+                <button type="button" id="home-quick-diet" class="tap-scale p-3 rounded-2xl bg-[#F0FDFA] text-left"><p class="text-[13px] font-extrabold text-[#0F766E]">🥗 식단 기록</p><p class="text-[11px] text-[#475569] mt-1">${ds.loggedCount}/4 끼니 · 사진 등록</p></button>
+              </div>
+            </section>
+
             <!-- Hero Card -->
             <section class="hero-navy rounded-[26px] p-5 text-white shadow-[0_14px_30px_rgba(30,58,138,0.28)]">
               <div class="flex items-center justify-between gap-3">
@@ -6140,6 +6158,22 @@
               </div>
             </section>
 
+            ${showMission ? `
+              <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${personalWorkoutDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
+                <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
+                  <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${personalWorkoutDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
+                    ${lessonIcon}
+                  </div>
+                  <div class="min-w-0">
+                    <span class="text-[10px] font-extrabold ${personalWorkoutDone ? 'text-white/80' : 'text-[#0F766E]'}">${missionLabel}</span>
+                    <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
+                    <p class="text-[12px] font-semibold ${personalWorkoutDone ? 'text-white/90' : 'text-[#1D4ED8]'}">${pendingRoutine ? '수업일지에서 체크하기 ›' : '수업일지 보기 ›'}</p>
+                  </div>
+                </button>
+                ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(pendingRoutine.note || '')}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
+              </div>
+            ` : ''}
+
             <!-- Magazine always visible on member home -->
             <!-- High-Visibility FIT-CONNECT MAGAZINE -->
             <section class="rounded-[24px] p-5 bg-white shadow-[0_6px_24px_rgba(30,58,138,0.08)] border border-[#DBEAFE] space-y-3">
@@ -6164,30 +6198,6 @@
                 `).join('')}
               </div>
             </section>
-
-            <!-- Important shortcuts above educational content -->
-            <section class="bg-white rounded-[24px] p-4 border border-[#DBEAFE] shadow-sm space-y-2.5">
-              <div class="flex justify-between items-center"><h2 class="text-[15px] font-extrabold text-[#111827]">오늘 할 일</h2><span class="text-[11px] text-[#475569]">${checkedCount}/3 체크 완료</span></div>
-              <div class="grid grid-cols-2 gap-2">
-                <button type="button" id="home-quick-workout" class="tap-scale p-3 rounded-2xl bg-[#EFF6FF] text-left"><p class="text-[13px] font-extrabold text-[#1D4ED8]">🏋️ 운동 기록</p><p class="text-[11px] text-[#475569] mt-1">${wr.done}/${wr.total} 종목 · 세트 체크</p></button>
-                <button type="button" id="home-quick-diet" class="tap-scale p-3 rounded-2xl bg-[#F0FDFA] text-left"><p class="text-[13px] font-extrabold text-[#0F766E]">🥗 식단 기록</p><p class="text-[11px] text-[#475569] mt-1">${ds.loggedCount}/4 끼니 · 사진 등록</p></button>
-              </div>
-            </section>
-
-            <!-- Compact Today's Lesson Shortcut -->
-            <div class="p-4 rounded-[22px] transition flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.04)] ${missionDone ? 'card-teal text-white' : 'bg-white text-[#111827]'}">
-              <button type="button" id="btn-home-mission" class="tap-scale flex items-center gap-3 text-left flex-1 min-w-0">
-                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${missionDone ? 'bg-white/20 text-white' : 'bg-[#1D4ED8] text-white'}">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
-                </div>
-                <div class="min-w-0">
-                  <span class="text-[10px] font-extrabold ${missionDone ? 'text-white/80' : 'text-[#0F766E]'}">${missionLabel}</span>
-                  <p class="text-[14px] font-bold truncate">${escapeHtml(missionTitle)}</p>
-                  <p class="text-[12px] font-semibold ${missionDone ? 'text-white/90' : 'text-[#1D4ED8]'}">${missionSub}</p>
-                </div>
-              </button>
-              ${pendingRoutine ? `<button type="button" id="btn-home-guide" data-gtitle="${escapeHtml(missionTitle)}" data-gnote="${escapeHtml(missionNote)}" class="tap-scale shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-[#EFF6FF] text-[#1D4ED8]">자세 팁 ▶</button>` : ''}
-            </div>
 
             <!-- Compact 1-Line Water Bar -->
             ${renderCompactWaterBar(ds)}
@@ -6776,10 +6786,10 @@
         });
       });
 
-      const hmBtn = document.getElementById('btn-home-mission');
-      if (hmBtn) {
-        hmBtn.addEventListener('click', () => {
+      for (const id of ['home-pt-diary', 'btn-home-mission']) {
+        document.getElementById(id)?.addEventListener('click', () => {
           state.memberTab = 'lesson';
+          state.lessonView = 'today';
           renderAll();
           window.scrollTo({ top: 0, behavior: 'smooth' });
         });

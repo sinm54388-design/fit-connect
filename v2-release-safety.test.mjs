@@ -187,6 +187,44 @@ test('meal save scopes both writes and only uploads a newly selected photo', asy
   assert.deepEqual(calls[2][1].patch, patch);
   assert.deepEqual(calls[3][1].diet.lunch.photos, ['data:image/jpeg;base64,AAAA']);
   assert.equal(calls[3][1].session, 'valid');
+
+  calls.length = 0;
+  run('state.nativeDaily = true;');
+  await run("saveMealLive('QA', state.selectedDate, 'lunch', meal, '')");
+  await run("saveMealLive('QA', state.selectedDate, 'lunch', meal, 'data:image/jpeg;base64,AAAA')");
+  assert.deepEqual(calls.map(([url]) => url), ['/api/records', '/api/records']);
+  assert.deepEqual(calls[0][1].diet, patch.diet);
+  assert.deepEqual(calls[1][1].diet.lunch.photos, ['data:image/jpeg;base64,AAAA']);
+});
+
+test('coach dashboard appears before legacy links and preserves the active member list', async () => {
+  let finishLegacy;
+  const legacy = new Promise(resolve => { finishLegacy = resolve; });
+  const run = app(async (url, request) => {
+    const body = JSON.parse(request.body);
+    if (body.action === 'listMembers') return legacy;
+    assert.equal(url, '/api/records');
+    if (body.action === 'verify') return Response.json({ status: 'success' });
+    if (body.action === 'trainerOverview') {
+      return Response.json({ status: 'success', members: [{ name: 'QA', pendingWorkout: true }] });
+    }
+    assert.equal(body.action, 'listMembersFast');
+    return Response.json({ status: 'success', members: ['QA'], nativeMembers: ['QA'], archivedMembers: ['Archived'] });
+  });
+  run('closeModal = () => {};');
+  const opened = await Promise.race([
+    run("enterCoachWithPassword('coach-fixture', false)"),
+    new Promise(resolve => setImmediate(() => resolve(false)))
+  ]);
+  assert.equal(opened, true);
+  assert.equal(run('state.appMode'), 'coach');
+  assert.equal(run('state.trainerOverview[0].pendingWorkout'), true);
+  finishLegacy(Response.json({ status: 'success', members: [
+    { name: 'QA', token: 'fixture-link' }, { name: 'Archived', token: 'archived-link' }
+  ] }));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(run('state.trainerOverview.length'), 1);
+  assert.equal(await run("resolveMemberToken('QA')"), 'fixture-link');
 });
 
 test('coach patches target the selected member with coach auth and preserve unrelated fields', async () => {

@@ -3057,8 +3057,10 @@
     async function saveMealLive(member, date, mealKey, updated, newPhoto) {
       const auth = appsWriteAuth();
       const { photos, photo, ...meal } = updated;
-      // Sync only this meal's text. Photos live in the dedicated records API.
-      await writeAppsRecord({ action: 'patchData', patch: { diet: { [mealKey]: meal } } }, member, date, auth);
+      // Native member records use the same database for text and photos.
+      if (state.appMode !== 'member' || state.memberName !== member || !state.nativeDaily) {
+        await writeAppsRecord({ action: 'patchData', patch: { diet: { [mealKey]: meal } } }, member, date, auth);
+      }
       const recordsAuth = auth.password ? auth : state.session ? { session: state.session } : auth;
       const result = await postRecords({
         action: 'dietSave', member, date, ...recordsAuth,
@@ -4241,10 +4243,15 @@
     }
 
     // --- Coach Modals (Unified One-Stop Detail & Immediate Reply Sheet) ---
+    let coachLoginVersion = 0;
     async function enterCoachWithPassword(pw, isAuto) {
+      const version = ++coachLoginVersion;
+      const date = state.selectedDate;
+      const isCurrentLogin = () => version === coachLoginVersion;
       if (isLiveOrigin) {
         try {
-          const v = await postRecords({ action: 'verify', password: pw, date: state.selectedDate });
+          const v = await postRecords({ action: 'verify', password: pw, date });
+          if (!isCurrentLogin()) return false;
           if (v?.status !== 'success') {
             if (isAuto) {
               try {
@@ -4261,58 +4268,63 @@
             localStorage.removeItem('fit_coach_pw_v2');
             localStorage.setItem('fit_coach_auto_v1', '1');
           } catch {}
-          const [ovRes, fastRes, asListRes] = await Promise.allSettled([
-            postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate }),
-            postRecords({ action: 'listMembersFast', password: pw, date: state.selectedDate }),
-            postAppsScript({ action: 'listMembers', password: pw })
+          const legacyMembers = postAppsScript({ action: 'listMembers', password: pw }).catch(() => null);
+          const [ovRes, fastRes] = await Promise.allSettled([
+            postRecords({ action: 'trainerOverview', password: pw, date }),
+            postRecords({ action: 'listMembersFast', password: pw, date })
           ]);
+          if (!isCurrentLogin()) return false;
           const ov = ovRes.status === 'fulfilled' ? ovRes.value : null;
           const fast = fastRes.status === 'fulfilled' ? fastRes.value : null;
-          const asList = asListRes.status === 'fulfilled' ? asListRes.value : null;
-          const tokenMap = {};
-          try {
-            const savedMap = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
-            Object.assign(tokenMap, savedMap);
-          } catch {}
-          [fast, asList].forEach(src => {
-            const arr = Array.isArray(src) ? src : (Array.isArray(src?.members) ? src.members : (Array.isArray(src?.data) ? src.data : []));
-            arr.forEach(fm => {
-              if (!fm || typeof fm !== 'object') return;
-              const nm = fm.name || fm.member || '';
-              const tk = fm.token || fm.memberToken || extractTokenValue(fm.url || fm.link || '');
-              if (nm && tk) tokenMap[nm] = tk;
-            });
-          });
-          const archivedMembers = new Set(Array.isArray(fast?.archivedMembers) ? fast.archivedMembers : []);
-          state.archivedMemberNames = [...archivedMembers];
-          let serverMembers = [];
-          if (ov?.status === 'success' && Array.isArray(ov.members)) {
-            serverMembers = ov.members.filter(m => !archivedMembers.has(m.name)).map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' }));
-          }
-          const extraLists = [
-            ...(Array.isArray(fast?.members) ? fast.members : []),
-            ...(Array.isArray(asList?.members) ? asList.members : (Array.isArray(asList?.data) ? asList.data : []))
-          ];
-          extraLists.forEach(fn => {
-            const nm = typeof fn === 'string' ? fn.trim() : String(fn?.name || fn?.member || '').trim();
-            if (nm && !archivedMembers.has(nm) && !serverMembers.some(sm => sm.name === nm)) {
-              serverMembers.push({ name: nm, lastDate: '', activeToday: false, pendingWorkout: false, pendingDiet: false, weeklyWorkoutDays: 0, token: tokenMap[nm] || '' });
-            }
-          });
+          const tokenMap = Object.create(null);
           let localAdded = [];
           try {
+            Object.assign(tokenMap, JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}'));
             localAdded = JSON.parse(localStorage.getItem('fit_added_members_v2') || '[]');
           } catch {}
-          const merged = [...serverMembers];
+          const membersFrom = source => Array.isArray(source) ? source
+            : Array.isArray(source?.members) ? source.members : Array.isArray(source?.data) ? source.data : [];
+          const attachMembers = (target, entries, archived) => {
+            let added = false;
+            for (const entry of entries) {
+              const name = String(typeof entry === 'string' ? entry : entry?.name || entry?.member || '').trim();
+              if (!name || archived.has(name)) continue;
+              const token = entry?.token || entry?.memberToken || extractTokenValue(entry?.url || entry?.link || '');
+              const previousToken = tokenMap[name];
+              if (token) tokenMap[name] = token;
+              const existing = target.find(member => member.name === name);
+              if (existing) {
+                if ((!existing.token || existing.token === previousToken) && tokenMap[name]) existing.token = tokenMap[name];
+              } else {
+                target.push({ name, lastDate: '', activeToday: false, pendingWorkout: false, pendingDiet: false,
+                  weeklyWorkoutDays: 0, token: tokenMap[name] || '' });
+                added = true;
+              }
+            }
+            return added;
+          };
+          const archivedMembers = new Set(Array.isArray(fast?.archivedMembers) ? fast.archivedMembers : []);
+          const hasOverview = ov?.status === 'success' && Array.isArray(ov.members);
+          const hasFastList = fast?.status === 'success' && Array.isArray(fast.members);
+          const merged = hasOverview ? ov.members.filter(m => !archivedMembers.has(m.name))
+            .map(m => ({ ...m, token: m.token || tokenMap[m.name] || '' })) : [];
+          attachMembers(merged, membersFrom(fast), archivedMembers);
+          if (!hasOverview && !hasFastList) {
+            attachMembers(merged, membersFrom(await legacyMembers), archivedMembers);
+            if (!isCurrentLogin()) return false;
+          }
           localAdded.forEach(lm => {
             if (lm?.name && !archivedMembers.has(lm.name) && !merged.some(sm => sm.name === lm.name)) {
               merged.unshift(lm);
             }
           });
+          state.archivedMemberNames = [...archivedMembers];
           state.trainerOverview = merged;
           state.isLive = true;
           const nativeMembers = new Set(fast?.nativeMembers || []);
-          if (merged.some(m => !nativeMembers.has(m.name)) || !fast) postAppsScript({ action: 'trainerOverview', password: pw, date: state.selectedDate }).then(asOv => {
+          const refreshLegacyOverview = () => postAppsScript({ action: 'trainerOverview', password: pw, date }).then(asOv => {
+            if (!isCurrentLogin() || state.appMode !== 'coach' || state.selectedDate !== date) return;
+            const archived = new Set(state.archivedMemberNames || []);
             if (asOv?.status === 'success' && Array.isArray(asOv.members)) {
               const byName = new Map(asOv.members.map(m => [m.name, m]));
               let changed = false;
@@ -4333,7 +4345,7 @@
                 };
               });
               asOv.members.forEach(am => {
-                if (am?.name && !nativeMembers.has(am.name) && !archivedMembers.has(am.name) && !state.trainerOverview.some(x => x.name === am.name)) {
+                if (am?.name && !nativeMembers.has(am.name) && !archived.has(am.name) && !state.trainerOverview.some(x => x.name === am.name)) {
                   state.trainerOverview.push({ ...am, token: tokenMap[am.name] || '' });
                   changed = true;
                 }
@@ -4341,8 +4353,19 @@
               if (changed && state.appMode === 'coach') renderAll();
             }
           }).catch(() => {});
+          const needLegacyOverview = members => members.some(m => !nativeMembers.has(m.name)) || !fast;
+          const requestedOverview = needLegacyOverview(merged);
+          if (requestedOverview) refreshLegacyOverview();
+          if (hasOverview || hasFastList) legacyMembers.then(source => {
+            if (!isCurrentLogin() || state.appMode !== 'coach') return;
+            const added = attachMembers(state.trainerOverview, membersFrom(source), new Set(state.archivedMemberNames || []));
+            if (added) {
+              if (!requestedOverview && needLegacyOverview(state.trainerOverview)) refreshLegacyOverview();
+              if (!document.querySelector('input:focus, textarea:focus, select:focus')) renderAll();
+            }
+          }).catch(() => {});
         } catch {
-          if (!isAuto) showToast('코치 인증 중 오류가 발생했어요');
+          if (isCurrentLogin() && !isAuto) showToast('코치 인증 중 오류가 발생했어요');
           return false;
         }
       } else {
@@ -5901,6 +5924,7 @@
         if (cToday) cToday.addEventListener('click', () => switchCoachDate(getTodayKST()));
 
         document.getElementById('btn-coach-logout').addEventListener('click', async () => {
+          coachLoginVersion++;
           try { await postRecords({action:'coachLogout'}); } catch {}
           state.trainerPassword = '';
           try {

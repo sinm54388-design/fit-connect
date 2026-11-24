@@ -241,22 +241,66 @@ test('coach patches target the selected member with coach auth and preserve unre
   }]);
 });
 
-test('coach weekly schedule reads native records once without querying the legacy bridge', async () => {
-  const dailyCalls = [];
+test('coach detail loads the native PT week with one compact request', async () => {
+  const calls = [];
   const run = app(async (url, request) => {
-    assert.equal(url,'/api/records');
+    assert.equal(url, '/api/records');
     const body = JSON.parse(request.body);
-    if (body.action === 'workoutHistory') return Response.json({status:'success',previous:{}});
-    dailyCalls.push(body.date);
-    return Response.json({nativeDaily:true,ptScheduled:true,ptTime:'19:00'});
+    calls.push(body.action);
+    if (body.action === 'workoutHistory') return Response.json({ status: 'success', previous: {} });
+    if (body.action === 'coachPtWeek') {
+      const schedules = Object.fromEntries(Array.from({ length: 7 }, (_, i) => [
+        `2026-11-${15 + i}`, { ptScheduled: true, ptTime: i === 1 ? '20:00' : '19:00' }
+      ]));
+      return Response.json({ status: 'success', schedules });
+    }
+    assert.equal(body.date, '2026-11-18');
+    return Response.json({ nativeDaily: true, ptScheduled: true, ptTime: '19:00' });
   });
   run("state.appMode='coach'; state.trainerPassword='coach-fixture';");
   const result = await run("fetchMemberForCoach('target','2026-11-18')");
-  assert.equal(result.daily.ptTime,'19:00');
+  assert.equal(result.daily.ptTime, '19:00');
   const week = await result.weekPtRequest;
-  assert.equal(week['2026-11-16'].ptTime,'19:00');
-  assert.equal(dailyCalls.length,7);
-  assert.equal(new Set(dailyCalls).size,7);
+  assert.equal(week['2026-11-16'].ptTime, '20:00');
+  assert.equal(week['2026-11-18'], undefined);
+  assert.deepEqual(calls.sort(), ['coachPtWeek', 'read', 'workoutHistory']);
+});
+
+test('PT week API is coach-only and projects just this member’s seven schedule dates', async () => {
+  let scheduleRequests = 0;
+  const fetch = async url => {
+    const parsed = new URL(url);
+    if (parsed.pathname.endsWith('/fit_members')) {
+      assert.equal(parsed.searchParams.get('name'), 'eq.target');
+      return Response.json([{ id: 'fixture-id', worker_link_sha256: 'fixture-digest', is_archived: false }]);
+    }
+    assert.ok(parsed.pathname.endsWith('/fit_daily_records'));
+    assert.equal(parsed.searchParams.get('member_id'), 'eq.fixture-id');
+    assert.deepEqual(parsed.searchParams.getAll('record_date'), ['gte.2026-11-29', 'lte.2026-12-05']);
+    assert.equal(parsed.searchParams.get('select'), 'record_date,pt_scheduled:data->ptScheduled,pt_time:data->>ptTime');
+    scheduleRequests++;
+    return Response.json([{ record_date: '2026-12-02', pt_scheduled: true, pt_time: ' 18:30 ' }]);
+  };
+  const mod = new vm.SourceTextModule(workerSource, {
+    context: vm.createContext({ fetch, URL, Response, Request, Headers, TextEncoder, TextDecoder, AbortSignal, performance, crypto, btoa, atob })
+  });
+  await mod.link(() => {});
+  await mod.evaluate();
+  const env = { TRAINER_PASSWORD: 'coach-fixture', MEMBER_SESSION_SECRET: 'fixture-member-session-key-for-tests',
+    SUPABASE_URL: 'https://fixture-db.supabase.co', SUPABASE_SECRET_KEY: 'fixture' };
+  const dispatch = auth => mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
+    method: 'POST', body: JSON.stringify({ action: 'coachPtWeek', member: 'target', date: '2026-12-01', ...auth })
+  }), env);
+  assert.equal((await dispatch({ session: 'fixture-member-session' })).status, 403);
+  assert.equal((await dispatch({ token: 'fixture-member-link' })).status, 403);
+  assert.equal(scheduleRequests, 0);
+  const response = await dispatch({ password: 'coach-fixture' });
+  assert.equal(response.status, 200);
+  const { schedules } = await response.json();
+  assert.equal(Object.keys(schedules).length, 7);
+  assert.deepEqual(schedules['2026-12-02'], { ptScheduled: true, ptTime: '18:30' });
+  assert.deepEqual(schedules['2026-11-29'], { ptScheduled: false, ptTime: '' });
+  assert.equal(scheduleRequests, 1);
 });
 
 test('coach PT times are edited, saved, and read by the selected date', async () => {

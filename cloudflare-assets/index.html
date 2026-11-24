@@ -4443,9 +4443,15 @@
         postRecords({ ...memberAuth, action: 'workoutHistory', date: detailDate, month: detailDate.slice(0, 7) })
       ]);
       const otherDates = weekDays.map(({ fullDate }) => fullDate).filter(date => date !== detailDate);
-      const weekPtRequest = Promise.all(otherDates.map(async date => [
-        date, await loadSchedule(date)
-      ])).then(entries => Object.fromEntries(entries));
+      const weekPtRequest = postRecords({ ...memberAuth, action: 'coachPtWeek', date: detailDate })
+        .catch(() => null).then(async result => {
+          if (result?.status === 'success' && result.schedules &&
+              otherDates.every(date => typeof result.schedules[date]?.ptScheduled === 'boolean')) {
+            return Object.fromEntries(otherDates.map(date => [date, result.schedules[date]]));
+          }
+          const entries = await Promise.all(otherDates.map(async date => [date, await loadSchedule(date)]));
+          return Object.fromEntries(entries);
+        });
       const [dRecRes, dAsRes, hRes] = await dailyRequests;
       const recObj = dRecRes.status === 'fulfilled' ? unwrapDailyRecord(dRecRes.value) : null;
       const asObj = dAsRes.status === 'fulfilled' ? dAsRes.value : null;

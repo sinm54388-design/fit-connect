@@ -619,7 +619,7 @@ async function handleRecords(request,env) {
       sameOriginRequest(request) && await validCoachCookie(request,env))
     input.password=env.TRAINER_PASSWORD;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','memberRegister','memberArchive','columnList','columnSave','assessmentList','assessmentSave'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','coachPtWeek','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','memberRegister','memberArchive','columnList','columnSave','assessmentList','assessmentSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
@@ -680,7 +680,7 @@ async function handleRecords(request,env) {
       return json({status:'success'},200,cookie?{'Set-Cookie':cookie}:{});
     }
   }
-  const needsMember=directVideo||action==='assessmentList'||action==='assessmentSave'||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin'||action==='dietSave'||action==='dietPhotoDelete'||action==='coachFeedbackSave';
+  const needsMember=directVideo||action==='coachPtWeek'||action==='assessmentList'||action==='assessmentSave'||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin'||action==='dietSave'||action==='dietPhotoDelete'||action==='coachFeedbackSave';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -929,6 +929,21 @@ async function handleRecords(request,env) {
     const managed=initialAccount!==undefined ? initialAccount : snapshot ? snapshot.member : nativeAccount ?? (await supaGet('/rest/v1/fit_members?select=id,is_archived,worker_link_sha256&name=eq.'+
       encodeURIComponent(member)+'&limit=1','member_status'))[0];
     if(managed?.is_archived)return json({status:'denied',code:'member_archived'},403);
+    if(action==='coachPtWeek'){
+      if(!managed?.id||!managed.worker_link_sha256)return json({status:'success',schedules:null});
+      const first=shiftDay(date,-new Date(date+'T00:00:00Z').getUTCDay());
+      const last=shiftDay(first,6);
+      const rows=await supaGet('/rest/v1/fit_daily_records?select=record_date,pt_scheduled:data->ptScheduled,pt_time:data->>ptTime'+
+        '&member_id=eq.'+encodeURIComponent(managed.id)+'&record_date=gte.'+first+'&record_date=lte.'+last+'&limit=7','coach_pt_week');
+      const byDate=new Map(rows.map(row=>[row.record_date,row]));
+      const schedules=Object.fromEntries(Array.from({length:7},(_,i)=>{
+        const day=shiftDay(first,i);
+        const row=byDate.get(day);
+        const ptScheduled=Boolean(row?.pt_scheduled);
+        return [day,{ptScheduled,ptTime:ptScheduled?String(row?.pt_time||'').trim():''}];
+      }));
+      return json({status:'success',schedules});
+    }
     const memberId=managed?.id??await ensureMember(base,key,member,supaGet);
     if(memberId===null)return json({status:'denied',code:'member_not_found'},403);
     const lookupMs=performance.now()-start;

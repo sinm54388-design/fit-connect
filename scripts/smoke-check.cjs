@@ -75,7 +75,7 @@ assert(worker.includes("action==='dietPhotoDelete'"), 'authenticated photo delet
 assert(worker.includes("deletedPhotoMeals"), 'deleted photo marker missing');
 assert(worker.includes("fit_coach_feedback"), 'independent coach feedback storage missing');
 assert(worker.includes("action==='dietSave'"), 'diet API action missing');
-assert(worker.includes("appsScriptAcceptsMember"), 'member token verification missing');
+assert(worker.includes("readAppsScriptMemberDay"), 'member token verification missing');
 assert(worker.includes("code:'member_archived'"), 'archived member access block missing');
 assert(worker.includes("handleAppsScriptPost(request,env)"), 'archived member legacy API bridge guard missing');
 assert(worker.includes("weeklyCheckinDays:_c.size"), '7-day check-in aggregation missing');

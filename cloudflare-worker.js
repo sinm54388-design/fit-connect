@@ -231,17 +231,16 @@ async function readMemberSession(secret,session) {
     return data.m;
   }catch{return '';}
 }
-// Asks Apps Script whether this member link is valid, the same way the page
-// reads a member's day. Anything other than a clean JSON record means "no".
-async function appsScriptAcceptsMember(member,token,date) {
+// The legacy member read also validates the member link.
+async function readAppsScriptMemberDay(member,token,date) {
   const url=APPS_SCRIPT_URL+'?member='+encodeURIComponent(member)+'&date='+date+
     '&token='+encodeURIComponent(token)+'&_t='+Date.now();
   const response=await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(10000)});
-  if(!response.ok)return false;
+  if(!response.ok)return null;
   let body;
-  try{body=await response.json();}catch{return false;}
-  return !!body&&typeof body==='object'&&!Array.isArray(body)&&
-    body.status!=='error'&&body.status!=='denied';
+  try{body=await response.json();}catch{return null;}
+  return body&&typeof body==='object'&&!Array.isArray(body)&&
+    body.status!=='error'&&body.status!=='denied'?body:null;
 }
 const json=(body,status=200,extra={})=>new Response(JSON.stringify(body),{
   status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',
@@ -576,8 +575,8 @@ async function handleRecords(request,env) {
     return json({status:'error',code:'invalid_json'},400);
   if(JSON.stringify(input).length>131072)return json({status:'error',code:'too_large'},413);
   let action=input?.action;
-  let daySession;
-  let checkedMemberRows;
+  let includeMemberSession=false;
+  let legacyDaily;
   if(action==='coachLogout'){
     if(!sameOriginRequest(request))return json({status:'denied'},403);
     return json({status:'success'},200,{'Set-Cookie':clearCoachCookie()});
@@ -595,7 +594,7 @@ async function handleRecords(request,env) {
   // Member path: either exchange a member link for a session, or use a session.
   if((action==='read'||action==='workoutHistory'||action==='dailyCheckin'||action==='videoPlaybackUrl'||directVideo||action==='columnList'||action==='assessmentList'||action==='memberInsights'||action==='dietSave'||action==='dietPhotoDelete')&&input.password===undefined&&input.session===undefined){
     if(!member||member.length>100||typeof input.token!=='string'||!input.token||input.token.length>200||!validDay(date))return json({status:'denied'},403);
-    try{if(!await appsScriptAcceptsMember(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
+    try{if(!await readAppsScriptMemberDay(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
   } else if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {
     if(sessionSecret.length<32)
       return json({status:'error',code:'missing_runtime_configuration'},503);
@@ -603,31 +602,29 @@ async function handleRecords(request,env) {
       const token=String(input.token||'');
       if(!member||member.length>100||!token||token.length>200||!validDay(date))
         return json({status:'error',code:'invalid_query'},400);
-      let accepted=false;
-      try{accepted=await appsScriptAcceptsMember(member,token,date);}
+      try{legacyDaily=await readAppsScriptMemberDay(member,token,date);}
       catch{return json({status:'error',code:'apps_script_unreachable'},502);}
-      if(!accepted)return json({status:'denied',code:'unauthorized'},403);
-      // Even a still-valid Apps Script link cannot mint a session for a
-      // member archived by the coach.
-      const checkBase=String(env.SUPABASE_URL||'').trim().replace(/\/+$/,'');
-      const checkKey=String(env.SUPABASE_SECRET_KEY||'').trim();
-      if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(checkBase)||!checkKey)
-        return json({status:'error',code:'missing_runtime_configuration'},503);
-      const includeDaily=input.includeDaily===true;
-      const select=includeDaily?'id,is_archived':'is_archived';
-      const archivedResponse=await fetch(checkBase+'/rest/v1/fit_members?select='+select+'&name=eq.'+
-        encodeURIComponent(member)+'&limit=1',{headers:{apikey:checkKey,...(checkKey.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+checkKey})},
-        signal:AbortSignal.timeout(8000)});
-      if(!archivedResponse.ok)return json({status:'error',code:'member_status_unavailable'},502);
-      const statusRows=await archivedResponse.json();
-      if(statusRows[0]?.is_archived)return json({status:'denied',code:'member_archived'},403);
-      const session=await signMemberSession(sessionSecret,member);
-      if(!includeDaily)return json({status:'success',...session},200,{
-        'Server-Timing':'session;dur='+(performance.now()-requestStarted).toFixed(1)
-      });
-      checkedMemberRows=statusRows;
-      daySession=session;
-      action='read';
+      if(!legacyDaily)return json({status:'denied',code:'unauthorized'},403);
+      if(input.includeDaily===true){
+        includeMemberSession=true;
+        action='read';
+      } else {
+        // A valid link cannot mint a session for a member archived by the coach.
+        const checkBase=String(env.SUPABASE_URL||'').trim().replace(/\/+$/,'');
+        const checkKey=String(env.SUPABASE_SECRET_KEY||'').trim();
+        if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(checkBase)||!checkKey)
+          return json({status:'error',code:'missing_runtime_configuration'},503);
+        const archivedResponse=await fetch(checkBase+'/rest/v1/fit_members?select=is_archived&name=eq.'+
+          encodeURIComponent(member)+'&limit=1',{headers:{apikey:checkKey,...(checkKey.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+checkKey})},
+          signal:AbortSignal.timeout(8000)});
+        if(!archivedResponse.ok)return json({status:'error',code:'member_status_unavailable'},502);
+        const statusRows=await archivedResponse.json();
+        if(statusRows[0]?.is_archived)return json({status:'denied',code:'member_archived'},403);
+        const session=await signMemberSession(sessionSecret,member);
+        return json({status:'success',...session},200,{
+          'Server-Timing':'session;dur='+(performance.now()-requestStarted).toFixed(1)
+        });
+      }
     } else {
       if(!MEMBER_ACTIONS.includes(action))return json({status:'denied',code:'unauthorized'},403);
       const sessionMember=await readMemberSession(sessionSecret,input.session);
@@ -874,11 +871,20 @@ async function handleRecords(request,env) {
     }catch(error){ return failed(error); }
   }
   try {
-    step='member';
-    const managedRows=checkedMemberRows??await supaGet('/rest/v1/fit_members?select=id,is_archived&name=eq.'+
-      encodeURIComponent(member)+'&limit=1','member_status');
-    if(managedRows[0]?.is_archived)return json({status:'denied',code:'member_archived'},403);
-    const memberId=managedRows[0]?.id??await ensureMember(base,key,member,supaGet);
+    let snapshot;
+    if(action==='read'){
+      try {
+        snapshot=await supaGet('/rest/v1/rpc/fit_member_day_snapshot?p_name='+
+          encodeURIComponent(member)+'&p_date='+date,'day_snapshot');
+      } catch(error) {
+        // Keep the previous read path usable before the RPC is available.
+        if(!error?.diagnostic?.startsWith('404'))throw error;
+      }
+    }
+    const managed=snapshot ? snapshot.member : (await supaGet('/rest/v1/fit_members?select=id,is_archived&name=eq.'+
+      encodeURIComponent(member)+'&limit=1','member_status'))[0];
+    if(managed?.is_archived)return json({status:'denied',code:'member_archived'},403);
+    const memberId=managed?.id??await ensureMember(base,key,member,supaGet);
     if(memberId===null)return json({status:'denied',code:'member_not_found'},403);
     const lookupMs=performance.now()-start;
     if(action==='dailyCheckin'){
@@ -1156,7 +1162,9 @@ async function handleRecords(request,env) {
         'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
       });
     }
-    const [daily,photoRows,coachRows]=await Promise.all([
+    const [daily,photoRows,coachRows]=snapshot?.member
+      ? [snapshot.daily,snapshot.photos,snapshot.feedback]
+      : await Promise.all([
       supaGet('/rest/v1/fit_daily_records?select=data&member_id=eq.'+
         encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','daily'),
       supaGet('/rest/v1/fit_meal_photos?select=meal_key,photo&member_id=eq.'+
@@ -1180,9 +1188,12 @@ async function handleRecords(request,env) {
       result.feedback={...(result.feedback||{}),workout:coach.workout_feedback,diet:coach.diet_feedback};
       result.coachFeedbackStored=true;
     }
-    return json(daySession?{status:'success',...daySession,daily:result}:result,200,{
-      'Server-Timing':(daySession?'session;dur='+(start-requestStarted).toFixed(1)+', ':'')+
-        'member;dur='+lookupMs.toFixed(1)+', daily;dur='+(performance.now()-start-lookupMs).toFixed(1),
+    const readTiming=snapshot?.member
+      ? 'day_snapshot;dur='+lookupMs.toFixed(1)
+      : 'member;dur='+lookupMs.toFixed(1)+', daily;dur='+(performance.now()-start-lookupMs).toFixed(1);
+    const daySession=includeMemberSession?await signMemberSession(sessionSecret,member):null;
+    return json(daySession?{status:'success',...daySession,daily:result,legacyDaily}:result,200,{
+      'Server-Timing':(daySession?'session;dur='+(start-requestStarted).toFixed(1)+', ':'')+readTiming,
       'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
     });
   }catch(error){

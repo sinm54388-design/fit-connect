@@ -107,14 +107,22 @@ test('an older or denied date read cannot remain on the current screen', async (
   assert.match(run('messages.at(-1)'), /불러오지 못했어요/);
 });
 
-test('cold member date renders before optional calls and reuses published columns', async () => {
+test('cold member date reuses its authenticated record and loads optional calls after paint', async () => {
   const calls = [];
+  const legacyCalls = [];
   const run = app(async (url,request)=>{
-    if (url === '/api/apps-script') return Response.json({ status: 'success' });
+    if (url === '/api/apps-script') {
+      legacyCalls.push(JSON.parse(request.body).date);
+      return Response.json({ status: 'success' });
+    }
     const body = JSON.parse(request.body);
     calls.push({action:body.action,session:body.session,includeDaily:body.includeDaily});
     if (body.action==='memberSession')
-      return Response.json({status:'success',session:'verified',exp:Date.now()+3600000,daily:{headerMessage:'today first'}});
+      return Response.json({
+        status:'success',session:'verified',exp:Date.now()+3600000,
+        daily:{headerMessage:'canonical coach note',coachFeedbackStored:true},
+        legacyDaily:{routines:[{name:'latest routine'}]}
+      });
     if (body.action==='read') return Response.json({headerMessage:'today first'});
     return Response.json({status:'success',columns:[],days:[]});
   });
@@ -122,13 +130,16 @@ test('cold member date renders before optional calls and reuses published column
   await run('loadMemberDateData(state.selectedDate)');
   assert.deepEqual(calls.map(item=>item.action),['memberSession']);
   assert.equal(calls[0].includeDaily,true);
-  assert.equal(run('state.record.headerMessage'),'today first');
+  assert.deepEqual(legacyCalls,[]);
+  assert.equal(run('state.record.headerMessage'),'canonical coach note');
+  assert.equal(run('state.record.routines[0].name'),'latest routine');
   assert.equal(run('state.loading'),false);
   run('frames.shift()(); frames.shift()();');
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(calls.filter(item=>item.action==='columnList').length,1);
   assert.ok(calls.slice(1).every(item=>item.session==='verified'));
   await run("state.selectedDate = '2026-11-20'; loadMemberDateData(state.selectedDate)");
+  assert.deepEqual(legacyCalls,['2026-11-20']);
   run('frames.shift()(); frames.shift()();');
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(calls.filter(item=>item.action==='columnList').length,1);
@@ -352,14 +363,22 @@ test('a combined member session and daily read performs one account lookup and p
   const calls = [];
   let accepted = true;
   let archived = false;
+  let rpcAvailable = true;
   const fetch = async url => {
     const parsed = new URL(url);
     if (parsed.hostname === 'script.google.com') {
       calls.push('token');
-      return Response.json(accepted ? {} : {status:'denied'});
+      return Response.json(accepted ? { routines:[{name:'fresh routine'}] } : {status:'denied'});
     }
     assert.equal(parsed.hostname, 'fixture-db.supabase.co');
     calls.push(parsed.pathname.split('/').at(-1));
+    if (parsed.pathname.endsWith('/fit_member_day_snapshot')) {
+      assert.equal(parsed.searchParams.get('p_name'), 'QA');
+      assert.equal(parsed.searchParams.get('p_date'), date);
+      return rpcAvailable
+        ? Response.json({member:{id:'fixture-member',is_archived:archived},daily:[{data:{headerMessage:'fixture'}}],photos:[],feedback:[]})
+        : Response.json({code:'PGRST202'}, {status:404});
+    }
     if (parsed.pathname.endsWith('/fit_members')) return Response.json([{ id:'fixture-member', is_archived:archived }]);
     assert.equal(parsed.searchParams.get('member_id'), 'eq.fixture-member');
     assert.equal(parsed.searchParams.get('record_date'), 'eq.' + date);
@@ -379,14 +398,24 @@ test('a combined member session and daily read performs one account lookup and p
   const data = await response.json();
   assert.ok(data.session);
   assert.equal(data.daily.headerMessage, 'fixture');
-  assert.equal(calls.filter(call => call === 'fit_members').length, 1);
+  assert.equal(data.legacyDaily.routines[0].name, 'fresh routine');
+  assert.deepEqual(calls, ['token','fit_member_day_snapshot']);
+
+  calls.length = 0;
+  rpcAvailable = false;
+  const fallback = await dispatch();
+  assert.equal(fallback.status, 200);
+  assert.equal((await fallback.json()).daily.headerMessage, 'fixture');
+  assert.deepEqual(calls.slice(0,3), ['token','fit_member_day_snapshot','fit_members']);
+  assert.ok(calls.includes('fit_daily_records'));
+  rpcAvailable = true;
 
   calls.length = 0;
   archived = true;
   const denied = await dispatch();
   assert.equal(denied.status, 403);
   assert.equal((await denied.json()).code, 'member_archived');
-  assert.deepEqual(calls, ['token','fit_members']);
+  assert.deepEqual(calls, ['token','fit_member_day_snapshot']);
 
   calls.length = 0;
   accepted = false;
@@ -447,6 +476,9 @@ test('Worker diet save preserves another writer’s new day and confirms the pho
   const writes = [];
   const fetch = async (url, init = {}) => {
     const { pathname, searchParams } = new URL(url);
+    if (pathname.endsWith('/fit_member_day_snapshot')) {
+      return Response.json({member:{id:memberId,is_archived:false},daily:row?[row]:[],photos:photo?[photo]:[],feedback:[]});
+    }
     if (pathname.endsWith('/fit_members')) return Response.json([{ id: memberId }]);
     if (pathname.endsWith('/fit_meal_photos')) {
       if (init.method === 'POST') {

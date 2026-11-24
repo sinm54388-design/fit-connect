@@ -1159,7 +1159,7 @@
         }
         return {
           session: res.session,
-          ...(Object.hasOwn(res, 'daily') && !canRestore ? { daily: res.daily, date } : {})
+          ...(Object.hasOwn(res, 'daily') && !canRestore ? { daily: res.daily, legacyDaily: res.legacyDaily, date } : {})
         };
       })().finally(() => { if (sessionExchange === exchange) sessionExchange = null; });
       sessionExchange = exchange;
@@ -1747,9 +1747,15 @@
       const stillCurrent = () => version === memberReadVersion && state.isLive &&
         state.appMode === 'member' && state.memberName === member && state.selectedDate === dateStr;
       const payload = { member, date: dateStr };
-      const appRead = postAppsScript({ ...payload, action: 'read', token: state.token });
-      const dbRead = memberAccess(member, dateStr, { includeDaily: true }).then(access =>
-        access.date === dateStr ? access.daily : postRecords({ ...payload, action: 'read', session: access.session })
+      const token = state.token;
+      const readLegacy = () => postAppsScript({ ...payload, action: 'read', token });
+      const reuseAccess = Boolean(state.session);
+      const access = memberAccess(member, dateStr, { includeDaily: true });
+      const appRead = reuseAccess ? readLegacy() : access.then(result =>
+        result.date === dateStr && result.legacyDaily !== undefined ? result.legacyDaily : readLegacy()
+      );
+      const dbRead = access.then(result =>
+        result.date === dateStr ? result.daily : postRecords({ ...payload, action: 'read', session: result.session })
       );
       const [dailyRec, dailyAs] = await Promise.allSettled([dbRead, appRead]);
       if (!stillCurrent()) return;

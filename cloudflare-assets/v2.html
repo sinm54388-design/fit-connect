@@ -6109,14 +6109,6 @@
               </button>
             ` : ''}
 
-            <section class="bg-white rounded-[24px] p-4 border border-[#DBEAFE] shadow-sm space-y-2.5">
-              <div class="flex justify-between items-center"><h2 class="text-[15px] font-extrabold text-[#111827]">오늘 할 일</h2><span class="text-[11px] text-[#475569]">${checkedCount}/3 체크 완료</span></div>
-              <div class="grid grid-cols-2 gap-2">
-                <button type="button" id="home-quick-workout" class="tap-scale p-3 rounded-2xl bg-[#EFF6FF] text-left"><p class="text-[13px] font-extrabold text-[#1D4ED8]">🏋️ 운동 기록</p><p class="text-[11px] text-[#475569] mt-1">${wr.done}/${wr.total} 종목 · 세트 체크</p></button>
-                <button type="button" id="home-quick-diet" class="tap-scale p-3 rounded-2xl bg-[#F0FDFA] text-left"><p class="text-[13px] font-extrabold text-[#0F766E]">🥗 식단 기록</p><p class="text-[11px] text-[#475569] mt-1">${ds.loggedCount}/4 끼니 · 사진 등록</p></button>
-              </div>
-            </section>
-
             <!-- Hero Card -->
             <section class="hero-navy rounded-[26px] p-5 text-white shadow-[0_14px_30px_rgba(30,58,138,0.28)]">
               <div class="flex items-center justify-between gap-3">
@@ -6155,6 +6147,14 @@
                   <span>${chk.workout === 'done' ? '오늘 운동 인증 완료!' : '오늘 운동 인증하기'}</span>
                 </button>
                 <button type="button" id="btn-open-ounwan" class="tap-scale py-3.5 rounded-2xl bg-white/15 text-white text-[12px] font-extrabold flex items-center justify-center">오운완 카드</button>
+              </div>
+            </section>
+
+            <section class="bg-white rounded-[24px] p-4 border border-[#DBEAFE] shadow-sm space-y-2.5">
+              <div class="flex justify-between items-center"><h2 class="text-[15px] font-extrabold text-[#111827]">오늘 할 일</h2><span class="text-[11px] text-[#475569]">${checkedCount}/3 체크 완료</span></div>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="home-quick-workout" class="tap-scale p-3 rounded-2xl bg-[#EFF6FF] text-left"><p class="text-[13px] font-extrabold text-[#1D4ED8]">🏋️ 운동 기록</p><p class="text-[11px] text-[#475569] mt-1">${wr.done}/${wr.total} 종목 · 세트 체크</p></button>
+                <button type="button" id="home-quick-diet" class="tap-scale p-3 rounded-2xl bg-[#F0FDFA] text-left"><p class="text-[13px] font-extrabold text-[#0F766E]">🥗 식단 기록</p><p class="text-[11px] text-[#475569] mt-1">${ds.loggedCount}/4 끼니 · 사진 등록</p></button>
               </div>
             </section>
 

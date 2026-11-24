@@ -36,9 +36,10 @@ for (const [name, html] of [['index.html', index], ['v2.html', v2]]) {
   assert(html.includes('home-quick-workout') && html.includes('home-quick-diet'), name + ': member home shortcuts missing');
   assert(html.includes('video-upload-status'), name + ': persistent video progress missing');
   const ptDiary = html.indexOf('id="home-pt-diary"');
+  const workoutNote = html.indexOf('오늘 운동노트</h1>');
   const todayTasks = html.indexOf('id="home-quick-workout"');
   const magazine = html.indexOf('<!-- High-Visibility FIT-CONNECT MAGAZINE -->');
-  assert(ptDiary >= 0 && ptDiary < todayTasks && todayTasks < magazine, name + ': PT diary and today tasks should precede the magazine');
+  assert(ptDiary >= 0 && ptDiary < workoutNote && workoutNote < todayTasks && todayTasks < magazine, name + ': member home cards are out of order');
   assert(html.includes('id="meal-items-list"'), name + ': item-level meal editor missing');
   assert(html.includes('redrawItems()') && html.includes('recomputeItems()'), name + ': item totals/editor refresh missing');
   assert(html.includes("foods:foodEntries.map"), name + ': structured meal foods not saved');

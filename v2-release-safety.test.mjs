@@ -22,7 +22,7 @@ function app(fetch, query = '&date=' + date, storage = new Map()) {
   };
   const location = { protocol: 'https:', hostname: 'fixture.test', search: '?name=QA&token=fixture' + query };
   const context = vm.createContext({
-    URL, URLSearchParams, Blob, Uint8Array, atob, structuredClone, fetch, document, location,
+    URL, URLSearchParams, Blob, Uint8Array, TextEncoder, atob, structuredClone, fetch, document, location,
     navigator: {}, setTimeout, clearTimeout, FormData, console, performance,
     requestAnimationFrame() {},
     sessionStorage: {
@@ -53,6 +53,35 @@ test('one session exchange handles concurrent expired records requests', async (
   await run("Promise.all(['read', 'memberInsights', 'columnList'].map(action => postRecords({action, member: state.memberName, date: state.selectedDate, session: state.session})))");
   assert.equal(exchanges, 1);
   assert.equal(run('state.session'), 'renewed');
+});
+
+test('member session survives a reload, stays bound to the link, and renews after rejection', async () => {
+  const storage = new Map();
+  let exchanges = 0;
+  const fetch = async (_, request) => {
+    const body = JSON.parse(request.body);
+    if (body.action === 'memberSession') {
+      exchanges++;
+      return Response.json({ status: 'success', session: 'signed-' + exchanges, exp: Date.now() + 3600000 });
+    }
+    return body.session === 'signed-1'
+      ? Response.json({ status: 'denied', code: 'session_invalid' }, { status: 403 })
+      : Response.json({ status: 'success', session: body.session });
+  };
+
+  const initial = app(fetch, undefined, storage);
+  assert.equal(await initial("memberSession(state.memberName, state.selectedDate)"), 'signed-1');
+  assert.ok(!storage.get('fit_member_session_v1').includes('"token":"fixture"'));
+
+  const reopened = app(fetch, undefined, storage);
+  assert.equal(await reopened("memberSession(state.memberName, state.selectedDate)"), 'signed-1');
+  assert.equal(exchanges, 1);
+  const result = await reopened("postRecords({ action: 'read', member: state.memberName, date: state.selectedDate, session: state.session })");
+  assert.equal(result.session, 'signed-2');
+
+  const changedLink = app(fetch, undefined, storage);
+  changedLink("state.token = 'different-link'");
+  assert.equal(await changedLink("memberSession(state.memberName, state.selectedDate)"), 'signed-3');
 });
 
 test('an older or denied date read cannot remain on the current screen', async () => {
@@ -162,13 +191,18 @@ test('coach PT times are edited, saved, and read by the selected date', async ()
     [second, { ptScheduled: true, ptTime: '20:00' }]
   ]);
   const writes = [];
+  let releaseWeek;
+  const week = new Promise(resolve => { releaseWeek = resolve; });
   const run = app(async (url, request) => {
     const body = JSON.parse(request.body);
     if (url === '/api/records') {
       const data = body.date === first ? { ptScheduled: true, ptTime: '16:00' } : {};
       return Response.json({ status: 'success', ...data });
     }
-    if (body.action === 'read') return Response.json({ status: 'success', data: legacy.get(body.date) || {} });
+    if (body.action === 'read') {
+      if (body.date !== second) await week;
+      return Response.json({ status: 'success', data: legacy.get(body.date) || {} });
+    }
     writes.push(body);
     const patch = body.patch || body.data;
     if (body.date === added && body.action === 'patchData') {
@@ -193,12 +227,19 @@ test('coach PT times are edited, saved, and read by the selected date', async ()
     document.querySelectorAll = () => [];
     openModal = (_, content) => { globalThis.modalHtml = content; };
     hydrateDirectImages = () => {};
+    Object.defineProperty(node('cd-pt-schedule'), 'outerHTML', {
+      set(html) { globalThis.scheduleHtml = html; }
+    });
     node('cd-pt-schedule').querySelectorAll = () => [node('add-day')];
     node('add-day').dataset.ptday = '${added}';
   `);
   await run(`openCoachDetailSheet('target', '${second}')`);
-  assert.match(run('modalHtml'), new RegExp(`data-pt-time="${first}" value="18:00"`));
+  assert.match(run('modalHtml'), /이번 주 일정을 불러오는 중/);
   assert.match(run('modalHtml'), new RegExp(`data-pt-time="${second}" value="20:00"`));
+  releaseWeek();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(run('scheduleHtml'), new RegExp(`data-pt-time="${first}" value="18:00"`));
+  assert.match(run('scheduleHtml'), new RegExp(`data-pt-time="${second}" value="20:00"`));
   run(`node('cd-pt-schedule').input({ target: { dataset: { ptTime: '${second}' }, value: ' 20:30 ' } });
     node('add-day').click();
     node('cd-pt-schedule').input({ target: { dataset: { ptTime: '${added}' }, value: '17:15' } });`);
@@ -311,9 +352,13 @@ test('Worker retries a check-in write conflict and preserves intervening record 
   const currentVersion = '2026-11-19T04:00:01.000Z';
   let reads = 0;
   let patches = 0;
+  let memberLookups = 0;
   const fetch = async (url, init = {}) => {
     const target = new URL(url);
-    if (target.pathname.endsWith('/fit_members')) return Response.json([{ id: 'test-member' }]);
+    if (target.pathname.endsWith('/fit_members')) {
+      memberLookups++;
+      return Response.json([{ id: 'test-member' }]);
+    }
     if (init.method !== 'PATCH') {
       reads++;
       return Response.json([{ id: 'row', updated_at: reads === 1 ? originalVersion : currentVersion,
@@ -341,6 +386,7 @@ test('Worker retries a check-in write conflict and preserves intervening record 
   assert.equal(data.diet.water, 1000);
   assert.equal(data.dailyCheckin.diet, 'done');
   assert.equal(data.dailyCheckin.mood, 'good');
+  assert.equal(memberLookups, 1);
 });
 
 test('Worker diet save preserves another writer’s new day and confirms the photo', async () => {

@@ -25,11 +25,11 @@
   <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon.png?v=20261123" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" href="/v2.tailwind.css?v=20261123-stability" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" /></noscript>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" /></noscript>
   <style>
     body {
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
       background-color: #E2E6EE;
       color: #111827;
       -webkit-font-smoothing: antialiased;
@@ -801,28 +801,33 @@
     // Client-side Image Compression (fits Google Sheets 50k cell limit safely)
     function compressImageFile(file) {
       return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const img = new Image();
-          img.onload = () => {
-            const encodeAt = (maxW, q) => {
-              const scale = img.width > maxW ? maxW / img.width : 1;
-              const canvas = document.createElement('canvas');
-              canvas.width = Math.max(1, Math.round(img.width * scale));
-              canvas.height = Math.max(1, Math.round(img.height * scale));
-              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-              return canvas.toDataURL('image/jpeg', q);
-            };
+        const source = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const encodeAt = (maxW, quality) => {
+            const scale = Math.min(1, maxW / img.width);
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', quality);
+          };
+          try {
             let out = encodeAt(400, 0.5);
             if (out.length > 18000) out = encodeAt(320, 0.42);
             if (out.length > 22000) out = encodeAt(260, 0.35);
             resolve(out);
-          };
-          img.onerror = reject;
-          img.src = reader.result;
+          } catch (error) {
+            reject(error);
+          } finally {
+            URL.revokeObjectURL(source);
+          }
         };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+        img.onerror = () => {
+          URL.revokeObjectURL(source);
+          reject(new Error('사진을 읽지 못했어요'));
+        };
+        img.src = source;
       });
     }
 
@@ -847,10 +852,10 @@
             ctx.fillStyle = 'rgba(11, 19, 43, 0.72)';
             ctx.fillRect(0, h - barH, w, barH);
             ctx.fillStyle = '#5EEAD4';
-            ctx.font = `800 ${Math.max(13, Math.round(barH * 0.36))}px Pretendard, sans-serif`;
+            ctx.font = `800 ${Math.max(13, Math.round(barH * 0.36))}px "Pretendard Variable", Pretendard, sans-serif`;
             ctx.fillText('FIT-CONNECT VERIFIED', 16, h - Math.round(barH * 0.34));
             ctx.fillStyle = '#FFFFFF';
-            ctx.font = `700 ${Math.max(13, Math.round(barH * 0.34))}px Pretendard, sans-serif`;
+            ctx.font = `700 ${Math.max(13, Math.round(barH * 0.34))}px "Pretendard Variable", Pretendard, sans-serif`;
             const stamp = `${memberName} · ${getTodayKST()} ${nowTimeHHMM()}`;
             const tw = ctx.measureText(stamp).width;
             ctx.fillText(stamp, Math.max(16, w - tw - 16), h - Math.round(barH * 0.34));
@@ -1120,6 +1125,7 @@
     }
 
     // --- API Helpers ---
+    const MEMBER_SESSION_STORAGE_KEY = 'fit_member_session_v1';
     let sessionExchange;
     async function memberSession(member, date, rejectedSession = '') {
       const token = state.token;
@@ -1127,11 +1133,30 @@
       if (state.session && state.session !== rejectedSession) return state.session;
       if (sessionExchange?.member === member && sessionExchange.token === token) return sessionExchange.promise;
       const exchange = { member, token };
-      exchange.promise = requestRecords({ action: 'memberSession', member, date, token }).then(res => {
-        if (res?.status !== 'success' || !res.session) throw Error('회원 인증을 확인하지 못했어요');
-        if (state.appMode === 'member' && state.memberName === member && state.token === token) state.session = res.session;
+      exchange.promise = (async () => {
+        let tokenHash;
+        let cached;
+        try {
+          const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+          tokenHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+          cached = JSON.parse(sessionStorage.getItem(MEMBER_SESSION_STORAGE_KEY) || 'null');
+        } catch {}
+        const canRestore = tokenHash && cached?.member === member && cached.tokenHash === tokenHash &&
+          typeof cached.session === 'string' && cached.session !== rejectedSession && cached.exp > Date.now();
+        const res = canRestore ? cached : await requestRecords({ action: 'memberSession', member, date, token });
+        if ((!canRestore && res?.status !== 'success') || !res.session) throw Error('회원 인증을 확인하지 못했어요');
+        if (state.appMode === 'member' && state.memberName === member && state.token === token) {
+          state.session = res.session;
+          if (!canRestore && tokenHash && Number.isFinite(res.exp) && res.exp > Date.now()) {
+            try {
+              sessionStorage.setItem(MEMBER_SESSION_STORAGE_KEY, JSON.stringify({
+                member, tokenHash, session: res.session, exp: res.exp
+              }));
+            } catch {}
+          }
+        }
         return res.session;
-      }).finally(() => { if (sessionExchange === exchange) sessionExchange = null; });
+      })().finally(() => { if (sessionExchange === exchange) sessionExchange = null; });
       sessionExchange = exchange;
       return exchange.promise;
     }
@@ -2558,7 +2583,7 @@
 
       // Top HUD Header
       ctx.fillStyle = '#60A5FA';
-      ctx.font = '800 18px Pretendard, sans-serif';
+      ctx.font = '800 18px "Pretendard Variable", Pretendard, sans-serif';
       ctx.fillText('FIT-CONNECT // DAILY QUEST', 56, 76);
 
       // Status Pill
@@ -2568,7 +2593,7 @@
         ctx.roundRect(472, 48, 192, 40, 20);
         ctx.fill();
         ctx.fillStyle = '#06131F';
-        ctx.font = '800 17px Pretendard, sans-serif';
+        ctx.font = '800 17px "Pretendard Variable", Pretendard, sans-serif';
         ctx.fillText('QUEST CLEAR ✓', 498, 74);
       } else {
         ctx.fillStyle = 'rgba(59, 130, 246, 0.22)';
@@ -2579,19 +2604,19 @@
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = '#93C5FD';
-        ctx.font = '800 17px Pretendard, sans-serif';
+        ctx.font = '800 17px "Pretendard Variable", Pretendard, sans-serif';
         ctx.fillText(`IN PROGRESS · ${questPct}%`, 480, 74);
       }
 
       // Member & Day Streak
       ctx.fillStyle = 'rgba(255,255,255,0.68)';
-      ctx.font = '600 22px Pretendard, sans-serif';
+      ctx.font = '600 22px "Pretendard Variable", Pretendard, sans-serif';
       const volFun = computeTodayVolumeFun();
       const volStr = volFun.totalKg > 0 ? `  ·  ${volFun.totalKg.toLocaleString()}kg (${volFun.analogy})` : `  ·  STREAK DAY ${String(streak).padStart(2, '0')}`;
       ctx.fillText(`${state.selectedDate}${volStr}`, 56, 132);
 
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 44px Pretendard, sans-serif';
+      ctx.font = '800 44px "Pretendard Variable", Pretendard, sans-serif';
       ctx.fillText(`${state.memberName}님의 오늘 퀘스트`, 56, 192);
 
       // XP Progress Bar
@@ -2610,10 +2635,10 @@
       ctx.fill();
 
       ctx.fillStyle = '#5EEAD4';
-      ctx.font = '800 18px Pretendard, sans-serif';
+      ctx.font = '800 18px "Pretendard Variable", Pretendard, sans-serif';
       ctx.fillText(`${questPct}% ACHIEVED`, 56, 272);
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.font = '600 18px Pretendard, sans-serif';
+      ctx.font = '600 18px "Pretendard Variable", Pretendard, sans-serif';
       ctx.fillText(`${clearedCount} / 3 CHECKPOINTS`, 464, 272);
 
       // 3 Quest Objective Cards
@@ -2639,19 +2664,19 @@
         ctx.fill();
 
         ctx.fillStyle = q.done ? '#06131F' : 'rgba(255,255,255,0.45)';
-        ctx.font = '800 18px Pretendard, sans-serif';
+        ctx.font = '800 18px "Pretendard Variable", Pretendard, sans-serif';
         ctx.fillText(q.done ? '✓' : '·', q.done ? 95 : 99, y + 49);
 
         ctx.fillStyle = q.done ? '#5EEAD4' : '#60A5FA';
-        ctx.font = '800 13px Pretendard, sans-serif';
+        ctx.font = '800 13px "Pretendard Variable", Pretendard, sans-serif';
         ctx.fillText(q.code, 138, y + 32);
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '800 22px Pretendard, sans-serif';
+        ctx.font = '800 22px "Pretendard Variable", Pretendard, sans-serif';
         ctx.fillText(q.title, 138, y + 63);
 
         ctx.fillStyle = q.done ? '#5EEAD4' : 'rgba(255,255,255,0.72)';
-        ctx.font = '700 18px Pretendard, sans-serif';
+        ctx.font = '700 18px "Pretendard Variable", Pretendard, sans-serif';
         ctx.fillText(q.sub, 500, y + 50);
       });
 
@@ -2665,11 +2690,11 @@
       ctx.stroke();
 
       ctx.fillStyle = improvements.length ? '#FBBF24' : '#5EEAD4';
-      ctx.font = '800 14px Pretendard, sans-serif';
+      ctx.font = '800 14px "Pretendard Variable", Pretendard, sans-serif';
       ctx.fillText(improvements.length ? 'NEXT FOCUS · 보완 포인트' : 'ALL CLEAR · 오늘의 피드백', 82, 654);
 
       ctx.fillStyle = 'rgba(255,255,255,0.94)';
-      ctx.font = '600 19px Pretendard, sans-serif';
+      ctx.font = '600 19px "Pretendard Variable", Pretendard, sans-serif';
       ctx.fillText(focusText.slice(0, 32), 82, 686);
       if (focusText.length > 32) ctx.fillText(focusText.slice(32, 64), 82, 712);
 
@@ -2683,10 +2708,10 @@
       ctx.stroke();
 
       ctx.fillStyle = '#60A5FA';
-      ctx.font = '800 14px Pretendard, sans-serif';
+      ctx.font = '800 14px "Pretendard Variable", Pretendard, sans-serif';
       ctx.fillText('COACH BRIEFING', 82, 770);
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.font = '500 18px Pretendard, sans-serif';
+      ctx.font = '500 18px "Pretendard Variable", Pretendard, sans-serif';
       ctx.fillText(coachMsg.slice(0, 32), 82, 795);
       if (coachMsg.length > 32) ctx.fillText(coachMsg.slice(32, 62), 82, 818);
 
@@ -4192,7 +4217,7 @@
           } catch {}
           const [ovRes, fastRes, asListRes] = await Promise.allSettled([
             postRecords({ action: 'trainerOverview', password: pw, date: state.selectedDate }),
-            postRecords({ action: 'listMembersFast', password: pw }),
+            postRecords({ action: 'listMembersFast', password: pw, date: state.selectedDate }),
             postAppsScript({ action: 'listMembers', password: pw })
           ]);
           const ov = ovRes.status === 'fulfilled' ? ovRes.value : null;
@@ -4339,14 +4364,16 @@
         const fromRecords = await postRecords({ ...payload, action: 'read' }).catch(() => null);
         return fromRecords ? getPtSchedule(unwrapDailyRecord(fromRecords)) || { ptScheduled: false, ptTime: '' } : null;
       }
-      const [dRecRes, dAsRes, hRes, ...weekPtRes] = await Promise.allSettled([
-        postRecords({ action: 'read', member: memberName, date: detailDate, password: state.trainerPassword }),
+      const dailyRequests = Promise.allSettled([
+        postRecords({ ...memberAuth, action: 'read', date: detailDate }),
         readAppsDailyRecord({ ...memberAuth, date: detailDate }),
-        postRecords({ action: 'workoutHistory', member: memberName, date: detailDate, month: detailDate.slice(0, 7), password: state.trainerPassword }),
-        ...weekDays.map(wd => wd.fullDate === detailDate
-          ? Promise.resolve(null)
-          : loadSchedule(wd.fullDate))
+        postRecords({ ...memberAuth, action: 'workoutHistory', date: detailDate, month: detailDate.slice(0, 7) })
       ]);
+      const otherDates = weekDays.map(({ fullDate }) => fullDate).filter(date => date !== detailDate);
+      const weekPtRequest = Promise.all(otherDates.map(async date => [
+        date, await loadSchedule(date)
+      ])).then(entries => Object.fromEntries(entries));
+      const [dRecRes, dAsRes, hRes] = await dailyRequests;
       const recObj = dRecRes.status === 'fulfilled' ? unwrapDailyRecord(dRecRes.value) : null;
       const asObj = dAsRes.status === 'fulfilled' ? dAsRes.value : null;
       const hasDietData = obj => obj?.diet && ['breakfast', 'lunch', 'dinner', 'snack'].some(k => {
@@ -4366,18 +4393,15 @@
           ? { headerMessage: recObj.headerMessage, feedback: recObj.feedback }
           : {})
       };
-      const weekPtMap = {};
-      weekDays.forEach((wd, idx) => {
-        if (wd.fullDate === detailDate) {
-          weekPtMap[wd.fullDate] = recObj || asObj ? getPtSchedule(chosen) || { ptScheduled: false, ptTime: '' } : null;
-        } else {
-          weekPtMap[wd.fullDate] = weekPtRes[idx].value ?? null;
-        }
-      });
+      const weekPtMap = Object.fromEntries(weekDays.map(({ fullDate }) => [fullDate, null]));
+      if (recObj || asObj) {
+        weekPtMap[detailDate] = getPtSchedule(chosen) || { ptScheduled: false, ptTime: '' };
+      }
       return {
         daily: chosen,
         history: (hRes.status === 'fulfilled' && hRes.value?.status === 'success') ? hRes.value : { previous: {} },
-        weekPtMap
+        weekPtMap,
+        weekPtRequest
       };
     }
 
@@ -4491,7 +4515,7 @@
     async function openCoachDetailSheet(memberName, detailDate = state.selectedDate) {
       openModal(`${memberName} 회원님 · 상세 & 바로 답글`, '<div id="cd-loading" class="h-48 rounded-2xl skeleton"></div>');
       const loading = document.getElementById('cd-loading');
-      const { daily, history, weekPtMap } = await fetchMemberForCoach(memberName, detailDate);
+      const { daily, history, weekPtMap, weekPtRequest } = await fetchMemberForCoach(memberName, detailDate);
       if (!loading?.isConnected || !document.getElementById('modal-backdrop').classList.contains('flex')) return;
       const weekDaysList = buildWeekDays(detailDate);
       const initialPtDays = weekPtMap || Object.fromEntries(weekDaysList.map(({ fullDate }) => [
@@ -4499,6 +4523,7 @@
       ]));
       const ptDaysState = structuredClone(initialPtDays);
       let ptScheduleSaving = false;
+      let ptScheduleLoading = Boolean(weekPtRequest);
       let ptScheduleEditor;
       const changedPtDays = () => Object.entries(ptDaysState).filter(([date, draft]) => draft && (
         draft.ptScheduled !== initialPtDays[date].ptScheduled ||
@@ -4535,6 +4560,109 @@
       let videoManagerOpen = false;
       let videoPage = 0;
       let detailDateInput;
+
+      function renderPtScheduleEditor() {
+        return `
+          <fieldset id="cd-pt-schedule" ${ptScheduleSaving || ptScheduleLoading ? 'disabled' : ''} class="min-w-0 p-3.5 rounded-2xl bg-[#EFF6FF] space-y-2">
+            <h3 class="text-[13px] font-extrabold text-[#1D4ED8]">이번 주 PT 일정</h3>
+            <p class="text-[12px] text-[#475569]">수업 날짜를 선택하고 날짜별 시간을 입력하세요.</p>
+            <div class="grid grid-cols-7 gap-1">
+              ${weekDaysList.map(({ day, date, fullDate }) => {
+                const schedule = ptDaysState[fullDate];
+                const isOn = Boolean(schedule?.ptScheduled);
+                return `
+                  <button type="button" data-ptday="${fullDate}" aria-label="${formatPtDate(fullDate)} ${day}요일" aria-pressed="${isOn}" ${schedule ? '' : 'disabled'} class="tap-scale py-1.5 rounded-xl flex flex-col items-center justify-center ${isOn ? 'card-teal text-white shadow-sm' : 'bg-white text-[#4B5563]'}">
+                    <span class="text-[10px] font-bold opacity-80">${day}</span>
+                    <span class="text-[12px] font-extrabold tabular-nums">${date}</span>
+                  </button>
+                `;
+              }).join('')}
+            </div>
+            ${ptScheduleLoading ? '<p class="text-[11px] text-[#475569]" role="status">이번 주 일정을 불러오는 중…</p>' : Object.values(ptDaysState).includes(null) ? '<p class="text-[11px] text-[#475569]">일부 날짜를 불러오지 못했어요. 회원 상세를 다시 열어 주세요.</p>' : ''}
+            ${weekDaysList.filter(({ fullDate }) => ptDaysState[fullDate]).map(({ fullDate, day }) => `
+              <label data-pt-row="${fullDate}" class="${ptDaysState[fullDate].ptScheduled ? 'flex' : 'hidden'} items-center justify-between gap-2 rounded-xl bg-white px-2.5 py-1.5">
+                <span class="shrink-0 text-[12px] font-bold text-[#111827]">${formatPtDate(fullDate)} (${day})</span>
+                <input type="text" data-pt-time="${fullDate}" value="${escapeHtml(ptDaysState[fullDate].ptTime)}" maxlength="40" placeholder="시간 (선택 · 19:00)" class="w-full min-w-0 rounded-lg bg-[#F4F6F9] px-2.5 py-2 text-[12px] text-[#111827]" />
+              </label>
+            `).join('')}
+            <button type="button" id="cd-save-pt-days" class="tap-scale w-full px-3 py-2 rounded-xl card-blue text-white text-[12px] font-extrabold">${ptScheduleSaving ? '저장 중…' : 'PT 일정 저장'}</button>
+          </fieldset>
+        `;
+      }
+
+      function bindPtScheduleEditor() {
+        ptScheduleEditor = document.getElementById('cd-pt-schedule');
+        if (ptScheduleEditor) {
+          ptScheduleEditor.querySelectorAll('[data-ptday]').forEach(button => {
+            button.addEventListener('click', () => {
+              const date = button.dataset.ptday;
+              const draft = ptDaysState[date];
+              draft.ptScheduled = !draft.ptScheduled;
+              button.setAttribute('aria-pressed', String(draft.ptScheduled));
+              for (const className of ['card-teal', 'text-white', 'shadow-sm']) {
+                button.classList.toggle(className, draft.ptScheduled);
+              }
+              for (const className of ['bg-white', 'text-[#4B5563]']) {
+                button.classList.toggle(className, !draft.ptScheduled);
+              }
+              const row = ptScheduleEditor.querySelector(`[data-pt-row="${date}"]`);
+              row.classList.toggle('hidden', !draft.ptScheduled);
+              row.classList.toggle('flex', draft.ptScheduled);
+            });
+          });
+          ptScheduleEditor.addEventListener('input', e => {
+            const date = e.target.dataset.ptTime;
+            if (date) ptDaysState[date].ptTime = e.target.value;
+          });
+        }
+
+        document.getElementById('cd-save-pt-days')?.addEventListener('click', async () => {
+          if (ptScheduleSaving) return;
+          if (document.getElementById('cd-save-all').disabled) {
+            showToast('일지 저장이 끝난 뒤 PT 일정을 저장해 주세요.');
+            return;
+          }
+          if (!state.isLive || !state.trainerPassword) {
+            showToast('코치 모드에서 로그인한 뒤 일정을 저장해 주세요.');
+            return;
+          }
+          const changes = changedPtDays();
+          if (!changes.length) {
+            showToast('변경된 PT 일정이 없어요.');
+            return;
+          }
+
+          const auth = { password: state.trainerPassword };
+          ptScheduleSaving = true;
+          ptScheduleEditor.disabled = true;
+          ptScheduleEditor.querySelector('#cd-save-pt-days').textContent = '저장 중…';
+          const failedDates = [];
+          try {
+            for (const [date, draft] of changes) {
+              const schedule = {
+                ptScheduled: draft.ptScheduled,
+                ptTime: draft.ptScheduled ? draft.ptTime.trim() : ''
+              };
+              try {
+                await saveCoachPtSchedule(memberName, date, schedule, auth);
+                initialPtDays[date] = schedule;
+                if (date === detailDate) Object.assign(daily, schedule);
+              } catch {
+                failedDates.push(formatPtDate(date));
+              }
+            }
+            showToast(failedDates.length
+              ? `${failedDates.join(', ')} 일정 저장 실패 · 다시 저장해 주세요.`
+              : '날짜별 PT 일정을 저장했어요 ✓');
+          } finally {
+            ptScheduleSaving = false;
+            if (ptScheduleEditor.isConnected) {
+              ptScheduleEditor.disabled = false;
+              ptScheduleEditor.querySelector('#cd-save-pt-days').textContent = 'PT 일정 저장';
+            }
+          }
+        });
+      }
 
       function renderDetailBody() {
         openModal(`${memberName} 회원님 · 상세 & 바로 답글`, `
@@ -4595,30 +4723,7 @@
               <input id="cd-diet-msg" value="${escapeHtml(dietMsg)}" placeholder="식단 피드백 한 줄 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
             </div>
 
-            <fieldset id="cd-pt-schedule" ${ptScheduleSaving ? 'disabled' : ''} class="min-w-0 p-3.5 rounded-2xl bg-[#EFF6FF] space-y-2">
-              <h3 class="text-[13px] font-extrabold text-[#1D4ED8]">이번 주 PT 일정</h3>
-              <p class="text-[12px] text-[#475569]">수업 날짜를 선택하고 날짜별 시간을 입력하세요.</p>
-              <div class="grid grid-cols-7 gap-1">
-                ${weekDaysList.map(({ day, date, fullDate }) => {
-                  const schedule = ptDaysState[fullDate];
-                  const isOn = Boolean(schedule?.ptScheduled);
-                  return `
-                    <button type="button" data-ptday="${fullDate}" aria-label="${formatPtDate(fullDate)} ${day}요일" aria-pressed="${isOn}" ${schedule ? '' : 'disabled'} class="tap-scale py-1.5 rounded-xl flex flex-col items-center justify-center ${isOn ? 'card-teal text-white shadow-sm' : 'bg-white text-[#4B5563]'}">
-                      <span class="text-[10px] font-bold opacity-80">${day}</span>
-                      <span class="text-[12px] font-extrabold tabular-nums">${date}</span>
-                    </button>
-                  `;
-                }).join('')}
-              </div>
-              ${Object.values(ptDaysState).includes(null) ? '<p class="text-[11px] text-[#475569]">일부 날짜를 불러오지 못했어요. 회원 상세를 다시 열어 주세요.</p>' : ''}
-              ${weekDaysList.filter(({ fullDate }) => ptDaysState[fullDate]).map(({ fullDate, day }) => `
-                <label data-pt-row="${fullDate}" class="${ptDaysState[fullDate].ptScheduled ? 'flex' : 'hidden'} items-center justify-between gap-2 rounded-xl bg-white px-2.5 py-1.5">
-                  <span class="shrink-0 text-[12px] font-bold text-[#111827]">${formatPtDate(fullDate)} (${day})</span>
-                  <input type="text" data-pt-time="${fullDate}" value="${escapeHtml(ptDaysState[fullDate].ptTime)}" maxlength="40" placeholder="시간 (선택 · 19:00)" class="w-full min-w-0 rounded-lg bg-[#F4F6F9] px-2.5 py-2 text-[12px] text-[#111827]" />
-                </label>
-              `).join('')}
-              <button type="button" id="cd-save-pt-days" class="tap-scale w-full px-3 py-2 rounded-xl card-blue text-white text-[12px] font-extrabold">${ptScheduleSaving ? '저장 중…' : 'PT 일정 저장'}</button>
-            </fieldset>
+            ${renderPtScheduleEditor()}
 
             <!-- Routines + Type Toggle + Add Routine -->
             <div class="space-y-2">
@@ -4858,77 +4963,7 @@
         } catch {}
 
         hydrateDirectImages(memberName);
-        ptScheduleEditor = document.getElementById('cd-pt-schedule');
-        if (ptScheduleEditor) {
-          ptScheduleEditor.querySelectorAll('[data-ptday]').forEach(button => {
-            button.addEventListener('click', () => {
-              const date = button.dataset.ptday;
-              const draft = ptDaysState[date];
-              draft.ptScheduled = !draft.ptScheduled;
-              button.setAttribute('aria-pressed', String(draft.ptScheduled));
-              for (const className of ['card-teal', 'text-white', 'shadow-sm']) {
-                button.classList.toggle(className, draft.ptScheduled);
-              }
-              for (const className of ['bg-white', 'text-[#4B5563]']) {
-                button.classList.toggle(className, !draft.ptScheduled);
-              }
-              const row = ptScheduleEditor.querySelector(`[data-pt-row="${date}"]`);
-              row.classList.toggle('hidden', !draft.ptScheduled);
-              row.classList.toggle('flex', draft.ptScheduled);
-            });
-          });
-          ptScheduleEditor.addEventListener('input', e => {
-            const date = e.target.dataset.ptTime;
-            if (date) ptDaysState[date].ptTime = e.target.value;
-          });
-        }
-
-        document.getElementById('cd-save-pt-days')?.addEventListener('click', async () => {
-          if (ptScheduleSaving) return;
-          if (document.getElementById('cd-save-all').disabled) {
-            showToast('일지 저장이 끝난 뒤 PT 일정을 저장해 주세요.');
-            return;
-          }
-          if (!state.isLive || !state.trainerPassword) {
-            showToast('코치 모드에서 로그인한 뒤 일정을 저장해 주세요.');
-            return;
-          }
-          const changes = changedPtDays();
-          if (!changes.length) {
-            showToast('변경된 PT 일정이 없어요.');
-            return;
-          }
-
-          const auth = { password: state.trainerPassword };
-          ptScheduleSaving = true;
-          ptScheduleEditor.disabled = true;
-          ptScheduleEditor.querySelector('#cd-save-pt-days').textContent = '저장 중…';
-          const failedDates = [];
-          try {
-            for (const [date, draft] of changes) {
-              const schedule = {
-                ptScheduled: draft.ptScheduled,
-                ptTime: draft.ptScheduled ? draft.ptTime.trim() : ''
-              };
-              try {
-                await saveCoachPtSchedule(memberName, date, schedule, auth);
-                initialPtDays[date] = schedule;
-                if (date === detailDate) Object.assign(daily, schedule);
-              } catch {
-                failedDates.push(formatPtDate(date));
-              }
-            }
-            showToast(failedDates.length
-              ? `${failedDates.join(', ')} 일정 저장 실패 · 다시 저장해 주세요.`
-              : '날짜별 PT 일정을 저장했어요 ✓');
-          } finally {
-            ptScheduleSaving = false;
-            if (ptScheduleEditor.isConnected) {
-              ptScheduleEditor.disabled = false;
-              ptScheduleEditor.querySelector('#cd-save-pt-days').textContent = 'PT 일정 저장';
-            }
-          }
-        });
+        bindPtScheduleEditor();
 
         document.getElementById('cd-copy-routines-btn').addEventListener('click', () => {
           if (!routines.length) {
@@ -5493,6 +5528,16 @@
       }
       renderDetailBody();
       initialRoutines = JSON.stringify(routines);
+      if (weekPtRequest) {
+        weekPtRequest.then(schedule => {
+          if (!ptScheduleEditor?.isConnected) return;
+          Object.assign(initialPtDays, schedule);
+          Object.assign(ptDaysState, structuredClone(schedule));
+          ptScheduleLoading = false;
+          ptScheduleEditor.outerHTML = renderPtScheduleEditor();
+          bindPtScheduleEditor();
+        });
+      }
     }
 
     function openAddMemberModal() {

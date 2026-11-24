@@ -870,7 +870,7 @@ async function handleRecords(request,env) {
     const managedRows=await supaGet('/rest/v1/fit_members?select=id,is_archived&name=eq.'+
       encodeURIComponent(member)+'&limit=1','member_status');
     if(managedRows[0]?.is_archived)return json({status:'denied',code:'member_archived'},403);
-    const memberId=await ensureMember(base,key,member,supaGet);
+    const memberId=managedRows[0]?.id??await ensureMember(base,key,member,supaGet);
     if(memberId===null)return json({status:'denied',code:'member_not_found'},403);
     const lookupMs=performance.now()-start;
     if(action==='dailyCheckin'){

@@ -295,6 +295,7 @@
       '하루 체중 숫자가 올라 신경 쓰인다면, 다음 주에는 아침 기상 후처럼 비슷한 조건에서 잰 기록을 모아봐요. 다음 상담 때 여러 날의 흐름을 함께 볼게요.'
     ];
 
+    const MEMBER_HOME_HABIT_TIPS = [...COACH_DAILY_HABIT_REPLIES, ...COACH_DAILY_HABIT_FEEDBACK];
     const WORKOUT_POINT_WEEKDAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
     const WORKOUT_POINT_START = Date.UTC(2026, 10, 22);
     const DAILY_WORKOUT_POINTS = [
@@ -785,9 +786,15 @@
       const selected = Date.parse(String(dateStr || getTodayKST()) + 'T00:00:00Z');
       const date = Number.isFinite(selected) ? selected : Date.parse(getTodayKST() + 'T00:00:00Z');
       const elapsedDays = Math.floor((date - WORKOUT_POINT_START) / 86400000);
+      const note = DAILY_WORKOUT_POINTS[elapsedDays] || '';
+      const habitNote = note && elapsedDays % 2 === 0
+        ? MEMBER_HOME_HABIT_TIPS[(elapsedDays / 2) % MEMBER_HOME_HABIT_TIPS.length]
+        : '';
       return {
         day: WORKOUT_POINT_WEEKDAYS[new Date(date).getUTCDay()],
-        note: DAILY_WORKOUT_POINTS[elapsedDays] || ''
+        note,
+        homeNote: habitNote || note,
+        homeTopic: habitNote ? '생활 다이어트 팁' : '운동 포인트'
       };
     }
 
@@ -6173,7 +6180,7 @@
       const chk = state.record.dailyCheckin || {};
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
       const workoutPoint = getDailyWorkoutPoint(state.selectedDate);
-      const coachNote = state.record.headerMessage || state.record.feedback?.workout || workoutPoint.note || '수업일지에서 운동 기록을 확인해 보세요.';
+      const coachNote = state.record.headerMessage || state.record.feedback?.workout;
       const dailyMagazinePicks = getDailyMagazinePicks(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
       if (state.memberTab === 'report') {
@@ -6232,8 +6239,12 @@
                   <span class="text-[11px] font-bold text-white/90">FROM 명진 트레이너</span>
                   <button type="button" id="go-lesson" class="text-[11px] font-bold text-[#60A5FA]">수업일지 ›</button>
                 </div>
-                <p class="text-[13px] text-white/95 leading-relaxed">${escapeHtml(coachNote)}</p>
-                ${workoutPoint.note && (state.record.headerMessage || state.record.feedback?.workout) ? `<div class="pt-2 border-t border-white/15"><p class="text-[10px] font-bold text-[#5EEAD4] mb-1">${workoutPoint.day} 운동 포인트</p><p class="text-[12px] text-white/80 leading-relaxed">${escapeHtml(workoutPoint.note)}</p></div>` : ''}
+                ${coachNote || !workoutPoint.homeNote ? `<p class="text-[13px] text-white/95 leading-relaxed">${escapeHtml(coachNote || '수업일지에서 운동 기록을 확인해 보세요.')}</p>` : ''}
+                ${workoutPoint.homeNote ? `
+                  <div class="${coachNote ? 'pt-2 border-t border-white/15' : ''}">
+                    <p class="text-[10px] font-bold text-[#5EEAD4] mb-1">${workoutPoint.day} ${workoutPoint.homeTopic}</p>
+                    <p class="${coachNote ? 'text-[12px] text-white/80' : 'text-[13px] text-white/95'} leading-relaxed">${escapeHtml(workoutPoint.homeNote)}</p>
+                  </div>` : ''}
                 <div class="flex items-center gap-2 pt-0.5">
                   <button type="button" data-rval="확인했어요 👍" class="fb-react-btn tap-scale px-3 py-1 rounded-full text-[11px] font-bold transition ${state.feedbackReaction === '확인했어요 👍' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white/90'}">확인했어요 👍</button>
                   <button type="button" data-rval="불태웠어요 🔥" class="fb-react-btn tap-scale px-3 py-1 rounded-full text-[11px] font-bold transition ${state.feedbackReaction === '불태웠어요 🔥' ? 'bg-[#5EEAD4] text-[#0F172A]' : 'bg-white/15 text-white/90'}">불태웠어요 🔥</button>

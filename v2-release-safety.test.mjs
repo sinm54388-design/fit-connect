@@ -602,6 +602,19 @@ test('member home renders both historical dates and dates with a scheduled worko
   assert.match(today, /코치가 남긴 운동 피드백/);
   assert.match(today, /월요일 운동 포인트/);
   assert.ok(today.includes(run("getDailyWorkoutPoint('2026-11-23').note")));
+  run("state.selectedDate='2026-12-08'; state.record.headerMessage='';");
+  const dietDay = run('renderMemberView()');
+  assert.match(dietDay, /화요일 생활 다이어트 팁/);
+  assert.match(dietDay, /외식 약속이 있는 날에도 앞 끼니는 평소처럼/);
+  assert.ok(!dietDay.includes(run("getDailyWorkoutPoint(state.selectedDate).note")));
+
+  run("state.record.feedback.workout='개인 운동 피드백';");
+  const withFeedback = run('renderMemberView()');
+  assert.match(withFeedback, /개인 운동 피드백[\s\S]*화요일 생활 다이어트 팁/);
+  assert.match(run("state.selectedDate='2026-12-09'; renderMemberView()"), /수요일 운동 포인트/);
+  const nextDietDay = run("state.selectedDate='2026-12-10'; renderMemberView()");
+  assert.match(nextDietDay, /목요일 생활 다이어트 팁/);
+  assert.doesNotMatch(nextDietDay, /외식 약속이 있는 날에도 앞 끼니는 평소처럼/);
 });
 
 test('PT lessons are complete and read-only while personal workouts retain set controls', () => {

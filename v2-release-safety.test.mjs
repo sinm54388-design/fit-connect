@@ -364,7 +364,10 @@ test('a combined member session and daily read performs one account lookup and p
   let accepted = true;
   let archived = false;
   let rpcAvailable = true;
-  const fetch = async url => {
+  let native = false;
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('fixture'))),
+    byte => byte.toString(16).padStart(2,'0')).join('');
+  const fetch = async (url, options) => {
     const parsed = new URL(url);
     if (parsed.hostname === 'script.google.com') {
       calls.push('token');
@@ -376,10 +379,18 @@ test('a combined member session and daily read performs one account lookup and p
       assert.equal(parsed.searchParams.get('p_name'), 'QA');
       assert.equal(parsed.searchParams.get('p_date'), date);
       return rpcAvailable
-        ? Response.json({member:{id:'fixture-member',is_archived:archived},daily:[{data:{headerMessage:'fixture'}}],photos:[],feedback:[]})
+        ? Response.json({member:{id:'fixture-member',is_archived:archived,worker_link_sha256:native?digest:null},daily:[{data:{headerMessage:'fixture'}}],photos:[],feedback:[]})
         : Response.json({code:'PGRST202'}, {status:404});
     }
-    if (parsed.pathname.endsWith('/fit_members')) return Response.json([{ id:'fixture-member', is_archived:archived }]);
+    if (parsed.pathname.endsWith('/fit_members')) return Response.json([{ id:'fixture-member', is_archived:archived, worker_link_sha256:native?digest:null }]);
+    if (parsed.pathname.endsWith('/fit_worker_save_day')) {
+      const body = JSON.parse(options.body);
+      assert.equal(body.p_member_id,'fixture-member');
+      assert.equal(body.p_date,date);
+      assert.equal(body.p_action,'setProgressBatch');
+      assert.equal(body.p_trainer,false);
+      return Response.json({});
+    }
     assert.equal(parsed.searchParams.get('member_id'), 'eq.fixture-member');
     assert.equal(parsed.searchParams.get('record_date'), 'eq.' + date);
     return Response.json(parsed.pathname.endsWith('/fit_daily_records') ? [{ data:{ headerMessage:'fixture' } }] : []);
@@ -389,8 +400,8 @@ test('a combined member session and daily read performs one account lookup and p
   });
   await mod.link(() => {});
   await mod.evaluate();
-  const dispatch = () => mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
-    method:'POST', body:JSON.stringify({action:'memberSession', includeDaily:true, member:'QA', date, token:'fixture'})
+  const dispatch = (token='fixture', path='records', extra={}) => mod.namespace.default.fetch(new Request('https://fixture.test/api/'+path, {
+    method:'POST', body:JSON.stringify({action:'memberSession', includeDaily:true, member:'QA', date, token, ...extra})
   }), { SUPABASE_URL:'https://fixture-db.supabase.co', SUPABASE_SECRET_KEY:'fixture', MEMBER_SESSION_SECRET:'fixture-session-key-for-local-tests' });
 
   const response = await dispatch();
@@ -399,14 +410,14 @@ test('a combined member session and daily read performs one account lookup and p
   assert.ok(data.session);
   assert.equal(data.daily.headerMessage, 'fixture');
   assert.equal(data.legacyDaily.routines[0].name, 'fresh routine');
-  assert.deepEqual(calls, ['token','fit_member_day_snapshot']);
+  assert.deepEqual(calls, ['fit_member_day_snapshot','token']);
 
   calls.length = 0;
   rpcAvailable = false;
   const fallback = await dispatch();
   assert.equal(fallback.status, 200);
   assert.equal((await fallback.json()).daily.headerMessage, 'fixture');
-  assert.deepEqual(calls.slice(0,3), ['token','fit_member_day_snapshot','fit_members']);
+  assert.deepEqual(calls.slice(0,3), ['fit_member_day_snapshot','fit_members','token']);
   assert.ok(calls.includes('fit_daily_records'));
   rpcAvailable = true;
 
@@ -415,14 +426,38 @@ test('a combined member session and daily read performs one account lookup and p
   const denied = await dispatch();
   assert.equal(denied.status, 403);
   assert.equal((await denied.json()).code, 'member_archived');
-  assert.deepEqual(calls, ['token','fit_member_day_snapshot']);
+  assert.deepEqual(calls, ['fit_member_day_snapshot']);
 
   calls.length = 0;
+  archived = false;
   accepted = false;
   const invalid = await dispatch();
   assert.equal(invalid.status, 403);
   assert.equal((await invalid.json()).code, 'unauthorized');
-  assert.deepEqual(calls, ['token']);
+  assert.deepEqual(calls, ['fit_member_day_snapshot','token']);
+
+  calls.length = 0;
+  native = true;
+  const fast = await dispatch();
+  assert.equal(fast.status, 200);
+  const fastBody = await fast.json();
+  assert.equal(fastBody.daily.nativeDaily,true);
+  assert.ok(!JSON.stringify(fastBody).includes(digest));
+  assert.deepEqual(calls,['fit_member_day_snapshot']);
+
+  calls.length = 0;
+  assert.equal((await dispatch('wrong-fixture')).status,403);
+  assert.deepEqual(calls,['fit_member_day_snapshot']);
+
+  calls.length = 0;
+  const update = {action:'setProgressBatch',changes:[{id:'h',index:0,checked:true}]};
+  assert.equal((await dispatch('wrong-fixture','apps-script', update)).status,403);
+  assert.deepEqual(calls,['fit_members']);
+  calls.length = 0;
+  const write = await dispatch('fixture','apps-script',update);
+  assert.equal(write.status,200);
+  assert.equal((await write.json()).status,'success');
+  assert.deepEqual(calls,['fit_members','fit_worker_save_day']);
 });
 
 test('Worker retries a check-in write conflict and preserves intervening record fields', async () => {

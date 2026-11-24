@@ -1749,20 +1749,23 @@
       const payload = { member, date: dateStr };
       const token = state.token;
       const readLegacy = () => postAppsScript({ ...payload, action: 'read', token });
-      const reuseAccess = Boolean(state.session);
+      const reuseAccess = Boolean(state.session) && !state.nativeDaily;
       const access = memberAccess(member, dateStr, { includeDaily: true });
-      const appRead = reuseAccess ? readLegacy() : access.then(result =>
-        result.date === dateStr && result.legacyDaily !== undefined ? result.legacyDaily : readLegacy()
-      );
       const dbRead = access.then(result =>
         result.date === dateStr ? result.daily : postRecords({ ...payload, action: 'read', session: result.session })
       );
+      const appRead = reuseAccess ? readLegacy() : access.then(async result => {
+        const daily = await dbRead;
+        if (daily?.nativeDaily) return daily;
+        return result.date === dateStr && result.legacyDaily !== undefined ? result.legacyDaily : readLegacy();
+      });
       const [dailyRec, dailyAs] = await Promise.allSettled([dbRead, appRead]);
       if (!stillCurrent()) return;
 
       const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
       const asObj = dailyAs.status === 'fulfilled' && !['error', 'denied'].includes(dailyAs.value?.status)
         ? unwrapDailyRecord(dailyAs.value) : null;
+      state.nativeDaily = recObj?.nativeDaily === true;
       state.mealReadVerified = Boolean(recObj);
       state.workoutReadVerified = Boolean(asObj);
       state.loading = false;
@@ -1905,7 +1908,7 @@
       return state.appMode === 'coach' ? { password: state.trainerPassword } : { token: state.token };
     }
 
-    async function savePatchLive(patch, member = state.memberName, date = state.selectedDate) {
+    async function savePatchLive(patch, member = state.memberName, date = state.selectedDate, baselineRoutineIds) {
       if (!state.isLive) {
         showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
         return false;
@@ -1913,7 +1916,9 @@
       try {
         // Apps Script accepts routines in the data envelope and merges
         // submitted fields with the live record. patchData excludes routines.
-        const fields = Object.hasOwn(patch, 'routines') ? { data: patch } : { action: 'patchData', patch };
+        const fields = Object.hasOwn(patch, 'routines')
+          ? { data: patch, ...(baselineRoutineIds ? { baselineRoutineIds } : {}) }
+          : { action: 'patchData', patch };
         await writeAppsRecord(fields, member, date, appsWriteAuth());
         return true;
       } catch {
@@ -4574,6 +4579,7 @@
       const initialReply = replyMsg;
       const initialDiet = dietMsg;
       let initialRoutines;
+      const baselineRoutineIds = routines.filter(r => r.id != null).map(r => String(r.id));
       let uploadsInProgress = 0;
       let videoManagerOpen = false;
       let videoPage = 0;
@@ -5133,7 +5139,7 @@
             if (oldVidId.startsWith('direct:') && state.trainerPassword) {
               postRecords({ action: 'directVideoDelete', id: oldVidId, member: memberName, date: detailDate, password: state.trainerPassword }).catch(() => {});
             }
-            const savedOk = await savePatchLive({ routines }, memberName, detailDate);
+            const savedOk = await savePatchLive({ routines }, memberName, detailDate, baselineRoutineIds);
             if (savedOk) showToast('영상이 삭제되고 일지에 반영되었습니다 ✓');
           });
         });
@@ -5197,7 +5203,7 @@
             showToast('영상 업로드 완료! 저장 중...');
             uploadsInProgress++;
             try {
-              const savedOk = await savePatchLive({ routines }, memberName, detailDate);
+              const savedOk = await savePatchLive({ routines }, memberName, detailDate, baselineRoutineIds);
               if (savedOk) showToast('영상 업로드 및 수업일지 자동 저장 완료 ✓');
             } finally {
               uploadsInProgress--;
@@ -5491,7 +5497,7 @@
           const nextBtn = document.getElementById('cd-save-next');
           if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중...'; }
           if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = '저장 중...'; }
-          const ok = await savePatchLive(patch, memberName, detailDate);
+          const ok = await savePatchLive(patch, memberName, detailDate, baselineRoutineIds);
           if (!ok) {
             if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '이 회원만 저장하기'; }
             if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '저장하고 다음 대기 회원 보기 →'; }
@@ -7137,7 +7143,7 @@
               if (dayObj && Array.isArray(dayObj.routines)) {
                 const nextRoutines = dayObj.routines.filter(r => String(r?.name || '').trim().toLowerCase().replace(/\s+/g, '') !== normKey);
                 if (nextRoutines.length !== dayObj.routines.length) {
-                  await postAppsScript({ member: state.memberName, date: lastDate, data: { ...dayObj, routines: nextRoutines }, password: state.trainerPassword });
+                  await postAppsScript({ member: state.memberName, date: lastDate, data: { routines: nextRoutines }, password: state.trainerPassword });
                 }
               }
             } catch {}

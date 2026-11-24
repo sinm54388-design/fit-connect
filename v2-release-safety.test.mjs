@@ -153,6 +153,82 @@ test('coach patches target the selected member with coach auth and preserve unre
   }]);
 });
 
+test('coach PT times are edited, saved, and read by the selected date', async () => {
+  const first = '2026-11-16';
+  const second = '2026-11-18';
+  const added = '2026-11-20';
+  const legacy = new Map([
+    [first, { ptScheduled: true, ptTime: '18:00', routines: [{ name: '스쿼트' }] }],
+    [second, { ptScheduled: true, ptTime: '20:00' }]
+  ]);
+  const writes = [];
+  const run = app(async (url, request) => {
+    const body = JSON.parse(request.body);
+    if (url === '/api/records') {
+      const data = body.date === first ? { ptScheduled: true, ptTime: '16:00' } : {};
+      return Response.json({ status: 'success', ...data });
+    }
+    if (body.action === 'read') return Response.json({ status: 'success', data: legacy.get(body.date) || {} });
+    writes.push(body);
+    const patch = body.patch || body.data;
+    if (body.date === added && body.action === 'patchData') {
+      // Simulates an older Apps Script acknowledging a patch that omitted PT fields.
+      return Response.json({ status: 'success' });
+    }
+    legacy.set(body.date, { ...legacy.get(body.date), ...patch });
+    return Response.json({ status: 'success' });
+  });
+  run(`state.appMode = 'coach'; state.trainerPassword = 'coach-fixture';
+    globalThis.nodes = new Map();
+    globalThis.node = id => {
+      if (!nodes.has(id)) nodes.set(id, {
+        isConnected: true, dataset: {}, value: '', disabled: false,
+        classList: { add() {}, remove() {}, contains() { return true; }, toggle() {} },
+        addEventListener(event, handler) { this[event] = handler; },
+        setAttribute() {}, querySelector: node, querySelectorAll() { return []; }
+      });
+      return nodes.get(id);
+    };
+    document.getElementById = node;
+    document.querySelectorAll = () => [];
+    openModal = (_, content) => { globalThis.modalHtml = content; };
+    hydrateDirectImages = () => {};
+    node('cd-pt-schedule').querySelectorAll = () => [node('add-day')];
+    node('add-day').dataset.ptday = '${added}';
+  `);
+  await run(`openCoachDetailSheet('target', '${second}')`);
+  assert.match(run('modalHtml'), new RegExp(`data-pt-time="${first}" value="18:00"`));
+  assert.match(run('modalHtml'), new RegExp(`data-pt-time="${second}" value="20:00"`));
+  run(`node('cd-pt-schedule').input({ target: { dataset: { ptTime: '${second}' }, value: ' 20:30 ' } });
+    node('add-day').click();
+    node('cd-pt-schedule').input({ target: { dataset: { ptTime: '${added}' }, value: '17:15' } });`);
+  await run("node('cd-save-pt-days').click()");
+  assert.deepEqual(writes.map(({ date, patch, data }) => [date, patch || data]), [
+    [second, { ptScheduled: true, ptTime: '20:30' }],
+    [added, { ptScheduled: true, ptTime: '17:15' }],
+    [added, { ptScheduled: true, ptTime: '17:15' }]
+  ]);
+  assert.ok(writes.every(write => write.member === 'target' && write.password === 'coach-fixture'));
+  assert.deepEqual(legacy.get(first).routines, [{ name: '스쿼트' }]);
+  await run("node('cd-save-pt-days').click()");
+  assert.equal(writes.length, 3);
+
+  run("node('add-day').click()");
+  await run("node('cd-save-pt-days').click()");
+  assert.deepEqual(writes.at(-1).data, { ptScheduled: false, ptTime: '' });
+  assert.equal(legacy.get(added).ptScheduled, false);
+
+  run("state.appMode = 'member'; state.trainerPassword = ''; state.session = 'member-fixture'; state.sessionExpires = Date.now() + 3600000; state.memberTab = 'lesson';");
+  for (const [day, time] of [[first, '18:00'], [second, '20:30']]) {
+    await run(`state.selectedDate = '${day}'; loadMemberDateData(state.selectedDate)`);
+    assert.equal(run('state.record.ptTime'), time);
+    assert.match(run('renderMemberView()'), new RegExp(`${time} 수업`));
+  }
+  await run(`state.selectedDate = '${added}'; loadMemberDateData(state.selectedDate)`);
+  assert.equal(run('state.record.ptScheduled'), false);
+  assert.equal(run('state.record.ptTime'), '');
+});
+
 test('a failed set write is restored after reload without replacing coach routine edits', async () => {
   const store = new Map();
   const offline = app(async () => { throw Error('offline'); }, undefined, store);

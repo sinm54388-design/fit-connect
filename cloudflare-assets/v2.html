@@ -1191,6 +1191,38 @@
       return res;
     }
 
+    function getPtSchedule(record) {
+      if (record?.ptScheduled === undefined) return null;
+      return {
+        ptScheduled: Boolean(record.ptScheduled),
+        ptTime: record.ptScheduled ? String(record.ptTime || '').trim() : ''
+      };
+    }
+
+    function formatPtDate(date) {
+      const [, month, day] = date.split('-');
+      return `${Number(month)}월 ${Number(day)}일`;
+    }
+
+    async function readAppsDailyRecord(payload) {
+      const result = await postAppsScript({ ...payload, action: 'read' });
+      if (!result || ['error', 'denied'].includes(result.status)) throw Error('기록 조회 실패');
+      return unwrapDailyRecord(result);
+    }
+
+    async function saveCoachPtSchedule(member, date, schedule, auth) {
+      const payload = { member, date, ...auth };
+      const saved = await postAppsScript({ ...payload, action: 'patchData', patch: schedule }).catch(() => null);
+      const matches = async () => {
+        const stored = getPtSchedule(await readAppsDailyRecord(payload));
+        return stored?.ptScheduled === schedule.ptScheduled && stored.ptTime === schedule.ptTime;
+      };
+      if (saved?.status === 'success' && await matches()) return;
+      // Older Apps Script versions may only accept PT fields in the merged data envelope.
+      await writeAppsRecord({ data: schedule }, member, date, auth);
+      if (!await matches()) throw Error('저장된 수업 일정을 확인하지 못했어요');
+    }
+
     function makeUuidV4() {
       if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -1636,6 +1668,7 @@
       const baseDaily = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos) ? asObj : recObj;
       const chosenDaily = {
         ...baseDaily,
+        ...(getPtSchedule(asObj) ?? getPtSchedule(recObj)),
         dailyCheckin: { ...baseDaily.dailyCheckin, ...recObj.dailyCheckin },
         diet: mergeDietRecords(asObj?.diet, recObj?.diet, recObj?.deletedPhotoMeals || []),
         ...(recObj.coachFeedbackStored ? { headerMessage: recObj.headerMessage, feedback: recObj.feedback } : {})
@@ -4231,16 +4264,25 @@
         return { daily: state.record, history: { previous: {} } };
       }
       const weekDays = buildWeekDays(detailDate);
+      const memberAuth = { member: memberName, password: state.trainerPassword };
+      async function loadSchedule(date) {
+        const payload = { ...memberAuth, date };
+        const fromApps = await readAppsDailyRecord(payload).catch(() => null);
+        const schedule = getPtSchedule(fromApps);
+        if (schedule) return schedule;
+        const fromRecords = await postRecords({ ...payload, action: 'read' }).catch(() => null);
+        return fromRecords ? getPtSchedule(unwrapDailyRecord(fromRecords)) || { ptScheduled: false, ptTime: '' } : null;
+      }
       const [dRecRes, dAsRes, hRes, ...weekPtRes] = await Promise.allSettled([
         postRecords({ action: 'read', member: memberName, date: detailDate, password: state.trainerPassword }),
-        postAppsScript({ action: 'read', member: memberName, date: detailDate, password: state.trainerPassword }),
+        readAppsDailyRecord({ ...memberAuth, date: detailDate }),
         postRecords({ action: 'workoutHistory', member: memberName, date: detailDate, month: detailDate.slice(0, 7), password: state.trainerPassword }),
         ...weekDays.map(wd => wd.fullDate === detailDate
           ? Promise.resolve(null)
-          : postRecords({ action: 'read', member: memberName, date: wd.fullDate, password: state.trainerPassword }))
+          : loadSchedule(wd.fullDate))
       ]);
       const recObj = dRecRes.status === 'fulfilled' ? unwrapDailyRecord(dRecRes.value) : null;
-      const asObj = dAsRes.status === 'fulfilled' ? unwrapDailyRecord(dAsRes.value) : null;
+      const asObj = dAsRes.status === 'fulfilled' ? dAsRes.value : null;
       const hasDietData = obj => obj?.diet && ['breakfast', 'lunch', 'dinner', 'snack'].some(k => {
         const ml = obj.diet[k];
         return ml && (String(ml.desc || '').trim() || (Array.isArray(ml.photos) && ml.photos.length > 0) || Number(ml.cal) > 0);
@@ -4251,6 +4293,7 @@
       const mergedCoachDiet = mergeDietRecords(asObj?.diet, recObj?.diet, recObj?.deletedPhotoMeals || []);
       const chosen = {
         ...(baseChosen || {}),
+        ...(getPtSchedule(asObj) ?? getPtSchedule(recObj)),
         diet: mergedCoachDiet,
         ...(asObj && hasDietData(asObj) ? { feedback: asObj.feedback || baseChosen?.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen?.memos } : {}),
         ...(recObj?.coachFeedbackStored
@@ -4260,10 +4303,9 @@
       const weekPtMap = {};
       weekDays.forEach((wd, idx) => {
         if (wd.fullDate === detailDate) {
-          weekPtMap[wd.fullDate] = { scheduled: Boolean(chosen?.ptScheduled), time: String(chosen?.ptTime || '') };
+          weekPtMap[wd.fullDate] = recObj || asObj ? getPtSchedule(chosen) || { ptScheduled: false, ptTime: '' } : null;
         } else {
-          const r = weekPtRes[idx]?.status === 'fulfilled' ? unwrapDailyRecord(weekPtRes[idx].value) : null;
-          weekPtMap[wd.fullDate] = { scheduled: Boolean(r?.ptScheduled), time: String(r?.ptTime || '') };
+          weekPtMap[wd.fullDate] = weekPtRes[idx].value ?? null;
         }
       });
       return {
@@ -4386,9 +4428,16 @@
       const { daily, history, weekPtMap } = await fetchMemberForCoach(memberName, detailDate);
       if (!loading?.isConnected || !document.getElementById('modal-backdrop').classList.contains('flex')) return;
       const weekDaysList = buildWeekDays(detailDate);
-      const ptDaysState = { ...(weekPtMap || {}) };
-      const initialPtDays = JSON.parse(JSON.stringify(ptDaysState));
-      let ptTimeInput = Object.values(ptDaysState).find(x => x?.scheduled && x?.time)?.time || daily.ptTime || '';
+      const initialPtDays = weekPtMap || Object.fromEntries(weekDaysList.map(({ fullDate }) => [
+        fullDate, (fullDate === detailDate && getPtSchedule(daily)) || { ptScheduled: false, ptTime: '' }
+      ]));
+      const ptDaysState = structuredClone(initialPtDays);
+      let ptScheduleSaving = false;
+      let ptScheduleEditor;
+      const changedPtDays = () => Object.entries(ptDaysState).filter(([date, draft]) => draft && (
+        draft.ptScheduled !== initialPtDays[date].ptScheduled ||
+        (draft.ptScheduled && draft.ptTime.trim() !== initialPtDays[date].ptTime)
+      ));
       const routines = Array.isArray(daily.routines) ? daily.routines.map(r => ({ ...r })) : [];
       const expandedSets = {};
       let pendingNewVideoId = '';
@@ -4480,28 +4529,30 @@
               <input id="cd-diet-msg" value="${escapeHtml(dietMsg)}" placeholder="식단 피드백 한 줄 (선택)" class="w-full text-[12px] px-3 py-2 rounded-xl bg-white focus:outline-none" />
             </div>
 
-            <!-- Weekly PT Schedule Picker -->
-            <div class="p-3.5 rounded-2xl bg-[#EFF6FF] space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[12px] font-extrabold text-[#1D4ED8]">🗓 이번 주 PT 예정 요일 설정</span>
-                <span class="text-[10px] font-semibold text-[#64748B]">선택한 요일에 회원 화면 배너 표시</span>
-              </div>
+            <fieldset id="cd-pt-schedule" ${ptScheduleSaving ? 'disabled' : ''} class="min-w-0 p-3.5 rounded-2xl bg-[#EFF6FF] space-y-2">
+              <h3 class="text-[13px] font-extrabold text-[#1D4ED8]">이번 주 PT 일정</h3>
+              <p class="text-[12px] text-[#475569]">수업 날짜를 선택하고 날짜별 시간을 입력하세요.</p>
               <div class="grid grid-cols-7 gap-1">
-                ${weekDaysList.map(wd => {
-                  const isOn = !!ptDaysState[wd.fullDate]?.scheduled;
+                ${weekDaysList.map(({ day, date, fullDate }) => {
+                  const schedule = ptDaysState[fullDate];
+                  const isOn = Boolean(schedule?.ptScheduled);
                   return `
-                    <button type="button" data-ptday="${wd.fullDate}" class="cd-pt-day-btn tap-scale py-1.5 rounded-xl flex flex-col items-center justify-center ${isOn ? 'card-teal text-white shadow-sm' : 'bg-white text-[#4B5563]'}">
-                      <span class="text-[10px] font-bold opacity-80">${wd.day}</span>
-                      <span class="text-[12px] font-extrabold tabular-nums">${wd.date}</span>
+                    <button type="button" data-ptday="${fullDate}" aria-label="${formatPtDate(fullDate)} ${day}요일" aria-pressed="${isOn}" ${schedule ? '' : 'disabled'} class="tap-scale py-1.5 rounded-xl flex flex-col items-center justify-center ${isOn ? 'card-teal text-white shadow-sm' : 'bg-white text-[#4B5563]'}">
+                      <span class="text-[10px] font-bold opacity-80">${day}</span>
+                      <span class="text-[12px] font-extrabold tabular-nums">${date}</span>
                     </button>
                   `;
                 }).join('')}
               </div>
-              <div class="flex items-center gap-1.5 pt-0.5">
-                <input id="cd-pt-time" type="text" value="${escapeHtml(ptTimeInput)}" placeholder="수업 시간 (선택, 예: 19:00)" class="flex-1 text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-[#111827] focus:outline-none" />
-                <button type="button" id="cd-save-pt-days" class="tap-scale shrink-0 px-3 py-1.5 rounded-xl card-blue text-white text-[11px] font-extrabold">PT 일정 저장</button>
-              </div>
-            </div>
+              ${Object.values(ptDaysState).includes(null) ? '<p class="text-[11px] text-[#475569]">일부 날짜를 불러오지 못했어요. 회원 상세를 다시 열어 주세요.</p>' : ''}
+              ${weekDaysList.filter(({ fullDate }) => ptDaysState[fullDate]).map(({ fullDate, day }) => `
+                <label data-pt-row="${fullDate}" class="${ptDaysState[fullDate].ptScheduled ? 'flex' : 'hidden'} items-center justify-between gap-2 rounded-xl bg-white px-2.5 py-1.5">
+                  <span class="shrink-0 text-[12px] font-bold text-[#111827]">${formatPtDate(fullDate)} (${day})</span>
+                  <input type="text" data-pt-time="${fullDate}" value="${escapeHtml(ptDaysState[fullDate].ptTime)}" maxlength="40" placeholder="시간 (선택 · 19:00)" class="w-full min-w-0 rounded-lg bg-[#F4F6F9] px-2.5 py-2 text-[12px] text-[#111827]" />
+                </label>
+              `).join('')}
+              <button type="button" id="cd-save-pt-days" class="tap-scale w-full px-3 py-2 rounded-xl card-blue text-white text-[12px] font-extrabold">${ptScheduleSaving ? '저장 중…' : 'PT 일정 저장'}</button>
+            </fieldset>
 
             <!-- Routines + Type Toggle + Add Routine -->
             <div class="space-y-2">
@@ -4636,7 +4687,7 @@
             datePicker.value = detailDate;
             return;
           }
-          if (uploadsInProgress || document.getElementById('cd-save-all').disabled) {
+          if (uploadsInProgress || ptScheduleSaving || document.getElementById('cd-save-all').disabled) {
             datePicker.value = detailDate;
             showToast('저장이나 업로드가 끝난 뒤 날짜를 바꿔 주세요.');
             return;
@@ -4645,8 +4696,8 @@
             document.getElementById('cd-reply-msg').value !== initialReply ||
             document.getElementById('cd-diet-msg').value !== initialDiet ||
             ['cd-new-name', 'cd-new-note', 'cd-new-video', 'cd-new-weight'].some(id => document.getElementById(id)?.value.trim()) ||
-            pendingNewVideoId;
-          if (changed && !window.confirm('저장하지 않은 일지나 피드백이 있어요. 날짜를 바꿀까요?')) {
+            pendingNewVideoId || changedPtDays().length;
+          if (changed && !window.confirm('저장하지 않은 변경이 있어요. 날짜를 바꿀까요?')) {
             datePicker.value = detailDate;
             return;
           }
@@ -4741,91 +4792,77 @@
         } catch {}
 
         hydrateDirectImages(memberName);
-        document.querySelectorAll('.cd-pt-day-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const dStr = btn.dataset.ptday;
-            const prevOn = !!ptDaysState[dStr]?.scheduled;
-            ptDaysState[dStr] = { scheduled: !prevOn, time: document.getElementById('cd-pt-time')?.value.trim() || '' };
-            ptTimeInput = document.getElementById('cd-pt-time')?.value.trim() || '';
-            renderDetailBody();
-          });
-        });
-
-        const ptTimeEl = document.getElementById('cd-pt-time');
-        if (ptTimeEl) {
-          ptTimeEl.addEventListener('input', e => { ptTimeInput = e.target.value; });
-        }
-
-        const savePtBtn = document.getElementById('cd-save-pt-days');
-        if (savePtBtn) {
-          savePtBtn.addEventListener('click', async () => {
-            const tVal = document.getElementById('cd-pt-time')?.value.trim() || '';
-            ptTimeInput = tVal;
-            const changedDates = weekDaysList.map(w => w.fullDate).filter(dStr => {
-              const nowOn = !!ptDaysState[dStr]?.scheduled;
-              const wasOn = !!initialPtDays[dStr]?.scheduled;
-              const wasTime = String(initialPtDays[dStr]?.time || '');
-              return nowOn !== wasOn || (nowOn && tVal !== wasTime);
+        ptScheduleEditor = document.getElementById('cd-pt-schedule');
+        if (ptScheduleEditor) {
+          ptScheduleEditor.querySelectorAll('[data-ptday]').forEach(button => {
+            button.addEventListener('click', () => {
+              const date = button.dataset.ptday;
+              const draft = ptDaysState[date];
+              draft.ptScheduled = !draft.ptScheduled;
+              button.setAttribute('aria-pressed', String(draft.ptScheduled));
+              for (const className of ['card-teal', 'text-white', 'shadow-sm']) {
+                button.classList.toggle(className, draft.ptScheduled);
+              }
+              for (const className of ['bg-white', 'text-[#4B5563]']) {
+                button.classList.toggle(className, !draft.ptScheduled);
+              }
+              const row = ptScheduleEditor.querySelector(`[data-pt-row="${date}"]`);
+              row.classList.toggle('hidden', !draft.ptScheduled);
+              row.classList.toggle('flex', draft.ptScheduled);
             });
-            if (!changedDates.length) {
-              showToast('변경된 PT 예정일이 없습니다');
-              return;
-            }
-            savePtBtn.disabled = true;
-            savePtBtn.textContent = '저장 중...';
-            try {
-              let okCount = 0;
-              let lastErr = '';
-              for (const dStr of changedDates) {
-                const isOn = !!ptDaysState[dStr]?.scheduled;
-                const ptTimeVal = isOn ? tVal : '';
-                let res = await postAppsScript({
-                  action: 'patchData',
-                  member: memberName,
-                  date: dStr,
-                  password: state.trainerPassword,
-                  patch: { ptScheduled: isOn, ptTime: ptTimeVal }
-                }).catch(() => null);
-                if (!res || res.status !== 'success') {
-                  const existingRaw = await postAppsScript({ action: 'read', member: memberName, date: dStr, password: state.trainerPassword }).catch(() => null);
-                  const baseRec = unwrapDailyRecord(existingRaw) || {
-                    headerMessage: '',
-                    routines: [],
-                    reflection: { good: '', bad: '' },
-                    diet: { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
-                    feedback: { workout: '', diet: '', time: '' },
-                    memos: [],
-                    dailyCheckin: { workout: '', diet: '', mood: '' }
-                  };
-                  res = await postAppsScript({
-                    member: memberName,
-                    date: dStr,
-                    password: state.trainerPassword,
-                    data: { ...baseRec, ptScheduled: isOn, ptTime: ptTimeVal }
-                  }).catch(e => ({ status: 'error', message: e?.message || 'network' }));
-                }
-                if (res?.status === 'success') {
-                  okCount++;
-                  initialPtDays[dStr] = { scheduled: isOn, time: ptTimeVal };
-                } else {
-                  lastErr = res?.message || res?.error || 'unknown';
-                }
-              }
-              if (okCount === changedDates.length) {
-                daily.ptScheduled = !!ptDaysState[detailDate]?.scheduled;
-                daily.ptTime = daily.ptScheduled ? tVal : '';
-                showToast('이번 주 PT 예정일이 저장되었어요 ✓');
-              } else {
-                showToast(`일부 날짜 저장 실패 (${okCount}/${changedDates.length}${lastErr ? ': ' + lastErr : ''})`);
-              }
-            } catch {
-              showToast('PT 일정 저장 중 오류가 발생했어요');
-            } finally {
-              savePtBtn.disabled = false;
-              savePtBtn.textContent = 'PT 일정 저장';
-            }
+          });
+          ptScheduleEditor.addEventListener('input', e => {
+            const date = e.target.dataset.ptTime;
+            if (date) ptDaysState[date].ptTime = e.target.value;
           });
         }
+
+        document.getElementById('cd-save-pt-days')?.addEventListener('click', async () => {
+          if (ptScheduleSaving) return;
+          if (document.getElementById('cd-save-all').disabled) {
+            showToast('일지 저장이 끝난 뒤 PT 일정을 저장해 주세요.');
+            return;
+          }
+          if (!state.isLive || !state.trainerPassword) {
+            showToast('코치 모드에서 로그인한 뒤 일정을 저장해 주세요.');
+            return;
+          }
+          const changes = changedPtDays();
+          if (!changes.length) {
+            showToast('변경된 PT 일정이 없어요.');
+            return;
+          }
+
+          const auth = { password: state.trainerPassword };
+          ptScheduleSaving = true;
+          ptScheduleEditor.disabled = true;
+          ptScheduleEditor.querySelector('#cd-save-pt-days').textContent = '저장 중…';
+          const failedDates = [];
+          try {
+            for (const [date, draft] of changes) {
+              const schedule = {
+                ptScheduled: draft.ptScheduled,
+                ptTime: draft.ptScheduled ? draft.ptTime.trim() : ''
+              };
+              try {
+                await saveCoachPtSchedule(memberName, date, schedule, auth);
+                initialPtDays[date] = schedule;
+                if (date === detailDate) Object.assign(daily, schedule);
+              } catch {
+                failedDates.push(formatPtDate(date));
+              }
+            }
+            showToast(failedDates.length
+              ? `${failedDates.join(', ')} 일정 저장 실패 · 다시 저장해 주세요.`
+              : '날짜별 PT 일정을 저장했어요 ✓');
+          } finally {
+            ptScheduleSaving = false;
+            if (ptScheduleEditor.isConnected) {
+              ptScheduleEditor.disabled = false;
+              ptScheduleEditor.querySelector('#cd-save-pt-days').textContent = 'PT 일정 저장';
+            }
+          }
+        });
 
         document.getElementById('cd-copy-routines-btn').addEventListener('click', () => {
           if (!routines.length) {
@@ -5293,6 +5330,10 @@
         });
 
         async function saveCoachDetailAndAdvance(goNext) {
+          if (ptScheduleSaving) {
+            showToast('PT 일정 저장이 끝난 뒤 일지를 저장해 주세요.');
+            return;
+          }
           const pendingNameEl = document.getElementById('cd-new-name');
           const pendingName = pendingNameEl ? pendingNameEl.value.trim() : '';
           if (pendingName) {
@@ -6079,21 +6120,20 @@
       if (state.memberTab === 'report') {
         const routines = state.record.routines || [];
         const ptCount = routines.filter(r => r.routineType !== 'homework').length;
-        const [, month, day] = state.selectedDate.split('-');
         const ptDiaryTitle = state.selectedDate === getTodayKST()
           ? '오늘 PT 수업 일지'
-          : `${Number(month)}월 ${Number(day)}일 PT 수업 일지`;
+          : `${formatPtDate(state.selectedDate)} PT 수업 일지`;
         const pendingRoutine = routines.find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
         const personalWorkoutDone = !ptCount && routines.length > 0 && !pendingRoutine;
         const isPtDay = Boolean(state.record.ptScheduled);
-        const ptTimeBadge = state.record.ptTime ? ` (${state.record.ptTime})` : '';
+        const ptTime = isPtDay ? state.record.ptTime : '';
         const showMission = pendingRoutine || (!ptCount && (personalWorkoutDone || isPtDay));
         const missionLabel = pendingRoutine
           ? `오늘의 개인 운동 숙제 (${wr.done}/${wr.total})`
           : (personalWorkoutDone ? '오늘 개인 운동 완료' : '오늘의 PT 일정');
         const missionTitle = pendingRoutine
           ? pendingRoutine.name
-          : (personalWorkoutDone ? '오늘 배정된 개인 운동 완료!' : `🗓 오늘은 PT 예정일입니다${ptTimeBadge}`);
+          : (personalWorkoutDone ? '오늘 배정된 개인 운동 완료!' : `🗓 PT 수업 예정${ptTime ? ` (${ptTime})` : ''}`);
         const lessonIcon = '<svg aria-hidden="true" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 004 0a2 2 0 00-4 0"/></svg>';
 
         return `
@@ -6103,7 +6143,7 @@
                 <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white/20">${lessonIcon}</span>
                 <span class="flex-1 min-w-0">
                   <span class="block text-[15px] font-extrabold">${ptDiaryTitle}</span>
-                  <span class="block text-[12px] font-semibold mt-1">${ptCount}종목 · 수업 내용 보기</span>
+                  <span class="block text-[12px] font-semibold mt-1">${ptTime ? `${escapeHtml(ptTime)} · ` : ''}${ptCount}종목 · 수업 내용 보기</span>
                 </span>
                 <span class="shrink-0 text-lg font-bold" aria-hidden="true">›</span>
               </button>

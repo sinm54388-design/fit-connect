@@ -256,6 +256,7 @@ test('coach dashboard appears before legacy links and preserves the active membe
   ]);
   assert.equal(opened, true);
   assert.equal(run('state.appMode'), 'coach');
+  assert.equal(run('state.coachNativeOverview'), true);
   assert.equal(run('state.trainerOverview[0].pendingWorkout'), true);
   finishLegacy(Response.json({ status: 'success', members: [
     { name: 'QA', token: 'fixture-link' }, { name: 'Archived', token: 'archived-link' }
@@ -263,6 +264,45 @@ test('coach dashboard appears before legacy links and preserves the active membe
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(run('state.trainerOverview.length'), 1);
   assert.equal(await run("resolveMemberToken('QA')"), 'fixture-link');
+});
+
+test('coach date changes request only the overview and keep the latest date, tab, filter, and links', async () => {
+  const calls = [];
+  let finishOlder;
+  const older = new Promise(resolve => { finishOlder = resolve; });
+  const run = app(async (_, request) => {
+    const body = JSON.parse(request.body);
+    calls.push(body);
+    if (body.date === '2026-11-20') return older;
+    if (body.date === '2026-11-22') return new Response(null, { status: 403 });
+    return Response.json({ status: 'success', members: [{ name: 'QA', lastDate: body.date }] });
+  });
+  run(`state.appMode = 'coach'; state.trainerPassword = 'coach-cookie'; state.coachNativeOverview = true;
+    state.coachOverviewDate = state.selectedDate; state.coachTab = 'members'; state.coachFilter = 'diet';
+    state.trainerOverview = [{ name: 'QA', token: 'fixture-link' }];`);
+
+  const first = run("selectCoachDate('2026-11-20')");
+  assert.match(run('renderCoachView()'), /현황을 불러오는 중/);
+  await run("selectCoachDate('2026-11-21')");
+  finishOlder(Response.json({ status: 'success', members: [{ name: 'QA', lastDate: '2026-11-20' }] }));
+  await first;
+  await run("selectCoachDate('2026-11-21')");
+
+  assert.deepEqual(calls, [
+    { action: 'trainerOverview', date: '2026-11-20' },
+    { action: 'trainerOverview', date: '2026-11-21' }
+  ]);
+  assert.equal(run('state.selectedDate'), '2026-11-21');
+  assert.equal(run('state.coachOverviewDate'), '2026-11-21');
+  assert.equal(run('state.trainerOverview[0].lastDate'), '2026-11-21');
+  assert.equal(run('state.trainerOverview[0].token'), 'fixture-link');
+  assert.equal(run('state.coachTab'), 'members');
+  assert.equal(run('state.coachFilter'), 'diet');
+
+  await run("selectCoachDate('2026-11-22')");
+  assert.match(run('renderCoachView()'), /코치 로그인이 필요해요/);
+  assert.equal(run('state.trainerPassword'), '');
+  assert.equal(run('state.trainerOverview.length'), 0);
 });
 
 test('coach replaces a rejected cached link with a verified existing link', async () => {

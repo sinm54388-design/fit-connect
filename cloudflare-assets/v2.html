@@ -972,6 +972,9 @@
       exerciseLibrary: {},
       lessonLibraryLimit: 15,
       coachTab: 'coaching', // 'coaching' | 'members'
+      coachOverviewDate: '',
+      coachOverviewStatus: '',
+      coachNativeOverview: false,
       coachFilter: 'pending', // 'pending' | 'today' | 'dormant' | 'all'
       coachSearch: '',
       memberName: paramName || '김윤지',
@@ -4372,12 +4375,21 @@
           }).catch(() => {});
           const needLegacyOverview = members => members.some(m => !nativeMembers.has(m.name)) || !fast;
           const requestedOverview = needLegacyOverview(merged);
+          state.coachNativeOverview = hasFastList && hasOverview && !requestedOverview;
           if (requestedOverview) refreshLegacyOverview();
           if (hasOverview || hasFastList) legacyMembers.then(source => {
             if (!isCurrentLogin() || state.appMode !== 'coach') return;
             const added = attachMembers(state.trainerOverview, membersFrom(source), new Set(state.archivedMemberNames || []));
             if (added) {
-              if (!requestedOverview && needLegacyOverview(state.trainerOverview)) refreshLegacyOverview();
+              if (needLegacyOverview(state.trainerOverview)) {
+                state.coachNativeOverview = false;
+                if (!requestedOverview) {
+                  if (state.selectedDate !== date) {
+                    return enterCoachWithPassword(state.trainerPassword, true);
+                  }
+                  refreshLegacyOverview();
+                }
+              }
               if (!document.querySelector('input:focus, textarea:focus, select:focus')) renderAll();
             }
           }).catch(() => {});
@@ -4401,6 +4413,8 @@
         state.trainerOverview = baseMock;
       }
       state.appMode = 'coach';
+      state.coachOverviewDate = date;
+      state.coachOverviewStatus = '';
       state.coachTab = 'coaching';
       const hasPending = state.trainerOverview.some(m => m.pendingWorkout || m.pendingDiet);
       state.coachFilter = hasPending ? 'pending' : 'all';
@@ -4610,23 +4624,69 @@
       });
     }
 
-    // Refresh only the Supabase coach summary, preserving member links and
-    // current UI state; avoids re-running login and the whole Apps Script list.
+    let coachOverviewVersion = 0;
     async function refreshCoachOverview() {
-      if (!state.isLive || !state.trainerPassword) return;
+      if (!state.isLive || state.appMode !== 'coach') return;
+      if (!state.trainerPassword) {
+        renderAll();
+        await openTrainerLoginModal();
+        return;
+      }
+      const version = ++coachOverviewVersion;
+      const login = coachLoginVersion;
+      const date = state.selectedDate;
+      const password = state.trainerPassword;
+      const stillCurrent = () => version === coachOverviewVersion && login === coachLoginVersion &&
+        state.appMode === 'coach' && state.selectedDate === date && state.trainerPassword === password;
+      const dateChanged = date !== state.coachOverviewDate;
+      state.coachOverviewStatus = 'loading';
+      if (dateChanged) renderAll();
       const btn = document.getElementById('coach-refresh-overview');
       if (btn) { btn.disabled = true; btn.textContent = '갱신 중…'; }
       try {
-        const result = await postRecords({ action: 'trainerOverview', date: state.selectedDate, password: state.trainerPassword });
+        const result = await postRecords({ action: 'trainerOverview', date, password });
+        if (!stillCurrent()) return;
         if (result?.status !== 'success' || !Array.isArray(result.members)) throw new Error(result?.code || '현황 조회 실패');
         const oldMembers = new Map((state.trainerOverview || []).map(m => [m.name, m]));
-        state.trainerOverview = result.members.map(m => ({ ...oldMembers.get(m.name), ...m }));
+        state.trainerOverview = result.members.map(m => {
+          const previous = oldMembers.get(m.name);
+          return { ...previous, ...m, token: m.token || previous?.token || '' };
+        });
+        state.coachOverviewDate = date;
+        state.coachOverviewStatus = '';
         state.coachFilter = state.coachFilter || 'pending';
         renderAll();
-        showToast('코치 현황을 최신 기록으로 갱신했어요 ✓');
+        if (!dateChanged) showToast('코치 현황을 최신 기록으로 갱신했어요 ✓');
       } catch (err) {
-        if (btn) { btn.disabled = false; btn.textContent = '↻ 새로고침'; }
+        if (!stillCurrent()) return;
+        if ([401, 403].includes(err?.status)) {
+          state.trainerPassword = '';
+          state.trainerOverview = [];
+          state.coachOverviewDate = '';
+          state.coachOverviewStatus = 'login';
+          try { localStorage.removeItem('fit_coach_auto_v1'); } catch {}
+          renderAll();
+          return;
+        }
+        state.coachOverviewStatus = 'error';
+        if (dateChanged) renderAll();
+        else if (btn) { btn.disabled = false; btn.textContent = '↻ 새로고침'; }
         showToast('현황 갱신 실패: ' + (err?.message || '네트워크 오류'));
+      }
+    }
+
+    async function selectCoachDate(newDate) {
+      if (!newDate || newDate === state.selectedDate) return;
+      state.selectedDate = newDate;
+      state.weekDays = buildWeekDays(newDate);
+      if (!state.isLive) {
+        renderAll();
+      } else if (state.coachNativeOverview || !state.trainerPassword) {
+        if (newDate === state.coachOverviewDate) renderAll();
+        await refreshCoachOverview();
+      } else {
+        showToast(`${newDate} 현황 불러오는 중...`);
+        await enterCoachWithPassword(state.trainerPassword, true);
       }
     }
 
@@ -5954,22 +6014,11 @@
             await loadMemberDateData(state.selectedDate);
           }
         });
-        const switchCoachDate = async newDate => {
-          if (!newDate) return;
-          state.selectedDate = newDate;
-          state.weekDays = buildWeekDays(newDate);
-          if (state.isLive && state.trainerPassword) {
-            showToast(`${newDate} 현황 불러오는 중...`);
-            await enterCoachWithPassword(state.trainerPassword, true);
-          } else {
-            renderAll();
-          }
-        };
-        document.getElementById('c-prev-day').addEventListener('click', () => switchCoachDate(shiftDateStr(state.selectedDate, -1)));
-        document.getElementById('c-next-day').addEventListener('click', () => switchCoachDate(shiftDateStr(state.selectedDate, 1)));
-        document.getElementById('c-date-picker').addEventListener('change', e => switchCoachDate(e.target.value));
+        document.getElementById('c-prev-day').addEventListener('click', () => selectCoachDate(shiftDateStr(state.selectedDate, -1)));
+        document.getElementById('c-next-day').addEventListener('click', () => selectCoachDate(shiftDateStr(state.selectedDate, 1)));
+        document.getElementById('c-date-picker').addEventListener('change', e => selectCoachDate(e.target.value));
         const cToday = document.getElementById('c-today-btn');
-        if (cToday) cToday.addEventListener('click', () => switchCoachDate(getTodayKST()));
+        if (cToday) cToday.addEventListener('click', () => selectCoachDate(getTodayKST()));
 
         document.getElementById('btn-coach-logout').addEventListener('click', async () => {
           coachLoginVersion++;
@@ -6790,6 +6839,18 @@
 
     // --- Coach View (Slim 2-Tab Cockpit) ---
     function renderCoachView() {
+      if (state.isLive && state.coachOverviewDate !== state.selectedDate && state.coachOverviewStatus) {
+        const loading = state.coachOverviewStatus === 'loading';
+        const login = state.coachOverviewStatus === 'login';
+        return `
+          <section role="status" class="rounded-2xl bg-white p-5 space-y-3">
+            <h2 class="text-base font-extrabold text-[#0F172A]">${loading ? '선택한 날짜의 현황을 불러오는 중이에요'
+              : login ? '코치 로그인이 필요해요' : '선택한 날짜의 현황을 불러오지 못했어요'}</h2>
+            ${loading ? '' : `<button type="button" id="coach-refresh-overview" class="tap-scale rounded-xl hero-navy px-4 py-2 text-sm font-bold text-white">
+              ${login ? '다시 로그인' : '다시 불러오기'}</button>`}
+          </section>
+        `;
+      }
       const list = state.trainerOverview || [];
       const isPending = m => Boolean(m.pendingWorkout || m.pendingDiet || Number(m.directPendingVideos || 0) > 0);
       const isDormant = m => daysBetween(m.lastDate, state.selectedDate) >= 4;

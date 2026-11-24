@@ -726,10 +726,11 @@ async function handleRecords(request,env) {
   const start=performance.now();
   if(action==='listMembersFast') {
     try {
-      const rows=await supaGet('/rest/v1/fit_members?select=name,is_archived&order=name.asc&limit=1000','members');
+      const rows=await supaGet('/rest/v1/fit_members?select=name,is_archived,worker_link_sha256&order=name.asc&limit=1000','members');
       if(rows.length===1000)throw Error('member list pagination required');
       return json({status:'success',source:'supabase',
          members:rows.filter(row=>!row.is_archived).map(row=>String(row.name||'').trim()).filter(Boolean),
+         nativeMembers:rows.filter(row=>!row.is_archived&&row.worker_link_sha256).map(row=>String(row.name||'').trim()).filter(Boolean),
          archivedMembers:rows.filter(row=>row.is_archived).map(row=>String(row.name||'').trim()).filter(Boolean)});
     }catch(error){return failed(error);}
   }

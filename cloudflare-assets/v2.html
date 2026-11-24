@@ -4288,13 +4288,14 @@
           });
           state.trainerOverview = merged;
           state.isLive = true;
-          postAppsScript({ action: 'trainerOverview', password: pw, date: state.selectedDate }).then(asOv => {
+          const nativeMembers = new Set(fast?.nativeMembers || []);
+          if (merged.some(m => !nativeMembers.has(m.name)) || !fast) postAppsScript({ action: 'trainerOverview', password: pw, date: state.selectedDate }).then(asOv => {
             if (asOv?.status === 'success' && Array.isArray(asOv.members)) {
               const byName = new Map(asOv.members.map(m => [m.name, m]));
               let changed = false;
               state.trainerOverview = (state.trainerOverview || []).map(m => {
                 const am = byName.get(m.name);
-                if (!am) return m;
+                if (!am || nativeMembers.has(m.name)) return m;
                 changed = true;
                 return {
                   ...m,
@@ -4309,7 +4310,7 @@
                 };
               });
               asOv.members.forEach(am => {
-                if (am?.name && !archivedMembers.has(am.name) && !state.trainerOverview.some(x => x.name === am.name)) {
+                if (am?.name && !nativeMembers.has(am.name) && !archivedMembers.has(am.name) && !state.trainerOverview.some(x => x.name === am.name)) {
                   state.trainerOverview.push({ ...am, token: tokenMap[am.name] || '' });
                   changed = true;
                 }

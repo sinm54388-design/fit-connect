@@ -104,7 +104,44 @@ test('an older or denied date read cannot remain on the current screen', async (
   await run("state.selectedDate = '2026-11-21'; loadMemberDateData(state.selectedDate)");
   assert.equal(run('state.mealReadVerified'), false);
   assert.equal(run('state.record.headerMessage'), '');
-  assert.match(run('messages.at(-1)'), /불러오지 못했어요/);
+  assert.equal(run('state.dayReadError.denied'), true);
+  assert.equal(run('state.dayReadError.cached'), false);
+});
+
+test('member day retries a transient failure once and preserves the selected date', async () => {
+  const calls = [];
+  const run = app(async (url, request) => {
+    assert.equal(url, '/api/records');
+    const body = JSON.parse(request.body);
+    calls.push(body.date);
+    if (calls.length === 1) return Response.json({status:'error',code:'fixture_unavailable'},{status:502});
+    return Response.json({nativeDaily:true,headerMessage:'recovered',routines:[]});
+  });
+  run("state.nativeDaily=true; state.session='fixture'; state.loading=true;");
+  await run("loadMemberDateData(state.selectedDate)");
+  assert.deepEqual(calls,[date,date]);
+  assert.equal(run('state.selectedDate'),date);
+  assert.equal(run('state.record.headerMessage'),'recovered');
+  assert.equal(run('state.dayReadError'),null);
+  assert.equal(run('state.mealReadVerified'),true);
+});
+
+test('member day stays unverified after a second failure and marks the matching cache read-only', async () => {
+  let attempts=0;
+  const run=app(async () => {
+    attempts++;
+    return Response.json({status:'error',code:'fixture_unavailable'},{status:503});
+  });
+  run(`state.nativeDaily=true; state.session='fixture'; state.workoutReadVerified=true;
+    globalThis.localStorage={ getItem(key) {
+      return key === 'fit_cache_v2_QA_'+state.selectedDate ? JSON.stringify({record:{headerMessage:'cached day'}}):null;
+    } };`);
+  await run("loadMemberDateData(state.selectedDate)");
+  assert.equal(attempts,2);
+  assert.equal(run('state.dayReadError.cached'),true);
+  assert.equal(run('state.dayReadError.denied'),false);
+  assert.equal(run('state.record.headerMessage'),'cached day');
+  assert.equal(run('state.mealReadVerified || state.workoutReadVerified'),false);
 });
 
 test('cold member date reuses its authenticated record and loads optional calls after paint', async () => {

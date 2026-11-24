@@ -964,6 +964,7 @@
     const state = {
       isLive: false,
       loading: false,
+      dayReadError: null,
       appMode: 'member', // 'member' | 'coach'
       memberTab: 'report', // 'report' | 'lesson' | 'diet' | 'body' | 'feedback'
       lessonView: 'today', // 'today' | 'library'
@@ -1762,39 +1763,55 @@
       if (!state.isLive) return;
       const version = ++memberReadVersion;
       const member = state.memberName;
-      const stillCurrent = () => version === memberReadVersion && state.isLive &&
-        state.appMode === 'member' && state.memberName === member && state.selectedDate === dateStr;
-      const payload = { member, date: dateStr };
       const token = state.token;
+      const stillCurrent = () => version === memberReadVersion && state.isLive &&
+        state.appMode === 'member' && state.memberName === member && state.token === token && state.selectedDate === dateStr;
+      const payload = { member, date: dateStr };
+      async function readDay() {
+        const access = await memberAccess(member, dateStr, { includeDaily: true });
+        const daily = access.date === dateStr ? access.daily
+          : await postRecords({ ...payload, action: 'read', session: access.session });
+        if (!daily || typeof daily !== 'object' || Array.isArray(daily)) throw Error('잘못된 기록 응답');
+        return { daily, legacyDaily: access.date === dateStr ? access.legacyDaily : undefined };
+      }
       const readLegacy = () => postAppsScript({ ...payload, action: 'read', token });
-      const reuseAccess = Boolean(state.session) && !state.nativeDaily;
-      const access = memberAccess(member, dateStr, { includeDaily: true });
-      const dbRead = access.then(result =>
-        result.date === dateStr ? result.daily : postRecords({ ...payload, action: 'read', session: result.session })
-      );
-      const appRead = reuseAccess ? readLegacy() : access.then(async result => {
-        const daily = await dbRead;
-        if (daily?.nativeDaily) return daily;
-        return result.date === dateStr && result.legacyDaily !== undefined ? result.legacyDaily : readLegacy();
+      const reuseAccess = Boolean(state.session) && state.nativeDaily === false;
+      const day = readDay().catch(async error => {
+        const retryable = error?.name === 'AbortError' || error instanceof TypeError ||
+          error?.status === 408 || error?.status === 429 || error?.status >= 500;
+        if (!retryable || !stillCurrent()) throw error;
+        await new Promise(resolve => setTimeout(resolve, 250));
+        if (!stillCurrent()) throw error;
+        return readDay();
       });
+      const dbRead = day.then(result => result.daily);
+      // Settle both paths together so a failed native read is handled once.
+      const appRead = reuseAccess ? readLegacy() : day.then(result =>
+        result.daily.nativeDaily ? result.daily : result.legacyDaily ?? readLegacy()
+      );
       const [dailyRec, dailyAs] = await Promise.allSettled([dbRead, appRead]);
       if (!stillCurrent()) return;
 
       const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
       const asObj = dailyAs.status === 'fulfilled' && !['error', 'denied'].includes(dailyAs.value?.status)
         ? unwrapDailyRecord(dailyAs.value) : null;
-      state.nativeDaily = recObj?.nativeDaily === true;
+      if (recObj) state.nativeDaily = recObj.nativeDaily === true;
       state.mealReadVerified = Boolean(recObj);
-      state.workoutReadVerified = Boolean(asObj);
+      state.workoutReadVerified = Boolean(recObj && asObj);
       state.loading = false;
       if (!recObj) {
-        if (dailyRec.reason?.status === 403 || !applyCachedMemberData(dateStr)) {
+        const denied = [401, 403].includes(dailyRec.reason?.status);
+        const cached = !denied && Boolean(state.session) && applyCachedMemberData(dateStr);
+        if (!cached) {
           state.record = emptyDailyRecord();
+          state.workoutDays = [];
+          state.insights = null;
         }
+        state.dayReadError = { denied, cached };
         renderAll();
-        showToast('최신 기록을 불러오지 못했어요. 연결 확인 후 새로고침해 주세요.');
         return;
       }
+      state.dayReadError = null;
       const baseDaily = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos) ? asObj : recObj;
       const chosenDaily = {
         ...baseDaily,
@@ -5907,9 +5924,11 @@
           state.appMode = 'member';
           renderAll();
           if (state.isLive && (state.session || state.token)) {
-            await loadMemberDateData(state.selectedDate);
-            saveCachedMemberData(state.selectedDate);
+            state.mealReadVerified = false;
+            state.workoutReadVerified = false;
+            state.loading = true;
             renderAll();
+            await loadMemberDateData(state.selectedDate);
           }
         });
         const switchCoachDate = async newDate => {
@@ -5970,7 +5989,8 @@
     }
     function renderBottomNav() {
       const nav = document.getElementById('bottom-nav');
-      document.getElementById('member-fab-wrap').style.display = state.appMode === 'member' ? 'flex' : 'none';
+      document.getElementById('member-fab-wrap').style.display =
+        state.appMode === 'member' && !state.loading && !state.dayReadError ? 'flex' : 'none';
       if (state.appMode === 'member') {
         nav.className = 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-xl border-t border-gray-200/70 grid grid-cols-5 px-2 pt-2 pb-3';
         const tabs = [
@@ -6921,7 +6941,21 @@
         renderBottomNav();
         const main = document.getElementById('main-content');
         if (!main) throw new Error('main-content missing');
-        main.innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
+        if (state.appMode === 'member' && !state.loading && state.dayReadError) {
+          const { denied, cached } = state.dayReadError;
+          main.innerHTML = `
+            <section role="status" class="rounded-2xl bg-white p-5 space-y-3">
+              <h2 class="text-base font-extrabold text-[#0F172A]">${denied ? '회원 링크를 확인해 주세요' : '최신 기록을 불러오지 못했어요'}</h2>
+              <p class="text-sm text-[#475569]">${denied ? '코치가 보내준 최신 회원 전용 링크로 다시 열어 주세요.'
+                : cached ? '아래는 이 기기에 마지막으로 저장된 기록이에요. 최신 기록이 열리면 수정할 수 있어요.'
+                : '선택한 날짜의 기록을 다시 불러올 수 있어요.'}</p>
+              ${denied ? '' : '<button type="button" id="btn-member-day-retry" class="w-full py-2.5 rounded-xl hero-navy text-white font-bold">다시 불러오기</button>'}
+            </section>
+            ${cached ? `<div inert>${renderMemberView()}</div>` : ''}
+          `;
+        } else {
+          main.innerHTML = state.appMode === 'member' ? renderMemberView() : renderCoachView();
+        }
         updateFabUI();
         updateFloatingTimerUI();
         bindEvents();
@@ -6943,6 +6977,11 @@
     }
 
     function bindEvents() {
+      document.getElementById('btn-member-day-retry')?.addEventListener('click', () => {
+        state.loading = true;
+        renderAll();
+        void loadMemberDateData(state.selectedDate);
+      });
       document.getElementById('fit-open-report')?.addEventListener('click',()=>fitAssessmentReport(state.memberName,false));
       const vBtn = document.getElementById('btn-verify');
       if (vBtn) {

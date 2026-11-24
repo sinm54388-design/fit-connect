@@ -242,6 +242,7 @@ test('coach dashboard appears before legacy links and preserves the active membe
     if (body.action === 'listMembers') return legacy;
     assert.equal(url, '/api/records');
     if (body.action === 'verify') return Response.json({ status: 'success' });
+    if (body.action === 'memberSession') return Response.json({ status: 'success', session: 'verified-link' });
     if (body.action === 'trainerOverview') {
       return Response.json({ status: 'success', members: [{ name: 'QA', pendingWorkout: true }] });
     }
@@ -262,6 +263,30 @@ test('coach dashboard appears before legacy links and preserves the active membe
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(run('state.trainerOverview.length'), 1);
   assert.equal(await run("resolveMemberToken('QA')"), 'fixture-link');
+});
+
+test('coach replaces a rejected cached link with a verified existing link', async () => {
+  const calls = [];
+  let validReplacement = true;
+  const run = app(async (url, request) => {
+    const body = JSON.parse(request.body);
+    calls.push([url, body.action]);
+    if (url === '/api/apps-script') {
+      assert.equal(body.action, 'getMemberLink');
+      return Response.json({status:'success',url:'https://fixture.test/?name=QA&token=current-link'});
+    }
+    assert.equal(body.action, 'memberSession');
+    assert.equal(body.member, 'QA');
+    return body.token === 'current-link' && validReplacement
+      ? Response.json({status:'success',session:'checked'})
+      : Response.json({status:'denied',code:'unauthorized'},{status:403});
+  });
+  run("state.appMode='coach'; state.trainerPassword='coach-fixture'; state.trainerOverview=[{name:'QA',token:'old-link'}];");
+  assert.equal(await run("resolveMemberToken('QA')"),'current-link');
+  assert.equal(run('state.trainerOverview[0].token'),'current-link');
+  assert.deepEqual(calls.map(([,action])=>action),['memberSession','getMemberLink','memberSession']);
+  validReplacement = false;
+  assert.equal(await run("resolveMemberToken('QA')"),'');
 });
 
 test('coach patches target the selected member with coach auth and preserve unrelated fields', async () => {

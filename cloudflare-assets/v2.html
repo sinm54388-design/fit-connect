@@ -4528,35 +4528,44 @@
       } catch {}
     }
 
+    async function verifyMemberLink(memberName, token) {
+      try {
+        const access = await requestRecords({
+          action: 'memberSession', member: memberName, date: state.selectedDate, token
+        });
+        return access?.status === 'success' && Boolean(access.session);
+      } catch (error) {
+        if (error?.status === 403) return false;
+        throw error;
+      }
+    }
+
     async function resolveMemberToken(memberName) {
       const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
-      let tok = mObj?.token || (memberName === state.memberName ? state.token : '');
-      if (tok) return tok;
-      if (state.isLive && state.trainerPassword) {
-        try {
-          const r = await postAppsScript({ action: 'getMemberLink', name: memberName, password: state.trainerPassword });
-          const rTok = r?.token || extractTokenValue(r?.url || r?.link || '');
-          if (r?.status === 'success' && rTok) {
-            saveMemberTokenLocal(memberName, rTok);
-            return rTok;
-          }
-        } catch {}
-        try {
-          const addR = await postAppsScript({ action: 'addMember', name: memberName, password: state.trainerPassword });
-          if (addR?.status === 'success' && addR.token) {
-            saveMemberTokenLocal(memberName, addR.token);
-            return addR.token;
-          }
-          if (addR?.message) showToast('서버 응답: ' + addR.message);
-        } catch {}
-      }
-      return '';
+      const cached = extractTokenValue(mObj?.token || (memberName === state.memberName ? state.token : ''));
+      if (!state.isLive) return cached;
+      if (!state.trainerPassword) return '';
+      if (cached && await verifyMemberLink(memberName, cached)) return cached;
+      const response = await postAppsScript({
+        action: 'getMemberLink', name: memberName, password: state.trainerPassword
+      });
+      const token = extractTokenValue(response?.token || response?.url || response?.link || '');
+      if (response?.status !== 'success' || !token || token === cached ||
+          !await verifyMemberLink(memberName, token)) return '';
+      saveMemberTokenLocal(memberName, token);
+      return token;
     }
 
     async function copyMemberLink(memberName) {
       const base = isLiveOrigin ? (window.location.origin + window.location.pathname) : 'https://fit-connect.sinm54388.workers.dev/';
       showToast(`${memberName}님 전용 링크 확인 중...`);
-      const tok = await resolveMemberToken(memberName);
+      let tok;
+      try {
+        tok = await resolveMemberToken(memberName);
+      } catch {
+        showToast('회원 링크를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
       if (tok) {
         const u = new URL(base);
         u.searchParams.set('name', memberName);
@@ -4574,9 +4583,23 @@
           <button type="button" id="tk-save-copy-btn" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">저장 후 전용 링크 복사</button>
         </div>
       `);
-      document.getElementById('tk-save-copy-btn').addEventListener('click', () => {
+      document.getElementById('tk-save-copy-btn').addEventListener('click', async event => {
         const parsedTok = extractTokenValue(document.getElementById('tk-paste-inp').value);
         if (!parsedTok) { showToast('링크 또는 토큰을 붙여넣어 주세요'); return; }
+        const button = event.currentTarget;
+        button.disabled = true;
+        try {
+          if (state.isLive && !await verifyMemberLink(memberName, parsedTok)) {
+            showToast('이 회원에게 연결된 유효한 링크인지 확인해 주세요.');
+            return;
+          }
+          if (state.isLive && (state.appMode !== 'coach' || !state.trainerPassword)) return;
+        } catch {
+          showToast('회원 링크를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+          return;
+        } finally {
+          button.disabled = false;
+        }
         saveMemberTokenLocal(memberName, parsedTok);
         const u = new URL(base);
         u.searchParams.set('name', memberName);

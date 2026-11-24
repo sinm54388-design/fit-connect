@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    { "source": "/", "destination": "https://fit-connect.sinm54388.workers.dev/", "permanent": false },
+    { "source": "/index.html", "destination": "https://fit-connect.sinm54388.workers.dev/", "permanent": false },
+    { "source": "/v2", "destination": "https://fit-connect.sinm54388.workers.dev/", "permanent": false },
+    { "source": "/v2.html", "destination": "https://fit-connect.sinm54388.workers.dev/", "permanent": false }
+  ]
+}

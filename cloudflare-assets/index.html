@@ -5595,9 +5595,9 @@
               return;
             }
             issuedTok = addRes.token;
-            // Apps Script owns the member link. Supabase owns the coach's
-            // canonical active-member list, so both must be registered.
-            const dbRes = await postRecords({ action: 'memberRegister', name: mName, date: state.selectedDate, password: state.trainerPassword });
+            const dbRes = await postRecords({
+              action: 'memberRegister', name: mName, linkToken: issuedTok, date: state.selectedDate, password: state.trainerPassword
+            });
             if (dbRes?.status !== 'success') throw new Error(dbRes?.code || '회원 DB 등록 실패');
           } catch (err) {
             showToast('회원 등록 오류: ' + (err?.message || '네트워크 확인'));

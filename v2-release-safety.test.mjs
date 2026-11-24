@@ -384,6 +384,7 @@ test('a combined member session and daily read performs one account lookup and p
     }
     if (parsed.pathname.endsWith('/fit_members')) return Response.json([{ id:'fixture-member', is_archived:archived, worker_link_sha256:native?digest:null }]);
     if (parsed.pathname.endsWith('/fit_worker_save_day')) {
+      assert.equal(new Headers(options.headers).get('x-fit-record-writer'), 'fit-connect-worker');
       const body = JSON.parse(options.body);
       assert.equal(body.p_member_id,'fixture-member');
       assert.equal(body.p_date,date);
@@ -478,6 +479,7 @@ test('Worker retries a check-in write conflict and preserves intervening record 
         data: { diet: { water: reads === 1 ? 500 : 1000 }, dailyCheckin: { diet: 'done' } } }]);
     }
     patches++;
+    assert.equal(new Headers(init.headers).get('x-fit-record-writer'), 'fit-connect-worker');
     if (patches === 1) {
       assert.equal(target.searchParams.get('updated_at'), 'eq.' + originalVersion);
       return Response.json([]);
@@ -536,6 +538,7 @@ test('Worker diet save preserves another writer’s new day and confirms the pho
       return new Response(null, { status: 409 });
     }
     assert.equal(searchParams.get('updated_at'), 'eq.' + version);
+    assert.equal(new Headers(init.headers).get('x-fit-record-writer'), 'fit-connect-worker');
     assert.equal(body.data.diet.lunch.photos.length, 0);
     row = { id: row.id, ...body };
     return Response.json([row]);

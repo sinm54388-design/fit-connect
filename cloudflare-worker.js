@@ -184,11 +184,14 @@ async function signMemberSession(secret,member) {
     new TextEncoder().encode('fit-member-v1.'+payload)));
   return {session:payload+'.'+b64url.encode(sig),exp};
 }
+const DAILY_RECORD_WRITER={'X-Fit-Record-Writer':'fit-connect-worker'};
+async function memberLinkDigest(token) {
+  const bytes=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)));
+  return Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
+}
 async function nativeLinkMatches(member,token) {
   if(typeof token!=='string'||!token||token.length>200)return false;
-  const bytes=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)));
-  const digest=Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
-  return constantTimeEquals(digest,member.worker_link_sha256);
+  return constantTimeEquals(await memberLinkDigest(token),member.worker_link_sha256);
 }
 async function workerMemberAccess(env,member,date) {
   const base=String(env.SUPABASE_URL||'').trim().replace(/\/+$/,'');
@@ -744,8 +747,14 @@ async function handleRecords(request,env) {
             'PATCH',{is_archived:false},'member_reactivate');
           if(!rows?.length)throw Error('reactivation_not_confirmed');
         }else{
-          const rows=await supaWrite('/rest/v1/fit_members','POST',
-            {name:managedName,is_archived:false},'member_register');
+          const profile={name:managedName,is_archived:false};
+          if(input.linkToken!==undefined){
+            const token=input.linkToken;
+            if(typeof token!=='string'||!token||token.length>200||!await readAppsScriptMemberDay(managedName,token,date))
+              return json({status:'denied',code:'invalid_member_link'},403);
+            profile.worker_link_sha256=await memberLinkDigest(token);
+          }
+          const rows=await supaWrite('/rest/v1/fit_members','POST',profile,'member_register');
           if(!rows?.length)throw Error('registration_not_confirmed');
         }
       }else{
@@ -932,7 +941,7 @@ async function handleRecords(request,env) {
       const changes={...(workout?{workout}:{}),...(diet?{diet}:{}),...(mood?{mood}:{})};
       const table='/rest/v1/fit_daily_records';
       const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
-      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
+      const headers={...DAILY_RECORD_WRITER,apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
       for(let attempt=0;attempt<3;attempt++){
         const rows=await supaGet(table+'?select=id,data,updated_at&'+scope+'&limit=2','daily_checkin_read');
         if(rows.length>1)break;
@@ -998,7 +1007,7 @@ async function handleRecords(request,env) {
       }
       const table='/rest/v1/fit_daily_records';
       const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
-      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
+      const headers={...DAILY_RECORD_WRITER,apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
       for(let attempt=0;attempt<3;attempt++){
         const rows=await supaGet(table+'?select=id,data,updated_at&'+scope+'&limit=2','diet_read');
         if(rows.length>1)break;
@@ -1267,7 +1276,7 @@ async function handleAppsScriptPost(request,env) {
           }),env);
         }
         const saved=await fetch(base+'/rest/v1/rpc/fit_worker_save_day',{
-          method:'POST',headers:{...headers,'Content-Type':'application/json'},
+          method:'POST',headers:{...headers,...DAILY_RECORD_WRITER,'Content-Type':'application/json'},
           body:JSON.stringify({p_member_id:found.id,p_date:input.date,p_action:dailyAction,
             p_payload:{data:input.data,patch:input.patch,changes:input.changes,baselineRoutineIds:input.baselineRoutineIds},p_trainer:trainer}),
           signal:AbortSignal.timeout(8000)

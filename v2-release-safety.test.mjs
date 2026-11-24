@@ -124,6 +124,8 @@ test('cold member date reuses its authenticated record and loads optional calls 
         legacyDaily:{routines:[{name:'latest routine'}]}
       });
     if (body.action==='read') return Response.json({headerMessage:'today first'});
+    if (body.action==='memberInsights') return Response.json({status:'success',workoutDays:[body.date]});
+    if (body.action==='directVideoList') return Response.json({status:'success',videos:[]});
     return Response.json({status:'success',columns:[],days:[]});
   });
   run('globalThis.frames = []; globalThis.requestAnimationFrame = cb => frames.push(cb); refreshMemberSummaries = () => {};');
@@ -143,6 +145,13 @@ test('cold member date reuses its authenticated record and loads optional calls 
   run('frames.shift()(); frames.shift()();');
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(calls.filter(item=>item.action==='columnList').length,1);
+  assert.equal(calls.filter(item=>item.action==='directVideoList').length,1);
+  assert.equal(calls.filter(item=>item.action==='workoutHistory').length,0);
+  assert.equal(run('state.workoutDays[0]'),'2026-11-20');
+  await run("memberVideoVersion++; state.selectedDate = '2026-11-21'; loadMemberDateData(state.selectedDate)");
+  run('frames.shift()(); frames.shift()();');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(calls.filter(item=>item.action==='directVideoList').length,2);
 });
 
 test('HTTP 200 denial does not trigger a full-record write or a success', async () => {
@@ -192,6 +201,24 @@ test('coach patches target the selected member with coach auth and preserve unre
     member: 'target', date, password: 'fixture-coach',
     data: { routines: [], feedback: { workout: '확인' } }
   }]);
+});
+
+test('coach weekly schedule reads native records once without querying the legacy bridge', async () => {
+  const dailyCalls = [];
+  const run = app(async (url, request) => {
+    assert.equal(url,'/api/records');
+    const body = JSON.parse(request.body);
+    if (body.action === 'workoutHistory') return Response.json({status:'success',previous:{}});
+    dailyCalls.push(body.date);
+    return Response.json({nativeDaily:true,ptScheduled:true,ptTime:'19:00'});
+  });
+  run("state.appMode='coach'; state.trainerPassword='coach-fixture';");
+  const result = await run("fetchMemberForCoach('target','2026-11-18')");
+  assert.equal(result.daily.ptTime,'19:00');
+  const week = await result.weekPtRequest;
+  assert.equal(week['2026-11-16'].ptTime,'19:00');
+  assert.equal(dailyCalls.length,7);
+  assert.equal(new Set(dailyCalls).size,7);
 });
 
 test('coach PT times are edited, saved, and read by the selected date', async () => {

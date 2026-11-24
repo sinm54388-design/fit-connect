@@ -590,7 +590,7 @@ function buildMemberInsights(rows,date) {
     weekly:{start,end,current:weeklyStat(week.current),previous:weeklyStat(week.previous),improvements},
     monthly:{month,previousMonth:prevMonth,current:monthlyStat(monthly.current),
       previous:monthlyStat(monthly.previous),inbodyChange:null},
-    progress:exercises,exerciseLibrary:[...exerciseLibrary.values()]};
+    progress:exercises,exerciseLibrary:[...exerciseLibrary.values()],workoutDays:[...monthly.current.days].filter(day=>day<=date).sort()};
 }
 async function handleRecords(request,env) {
   const requestStarted=performance.now();
@@ -1092,7 +1092,8 @@ async function handleRecords(request,env) {
             '&offset='+(page*pageSize),'coach_daily_videos');
           return json({status:'success',videos:records.slice(0,pageSize).map(format),hasNext:records.length>pageSize});
         }
-        const rows=await supaGet(table+'?select=*&'+scope+'&state=eq.ready&order=created_at.desc&limit=200','direct_list');
+        const rows=await supaGet(table+'?select=id,name,question,feedback,read_at,created_at,mime&'+scope+
+          '&state=eq.ready&order=created_at.desc&limit=200','direct_list');
         return json({status:'success',videos:rows.filter(row=>!String(row.mime||'').startsWith('image/')).map(format)});
       }
       const id=String(input.id||'').replace(/^direct:/,'');

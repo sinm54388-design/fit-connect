@@ -1740,6 +1740,24 @@
     let memberReadVersion = 0;
     let memberColumnsRequest;
     let memberVideoVersion = 0;
+    let memberVideoRequest;
+    function loadMemberVideos(auth, token) {
+      const version = memberVideoVersion;
+      const cached = memberVideoRequest;
+      if (cached?.member === auth.member && cached.token === token && cached.version === version &&
+          Date.now() < cached.expires) return cached.promise;
+      const request = { member: auth.member, token, version, expires: Date.now() + 15000 };
+      request.promise = postRecords({ ...auth, action: 'directVideoList' }).then(result => {
+        if (!Array.isArray(result?.videos)) throw Error('영상 목록 조회 실패');
+        return result.videos;
+      }).catch(error => {
+        if (memberVideoRequest === request) memberVideoRequest = null;
+        throw error;
+      });
+      memberVideoRequest = request;
+      return request.promise;
+    }
+
     async function loadMemberDateData(dateStr) {
       if (!state.isLive) return;
       const version = ++memberReadVersion;
@@ -1828,17 +1846,22 @@
           memberColumnsRequest = columns;
         }
         const videoVersion = memberVideoVersion;
-        const [ins, cols, hist, videos] = await Promise.allSettled([
-          postRecords({ ...auth, action: 'memberInsights' }),
+        const insights = postRecords({ ...auth, action: 'memberInsights' });
+        const workoutDays = insights.then(result => result?.workoutDays, () => undefined).then(days => {
+          if (Array.isArray(days) || !stillCurrent()) return days;
+          return postRecords({ ...auth, action: 'workoutHistory', month: dateStr.slice(0, 7) }).then(result => result.days);
+        });
+        const [ins, cols, days, videos] = await Promise.allSettled([
+          insights,
           memberColumnsRequest.promise,
-          postRecords({ ...auth, action: 'workoutHistory', month: dateStr.slice(0, 7) }),
-          postRecords({ ...auth, action: 'directVideoList' })
+          workoutDays,
+          loadMemberVideos(auth, token)
         ]);
         if (!stillCurrent()) return;
         if (ins.value?.status === 'success') state.insights = ins.value;
         if (Array.isArray(cols.value?.columns)) state.columns = cols.value.columns;
-        if (Array.isArray(hist.value?.days)) state.workoutDays = hist.value.days;
-        if (videoVersion === memberVideoVersion && Array.isArray(videos.value?.videos)) state.directVideos = videos.value.videos;
+        if (Array.isArray(days.value)) state.workoutDays = days.value;
+        if (videoVersion === memberVideoVersion && Array.isArray(videos.value)) state.directVideos = videos.value;
         syncExerciseLibrary(dateStr);
         saveCachedMemberData(dateStr);
         if (!document.querySelector('input:focus, textarea:focus, select:focus') &&
@@ -4380,17 +4403,20 @@
       }
       const weekDays = buildWeekDays(detailDate);
       const memberAuth = { member: memberName, password: state.trainerPassword };
+      const readCoachRecords = date => postRecords({ ...memberAuth, action: 'read', date });
+      const readCoachLegacy = async (records, date) => records?.nativeDaily
+        ? unwrapDailyRecord(records)
+        : readAppsDailyRecord({ ...memberAuth, date });
       async function loadSchedule(date) {
-        const payload = { ...memberAuth, date };
-        const fromApps = await readAppsDailyRecord(payload).catch(() => null);
-        const schedule = getPtSchedule(fromApps);
-        if (schedule) return schedule;
-        const fromRecords = await postRecords({ ...payload, action: 'read' }).catch(() => null);
-        return fromRecords ? getPtSchedule(unwrapDailyRecord(fromRecords)) || { ptScheduled: false, ptTime: '' } : null;
+        const fromRecords = await readCoachRecords(date).catch(() => null);
+        const preferred = await readCoachLegacy(fromRecords, date).catch(() => null);
+        return getPtSchedule(preferred) ??
+          (fromRecords ? getPtSchedule(unwrapDailyRecord(fromRecords)) || { ptScheduled: false, ptTime: '' } : null);
       }
+      const dailyRecords = readCoachRecords(detailDate);
       const dailyRequests = Promise.allSettled([
-        postRecords({ ...memberAuth, action: 'read', date: detailDate }),
-        readAppsDailyRecord({ ...memberAuth, date: detailDate }),
+        dailyRecords,
+        dailyRecords.catch(() => null).then(records => readCoachLegacy(records, detailDate)),
         postRecords({ ...memberAuth, action: 'workoutHistory', date: detailDate, month: detailDate.slice(0, 7) })
       ]);
       const otherDates = weekDays.map(({ fullDate }) => fullDate).filter(date => date !== detailDate);
@@ -7096,6 +7122,7 @@
             const delRes = await postRecords({ action: 'directVideoDelete', id: dvid, member: state.memberName, date: state.selectedDate, password: state.trainerPassword });
             if (delRes?.status !== 'success') throw new Error(delRes?.code || '삭제 실패');
             videoPlayUrlCache.delete(dvid);
+            memberVideoVersion++;
             state.directVideos = state.directVideos.filter(x => x.id !== dvid);
             renderAll();
             showToast('영상이 삭제되었습니다 ✓');
@@ -7135,6 +7162,7 @@
           if (vidId && vidId.startsWith('direct:') && state.trainerPassword) {
             postRecords({ action: 'directVideoDelete', id: vidId, member: state.memberName, date: state.selectedDate, password: state.trainerPassword }).catch(() => {});
             videoPlayUrlCache.delete(vidId);
+            memberVideoVersion++;
             state.directVideos = state.directVideos.filter(v => v.id !== vidId);
           }
           if (lastDate && state.trainerPassword && state.isLive) {

@@ -18,6 +18,7 @@ const rows=[
   {date:'2026-11-19',data:{routines:[routine],diet:{breakfast:{desc:'미래'}},feedback:{workout:'미래'}}}
 ];
 const report=buildMemberInsights(rows,'2026-11-18');
+assert.deepEqual(Array.from(report.workoutDays),['2026-11-15','2026-11-16','2026-11-18']);
 assert.deepEqual(JSON.parse(JSON.stringify(report.careSummary)),{start:'2026-11-16',end:'2026-11-18',workoutDays:2,dietDays:2,feedbackDays:2});
 assert.equal(buildMemberInsights([],'2026-11-18').careSummary.feedbackDays,0);
 assert.equal(buildMemberInsights([{date:'2026-11-01',data:{diet:{breakfast:{desc:'식사'}}}}],'2026-11-01').careSummary.start,'2026-10-26');

@@ -1,68 +1,120 @@
 const kstDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
 
-export function parseWorkout(text, now = new Date()) {
-  text = text.normalize('NFC').trim();
-  if (!text) throw new Error('회원 이름과 운동 내용을 입력해 주세요.');
-  const datePattern = '오늘|어제|20[0-9]{2}[-./][0-9]{1,2}[-./][0-9]{1,2}|[0-9]{1,2}월\\s*[0-9]{1,2}일';
-  const dated = text.match(new RegExp('^([^\\n,:]+?)\\s+(' + datePattern + ')(?=\\s|[.,:]|$)[\\s.,:]*'));
-  const simple = !dated && (text.match(/^([^\n:]{1,80})\s*[:\n]\s*/) || text.match(/^(.{1,50}?\s회원|.{1,50}?님)\s+/));
-  const head = dated || simple;
-  if (!head) throw new Error('첫 부분을 ‘테스트회원 오늘’처럼 적어주세요. 이름 뒤에 콜론을 써도 돼요.');
-  const member = head[1].trim().replace(/\s+회원$|님$/u, '').trim();
-  if (!member) throw new Error('회원 이름을 확인해 주세요.');
+const datePattern = '오늘|어제|20\\d{2}[-./]\\d{1,2}[-./]\\d{1,2}|\\d{1,2}월\\s*\\d{1,2}일|\\d{1,2}/\\d{1,2}';
+const dateAtStart = new RegExp('^(' + datePattern + ')(?=[\\s.,:：]|$)');
+const compact = (value) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+const escapePattern = (value) => value.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g, '\\$&');
 
-  const formattedToday = kstDate.format(now);
-  let date = formattedToday;
-  const rawDate = dated?.[2];
-  if (rawDate === '어제') {
-    date = kstDate.format(new Date(now.getTime() - 86400000));
-  } else if (rawDate && rawDate !== '오늘') {
+function memberAtStart(text, names) {
+  const candidates = names.flatMap((name) => {
+    const normalized = compact(String(name));
+    if (!normalized) return [];
+    const pattern = Array.from(normalized, escapePattern).join('\\s*');
+    const match = text.match(new RegExp('^' + pattern + '(?=[\\s,:：]|(?:\\s*회원(?:님)?|\\s*님)(?=[\\s,:：]|$)|$)', 'iu'));
+    return match ? [{ name, prefix: match[0], length: normalized.length }] : [];
+  }).sort((a, b) => b.length - a.length);
+  if (candidates[0] && candidates[1]?.length === candidates[0].length) {
+    throw new Error('이름이 같은 회원이 있어요. 회원 상세 화면에서 등록해 주세요.');
+  }
+  if (candidates.length) return candidates[0];
+  if (names.length) throw new Error('첫 부분의 회원 이름만 확인해 주세요. 운동 기록은 그대로 두면 돼요.');
+  const first = text.match(/^([^\s,:：]+?)(?:님)?(?=[\s,:：]|$)/u);
+  return first ? { name: first[1].trim(), prefix: first[0] } : null;
+}
+
+const statToken = /맨몸|체중|(?:\d+(?:[.,]\d+)?)\s*(?:킬로그램|킬로|키로|kg|세트|셋트|셋|sets?|번|회|reps?)?/giu;
+const statStart = /(?:맨몸|체중)(?=\s|\d)|\d+(?:[.,]\d+)?(?=\s*(?:kg|킬로|키로|회|번|reps?|세트|셋|sets?))|(?<=\s)\d+(?:[.,]\d+)?(?=\s|[×xX*\/]|$)/iu;
+
+function parseSets(entry, name) {
+  const fields = {};
+  const bare = [];
+  let guessed = 0;
+  let offset = 0;
+  for (const token of entry.matchAll(statToken)) {
+    if (!/^[\s×xX*]+$|^$/.test(entry.slice(offset, token.index))) {
+      throw new Error(name + '의 숫자를 확인해 주세요. 중량 · 횟수 · 세트 순서로 적으면 돼요.');
+    }
+    offset = token.index + token[0].length;
+    const value = token[0].trim().toLowerCase();
+    const number = Number(value.match(/^\d+(?:[.,]\d+)?/)?.[0].replace(',', '.'));
+    let field;
+    if (value === '맨몸' || value === '체중' || /(?:kg|킬로그램|킬로|키로)$/.test(value)) field = 'weight';
+    else if (/(?:회|번|reps?)$/.test(value)) field = 'reps';
+    else if (/(?:세트|셋트|셋|sets?)$/.test(value)) field = 'count';
+    if (!field) bare.push({ number, at: token.index });
+    else {
+      if (Object.hasOwn(fields, field)) throw new Error(name + '의 세트가 여러 종류라면 /로 나눠 적어주세요.');
+      fields[field] = { number: Number.isNaN(number) ? null : number, at: token.index };
+    }
+  }
+  if (!/^[\s×xX*]*$/.test(entry.slice(offset))) throw new Error(name + '에 적은 운동 수치를 확인해 주세요.');
+  const order = ['weight', 'reps', 'count'];
+  for (const value of bare) {
+    const next = order.find((field) => !Object.hasOwn(fields, field) &&
+      order.every((other) => !fields[other] || (order.indexOf(other) < order.indexOf(field) ? fields[other].at < value.at : fields[other].at > value.at)));
+    if (!next) throw new Error(name + '의 숫자를 중량 · 횟수 · 세트 순서로 적어주세요.');
+    fields[next] = value;
+    guessed++;
+  }
+  const weightMissing = !fields.weight;
+  const weight = fields.weight?.number ?? null, reps = fields.reps?.number, count = fields.count?.number ?? 1;
+  if ((weight !== null && (!Number.isFinite(weight) || weight < 0 || weight > 1200)) ||
+      !Number.isInteger(reps) || reps < 1 || reps > 999 || !Number.isInteger(count) || count < 1 || count > 30) {
+    throw new Error(name + '의 중량과 횟수를 확인해 주세요. 예: 15 15 4 또는 맨몸 12번 3셋');
+  }
+  return { sets: Array.from({ length: count }, () => ({ weight_kg: weight, reps, ...(weightMissing ? { weightMissing: true } : {}) })), guessed: guessed > 0 };
+}
+
+export function parseWorkout(text, now = new Date(), names = []) {
+  text = text.normalize('NFKC').trim();
+  if (!text) throw new Error('회원 이름과 운동 내용을 입력해 주세요.');
+  const leading = text.match(dateAtStart);
+  let body = leading ? text.slice(leading[0].length).replace(/^[\s.,:：]+/, '') : text;
+  const head = memberAtStart(body, names);
+  if (!head?.name || head.name.length > 50) throw new Error('회원 이름을 입력해 주세요.');
+  body = body.slice(head.prefix.length).replace(/^\s*(?:회원(?:님)?|님)(?=\s|[,:：]|$)/u, '').replace(/^[\s,:：]+/, '');
+  const trailing = body.match(dateAtStart);
+  const rawDate = (leading || trailing)?.[1];
+  if (trailing) body = body.slice(trailing[0].length).replace(/^[\s.,:：]+/, '');
+  body = body.replace(/^(?:PT\s*)?수업(?:\s*[.,:：]\s*|\s+|$)/iu, '').trim();
+
+  const today = kstDate.format(now);
+  let date = today;
+  if (rawDate === '어제') date = kstDate.format(new Date(now.getTime() - 86400000));
+  else if (rawDate && rawDate !== '오늘') {
     const parts = rawDate.match(/\d+/g);
-    date = (parts.length === 2 ? [formattedToday.slice(0, 4), ...parts] : parts).map((part) => part.padStart(2, '0')).join('-');
+    date = (parts.length === 2 ? [today.slice(0, 4), ...parts] : parts).map((part) => part.padStart(2, '0')).join('-');
   }
   const day = new Date(date + 'T00:00:00Z');
-  if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== date || member.length > 50) {
-    throw new Error('회원 이름과 수업 날짜를 확인해 주세요.');
-  }
-  const body = text.slice(head[0].length).replace(/^수업(?:\s*[.,:]\s*|\s+|$)/, '');
-  const clauses = body.split(/[,;\n]+|\.(?=\s|$)/).map((clause) => clause.trim()).filter(Boolean);
+  if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== date) throw new Error('수업 날짜를 확인해 주세요.');
+
+  const clauses = body.split(/(?<!\d)[,，]|[,，](?!\d)|[;\n]+|\.(?=\s|$)|(?<=(?:세트|셋트|셋))\s+(?=[가-힣A-Za-z])/u).map((clause) => clause.trim()).filter(Boolean);
   const exercises = [];
   let videoExercise = '';
-  const unit = /(?:\d+(?:\.\d+)?)\s*(?:kg|킬로|키로|㎏)|맨몸|\d+\s*(?:회|세트)/giu;
+  let guessed = false;
   for (const clause of clauses) {
-    if (/^영상(?:은|:)/.test(clause)) {
-      videoExercise = clause.replace(/^영상(?:은|:)\s*/, '').trim();
+    if (/^영상(?:은|:|：|\s)/.test(clause)) {
+      videoExercise = clause.replace(/^영상(?:은|:|：)?\s*/, '').trim();
       continue;
     }
     if (/^(?:올려|등록해|저장해)\s*(?:줘|주세요)?[.!]?$/u.test(clause)) continue;
-    const firstUnit = clause.search(unit);
-    if (firstUnit < 1) throw new Error('‘' + clause.slice(0, 32) + '’에서 운동 이름과 세트 정보를 찾지 못했어요.');
-    const name = clause.slice(0, firstUnit).trim();
-    if (name.length > 100 || /[-+−]$/.test(name) || exercises.some((item) => item.name === name)) {
-      throw new Error('운동 이름과 세트를 확인해 주세요. 같은 종목은 /로 세트를 나눠 적을 수 있어요.');
+    const first = clause.search(statStart);
+    if (first < 1) throw new Error('‘' + clause.slice(0, 32) + '’에서 운동 이름과 수치를 찾지 못했어요.');
+    const name = clause.slice(0, first).trim();
+    if (!name || name.length > 100 || /[-+−]$/.test(name) || exercises.some((item) => compact(item.name) === compact(name))) {
+      throw new Error('운동 이름과 세트를 확인해 주세요. 같은 종목의 세트는 /로 나눠 적을 수 있어요.');
     }
-    const sets = clause.slice(firstUnit).split('/').flatMap((entry) => {
-      const reps = [...entry.matchAll(/(\d+)\s*회/g)];
-      const counts = [...entry.matchAll(/(\d+)\s*세트/g)];
-      const weights = [...entry.matchAll(/(\d+(?:\.\d+)?)\s*(?:kg|킬로|키로|㎏)|맨몸/giu)];
-      const remainder = entry.replace(unit, '').replace(/[\s×xX*]+/g, '');
-      if (reps.length !== 1 || counts.length > 1 || weights.length !== 1 || remainder) {
-        throw new Error(name + '의 무게, 횟수, 세트를 확인해 주세요. 예시는 40kg 10회 3세트예요.');
-      }
-      const count = Number(counts[0]?.[1] ?? 1);
-      if (count < 1 || count > 30) throw new Error(name + '의 세트 수는 1~30으로 입력해 주세요.');
-      const weight_kg = weights[0][1] === undefined ? null : Number(weights[0][1]);
-      const repetitions = Number(reps[0][1]);
-      if (repetitions < 1 || repetitions > 999 || (weight_kg !== null && weight_kg > 1200)) {
-        throw new Error(name + '의 중량과 횟수를 확인해 주세요.');
-      }
-      return Array.from({ length: count }, () => ({ weight_kg, reps: repetitions }));
+    const sets = clause.slice(first).split('/').flatMap((entry) => {
+      const result = parseSets(entry, name);
+      guessed ||= result.guessed;
+      return result.sets;
     });
     if (sets.length > 30 || exercises.length >= 15) throw new Error('수업 한 건에 최대 15종목, 종목당 30세트를 적을 수 있어요.');
     exercises.push({ name, sets });
   }
   if (!exercises.length) throw new Error('등록할 운동을 한 종목 이상 입력해 주세요.');
-  return { member, date, exercises, videoExercise };
+  const matchingVideo = exercises.find(({ name }) => compact(name) === compact(videoExercise));
+  return { member: head.name, date, exercises, videoExercise: matchingVideo?.name ?? videoExercise, guessed };
 }
 
 async function sessionIds(lesson) {
@@ -142,10 +194,11 @@ export function openCoachQuickRegistration(api) {
       <label for="coach-quick-text" class="block text-[13px] font-bold">회원 이름 · 날짜 · 운동 기록</label>
       <textarea id="coach-quick-text" rows="4" maxlength="3500" required
         class="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-[16px]"
-        placeholder="테스트회원 오늘 수업. 스쿼트 40kg 10회 3세트"></textarea>
+        placeholder="테스트회원 스쿼트 40 10 3"></textarea>
       <details class="text-[13px] text-[#475569]">
         <summary class="font-bold text-[#1E3A8A]">입력 예시</summary>
-        <p class="mt-1">테스트회원 오늘 수업. 스쿼트 40kg 10회 / 45kg 8회, 푸시업 맨몸 12회 3세트</p>
+        <p class="mt-1">테스트회원 스쿼트 40 10 3</p>
+        <p class="mt-1">테스트회원 어제 숄더프레스 15키로 15번 4셋, 푸시업 맨몸 12회 3세트</p>
       </details>
       <label for="coach-quick-video" class="block text-[13px] font-bold">운동 영상 <span class="font-medium text-[#475569]">선택</span></label>
       <input id="coach-quick-video" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" class="w-full text-[14px]">
@@ -166,7 +219,7 @@ export function openCoachQuickRegistration(api) {
   const announceError = (error) => {
     setStatus(error?.status === 403 ? '코치 로그인이 만료됐어요. FIT-CONNECT에서 다시 로그인해 주세요.' : error.message || '잠시 후 다시 시도해 주세요.');
   };
-  let draft, busy = false;
+  let draft, memberList, busy = false;
   function lock(locked) {
     busy = locked;
     [input, fileInput, selector, review, save].forEach((control) => { control.disabled = locked; });
@@ -181,7 +234,7 @@ export function openCoachQuickRegistration(api) {
     label.classList.add('hidden');
     if (!fileInput.files.length) return;
     let parsed;
-    try { parsed = parseWorkout(input.value); } catch { return; }
+    try { parsed = parseWorkout(input.value, new Date(), memberList?.members); } catch { return; }
     const current = selector.value;
     selector.replaceChildren(option('종목 선택', ''), ...parsed.exercises.map(({ name }) => option(name, name)));
     selector.value = parsed.videoExercise || (parsed.exercises.length === 1 ? parsed.exercises[0].name : current);
@@ -192,8 +245,9 @@ export function openCoachQuickRegistration(api) {
   selector.addEventListener('change', clearReview);
   function renderReview(lesson, file) {
     const details = [lesson.member + ' · ' + lesson.date];
+    if (lesson.guessed) details.push('단위가 없는 숫자는 중량(kg) · 횟수 · 세트 순서로 읽었어요.');
     for (const { name, sets } of lesson.exercises) {
-      const descriptions = sets.map(({ weight_kg, reps }) => (weight_kg === null ? '맨몸' : weight_kg + 'kg') + ' ' + reps + '회');
+      const descriptions = sets.map(({ weight_kg, reps, weightMissing }) => (weightMissing ? '중량 미입력' : weight_kg === null ? '맨몸' : weight_kg + 'kg') + ' ' + reps + '회');
       details.push(name + ' · ' + (descriptions.every((item) => item === descriptions[0])
         ? descriptions[0] + ' × ' + sets.length + '세트' : descriptions.join(' / ')));
     }
@@ -211,23 +265,21 @@ export function openCoachQuickRegistration(api) {
     if (busy) return;
     clearReview();
     try {
-      const lesson = parseWorkout(input.value);
+      lock(true);
+      setStatus('회원 정보를 확인하고 있어요.');
+      memberList = await api.members(kstDate.format(new Date()));
+      if (!Array.isArray(memberList?.members) || !Array.isArray(memberList?.nativeMembers)) throw new Error('회원 목록을 확인하지 못했어요.');
+      const lesson = parseWorkout(input.value, new Date(), memberList.members);
+      if (!memberList.nativeMembers.includes(lesson.member)) throw new Error('이 회원은 회원 상세 화면에서 일지를 등록해 주세요.');
       const file = fileInput.files[0];
       if (file) {
         if (file.size > 100_000_000 || !api.validVideo(file)) throw new Error('100MB 이하의 MP4, MOV, WebM 영상을 첨부해 주세요.');
+        updateTarget();
         lesson.videoExercise = selector.value || (lesson.exercises.length === 1 && !lesson.videoExercise ? lesson.exercises[0].name : '');
         if (!lesson.videoExercise) throw new Error('영상이 연결될 운동을 선택해 주세요.');
       } else if (lesson.videoExercise) {
         throw new Error('연결할 운동 영상을 첨부해 주세요.');
       }
-      lock(true);
-      setStatus('회원 정보를 확인하고 있어요.');
-      const list = await api.members(lesson.date);
-      if (!Array.isArray(list?.members) || !Array.isArray(list?.nativeMembers)) throw new Error('회원 목록을 확인하지 못했어요.');
-      const matches = list.members.filter((name) => String(name).normalize('NFC').trim().replace(/\s+/g, ' ') === lesson.member);
-      if (matches.length !== 1) throw new Error('등록된 회원 이름을 정확히 입력해 주세요.');
-      lesson.member = matches[0];
-      if (!list.nativeMembers.includes(lesson.member)) throw new Error('이 회원은 회원 상세 화면에서 일지를 등록해 주세요.');
       draft = { lesson, file, upload: { onStage: (name, percentage) => setStatus(name + (percentage ? ' · ' + percentage + '%' : '')) } };
       renderReview(lesson, file);
       setStatus('');

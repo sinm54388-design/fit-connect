@@ -6920,12 +6920,11 @@
             </section>
 
             ${state.isLive && state.trainerPassword ? `
-              <a id="coach-quick-registration" href="https://fit-connect-coach-import.tangycheetah.chatgpt.site/"
-                target="_blank" rel="noopener noreferrer"
-                class="tap-scale flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm text-[#1E3A8A]">
+              <button type="button" id="coach-quick-registration"
+                class="tap-scale flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-sm text-[#1E3A8A]">
                 <span class="text-[14px] font-extrabold">수업 일지 빠른 등록</span>
                 <span class="text-[11px] font-bold text-[#475569]">열기</span>
-              </a>
+              </button>
             ` : ''}
 
             <div class="space-y-2.5">
@@ -7475,6 +7474,60 @@
 
       // Coach events
       document.getElementById('coach-refresh-overview')?.addEventListener('click', refreshCoachOverview);
+      document.getElementById('coach-quick-registration')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        const login = coachLoginVersion;
+        const requireCoach = () => {
+          if (state.appMode !== 'coach' || !state.isLive || !state.trainerPassword || coachLoginVersion !== login) {
+            throw Object.assign(new Error('코치 로그인이 필요해요.'), { status: 403 });
+          }
+        };
+        button.disabled = true;
+        try {
+          requireCoach();
+          const { openCoachQuickRegistration } = await import('/fit-coach-quick-register.mjs?v=20261125-1');
+          requireCoach();
+          openCoachQuickRegistration({
+            open: openModal,
+            async members(date) {
+              requireCoach();
+              return postRecords({ action: 'listMembersFast', date, password: state.trainerPassword });
+            },
+            async read(member, date) {
+              requireCoach();
+              return readAppsDailyRecord({ member, date, password: state.trainerPassword });
+            },
+            async write(member, date, routines) {
+              requireCoach();
+              return writeAppsRecord({ data: { routines }, baselineRoutineIds: [] }, member, date, { password: state.trainerPassword });
+            },
+            validVideo: normalizeVideoMime,
+            async upload(file, member, exercise, upload) {
+              requireCoach();
+              if (videoUploadInFlight) throw new Error('다른 영상 전송이 끝난 뒤 다시 시도해 주세요.');
+              videoUploadInFlight = true;
+              uploadsInProgress++;
+              try {
+                return await uploadDirectVideoFile(file, member, '', exercise, (percentage) => {
+                  upload.onStage('영상 전송 중', percentage);
+                }, upload);
+              } finally {
+                videoUploadInFlight = false;
+                uploadsInProgress--;
+              }
+            },
+            onSaved(date) {
+              if (date === state.selectedDate && state.appMode === 'coach' && coachLoginVersion === login) {
+                void refreshCoachOverview();
+              }
+            }
+          });
+        } catch (error) {
+          showToast(error?.status === 403 ? '코치 로그인이 필요해요.' : '빠른 등록 화면을 열지 못했어요. 다시 시도해 주세요.');
+        } finally {
+          button.disabled = false;
+        }
+      });
       document.querySelectorAll('.c-filter-btn').forEach(b => {
         b.addEventListener('click', () => {
           state.coachFilter = b.dataset.cfilter;

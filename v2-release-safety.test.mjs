@@ -1104,3 +1104,42 @@ test('quick registration accepts informal Korean set notation safely', async () 
   assert.throws(() => parse('테스트회원 숄더프레스 15kg 15회 4.5세트'));
   assert.throws(() => parseWorkout('테스트회원 스쿼트 40 10 3', now, ['테스트회원', '테 스트 회원']), /같은 회원/);
 });
+
+
+test('video upload reuses preparation started before save and reports transfer size', async () => {
+  const start = source.indexOf('async function uploadDirectVideoFile(');
+  const end = source.indexOf('function applyCachedMemberData', start);
+  assert.ok(start >= 0 && end > start);
+  const calls = [];
+  const original = { size: 4_200_000, name: 'test.mov', type: 'video/quicktime' };
+  const prepared = { size: 2_100_000, name: 'test.mp4', type: 'video/mp4' };
+  let time = 0;
+  const upload = vm.runInNewContext(source.slice(start, end) + '\n uploadDirectVideoFile', {
+    performance: { now: () => ++time },
+    state: { trainerPassword: 'coach-cookie' },
+    normalizeVideoMime: (file) => file.type,
+    makeUuidV4: () => 'test-video',
+    MAX_VIDEO_UPLOAD_BYTES: 100_000_000,
+    videoSizeLabel: String,
+    prepareDirectVideo() { assert.fail('prepared video must not be encoded a second time'); },
+    async postRecords(request) {
+      calls.push(request.action);
+      if (request.action === 'directVideoBegin') {
+        assert.equal(request.size, prepared.size);
+        return { status: 'success', url: 'https://example.test/put', storage: 'r2', partBytes: 6 * 1024 * 1024 };
+      }
+      return { status: 'success' };
+    },
+    async xhrVideoTransfer(url, file) {
+      assert.equal(file, prepared);
+      calls.push('transfer');
+      return { ok: true };
+    }
+  });
+  const job = { date: '2026-11-25', prepared: Promise.resolve({ file: prepared }) };
+  assert.equal(await upload(original, '테스트회원', '', '스쿼트', undefined, job), 'direct:test-video');
+  assert.deepEqual(calls, ['directVideoBegin', 'transfer', 'directVideoFinish']);
+  assert.equal(job.timing.originalBytes, original.size);
+  assert.equal(job.timing.sentBytes, prepared.size);
+  assert.ok(job.timing.transfer > 0);
+});

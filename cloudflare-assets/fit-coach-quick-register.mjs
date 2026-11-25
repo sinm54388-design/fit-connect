@@ -149,9 +149,9 @@ function storedRoutines(record) {
 }
 
 export async function saveCoachSession(lesson, file, upload, api) {
-  const { ids, plan, videoId, index } = await sessionIds(lesson);
   const { member, date } = lesson;
-  const before = storedRoutines(await api.read(member, date));
+  const [{ ids, plan, videoId, index }, record] = await Promise.all([sessionIds(lesson), api.read(member, date)]);
+  const before = storedRoutines(record);
   const known = new Map(before.map((routine) => [String(routine.id), routine]));
   const newItems = plan.flatMap(({ name, sets }, order) => known.has(String(ids[order])) ? [] : [{
     id: ids[order], routineType: 'pt', name, weight: sets[0].weight, reps: sets[0].reps,
@@ -219,7 +219,7 @@ export function openCoachQuickRegistration(api) {
   const announceError = (error) => {
     setStatus(error?.status === 403 ? '코치 로그인이 만료됐어요. FIT-CONNECT에서 다시 로그인해 주세요.' : error.message || '잠시 후 다시 시도해 주세요.');
   };
-  let draft, memberList, busy = false;
+  let draft, memberList, preparation, busy = false;
   function lock(locked) {
     busy = locked;
     [input, fileInput, selector, review, save].forEach((control) => { control.disabled = locked; });
@@ -241,7 +241,20 @@ export function openCoachQuickRegistration(api) {
     label.classList.toggle('hidden', parsed.exercises.length === 1 && !parsed.videoExercise);
   }
   input.addEventListener('input', () => { clearReview(); updateTarget(); });
-  fileInput.addEventListener('change', () => { clearReview(); updateTarget(); });
+  fileInput.addEventListener('change', () => {
+    clearReview();
+    updateTarget();
+    preparation?.controller.abort();
+    preparation = null;
+    const file = fileInput.files[0];
+    if (!file?.size || file.size > 100_000_000 || !api.validVideo(file) || !api.prepare) return;
+    const controller = new AbortController();
+    const job = { file, controller, report: null };
+    job.promise = api.prepare(file, controller.signal, (stage, percent) => {
+      job.report?.(stage, percent);
+    }).catch(() => ({ file }));
+    preparation = job;
+  });
   selector.addEventListener('change', clearReview);
   function renderReview(lesson, file) {
     const details = [lesson.member + ' · ' + lesson.date];
@@ -280,7 +293,9 @@ export function openCoachQuickRegistration(api) {
       } else if (lesson.videoExercise) {
         throw new Error('연결할 운동 영상을 첨부해 주세요.');
       }
-      draft = { lesson, file, upload: { onStage: (name, percentage) => setStatus(name + (percentage ? ' · ' + percentage + '%' : '')) } };
+      const prepared = preparation?.file === file ? preparation : null;
+      const onStage = (name, percentage) => setStatus(name + (percentage ? ' · ' + percentage + '%' : ''));
+      draft = { lesson, file, prepared, upload: { onStage, ...(prepared ? { prepared: prepared.promise } : {}) } };
       renderReview(lesson, file);
       setStatus('');
     } catch (error) { announceError(error); }
@@ -291,13 +306,23 @@ export function openCoachQuickRegistration(api) {
     lock(true);
     setStatus('일지에 등록하고 있어요.');
     try {
-      const { lesson, file, upload } = draft;
+      const { lesson, file, upload, prepared } = draft;
+      const started = performance.now();
+      if (prepared) prepared.report = upload.onStage;
       const result = await saveCoachSession(lesson, file, upload, api);
-      setStatus(result.alreadySaved ? '이미 등록된 수업이에요.' : lesson.member + ' 회원의 일지에 등록했어요.');
+      const transferred = upload.timing?.transfer;
+      const duration = (milliseconds) => (milliseconds / 1000).toFixed(1) + '초';
+      const timing = Number.isFinite(transferred)
+        ? ' 영상 ' + (upload.timing.sentBytes / 1_000_000).toFixed(1) + 'MB 전송 ' + duration(transferred) + ' · 등록까지 ' + duration(performance.now() - started)
+        : '';
+      setStatus((result.alreadySaved ? '이미 등록된 수업이에요.' : lesson.member + ' 회원의 일지에 등록했어요.') + timing);
       save.classList.add('hidden');
       draft = null;
       api.onSaved(lesson.date);
     } catch (error) { announceError(error); }
-    finally { lock(false); }
+    finally {
+      if (preparation) preparation.report = null;
+      lock(false);
+    }
   });
 }

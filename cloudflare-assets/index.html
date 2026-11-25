@@ -1418,7 +1418,7 @@
       return recentUploadRate && performance.now() - recentUploadRate.at < 180_000 ? recentUploadRate.rate : 0;
     }
 
-    async function prepareDirectVideo(file, report, timing) {
+    async function prepareDirectVideo(file, report, timing, signal) {
       if (file.size < 12_000_000 || !normalizeVideoMime(file).startsWith('video/')) return file;
       const original = reason => {
         timing.optimization = reason;
@@ -1426,6 +1426,7 @@
       };
       if (typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') return original('browser');
 
+      if (signal?.aborted) return original('cancelled');
       const rate = lastUploadRate();
       const started = performance.now();
       const controller = new AbortController();
@@ -1443,6 +1444,8 @@
         };
         timer = setTimeout(() => stop('timeout'), initialBudget);
       });
+      const cancel = () => stop('cancelled');
+      signal?.addEventListener('abort', cancel, { once: true });
       const onEstimate = estimatedBytes => {
         if (controller.signal.aborted) return;
         clearTimeout(timer);
@@ -1464,6 +1467,7 @@
         return original('error');
       } finally {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', cancel);
       }
     }
 
@@ -1480,12 +1484,19 @@
           : Promise.resolve({ token: memberToken });
       const timing = upload.timing ||= {};
       const report = upload.onStage || (() => {});
-      const [auth, prepared] = await Promise.all([authPromise, upload.file || prepareDirectVideo(file, report, timing)]);
+      if (file.size > 6 * 1024 * 1024) void import('/fit-video-transfer.mjs?v=3').catch(() => {});
+      const preparation = upload.file || (upload.prepared ? upload.prepared.then(result => {
+        timing.optimization = result.optimization;
+        return result.file;
+      }) : prepareDirectVideo(file, report, timing));
+      const [auth, prepared] = await Promise.all([authPromise, preparation]);
       if (prepared.size > MAX_VIDEO_UPLOAD_BYTES) {
         throw new Error('영상은 100MB까지 올릴 수 있어요. 영상을 짧게 잘라 다시 선택해 주세요.');
       }
       upload.file = prepared;
       const sendFile = upload.file;
+      timing.originalBytes = file.size;
+      timing.sentBytes = sendFile.size;
       const mime = normalizeVideoMime(sendFile);
       upload.id ||= makeUuidV4();
       const payload = {
@@ -1520,7 +1531,7 @@
           sent = true;
         } else if (!upload.usePut && canResume) {
           try {
-            const { sendResumableVideo } = await import('/fit-video-transfer.mjs?v=1');
+            const { sendResumableVideo } = await import('/fit-video-transfer.mjs?v=3');
             sent = await sendResumableVideo(sendFile, mime, begin, upload, xhrVideoTransfer, onProgress, report);
           } catch (error) {
             // Once Storage has given us a resumable URL, retain it on failure.
@@ -7485,7 +7496,7 @@
         button.disabled = true;
         try {
           requireCoach();
-          const { openCoachQuickRegistration } = await import('/fit-coach-quick-register.mjs?v=20261125-2');
+          const { openCoachQuickRegistration } = await import('/fit-coach-quick-register.mjs?v=20261125-3');
           requireCoach();
           openCoachQuickRegistration({
             open: openModal,
@@ -7502,13 +7513,21 @@
               return writeAppsRecord({ data: { routines }, baselineRoutineIds: [] }, member, date, { password: state.trainerPassword });
             },
             validVideo: normalizeVideoMime,
+            async prepare(file, signal, report) {
+              requireCoach();
+              const timing = {};
+              if (file.size > 6 * 1024 * 1024) void import('/fit-video-transfer.mjs?v=3').catch(() => {});
+              const prepared = await prepareDirectVideo(file, report, timing, signal);
+              return { file: prepared, optimization: timing.optimization };
+            },
             async upload(file, member, exercise, upload) {
               requireCoach();
               if (videoUploadInFlight) throw new Error('다른 영상 전송이 끝난 뒤 다시 시도해 주세요.');
               videoUploadInFlight = true;
               try {
-                return await uploadDirectVideoFile(file, member, '', exercise, (percentage) => {
-                  upload.onStage('영상 전송 중', percentage);
+                return await uploadDirectVideoFile(file, member, '', exercise, (percentage, loaded, total) => {
+                  const stage = total > 0 ? '영상 전송 중 · ' + videoSizeLabel(loaded) + ' / ' + videoSizeLabel(total) : '영상 전송 중';
+                  upload.onStage(stage, percentage);
                 }, upload);
               } finally {
                 videoUploadInFlight = false;

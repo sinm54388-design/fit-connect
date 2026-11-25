@@ -1077,3 +1077,30 @@ test('quick registration uploads video and releases its lock on failure', async 
   assert.deepEqual(progress, [50]);
   assert.equal(isBusy(), false);
 });
+
+
+test('quick registration accepts informal Korean set notation safely', async () => {
+  const { parseWorkout } = await import('./cloudflare-assets/fit-coach-quick-register.mjs');
+  const now = new Date('2026-11-24T15:10:00Z');
+  const names = ['테스트회원', '테스트회원둘'];
+  const parse = (text) => parseWorkout(text, now, names);
+  const base = parse('테스트회원 오늘 수업. 숄더 프레스 15kg 15회 4세트');
+  for (const line of [
+    '테스트회원 숄더 프레스 15키로 15번 4셋',
+    '테 스트 회원 숄더 프레스 15 15 4',
+    '테스트회원님 숄더 프레스 15x15x4'
+  ]) {
+    const workout = parse(line);
+    assert.equal(workout.member, base.member);
+    assert.equal(workout.date, base.date);
+    assert.deepEqual(workout.exercises, base.exercises);
+  }
+  assert.equal(parse('어제, 테스트회원둘 숄더프레스 15 15 4').member, '테스트회원둘');
+  assert.equal(parse('테스트회원 11/18 푸시업 맨몸 12 3').date, '2026-11-18');
+  assert.equal(parse('테스트회원 숄더프레스 15회 4세트').exercises[0].sets[0].weightMissing, true);
+  assert.equal(parse('테스트회원 숄더 프레스 15kg 15회 4세트, 영상은 숄더프레스').videoExercise, '숄더 프레스');
+  assert.throws(() => parse('다른회원 숄더프레스 15 15 4'), /회원 이름/);
+  assert.throws(() => parse('테스트회원 숄더프레스 -15kg 15회 4세트'));
+  assert.throws(() => parse('테스트회원 숄더프레스 15kg 15회 4.5세트'));
+  assert.throws(() => parseWorkout('테스트회원 스쿼트 40 10 3', now, ['테스트회원', '테 스트 회원']), /같은 회원/);
+});

@@ -1049,3 +1049,31 @@ test('coach video management fetches ten videos from the selected day in Korea t
   assert.equal(legacy.videos.length, 2);
   assert.equal(calls[2].has('created_at'), false);
 });
+
+
+test('quick registration uploads video and releases its lock on failure', async () => {
+  const start = source.indexOf('async upload(file, member, exercise, upload) {');
+  const end = source.indexOf('onSaved(date)', start);
+  assert.ok(start >= 0 && end > start);
+  let attempts = 0;
+  const { upload, isBusy } = vm.runInNewContext(`
+    let videoUploadInFlight = false;
+    const requireCoach = () => {};
+    const adapter = { ${source.slice(start, end)} };
+    ({ upload: adapter.upload, isBusy: () => videoUploadInFlight });
+  `, {
+    async uploadDirectVideoFile(file, member, token, exercise, progress) {
+      attempts++;
+      if (attempts === 1) throw new Error('network failure');
+      progress(50);
+      return 'direct:test';
+    }
+  });
+  const progress = [];
+  const options = { onStage: (label, percent) => progress.push(percent) };
+  await assert.rejects(upload({}, '테스트회원', '숄더 프레스', options), /network failure/);
+  assert.equal(isBusy(), false);
+  assert.equal(await upload({}, '테스트회원', '숄더 프레스', options), 'direct:test');
+  assert.deepEqual(progress, [50]);
+  assert.equal(isBusy(), false);
+});

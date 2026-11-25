@@ -7506,14 +7506,12 @@
               requireCoach();
               if (videoUploadInFlight) throw new Error('다른 영상 전송이 끝난 뒤 다시 시도해 주세요.');
               videoUploadInFlight = true;
-              uploadsInProgress++;
               try {
                 return await uploadDirectVideoFile(file, member, '', exercise, (percentage) => {
                   upload.onStage('영상 전송 중', percentage);
                 }, upload);
               } finally {
                 videoUploadInFlight = false;
-                uploadsInProgress--;
               }
             },
             onSaved(date) {

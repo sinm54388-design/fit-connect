@@ -6919,6 +6919,15 @@
               <p class="text-[10px] text-white/65">미답변 기준은 선택한 날짜의 식단·운동 기록과 아직 피드백 없는 영상입니다.</p>
             </section>
 
+            ${state.isLive && state.trainerPassword ? `
+              <a id="coach-quick-registration" href="https://fit-connect-coach-import.tangycheetah.chatgpt.site/"
+                target="_blank" rel="noopener noreferrer"
+                class="tap-scale flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm text-[#1E3A8A]">
+                <span class="text-[14px] font-extrabold">수업 일지 빠른 등록</span>
+                <span class="text-[11px] font-bold text-[#475569]">열기</span>
+              </a>
+            ` : ''}
+
             <div class="space-y-2.5">
               ${sorted.length ? sorted.map(m => {
                 const pending = isPending(m);

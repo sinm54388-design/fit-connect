@@ -6,7 +6,13 @@
     "directory": "./cloudflare-assets",
     "binding": "ASSETS",
     "run_worker_first": [
-      "/api/*"
+      "/api/*",
+      "/",
+      "/index",
+      "/index.html",
+      "/v2",
+      "/v2.html",
+      "/member-manifest.webmanifest"
     ]
   },
   "r2_buckets": [

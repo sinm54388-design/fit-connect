@@ -200,7 +200,7 @@
     content.append(tabs,articles);
     try {
       const response=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
-        body:JSON.stringify({...apiCredentials(),action:'columnList'})});
+        body:JSON.stringify({...apiCredentials(),action:'columnList',date:getSaveContext().date})});
       const result=await response.json();
       if(!dialog.open)return;
       if(result.status!=='success')throw Error('columnList');

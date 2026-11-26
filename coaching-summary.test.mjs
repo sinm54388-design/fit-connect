@@ -35,9 +35,9 @@ assert.equal(overview.members[0].directPendingVideos,1);
 assert.equal(overview.members[1].directPendingVideos,1);
 assert.equal(overview.members[1].activeToday,false);
 
-const denied=await mod.namespace.default.fetch(new Request('https://example.test/api/records',{method:'POST',body:JSON.stringify({action:'memberInsights',member:'회원A',date:'2026-11-18'})}),{});
+const denied=await mod.namespace.default.fetch(new Request('https://example.test/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'memberInsights',member:'회원A',date:'2026-11-18'})}),{});
 assert.equal(denied.status,403);
-const wrongSession=await mod.namespace.default.fetch(new Request('https://example.test/api/records',{method:'POST',body:JSON.stringify({action:'memberInsights',member:'회원A',date:'2026-11-18',session:'invalid'})}),{MEMBER_SESSION_SECRET:'x'.repeat(40)});
+const wrongSession=await mod.namespace.default.fetch(new Request('https://example.test/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'memberInsights',member:'회원A',date:'2026-11-18',session:'invalid'})}),{MEMBER_SESSION_SECRET:'x'.repeat(40)});
 assert.equal(wrongSession.status,403);
 const html=fs.readFileSync(new URL('./cloudflare-assets/index.html',import.meta.url),'utf8');
 let scripts=0;for(const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)){if(match[1].trim()){new vm.Script(match[1]);scripts++;}}

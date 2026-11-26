@@ -7,25 +7,46 @@
   <meta name="theme-color" content="#0B132B" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="FIT-CONNECT" />
-  <link id="fit-manifest" rel="manifest" href="/manifest.webmanifest" />
   <script>
-    // Install a member-specific home screen shortcut, not the anonymous root.
-    // Keep this early in <head> so the install prompt uses the member URL.
     (() => {
-      const p = new URLSearchParams(location.search);
-      const name = p.get('name') || p.get('member');
-      const token = p.get('token');
-      if (name && token) {
-        const q = new URLSearchParams({ name, token });
-        document.getElementById('fit-manifest').href = '/member-manifest.webmanifest?' + q;
+      const url = new URL(location.href);
+      const fragment = new URLSearchParams(url.hash.slice(1));
+      const fromFragment = fragment.has('token');
+      const credentials = fromFragment ? fragment : url.searchParams;
+      const name = (credentials.get('name') || credentials.get('member') ||
+        fragment.get('name') || fragment.get('member') || '').trim();
+      const token = (credentials.get('token') || '').trim();
+      window.fitMemberLink = { name, token };
+
+      if (fromFragment || url.searchParams.has('token')) {
+        // Allow an immediate refresh in this tab while the server verifies the link.
+        if (name && name.length <= 100 && token && token.length <= 200) {
+          try { sessionStorage.setItem('fit_tab_member_access_v1', JSON.stringify({ name, token })); } catch {}
+        }
+        for (const key of ['name', 'member', 'token']) {
+          url.searchParams.delete(key);
+          fragment.delete(key);
+        }
+        if (name) fragment.set('name', name);
+        url.hash = fragment.toString();
+        try { history.replaceState(history.state, '', url); } catch {}
       }
+      window.addEventListener('hashchange', () => {
+        if (new URLSearchParams(location.hash.slice(1)).has('token')) location.reload();
+      });
+
+      // Keep the optional font download off the first paint path.
+      document.addEventListener('load', event => {
+        if (event.target?.id === 'fit-font') event.target.media = 'all';
+      }, true);
     })();
   </script>
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/fit-icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon.png?v=20261123" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" href="/v2.tailwind.css?v=20261123-stability" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" media="print" onload="this.media='all'" />
+  <link id="fit-font" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" media="print" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" /></noscript>
   <style>
     body {
@@ -214,7 +235,9 @@
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/`/g, '&#96;');
     }
 
     const COACH_QUICK_REPLIES = [
@@ -939,10 +962,17 @@
 
     // --- URL Params ---
     const urlParams = new URLSearchParams(window.location.search);
-    let paramName = (urlParams.get('name') || urlParams.get('member') || '').trim();
-    let paramToken = (urlParams.get('token') || '').trim();
-    // An already installed iOS shortcut may launch "/" without query params.
-    // Restore only a previously authenticated member in this app's own storage.
+    const link = window.fitMemberLink;
+    delete window.fitMemberLink;
+    let paramName = link?.name ?? (urlParams.get('name') || urlParams.get('member') || '').trim();
+    let paramToken = link?.token ?? (urlParams.get('token') || '').trim();
+    if (!paramToken && paramName) {
+      try {
+        const tab = JSON.parse(sessionStorage.getItem('fit_tab_member_access_v1') || 'null');
+        if (tab?.name === paramName && typeof tab.token === 'string') paramToken = tab.token;
+      } catch {}
+    }
+    // A home-screen shortcut may launch "/" with just the app's saved identity.
     if (!paramToken) {
       try {
         const last = JSON.parse(localStorage.getItem('fit_last_member_access_v1') || 'null');
@@ -1690,18 +1720,6 @@
           if (restored) return;
         }
       }
-      if (state.memberName && state.token) {
-        try {
-          localStorage.setItem('fit_last_member_access_v1', JSON.stringify({
-            name: state.memberName, token: state.token
-          }));
-        } catch {}
-        try {
-          const map = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
-          map[state.memberName] = state.token;
-          localStorage.setItem('fit_member_tokens_v2', JSON.stringify(map));
-        } catch {}
-      }
       loadLocalMemberExtras();
       if (!isLiveOrigin || !state.memberName || !state.token) {
         // Do not show a fake member/demo record when the installed shortcut
@@ -1815,6 +1833,12 @@
       state.loading = false;
       if (!recObj) {
         const denied = [401, 403].includes(dailyRec.reason?.status);
+        if (denied) {
+          try {
+            const tab = JSON.parse(sessionStorage.getItem('fit_tab_member_access_v1') || 'null');
+            if (tab?.name === member && tab.token === token) sessionStorage.removeItem('fit_tab_member_access_v1');
+          } catch {}
+        }
         const cached = !denied && Boolean(state.session) && applyCachedMemberData(dateStr);
         if (!cached) {
           state.record = emptyDailyRecord();
@@ -1826,6 +1850,9 @@
         return;
       }
       state.dayReadError = null;
+      try {
+        localStorage.setItem('fit_last_member_access_v1', JSON.stringify({ name: member, token }));
+      } catch {}
       const baseDaily = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos) ? asObj : recObj;
       const chosenDaily = {
         ...baseDaily,
@@ -1870,7 +1897,7 @@
         const auth = { ...payload, session: state.session };
         if (!memberColumnsRequest || memberColumnsRequest.member !== member) {
           const columns = { member };
-          columns.promise = postRecords({ ...auth, action: 'columnList' }).catch(error => {
+          columns.promise = postRecords({ ...auth, action: 'columnList', date: dateStr }).catch(error => {
             if (memberColumnsRequest === columns) memberColumnsRequest = null;
             throw error;
           });
@@ -4043,7 +4070,7 @@
       if (ytMatch) {
         return `
           <div class="rounded-[20px] overflow-hidden bg-black aspect-video shadow-sm">
-            <iframe src="https://www.youtube.com/embed/${ytMatch[1]}?playsinline=1&rel=0" class="w-full h-full" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            <iframe src="https://www.youtube.com/embed/${ytMatch[1]}?playsinline=1&rel=0" class="w-full h-full" frameborder="0" referrerpolicy="origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
           </div>
         `;
       }
@@ -4153,7 +4180,7 @@
             <h4 class="text-[22px] font-extrabold mt-2">${escapeHtml(pr.name)}</h4>
             <p class="text-[32px] font-extrabold tabular-nums text-[#60A5FA]">${pr.current}kg</p>
             <p class="text-[13px] text-white/85">지난주 ${pr.previous}kg 대비 <strong>+${pr.current - pr.previous}kg</strong> 성장!</p>
-            <p class="text-[11px] text-white/60 pt-2">FIT-CONNECT · ${state.memberName} · ${state.selectedDate}</p>
+            <p class="text-[11px] text-white/60 pt-2">FIT-CONNECT · ${escapeHtml(state.memberName)} · ${state.selectedDate}</p>
           </div>
           <button type="button" id="btn-copy-pr" class="tap-scale w-full py-3.5 rounded-2xl card-teal text-white text-[14px] font-bold">
             기록 텍스트 복사해서 공유하기
@@ -4526,16 +4553,20 @@
       };
     }
 
+    function memberLinkUrl(base, member, token, date) {
+      const url = new URL(base);
+      if (date) url.searchParams.set('date', date);
+      url.hash = new URLSearchParams({ name: member, token }).toString();
+      return url.toString();
+    }
+
     function extractTokenValue(raw) {
-      const s = String(raw || '').trim();
-      if (!s) return '';
+      const value = String(raw || '').trim();
+      if (!value.includes('token=')) return value;
       try {
-        if (s.includes('token=')) {
-          const u = new URL(s.startsWith('http') ? s : 'https://x.com/?' + s.split('?').pop());
-          return (u.searchParams.get('token') || '').trim();
-        }
-      } catch {}
-      return s;
+        const url = new URL(/^(https?:|[/?#])/i.test(value) ? value : '?' + value, window.location.origin);
+        return (new URLSearchParams(url.hash.slice(1)).get('token') || url.searchParams.get('token') || '').trim();
+      } catch { return ''; }
     }
 
     function saveMemberTokenLocal(memberName, tokenVal) {
@@ -4592,10 +4623,7 @@
         return;
       }
       if (tok) {
-        const u = new URL(base);
-        u.searchParams.set('name', memberName);
-        u.searchParams.set('token', tok);
-        copyTextSafe(u.toString());
+        copyTextSafe(memberLinkUrl(base, memberName, tok));
         showToast(`${memberName} 회원님 전용 링크 복사 완료! ✓`);
         return;
       }
@@ -4626,10 +4654,7 @@
           button.disabled = false;
         }
         saveMemberTokenLocal(memberName, parsedTok);
-        const u = new URL(base);
-        u.searchParams.set('name', memberName);
-        u.searchParams.set('token', parsedTok);
-        copyTextSafe(u.toString());
+        copyTextSafe(memberLinkUrl(base, memberName, parsedTok));
         closeModal();
         showToast(`${memberName}님 전용 링크가 저장·복사되었어요!`);
       });
@@ -5124,12 +5149,8 @@
               showToast('회원 전용 링크를 확인할 수 없어요. 링크 버튼에서 먼저 연결해 주세요.');
               return;
             }
-            const url = new URL(window.location.origin + '/');
-            url.searchParams.set('name', memberName);
-            url.searchParams.set('token', token);
-            url.searchParams.set('date', detailDate);
             // A full navigation also removes any in-memory coach state.
-            window.location.assign(url.toString());
+            window.location.assign(memberLinkUrl(window.location.origin + '/', memberName, token, detailDate));
           } catch (error) {
             showToast('회원 화면을 열지 못했어요. 다시 시도해 주세요.');
           } finally {
@@ -5796,10 +5817,7 @@
         triggerConfetti();
         if (issuedTok) {
           const base = isLiveOrigin ? (window.location.origin + window.location.pathname) : 'https://fit-connect.sinm54388.workers.dev/';
-          const u = new URL(base);
-          u.searchParams.set('name', mName);
-          u.searchParams.set('token', issuedTok);
-          copyTextSafe(u.toString());
+          copyTextSafe(memberLinkUrl(base, mName, issuedTok));
           showToast(`${mName} 회원 등록 완료! 전용 링크가 복사되었어요 ✓`);
         } else {
           showToast(`${mName} 회원님이 등록되었어요!`);

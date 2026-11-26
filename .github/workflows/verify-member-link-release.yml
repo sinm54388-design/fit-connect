@@ -1,0 +1,31 @@
+name: Verify FIT-CONNECT member link rollout
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify live Worker and app UI
+        shell: bash
+        run: |
+          set -eu
+          origin=https://fit-connect.sinm54388.workers.dev
+          for attempt in $(seq 1 42); do
+            if curl --silent --show-error --fail --max-time 7 --output app.html "$origin/?check=member-links-$attempt" &&
+               grep --quiet 'id="cd-reissue-link"' app.html &&
+               status=$(curl --silent --show-error --max-time 7 --output response.json --write-out '%{http_code}' \
+                 --header 'Content-Type: application/json' \
+                 --data '{"action":"memberLinkRotate","name":"Release fixture","date":"2026-11-27"}' "$origin/api/records") &&
+               test "$status" = 403 &&
+               jq --exit-status '.code == "unauthorized"' response.json >/dev/null; then
+              echo 'Live FIT-CONNECT includes the reissue button and rejects unauthenticated link changes.'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Could not verify rollout on the public Worker.'
+          exit 1

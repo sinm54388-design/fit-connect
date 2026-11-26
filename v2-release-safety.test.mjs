@@ -1195,3 +1195,78 @@ test('video upload reuses preparation started before save and reports transfer s
   assert.equal(job.timing.sentBytes, prepared.size);
   assert.ok(job.timing.transfer > 0);
 });
+
+
+test('reissued member links expire and replace both the previous token and its sessions', async () => {
+  const name = 'Fixture member';
+  const oldToken = 'fixture-old-link';
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(oldToken)));
+  const account = { id: 'fixture-id', is_archived: false, worker_link_generation: null, worker_link_expires_at: null,
+    worker_link_sha256: Array.from(digest, value => value.toString(16).padStart(2, '0')).join('') };
+  let writes = 0;
+  const db = async (url, options) => {
+    const parsed = new URL(url);
+    assert.equal(parsed.hostname, 'link-fixture.supabase.co');
+    if (parsed.pathname.endsWith('/fit_members')) {
+      if (options.method === 'PATCH') {
+        const patch = JSON.parse(options.body);
+        assert.equal(parsed.searchParams.get('is_archived'), 'eq.false');
+        assert.equal(parsed.searchParams.get('worker_link_generation'),
+          account.worker_link_generation ? 'eq.' + account.worker_link_generation : 'is.null');
+        assert.equal(patch.access_token_hash, null);
+        assert.ok(Date.parse(patch.worker_link_expires_at) > Date.now());
+        writes++;
+        Object.assign(account, patch);
+        return Response.json([account]);
+      }
+      return Response.json(parsed.searchParams.get('name') === 'eq.' + name ? [account] : []);
+    }
+    if (parsed.pathname.endsWith('/fit_columns')) return Response.json([]);
+    assert.fail('Unexpected database route ' + parsed.pathname);
+  };
+  const mod = new vm.SourceTextModule(workerSource, {
+    context: vm.createContext({ fetch: db, URL, Response, Request, Headers, TextEncoder, TextDecoder, AbortSignal,
+      performance, crypto, btoa, atob })
+  });
+  await mod.link(() => {});
+  await mod.evaluate();
+  const origin = 'https://fit-fixture.test';
+  const env = { SUPABASE_URL: 'https://link-fixture.supabase.co', SUPABASE_SECRET_KEY: 'fixture',
+    MEMBER_SESSION_SECRET: 'fixture-member-link-secret-for-testing-only', TRAINER_PASSWORD: 'coach-fixture' };
+  const send = (path, payload, cookie) => mod.namespace.default.fetch(new Request(origin + '/api/' + path, {
+    method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
+    body: JSON.stringify({ date, ...payload })
+  }), env);
+  const authenticate = token => send('records', { action: 'memberSession', member: name, token });
+  const initial = await authenticate(oldToken);
+  assert.equal(initial.status, 200);
+  const oldSession = (await initial.json()).session;
+  const denied = await send('records', { action: 'memberLinkRotate', name, member: name, session: oldSession });
+  assert.equal(denied.status, 403);
+  assert.equal(writes, 0);
+  const login = await send('records', { action: 'verify', password: 'coach-fixture' });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const rotated = await send('records', { action: 'memberLinkRotate', name }, cookie);
+  assert.equal(rotated.status, 200);
+  const current = await rotated.json();
+  assert.equal(writes, 1);
+  assert.match(current.token, /^fc2_/);
+  assert.notEqual(current.token, oldToken);
+  assert.equal((await authenticate(oldToken)).status, 403);
+  assert.equal((await send('apps-script', { action: 'read', member: name, token: oldToken })).status, 403);
+  assert.equal((await send('records', { action: 'columnList', member: name, session: oldSession })).status, 403);
+  const restored = await send('apps-script', { action: 'getMemberLink', name }, cookie);
+  assert.equal((await restored.json()).token, current.token);
+  const renewed = await authenticate(current.token);
+  assert.equal(renewed.status, 200);
+  const activeSession = (await renewed.json()).session;
+  assert.equal((await send('records', { action: 'columnList', member: name, session: activeSession })).status, 200);
+  assert.equal((await send('records', { action: 'columnList', member: 'Different member', session: activeSession })).status, 403);
+  account.worker_link_expires_at = new Date(Date.now() - 1000).toISOString();
+  const expired = await authenticate(current.token);
+  assert.equal(expired.status, 403);
+  assert.equal((await expired.json()).code, 'link_expired');
+  assert.equal((await send('records', { action: 'columnList', member: name, session: activeSession })).status, 403);
+  const expiredLink = await send('apps-script', { action: 'getMemberLink', name }, cookie);
+  assert.deepEqual(await expiredLink.json(), { status: 'success', code: 'link_expired' });
+});

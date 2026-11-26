@@ -1845,7 +1845,7 @@
           state.workoutDays = [];
           state.insights = null;
         }
-        state.dayReadError = { denied, cached };
+        state.dayReadError = { denied, cached, linkExpired: dailyRec.reason?.code === 'link_expired' };
         renderAll();
         return;
       }
@@ -4605,6 +4605,11 @@
       const response = await postAppsScript({
         action: 'getMemberLink', name: memberName, password: state.trainerPassword
       });
+      if (response?.code === 'link_expired') {
+        const error = new Error('회원 링크가 만료됐어요. 회원 상세에서 링크를 재발급해 주세요.');
+        error.code = 'link_expired';
+        throw error;
+      }
       const token = extractTokenValue(response?.token || response?.url || response?.link || '');
       if (response?.status !== 'success' || !token || token === cached ||
           !await verifyMemberLink(memberName, token)) return '';
@@ -4618,8 +4623,8 @@
       let tok;
       try {
         tok = await resolveMemberToken(memberName);
-      } catch {
-        showToast('회원 링크를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      } catch (error) {
+        showToast(error?.code === 'link_expired' ? error.message : '회원 링크를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
         return;
       }
       if (tok) {
@@ -4658,6 +4663,26 @@
         closeModal();
         showToast(`${memberName}님 전용 링크가 저장·복사되었어요!`);
       });
+    }
+
+    async function reissueMemberLink(memberName, button) {
+      if (state.appMode !== 'coach' || !state.isLive || !state.trainerPassword) return;
+      if (!window.confirm(`${memberName} 회원님의 기존 링크를 만료시키고 새 링크를 발급할까요? 새 링크는 90일 동안 사용할 수 있어요.`)) return;
+      button.disabled = true;
+      try {
+        const result = await postRecords({ action: 'memberLinkRotate', name: memberName,
+          date: state.selectedDate, password: state.trainerPassword });
+        if (!result.token) throw new Error('재발급 확인 실패');
+        saveMemberTokenLocal(memberName, result.token);
+        copyTextSafe(memberLinkUrl(window.location.origin + '/', memberName, result.token));
+        showToast('새 링크를 복사했어요. 기존 링크는 만료됐어요.');
+      } catch (error) {
+        showToast(error?.code === 'legacy_member_link'
+          ? '이 회원은 이전 기록 시스템에 연결돼 있어요. 기존 링크를 확인해 주세요.'
+          : '재발급 결과를 확인할 수 없어요. 링크 버튼에서 현재 링크를 먼저 확인해 주세요.');
+      } finally {
+        button.disabled = false;
+      }
     }
 
     let coachOverviewVersion = 0;
@@ -4905,6 +4930,7 @@
                 <button type="button" id="cd-jump-reply" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">답글 쓰기</button>
                 <button type="button" id="cd-preview-member" class="tap-scale px-2 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">👁 보기</button>
                 <button type="button" id="cd-copy-link" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-white text-[11px] font-bold">🔗 링크</button>
+                <button type="button" id="cd-reissue-link" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-white text-[11px] font-bold">링크 재발급</button>
                 <button type="button" id="cd-copy-handover" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-[#5EEAD4] text-[11px] font-bold">인수인계</button>
               </div>
             </div>
@@ -5159,6 +5185,7 @@
         });
 
         document.getElementById('cd-copy-link').addEventListener('click', () => copyMemberLink(memberName));
+        document.getElementById('cd-reissue-link').addEventListener('click', event => reissueMemberLink(memberName, event.currentTarget));
 
         document.getElementById('cd-copy-handover').addEventListener('click', () => {
           copyTextSafe(handoverText);
@@ -5787,6 +5814,8 @@
               action: 'memberRegister', name: mName, linkToken: issuedTok, date: state.selectedDate, password: state.trainerPassword
             });
             if (dbRes?.status !== 'success') throw new Error(dbRes?.code || '회원 DB 등록 실패');
+            issuedTok = dbRes.token || (dbRes.alreadyExists ? issuedTok : '');
+            if (!issuedTok) throw new Error('새 링크 발급을 확인하지 못했어요. 회원 상세에서 링크를 확인해 주세요.');
           } catch (err) {
             showToast('회원 등록 오류: ' + (err?.message || '네트워크 확인'));
             if (btn) { btn.disabled = false; btn.textContent = '회원 등록 및 링크 복사'; }
@@ -7063,10 +7092,10 @@
         const main = document.getElementById('main-content');
         if (!main) throw new Error('main-content missing');
         if (state.appMode === 'member' && !state.loading && state.dayReadError) {
-          const { denied, cached } = state.dayReadError;
+          const { denied, cached, linkExpired } = state.dayReadError;
           main.innerHTML = `
             <section role="status" class="rounded-2xl bg-white p-5 space-y-3">
-              <h2 class="text-base font-extrabold text-[#0F172A]">${denied ? '회원 링크를 확인해 주세요' : '최신 기록을 불러오지 못했어요'}</h2>
+              <h2 class="text-base font-extrabold text-[#0F172A]">${linkExpired ? '회원 링크가 만료됐어요' : denied ? '회원 링크를 확인해 주세요' : '최신 기록을 불러오지 못했어요'}</h2>
               <p class="text-sm text-[#475569]">${denied ? '코치가 보내준 최신 회원 전용 링크로 다시 열어 주세요.'
                 : cached ? '아래는 이 기기에 마지막으로 저장된 기록이에요. 최신 기록이 열리면 수정할 수 있어요.'
                 : '선택한 날짜의 기록을 다시 불러올 수 있어요.'}</p>

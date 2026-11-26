@@ -12,6 +12,8 @@
 // MEMBER_SESSION_HOURS.
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
 const MEMBER_SESSION_HOURS=8;
+const MEMBER_LINK_DAYS=90;
+const MEMBER_LINK_FIELDS='worker_link_sha256,worker_link_generation,worker_link_expires_at';
 const R2_MEDIA_ROUTE='/api/media';
 const R2_MEDIA_PREFIX='r2/';
 const LEGACY_MEDIA_MAX_BYTES=50_000_000;
@@ -177,9 +179,11 @@ async function sessionKey(secret) {
   return crypto.subtle.importKey('raw',new TextEncoder().encode(secret),
     {name:'HMAC',hash:'SHA-256'},false,['sign','verify']);
 }
-async function signMemberSession(secret,member) {
-  const exp=Date.now()+MEMBER_SESSION_HOURS*3600000;
-  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({m:member,exp})));
+async function signMemberSession(secret,member,account) {
+  const generation=account?.worker_link_generation;
+  const sessionExpiry=Date.now()+MEMBER_SESSION_HOURS*3600000;
+  const exp=generation?Math.min(sessionExpiry,Date.parse(account.worker_link_expires_at)):sessionExpiry;
+  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({m:member,exp,...(generation?{generation}:{})})));
   const sig=new Uint8Array(await crypto.subtle.sign('HMAC',await sessionKey(secret),
     new TextEncoder().encode('fit-member-v1.'+payload)));
   return {session:payload+'.'+b64url.encode(sig),exp};
@@ -189,8 +193,28 @@ async function memberLinkDigest(token) {
   const bytes=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)));
   return Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
 }
-async function nativeLinkMatches(member,token) {
+function memberLinkCurrent(account) {
+  return !account?.worker_link_generation || Date.parse(account.worker_link_expires_at)>Date.now();
+}
+async function issuedMemberToken(secret,account) {
+  if(secret.length<32||!account?.id||!account.worker_link_generation)throw Error('member link unavailable');
+  const message=new TextEncoder().encode('fit-member-link-v2.'+account.id+'.'+account.worker_link_generation);
+  const signature=await crypto.subtle.sign('HMAC',await sessionKey(secret),message);
+  return 'fc2_'+b64url.encode(new Uint8Array(signature));
+}
+async function newMemberLinkFields() {
+  const generation=crypto.randomUUID();
+  return {
+    // Replace the previous digest so previous Worker builds also reject the old token.
+    worker_link_sha256:await memberLinkDigest(generation),
+    worker_link_generation:generation,
+    worker_link_expires_at:new Date(Date.now()+MEMBER_LINK_DAYS*86400000).toISOString()
+  };
+}
+async function nativeLinkMatches(member,token,secret) {
   if(typeof token!=='string'||!token||token.length>200)return false;
+  if(member.worker_link_generation)
+    return memberLinkCurrent(member)&&constantTimeEquals(token,await issuedMemberToken(secret,member));
   return constantTimeEquals(await memberLinkDigest(token),member.worker_link_sha256);
 }
 async function workerMemberAccess(env,member,date) {
@@ -207,7 +231,7 @@ async function workerMemberAccess(env,member,date) {
     }
     if(response.status!==404)throw Error('member status unavailable');
   }
-  const response=await fetch(base+'/rest/v1/fit_members?select=id,is_archived,worker_link_sha256&name=eq.'+
+  const response=await fetch(base+'/rest/v1/fit_members?select=id,is_archived,'+MEMBER_LINK_FIELDS+'&name=eq.'+
     encodeURIComponent(member)+'&limit=1',{headers,signal:AbortSignal.timeout(8000)});
   if(!response.ok)throw Error('member status unavailable');
   const [found]=await response.json();
@@ -262,8 +286,8 @@ async function readMemberSession(secret,session) {
       new TextEncoder().encode('fit-member-v1.'+payload));
     if(!ok)return '';
     const data=JSON.parse(new TextDecoder().decode(b64url.decode(payload)));
-    if(typeof data?.m!=='string'||!data.m||typeof data.exp!=='number'||data.exp<Date.now())return '';
-    return data.m;
+    if(typeof data?.m!=='string'||!data.m||!Number.isFinite(data.exp)||data.exp<=Date.now())return '';
+    return data;
   }catch{return '';}
 }
 // The legacy member read also validates the member link.
@@ -625,7 +649,7 @@ async function handleRecords(request,env) {
       await validCoachCookie(request,env))
     input.password=env.TRAINER_PASSWORD;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','coachPtWeek','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','memberRegister','memberArchive','columnList','columnSave','assessmentList','assessmentSave'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','coachPtWeek','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','memberRegister','memberArchive','memberLinkRotate','columnList','columnSave','assessmentList','assessmentSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
   const member=String(input.member||'').trim();
   // Older magazine clients omitted the date. Use today in Korea for legacy link verification.
@@ -639,7 +663,8 @@ async function handleRecords(request,env) {
       const {found}=await workerMemberAccess(env,member);
       if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
       if(found?.worker_link_sha256){
-        if(!await nativeLinkMatches(found,input.token))return json({status:'denied',code:'unauthorized'},403);
+        if(!memberLinkCurrent(found))return json({status:'denied',code:'link_expired'},403);
+        if(!await nativeLinkMatches(found,input.token,sessionSecret))return json({status:'denied',code:'unauthorized'},403);
         nativeAccount=found;
       }else if(!await readAppsScriptMemberDay(member,input.token,date))return json({status:'denied'},403);
     }catch{return json({status:'error',code:'member_access_unavailable'},502);}
@@ -656,7 +681,8 @@ async function handleRecords(request,env) {
         initialAccount=found??null;
         if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
         if(found?.worker_link_sha256){
-          if(!await nativeLinkMatches(found,token))return json({status:'denied',code:'unauthorized'},403);
+          if(!memberLinkCurrent(found))return json({status:'denied',code:'link_expired'},403);
+          if(!await nativeLinkMatches(found,token,sessionSecret))return json({status:'denied',code:'unauthorized'},403);
           nativeAccount=found;
         }else{
           legacyDaily=await readAppsScriptMemberDay(member,token,date);
@@ -667,16 +693,24 @@ async function handleRecords(request,env) {
         includeMemberSession=true;
         action='read';
       }else{
-        const session=await signMemberSession(sessionSecret,member);
+        const session=await signMemberSession(sessionSecret,member,initialAccount);
         return json({status:'success',...session},200,{
           'Server-Timing':'session;dur='+(performance.now()-requestStarted).toFixed(1)
         });
       }
     } else {
       if(!MEMBER_ACTIONS.includes(action))return json({status:'denied',code:'unauthorized'},403);
-      const sessionMember=await readMemberSession(sessionSecret,input.session);
-      if(!sessionMember||sessionMember!==member)
+      const claims=await readMemberSession(sessionSecret,input.session);
+      if(!claims||claims.m!==member)
         return json({status:'denied',code:'session_invalid'},403);
+      try {
+        const {found,snapshot}=await workerMemberAccess(env,member,action==='read'&&validDay(date)?date:undefined);
+        if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
+        if((claims.generation??null)!==(found?.worker_link_generation??null)||!memberLinkCurrent(found))
+          return json({status:'denied',code:'session_invalid'},403);
+        initialAccount=found??null;
+        initialSnapshot=snapshot;
+      }catch{return json({status:'error',code:'member_access_unavailable'},502);}
     }
   } else {
     if(!env.TRAINER_PASSWORD)
@@ -742,16 +776,35 @@ async function handleRecords(request,env) {
          archivedMembers:rows.filter(row=>row.is_archived).map(row=>String(row.name||'').trim()).filter(Boolean)});
     }catch(error){return failed(error);}
   }
-  if(action==='memberRegister'||action==='memberArchive'){
+  if(action==='memberRegister'||action==='memberArchive'||action==='memberLinkRotate'){
     const managedName=String(input.name||'').trim().replace(/\s+/g,' ');
     if(managedName.length<2||managedName.length>30||/[<>\u0000-\u001f]/.test(managedName))
       return json({status:'error',code:'invalid_member_name'},400);
     try{
-      const existing=await supaGet('/rest/v1/fit_members?select=id,is_archived&name=eq.'+
+      const existing=await supaGet('/rest/v1/fit_members?select=id,is_archived,'+MEMBER_LINK_FIELDS+'&name=eq.'+
         encodeURIComponent(managedName)+'&limit=1','member_manage_lookup');
+      if(action==='memberLinkRotate'){
+        if(sessionSecret.length<32)return json({status:'error',code:'missing_runtime_configuration'},503);
+        const account=existing[0];
+        if(!account||account.is_archived)return json({status:'error',code:'member_not_found'},404);
+        if(!account.worker_link_sha256)return json({status:'error',code:'legacy_member_link'},409);
+        const fields=await newMemberLinkFields();
+        const generationFilter=account.worker_link_generation?'eq.'+account.worker_link_generation:'is.null';
+        const rows=await supaWrite('/rest/v1/fit_members?id=eq.'+encodeURIComponent(account.id)+
+          '&is_archived=eq.false&worker_link_generation='+generationFilter,'PATCH',
+          {...fields,access_token_hash:null},'member_link_rotate');
+        if(rows.length!==1)return json({status:'error',code:'link_changed'},409);
+        return json({status:'success',token:await issuedMemberToken(sessionSecret,rows[0]),
+          expiresAt:rows[0].worker_link_expires_at});
+      }
       if(action==='memberRegister'){
         if(existing.length){
-          if(!existing[0].is_archived)return json({status:'success',alreadyExists:true});
+          if(!existing[0].is_archived){
+            const account=existing[0];
+            if(!memberLinkCurrent(account))return json({status:'error',code:'link_expired'},409);
+            const token=account.worker_link_generation?await issuedMemberToken(sessionSecret,account):undefined;
+            return json({status:'success',alreadyExists:true,token,expiresAt:account.worker_link_expires_at});
+          }
           const rows=await supaWrite('/rest/v1/fit_members?id=eq.'+encodeURIComponent(existing[0].id),
             'PATCH',{is_archived:false},'member_reactivate');
           if(!rows?.length)throw Error('reactivation_not_confirmed');
@@ -761,10 +814,15 @@ async function handleRecords(request,env) {
             const token=input.linkToken;
             if(typeof token!=='string'||!token||token.length>200||!await readAppsScriptMemberDay(managedName,token,date))
               return json({status:'denied',code:'invalid_member_link'},403);
-            profile.worker_link_sha256=await memberLinkDigest(token);
+            if(sessionSecret.length<32)return json({status:'error',code:'missing_runtime_configuration'},503);
+            Object.assign(profile,await newMemberLinkFields());
           }
           const rows=await supaWrite('/rest/v1/fit_members','POST',profile,'member_register');
           if(!rows?.length)throw Error('registration_not_confirmed');
+          if(profile.worker_link_generation){
+            return json({status:'success',token:await issuedMemberToken(sessionSecret,rows[0]),
+              expiresAt:rows[0].worker_link_expires_at});
+          }
         }
       }else{
         // Archive, never cascade-delete member history, photos or videos.
@@ -934,7 +992,7 @@ async function handleRecords(request,env) {
         if(!error?.diagnostic?.startsWith('404'))throw error;
       }
     }
-    const managed=initialAccount!==undefined ? initialAccount : snapshot ? snapshot.member : nativeAccount ?? (await supaGet('/rest/v1/fit_members?select=id,is_archived,worker_link_sha256&name=eq.'+
+    const managed=initialAccount!==undefined ? initialAccount : snapshot ? snapshot.member : nativeAccount ?? (await supaGet('/rest/v1/fit_members?select=id,is_archived,'+MEMBER_LINK_FIELDS+'&name=eq.'+
       encodeURIComponent(member)+'&limit=1','member_status'))[0];
     if(managed?.is_archived)return json({status:'denied',code:'member_archived'},403);
     if(action==='coachPtWeek'){
@@ -1262,7 +1320,7 @@ async function handleRecords(request,env) {
     const readTiming=snapshot?.member
       ? 'day_snapshot;dur='+lookupMs.toFixed(1)
       : 'member;dur='+lookupMs.toFixed(1)+', daily;dur='+(performance.now()-start-lookupMs).toFixed(1);
-    const daySession=includeMemberSession?await signMemberSession(sessionSecret,member):null;
+    const daySession=includeMemberSession?await signMemberSession(sessionSecret,member,managed):null;
     return json(daySession?{status:'success',...daySession,daily:result,legacyDaily}:result,200,{
       'Server-Timing':(daySession?'session;dur='+(start-requestStarted).toFixed(1)+', ':'')+readTiming,
       'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
@@ -1282,15 +1340,25 @@ async function handleAppsScriptPost(request,env) {
     if(input.password===undefined && input.token===undefined &&
        await validCoachCookie(request,env))
       input.password=env.TRAINER_PASSWORD;
-    const requestedName=String(input.member||'').trim();
+    const trainer=constantTimeEquals(input.password,env.TRAINER_PASSWORD);
+    const requestedName=String(input.member||input.name||'').trim();
     const dailyAction=input.action||(input.data?'save':'read');
     const dailyActions=['read','save','patchData','setProgressBatch'];
-    if(requestedName&&(dailyActions.includes(dailyAction)||input.password===undefined)){
+    const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
+    if(dailyAction==='getMemberLink'&&trainer&&requestedName){
+      const {found}=await workerMemberAccess(env,requestedName);
+      if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
+      if(found?.worker_link_generation){
+        if(!memberLinkCurrent(found))return json({status:'success',code:'link_expired'});
+        return json({status:'success',token:await issuedMemberToken(sessionSecret,found),expiresAt:found.worker_link_expires_at});
+      }
+    }
+    if(requestedName&&(dailyActions.includes(dailyAction)||!trainer)){
       const {found,base,headers}=await workerMemberAccess(env,requestedName);
       if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
       if(found?.worker_link_sha256&&dailyActions.includes(dailyAction)){
-        const trainer=constantTimeEquals(input.password,env.TRAINER_PASSWORD);
-        if(!trainer&&!await nativeLinkMatches(found,input.token))
+        if(!trainer&&!memberLinkCurrent(found))return json({status:'denied',code:'link_expired'},403);
+        if(!trainer&&!await nativeLinkMatches(found,input.token,sessionSecret))
           return json({status:'denied',code:'unauthorized'},403);
         if(!validDay(input.date))return json({status:'error',code:'invalid_query'},400);
         if(dailyAction==='read'){
@@ -1308,6 +1376,22 @@ async function handleAppsScriptPost(request,env) {
         });
         if(!saved.ok)return json({status:'error',code:'daily_save_failed'},502);
         return json({status:'success'});
+      }
+      if(found?.worker_link_generation&&!trainer){
+        if(dailyAction!=='videoDownload'||!validDay(input.date)||
+            !await nativeLinkMatches(found,input.token,sessionSecret))
+          return json({status:'denied',code:'unauthorized'},403);
+        // Scope access to an unmigrated video using the member's upstream identity.
+        const link=await fetch(APPS_SCRIPT_URL,{
+          method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
+          body:JSON.stringify({action:'getMemberLink',name:requestedName,password:env.TRAINER_PASSWORD}),
+          redirect:'follow',signal:AbortSignal.timeout(10000)
+        });
+        if(!link.ok)return json({status:'error',code:'legacy_video_unavailable'},502);
+        const legacy=await link.json();
+        const token=legacy?.token||(legacy?.url?new URL(legacy.url).searchParams.get('token'):'');
+        if(legacy?.status!=='success'||!token)return json({status:'error',code:'legacy_video_unavailable'},502);
+        input={action:dailyAction,member:requestedName,date:input.date,fileId:input.fileId,token};
       }
     }
     const upstream=await fetch(APPS_SCRIPT_URL,{

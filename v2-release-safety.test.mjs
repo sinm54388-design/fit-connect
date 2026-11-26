@@ -4,11 +4,12 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const html = fs.readFileSync(new URL('./cloudflare-assets/v2.html', import.meta.url), 'utf8');
+const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const source = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1].replace('    initLiveMemberData();\n', '');
 const workerSource = fs.readFileSync(new URL('./cloudflare-worker.js', import.meta.url), 'utf8');
 const date = '2026-11-19';
 
-function app(fetch, query = '&date=' + date, storage = new Map()) {
+function app(fetch, query = '&date=' + date, storage = new Map(), pageUrl) {
   const elements = new Map();
   const document = {
     addEventListener() {}, querySelector() { return null; },
@@ -20,7 +21,7 @@ function app(fetch, query = '&date=' + date, storage = new Map()) {
       return elements.get(id);
     }
   };
-  const location = { protocol: 'https:', hostname: 'fixture.test', search: '?name=QA&token=fixture' + query };
+  const location = new URL(pageUrl ?? 'https://fixture.test/?name=QA&token=fixture' + query);
   const context = vm.createContext({
     URL, URLSearchParams, Blob, Uint8Array, TextEncoder, atob, structuredClone, fetch, document, location,
     navigator: {}, setTimeout, clearTimeout, FormData, console, performance,
@@ -30,13 +31,35 @@ function app(fetch, query = '&date=' + date, storage = new Map()) {
       setItem: (key, value) => storage.set(key, value),
       removeItem: key => storage.delete(key)
     },
-    window: { location, addEventListener() {}, crypto }
+    window: { location, addEventListener() {}, crypto },
+    history: { replaceState: (_, __, url) => { location.href = url.href; } }
   });
+  vm.runInContext(bootstrap, context);
   vm.runInContext(source, context);
   const run = expression => vm.runInContext(expression, context);
   run('state.isLive = true; state.workoutReadVerified = true; globalThis.messages = []; showToast = message => messages.push(message); renderAll = () => {};');
   return run;
 }
+
+test('old and new member links hide credentials immediately and restore only the matching tab', () => {
+  const storage = new Map();
+  const unused = () => assert.fail('No API request expected');
+  const first = app(unused, undefined, storage, 'https://fixture.test/?member=QA&token=legacy&date=' + date);
+  const cleanUrl = 'https://fixture.test/?date=' + date + '#name=QA';
+  assert.equal(first('location.href'), cleanUrl);
+  assert.equal(first('state.token'), 'legacy');
+  assert.equal(first('state.selectedDate'), date);
+  const reopened = app(unused, undefined, storage, cleanUrl);
+  assert.equal(reopened('state.token'), 'legacy');
+  const anotherMember = app(unused, undefined, storage, 'https://fixture.test/#name=Other');
+  assert.equal(anotherMember('state.token'), '');
+  const shared = first("memberLinkUrl(location.origin, 'QA', 'token+with&symbols')");
+  assert.equal(new URL(shared).search, '');
+  assert.equal(first('extractTokenValue(' + JSON.stringify(shared) + ')'), 'token+with&symbols');
+  const second = app(unused, undefined, storage, shared);
+  assert.equal(second('location.href'), 'https://fixture.test/#name=QA');
+  assert.equal(second('state.token'), 'token+with&symbols');
+});
 
 test('one session exchange handles concurrent expired records requests', async () => {
   let exchanges = 0;
@@ -53,6 +76,24 @@ test('one session exchange handles concurrent expired records requests', async (
   await run("Promise.all(['read', 'memberInsights', 'columnList'].map(action => postRecords({action, member: state.memberName, date: state.selectedDate, session: state.session})))");
   assert.equal(exchanges, 1);
   assert.equal(run('state.session'), 'renewed');
+});
+
+test('both JSON APIs validate browser origin and content type before reading the body', async () => {
+  const mod = new vm.SourceTextModule(workerSource, {
+    context: vm.createContext({ URL, Response, performance })
+  });
+  await mod.link(() => {});
+  await mod.evaluate();
+  for (const path of ['/api/records', '/api/apps-script']) {
+    const send = (type, origin) => mod.namespace.default.fetch(new Request('https://fixture.test' + path, {
+      method: 'POST', headers: { 'Content-Type': type, ...(origin ? { Origin: origin } : {}) }, body: '{'
+    }), {});
+    assert.equal((await send('application/json','https://other.test')).status, 403);
+    assert.equal((await send('application/json','null')).status, 403);
+    assert.equal((await send('text/plain','https://fixture.test')).status, 415);
+    assert.equal((await send('application/json; charset=UTF-8','https://fixture.test')).status, 400);
+    assert.equal((await send('application/json')).status, 400);
+  }
 });
 
 test('member session survives a reload, stays bound to the link, and renews after rejection', async () => {
@@ -153,7 +194,7 @@ test('cold member date reuses its authenticated record and loads optional calls 
       return Response.json({ status: 'success' });
     }
     const body = JSON.parse(request.body);
-    calls.push({action:body.action,session:body.session,includeDaily:body.includeDaily});
+    calls.push({action:body.action,session:body.session,includeDaily:body.includeDaily,date:body.date});
     if (body.action==='memberSession')
       return Response.json({
         status:'success',session:'verified',exp:Date.now()+3600000,
@@ -176,6 +217,7 @@ test('cold member date reuses its authenticated record and loads optional calls 
   run('frames.shift()(); frames.shift()();');
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(calls.filter(item=>item.action==='columnList').length,1);
+  assert.equal(calls.find(item=>item.action==='columnList').date,date);
   assert.ok(calls.slice(1).every(item=>item.session==='verified'));
   await run("state.selectedDate = '2026-11-20'; loadMemberDateData(state.selectedDate)");
   assert.deepEqual(legacyCalls,['2026-11-20']);
@@ -391,7 +433,7 @@ test('PT week API is coach-only and projects just this member’s seven schedule
   const env = { TRAINER_PASSWORD: 'coach-fixture', MEMBER_SESSION_SECRET: 'fixture-member-session-key-for-tests',
     SUPABASE_URL: 'https://fixture-db.supabase.co', SUPABASE_SECRET_KEY: 'fixture' };
   const dispatch = auth => mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
-    method: 'POST', body: JSON.stringify({ action: 'coachPtWeek', member: 'target', date: '2026-12-01', ...auth })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coachPtWeek', member: 'target', date: '2026-12-01', ...auth })
   }), env);
   assert.equal((await dispatch({ session: 'fixture-member-session' })).status, 403);
   assert.equal((await dispatch({ token: 'fixture-member-link' })).status, 403);
@@ -498,7 +540,7 @@ test('a failed set write is restored after reload without replacing coach routin
   const offline = app(async () => { throw Error('offline'); }, undefined, store);
   offline("state.record.routines=[{id:'exercise',routineType:'homework',sets:2,completedSets:[true,false]}]; enqueueWorkoutSave(state.record.routines[0], [0])");
   await offline("retryWorkoutSave(); flushWorkoutSave(workoutSaveJobs.values().next().value)");
-  assert.equal(store.size, 1);
+  assert.equal([...store.keys()].filter(key => key.startsWith('fit_workout_draft_v1_')).length, 1);
   const calls = [];
   const reopened = app(async (_, request) => {
     calls.push(JSON.parse(request.body));
@@ -512,7 +554,7 @@ test('a failed set write is restored after reload without replacing coach routin
   assert.equal(calls[0].action, 'setProgressBatch');
   assert.deepEqual(calls[0].changes, [{ id: 'exercise', index: 0, checked: true }]);
   assert.equal(calls[0].date, date);
-  assert.equal(store.size, 0);
+  assert.ok([...store.keys()].every(key => !key.startsWith('fit_workout_draft_v1_')));
 });
 
 test('photo merge prefers the stored photo, preserves food fields and honors tombstones', () => {
@@ -594,6 +636,10 @@ test('a combined member session and daily read performs one account lookup and p
         : Response.json({code:'PGRST202'}, {status:404});
     }
     if (parsed.pathname.endsWith('/fit_members')) return Response.json([{ id:'fixture-member', is_archived:archived, worker_link_sha256:native?digest:null }]);
+    if (parsed.pathname.endsWith('/fit_columns')) {
+      assert.equal(parsed.searchParams.get('status'), 'eq.published');
+      return Response.json([{ id: 'fixture-column', title: '오늘의 매거진' }]);
+    }
     if (parsed.pathname.endsWith('/fit_worker_save_day')) {
       assert.equal(new Headers(options.headers).get('x-fit-record-writer'), 'fit-connect-worker');
       const body = JSON.parse(options.body);
@@ -613,7 +659,7 @@ test('a combined member session and daily read performs one account lookup and p
   await mod.link(() => {});
   await mod.evaluate();
   const dispatch = (token='fixture', path='records', extra={}) => mod.namespace.default.fetch(new Request('https://fixture.test/api/'+path, {
-    method:'POST', body:JSON.stringify({action:'memberSession', includeDaily:true, member:'QA', date, token, ...extra})
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'memberSession', includeDaily:true, member:'QA', date, token, ...extra})
   }), { SUPABASE_URL:'https://fixture-db.supabase.co', SUPABASE_SECRET_KEY:'fixture', MEMBER_SESSION_SECRET:'fixture-session-key-for-local-tests' });
 
   const response = await dispatch();
@@ -656,6 +702,12 @@ test('a combined member session and daily read performs one account lookup and p
   assert.equal(fastBody.daily.nativeDaily,true);
   assert.ok(!JSON.stringify(fastBody).includes(digest));
   assert.deepEqual(calls,['fit_member_day_snapshot']);
+
+  calls.length = 0;
+  const magazine = await dispatch('fixture', 'records', {action:'columnList', date:undefined});
+  assert.equal(magazine.status, 200);
+  assert.equal((await magazine.json()).columns[0].id, 'fixture-column');
+  assert.equal((await dispatch('wrong', 'records', {action:'columnList', date:undefined})).status, 403);
 
   calls.length = 0;
   assert.equal((await dispatch('wrong-fixture')).status,403);
@@ -704,7 +756,7 @@ test('Worker retries a check-in write conflict and preserves intervening record 
   await mod.link(() => {});
   await mod.evaluate();
   const response = await mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
-    method: 'POST', body: JSON.stringify({ action: 'dailyCheckin', password: 'fixture', member: 'QA', date, checkin: { mood: 'good' } })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'dailyCheckin', password: 'fixture', member: 'QA', date, checkin: { mood: 'good' } })
   }), { TRAINER_PASSWORD: 'fixture', SUPABASE_URL: 'https://storage-fixture.supabase.co', SUPABASE_SECRET_KEY: 'fixture' });
   assert.equal(response.status, 200);
   const { data } = await response.json();
@@ -761,7 +813,7 @@ test('Worker diet save preserves another writer’s new day and confirms the pho
   await mod.evaluate();
   const env = { TRAINER_PASSWORD: 'fixture', SUPABASE_URL: 'https://diet-fixture.supabase.co', SUPABASE_SECRET_KEY: 'fixture' };
   const request = (action, extra) => mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
-    method: 'POST', body: JSON.stringify({ action, password: 'fixture', member: 'QA Diet', date, ...extra })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, password: 'fixture', member: 'QA Diet', date, ...extra })
   }), env);
   const saved = await request('dietSave', { diet: { lunch: { desc: '밥', foods: [{ name: '밥' }], photos: [image] } } });
   assert.equal(saved.status, 200);
@@ -1032,7 +1084,7 @@ test('coach video management fetches ten videos from the selected day in Korea t
   await mod.evaluate();
   const env = { SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SECRET_KEY: 'test-only', TRAINER_PASSWORD: 'coach-fixture' };
   const list = details => mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
-    method: 'POST', body: JSON.stringify({
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       action: 'directVideoList', member: 'Test member', password: 'coach-fixture', date, ...details
     })
   }), env);

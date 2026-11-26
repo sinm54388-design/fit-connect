@@ -89,7 +89,7 @@ test('R2 media uses member-scoped records and preserves existing Supabase playba
   };
   t.after(() => { globalThis.fetch = upstream; });
   const record = (action, params, overrides = {}, runtime = env) => worker.fetch(new Request(origin + '/api/records', {
-    method: 'POST', body: JSON.stringify({ action, member: 'Test member', password: credential, date, ...params, ...overrides })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, member: 'Test member', password: credential, date, ...params, ...overrides })
   }), runtime);
   const create = async (id, size, runtime = env) => {
     const response = await record('directVideoBegin', { id, size, name: 'test.mp4', mime: 'video/mp4' }, {}, runtime);

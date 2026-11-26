@@ -247,6 +247,12 @@ function sameOriginRequest(request) {
   const origin=request.headers.get('Origin');
   return !origin || origin===new URL(request.url).origin;
 }
+function validateJsonPost(request) {
+  if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
+  if(!sameOriginRequest(request))return json({status:'denied',code:'origin_denied'},403);
+  const type=request.headers.get('Content-Type')?.split(';',1)[0].trim().toLowerCase();
+  if(type!=='application/json')return json({status:'error',code:'unsupported_media_type'},415);
+}
 // Returns the member name inside a valid, unexpired session, or ''.
 async function readMemberSession(secret,session) {
   try {
@@ -594,7 +600,8 @@ function buildMemberInsights(rows,date) {
 }
 async function handleRecords(request,env) {
   const requestStarted=performance.now();
-  if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
+  const rejected=validateJsonPost(request);
+  if(rejected)return rejected;
   if(Number(request.headers.get('content-length')||0)>131072)
     return json({status:'error',code:'too_large'},413);
   let input;
@@ -610,18 +617,20 @@ async function handleRecords(request,env) {
   let initialSnapshot;
   let initialAccount;
   if(action==='coachLogout'){
-    if(!sameOriginRequest(request))return json({status:'denied'},403);
     return json({status:'success'},200,{'Set-Cookie':clearCoachCookie()});
   }
   // A valid coach cookie authorizes the same routes as a trainer password.
   // Only same-origin POST requests may consume cookie authorization.
   if(input.password===undefined && input.session===undefined && input.token===undefined &&
-      sameOriginRequest(request) && await validCoachCookie(request,env))
+      await validCoachCookie(request,env))
     input.password=env.TRAINER_PASSWORD;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
   if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','coachPtWeek','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','memberRegister','memberArchive','columnList','columnSave','assessmentList','assessmentSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
-  const member=String(input.member||'').trim(),date=input.date;
+  const member=String(input.member||'').trim();
+  // Older magazine clients omitted the date. Use today in Korea for legacy link verification.
+  const date=action==='columnList'&&input.date===undefined
+    ?new Date(Date.now()+9*3600000).toISOString().slice(0,10):input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
   // Member path: either exchange a member link for a session, or use a session.
   if((action==='read'||action==='workoutHistory'||action==='dailyCheckin'||action==='videoPlaybackUrl'||directVideo||action==='columnList'||action==='assessmentList'||action==='memberInsights'||action==='dietSave'||action==='dietPhotoDelete')&&input.password===undefined&&input.session===undefined){
@@ -675,7 +684,6 @@ async function handleRecords(request,env) {
     if(!constantTimeEquals(input.password,env.TRAINER_PASSWORD))
       return json({status:'denied',code:'unauthorized'},403);
     if(action==='verify'){
-      if(!sameOriginRequest(request))return json({status:'denied'},403);
       const cookie=await makeCoachCookie(env);
       return json({status:'success'},200,cookie?{'Set-Cookie':cookie}:{});
     }
@@ -1265,13 +1273,12 @@ async function handleRecords(request,env) {
 }
 // Same-origin bridge for the existing Apps Script POST API. Auth remains in Apps Script.
 async function handleAppsScriptPost(request,env) {
-  if(request.method!=='POST')return json({status:'error',message:'Method not allowed'},405);
-  const origin=request.headers.get('Origin');
-  if(origin && origin!==new URL(request.url).origin)return json({status:'error',message:'Origin denied'},403);
+  const rejected=validateJsonPost(request);
+  if(rejected)return rejected;
+  let input;
+  try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
+  if(!input || typeof input!=='object' || Array.isArray(input))return json({status:'error',message:'Invalid request'},400);
   try {
-    const body=await request.text();
-    const input=JSON.parse(body);
-    if(!input || typeof input!=='object' || Array.isArray(input))return json({status:'error',message:'Invalid request'},400);
     if(input.password===undefined && input.token===undefined &&
        await validCoachCookie(request,env))
       input.password=env.TRAINER_PASSWORD;
@@ -1288,7 +1295,8 @@ async function handleAppsScriptPost(request,env) {
         if(!validDay(input.date))return json({status:'error',code:'invalid_query'},400);
         if(dailyAction==='read'){
           return handleRecords(new Request(new URL('/api/records',request.url),{
-            method:'POST',body:JSON.stringify({action:'read',member:requestedName,date:input.date,
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({action:'read',member:requestedName,date:input.date,
               ...(trainer?{password:input.password}:{token:input.token})})
           }),env);
         }
@@ -1313,10 +1321,38 @@ async function handleAppsScriptPost(request,env) {
     try { result=JSON.parse(raw); } catch {
       return json({status:'error',message:'Apps Script returned non-JSON ('+(type.split(';')[0]||'unknown')+'); '+( /quota|too many times/i.test(raw)?'quota limit':/sign in|accounts.google.com/i.test(raw)?'authentication required':/exception|script error/i.test(raw)?'script exception':'unexpected response')},502);
     }
-    return new Response(JSON.stringify(result),{headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
+    return json(result);
   }catch(e){
     return json({status:'error',message:'Apps Script transport failure: '+(e?.name==='TimeoutError'?'timeout':e?.name==='AbortError'?'aborted':e?.name==='SyntaxError'?'invalid JSON':'network error')},502);
   }
+}
+const APP_DOCUMENTS=new Map([['/','/'],['/index','/'],['/index.html','/'],['/v2','/v2'],['/v2.html','/v2']]);
+async function serveAppDocument(request,env,path) {
+  const assetUrl=new URL(path,request.url);
+  const asset=await env.ASSETS.fetch(new Request(assetUrl,{method:request.method}));
+  if(!asset.headers.get('Content-Type')?.startsWith('text/html'))return asset;
+
+  const nonce=b64url.encode(crypto.getRandomValues(new Uint8Array(16)));
+  const headers=new Headers(asset.headers);
+  headers.set('Content-Security-Policy',[
+    "default-src 'self'", "base-uri 'none'", "object-src 'none'", "frame-ancestors 'none'",
+    "script-src 'self' 'nonce-"+nonce+"'", "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "font-src 'self' https://cdn.jsdelivr.net", "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https:", "connect-src 'self' https://*.supabase.co",
+    'frame-src https://www.youtube.com'
+  ].join('; '));
+  headers.set('X-Frame-Options','DENY');
+  headers.set('X-Content-Type-Options','nosniff');
+  headers.set('Referrer-Policy','no-referrer');
+  // Each document has its own nonce. Cache the underlying static asset only.
+  headers.set('Cache-Control','no-store');
+  headers.delete('ETag');
+  headers.delete('Content-Length');
+  const response=new Response(asset.body,{status:asset.status,statusText:asset.statusText,headers});
+  if(request.method==='HEAD'||!response.body)return response;
+  return new HTMLRewriter().on('script:not([src])',{
+    element(element){element.setAttribute('nonce',nonce);}
+  }).transform(response);
 }
 export default {
   async fetch(request,env) {
@@ -1327,12 +1363,12 @@ export default {
       const token=String(requestUrl.searchParams.get('token')||'').trim();
       if(!name||name.length>100||!token||token.length>200)
         return json({status:'error',code:'invalid_manifest'},400);
-      const q=new URLSearchParams({name,token});
+      const memberFragment=new URLSearchParams({name});
       const manifest={
         name:'FIT-CONNECT | '+name,
         short_name:'FIT-CONNECT',
         description:'운동과 식단 기록, 코치 피드백',
-        start_url:'/?'+q.toString(),
+        start_url:'/#'+memberFragment.toString(),
         scope:'/',
         display:'standalone',
         background_color:'#F4F6F9',
@@ -1349,6 +1385,8 @@ export default {
     if(path==='/api/records')return handleRecords(request,env);
     if(path==='/api/apps-script')return handleAppsScriptPost(request,env);
     if(path.startsWith('/api/'))return json({status:'error',code:'not_found'},404);
+    if(APP_DOCUMENTS.has(path)&&(request.method==='GET'||request.method==='HEAD'))
+      return serveAppDocument(request,env,APP_DOCUMENTS.get(path));
     return env.ASSETS.fetch(request);
   }
 };

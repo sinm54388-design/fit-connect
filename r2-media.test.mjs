@@ -52,7 +52,7 @@ function fakeBucket() {
           const object = { bytes, size: bytes.length, httpMetadata: upload.options.httpMetadata };
           objects.set(path, object);
           uploads.delete(uploadId);
-          return object;
+          return { size: object.size };
         }
       };
     }

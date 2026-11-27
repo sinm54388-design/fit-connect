@@ -3329,6 +3329,8 @@
       ];
       let compressedPhoto = extractPhotoSrc(m);
       let hasNewPhoto = false;
+      let photoProcessing = false;
+      let savingMeal = false;
 
       const alreadyLogged = !!(String(m.desc || '').trim() || Number(m.cal) > 0 || compressedPhoto);
       openModal(`${mealLabel} 식단 ${alreadyLogged ? '수정' : '기록'}`, `
@@ -3443,10 +3445,23 @@
           btn.disabled=false;btn.textContent='↺ 어제 기록 불러오기';
         }
       });
-      document.getElementById('meal-delete-photo')?.addEventListener('click', async e => {
+      const photoInput = document.getElementById('meal-photo-input');
+      const photoStatus = document.getElementById('photo-status-txt');
+      const photoPreview = document.getElementById('meal-photo-preview');
+      const deletePhotoButton = document.getElementById('meal-delete-photo');
+      const submitBtn = document.querySelector('#meal-form button[type="submit"]');
+      const saveLabel = submitBtn.textContent;
+      const setMealControlsDisabled = disabled => {
+        submitBtn.disabled = disabled;
+        photoInput.disabled = disabled;
+        if (deletePhotoButton) deletePhotoButton.disabled = disabled;
+      };
+      deletePhotoButton?.addEventListener('click', async e => {
+        if (photoProcessing || savingMeal) return;
         if (!window.confirm(`${mealLabel} 사진을 삭제할까요? 식단 글과 칼로리는 유지됩니다.`)) return;
         const btn = e.currentTarget;
-        btn.disabled = true;
+        savingMeal = true;
+        setMealControlsDisabled(true);
         btn.textContent = '사진 삭제 중...';
         try {
           const auth = (state.appMode === 'coach' && state.trainerPassword)
@@ -3461,43 +3476,46 @@
           renderAll();
           showToast(`${mealLabel} 사진이 삭제되었어요`);
         } catch (err) {
-          btn.disabled = false;
           btn.textContent = '사진만 삭제하기';
           showToast('사진 삭제 실패: ' + (err?.message || '네트워크 오류'));
+        } finally {
+          savingMeal = false;
+          setMealControlsDisabled(false);
         }
       });
-      document.getElementById('meal-photo-input').addEventListener('change', async e => {
+      photoInput.addEventListener('change', async e => {
         const f = e.target.files?.[0];
-        if (!f) return;
+        if (!f || photoProcessing || savingMeal) return;
+        photoInput.value = '';
+        photoProcessing = true;
+        setMealControlsDisabled(true);
+        photoStatus.textContent = '사진 최적화 중…';
+        submitBtn.textContent = '사진 준비 중…';
         try {
-          document.getElementById('photo-status-txt').textContent = '사진 최적화 중…';
           compressedPhoto = await compressImageFile(f);
           hasNewPhoto = true;
-          const prev = document.getElementById('meal-photo-preview');
-          delete prev.dataset.directimg;
-          delete prev.dataset.hydrated;
-          prev.src = compressedPhoto;
-          prev.classList.remove('hidden');
-          document.getElementById('photo-status-txt').textContent = '사진 압축 완료 ✓';
-          showToast('사진이 가볍게 압축되었어요');
+          delete photoPreview.dataset.directimg;
+          delete photoPreview.dataset.hydrated;
+          photoPreview.src = compressedPhoto;
+          photoPreview.classList.remove('hidden');
+          photoStatus.textContent = '사진 첨부 준비 완료';
         } catch {
-          document.getElementById('photo-status-txt').textContent = '사진 처리 실패 · 다시 선택해 주세요';
-          showToast('사진을 불러오지 못했어요');
+          photoStatus.textContent = '새 사진을 첨부하지 못했어요. 다시 선택해 주세요.';
+        } finally {
+          photoProcessing = false;
+          setMealControlsDisabled(false);
+          submitBtn.textContent = saveLabel;
         }
       });
 
-      let savingMeal = false;
       async function commitMealSave(updated, labelText) {
         if (savingMeal) return;
         if (!state.isLive) {
           showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
           return;
         }
-        const submitBtn = document.querySelector('#meal-form button[type="submit"]');
-        if (submitBtn) {
-          submitBtn.disabled = true;
-          submitBtn.textContent = '서버에 저장 중...';
-        }
+        setMealControlsDisabled(true);
+        submitBtn.textContent = '서버에 저장 중...';
         savingMeal = true;
         document.querySelectorAll('.pr-btn').forEach(btn => { btn.disabled = true; });
         const member = state.memberName, date = state.selectedDate;
@@ -3528,15 +3546,13 @@
           renderAll();
           showToast(labelText + ' ✓');
         } catch (err) {
-          if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = '저장하기';
-          }
           document.querySelectorAll('.pr-btn').forEach(btn => { btn.disabled = false; });
           if (document.getElementById('meal-form') === modalForm) preserveMealDraft();
           showToast('식단 저장을 완료하지 못했어요: ' + (err?.message || '네트워크를 확인해 주세요') + ' (일부 기록은 저장됐을 수 있어요)');
         } finally {
           savingMeal = false;
+          setMealControlsDisabled(false);
+          submitBtn.textContent = saveLabel;
         }
       }
 
@@ -3809,6 +3825,7 @@
 
       document.getElementById('meal-form').addEventListener('submit', e => {
         e.preventDefault();
+        if (photoProcessing || savingMeal) return;
         const desc = document.getElementById('mf-desc').value.trim();
         const cal = document.getElementById('mf-cal').value.trim();
         if (!desc && !cal && !compressedPhoto && !foodItemsChanged) {
@@ -7548,13 +7565,13 @@
               verification: '압축 영상 검증 실패', error: '압축을 완료하지 못함'
             }[upload.timing.optimization];
             const detail = [phases, originalReason && '원본 전송 · ' + originalReason].filter(Boolean).join(' / ');
-            setVideoUploadStatus('업로드 완료 · ' + size, 100, true, detail || '피드백 탭에서 확인할 수 있어요.');
+            setVideoUploadStatus('업로드 완료 · ' + size, 100, true, detail || '수업일지의 운동 영상에서 확인할 수 있어요.');
             videoUploadStatusTimer = setTimeout(() => setVideoUploadStatus('', 0, false), 15_000);
             if (state.appMode !== 'member' || state.memberName !== member) return;
             state.directVideos.unshift({ id: directId, name: f.name || '자세 영상', question: '회원 자세 체크 영상', feedback: '', createdAt: new Date().toISOString() });
             if (state.selectedDate !== upload.date) {
               renderAll();
-              showToast('영상 업로드 완료! 피드백 탭에서 확인할 수 있어요 ✓');
+              showToast('영상 업로드 완료! 수업일지의 운동 영상에서 확인할 수 있어요 ✓');
               return;
             }
             state.record.memos.push({
@@ -7565,7 +7582,7 @@
               videoId: directId
             });
             renderAll();
-            showToast('영상 업로드 완료! 피드백 탭에서 확인할 수 있어요 ✓');
+            showToast('영상 업로드 완료! 수업일지의 운동 영상에서 확인할 수 있어요 ✓');
             await savePatchLive({ memos: state.record.memos }, member, upload.date);
           } catch (err) {
             failedVideoUpload = { file: f, upload, member };

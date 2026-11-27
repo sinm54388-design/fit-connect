@@ -408,6 +408,62 @@ test('coach replaces a rejected cached link with a verified existing link', asyn
   assert.equal(await run("resolveMemberToken('QA')"),'');
 });
 
+test('coach starts the clipboard write during the tap and confirms only after it succeeds', async () => {
+  const run = app(() => assert.fail('No API request expected'));
+  const copy = run(`
+    state.appMode = 'coach';
+    state.trainerPassword = 'fixture-coach';
+    let resolveToken, finishClipboard, copiedLink;
+    const pendingToken = new Promise(resolve => { resolveToken = resolve; });
+    const clipboardReady = new Promise(resolve => { finishClipboard = resolve; });
+    resolveMemberToken = () => pendingToken;
+    globalThis.ClipboardItem = class { constructor(data) { this.data = data; } };
+    navigator.clipboard = {
+      write([item]) {
+        copiedLink = item.data['text/plain'].then(blob => blob.text());
+        return Promise.all([copiedLink, clipboardReady]);
+      }
+    };
+    copyMemberLink('QA');
+  `);
+  assert.equal(run('Boolean(copiedLink)'), true);
+  run("resolveToken('verified-fixture-token')");
+  const link = new URL(await run('copiedLink'));
+  assert.equal(new URLSearchParams(link.hash.slice(1)).get('token'), 'verified-fixture-token');
+  assert.equal(run("messages.some(message => message.includes('복사했어요'))"), false);
+  run('finishClipboard()');
+  await copy;
+  assert.equal(run('messages.at(-1)'), '회원 전용 링크를 복사했어요.');
+});
+
+test('coach shows the selectable link when clipboard writes fail and can retry with a tap', async () => {
+  const run = app(() => assert.fail('No API request expected'));
+  await run(`
+    state.appMode = 'coach';
+    state.trainerPassword = 'fixture-coach';
+    resolveMemberToken = async () => 'verified-fixture-token';
+    globalThis.ClipboardItem = class { constructor() {} };
+    navigator.clipboard = { write: async () => { throw new Error('User activation required'); } };
+    let fallbackTitle;
+    openModal = title => { fallbackTitle = title; };
+    let retryCopy;
+    document.getElementById('member-link-copy-retry').addEventListener = (_, callback) => { retryCopy = callback; };
+    copyMemberLink('QA');
+  `);
+  assert.equal(run('fallbackTitle'), '회원 전용 링크');
+  assert.equal(run("messages.some(message => message.includes('복사했어요'))"), false);
+  const shownLink = new URL(run("document.getElementById('member-link-copy-value').value"));
+  assert.equal(new URLSearchParams(shownLink.hash.slice(1)).get('token'), 'verified-fixture-token');
+  await run(`
+    let retriedLink;
+    navigator.clipboard.writeText = async link => { retriedLink = link; };
+    retryCopy();
+  `);
+  assert.equal(run('retriedLink'), shownLink.href);
+  assert.equal(run("document.getElementById('member-link-copy-value').value"), '');
+  assert.equal(run('messages.at(-1)'), '회원 전용 링크를 복사했어요.');
+});
+
 test('coach patches target the selected member with coach auth and preserve unrelated fields', async () => {
   const calls = [];
   const run = app(async (_, request) => {

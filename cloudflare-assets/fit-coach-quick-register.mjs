@@ -65,7 +65,7 @@ function parseSets(entry, name) {
   return { sets: Array.from({ length: count }, () => ({ weight_kg: weight, reps, ...(weightMissing ? { weightMissing: true } : {}) })), guessed: guessed > 0 };
 }
 
-export function parseWorkout(text, now = new Date(), names = []) {
+export function parseWorkout(text, now = new Date(), names = [], defaultDate = '') {
   text = text.normalize('NFKC').trim();
   if (!text) throw new Error('회원 이름과 운동 내용을 입력해 주세요.');
   const leading = text.match(dateAtStart);
@@ -79,7 +79,8 @@ export function parseWorkout(text, now = new Date(), names = []) {
   body = body.replace(/^(?:PT\s*)?수업(?:\s*[.,:：]\s*|\s+|$)/iu, '').trim();
 
   const today = kstDate.format(now);
-  let date = today;
+  let date = defaultDate || today;
+  if (rawDate === '오늘') date = today;
   if (rawDate === '어제') date = kstDate.format(new Date(now.getTime() - 86400000));
   else if (rawDate && rawDate !== '오늘') {
     const parts = rawDate.match(/\d+/g);
@@ -195,6 +196,7 @@ export function openCoachQuickRegistration(api) {
       <textarea id="coach-quick-text" rows="4" maxlength="3500" required
         class="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-[16px]"
         placeholder="테스트회원 스쿼트 40 10 3"></textarea>
+      <label class="block text-[13px] font-bold">수업 날짜 <input id="coach-quick-date" type="date" required class="mt-1 w-full rounded-xl border border-[#E2E8F0] bg-white p-2 text-[16px]"></label>
       <details class="text-[13px] text-[#475569]">
         <summary class="font-bold text-[#1E3A8A]">입력 예시</summary>
         <p class="mt-1">테스트회원 스쿼트 40 10 3</p>
@@ -215,6 +217,8 @@ export function openCoachQuickRegistration(api) {
   const form = document.getElementById('coach-quick-form');
   const find = (name) => form.querySelector('#coach-quick-' + name);
   const input = find('text'), fileInput = find('video'), selector = find('target'), label = find('target-label');
+  const dateInput = find('date');
+  dateInput.value = api.selectedDate || kstDate.format(new Date());
   const review = find('review'), summary = find('summary'), save = find('save'), status = find('status');
   const setStatus = (value) => { status.textContent = value; };
   const attachment = find('attachment');
@@ -229,7 +233,7 @@ export function openCoachQuickRegistration(api) {
   let draft, memberList, preparation, busy = false;
   function lock(locked) {
     busy = locked;
-    [input, fileInput, selector, review, save].forEach((control) => { control.disabled = locked; });
+    [input, dateInput, fileInput, selector, review, save].forEach((control) => { control.disabled = locked; });
   }
   function clearReview() {
     draft = null;
@@ -241,13 +245,14 @@ export function openCoachQuickRegistration(api) {
     label.classList.add('hidden');
     if (!fileInput.files.length) return;
     let parsed;
-    try { parsed = parseWorkout(input.value, new Date(), memberList?.members); } catch { return; }
+    try { parsed = parseWorkout(input.value, new Date(), memberList?.members, dateInput.value); } catch { return; }
     const current = selector.value;
     selector.replaceChildren(option('종목 선택', ''), ...parsed.exercises.map(({ name }) => option(name, name)));
     selector.value = parsed.videoExercise || (parsed.exercises.length === 1 ? parsed.exercises[0].name : current);
     label.classList.toggle('hidden', parsed.exercises.length === 1 && !parsed.videoExercise);
   }
   input.addEventListener('input', () => { clearReview(); updateTarget(); });
+  dateInput.addEventListener('change', () => { clearReview(); updateTarget(); });
   fileInput.addEventListener('change', () => {
     clearReview();
     updateTarget();
@@ -300,8 +305,9 @@ export function openCoachQuickRegistration(api) {
       setStatus('회원 정보를 확인하고 있어요.');
       memberList = await api.members(kstDate.format(new Date()));
       if (!Array.isArray(memberList?.members) || !Array.isArray(memberList?.nativeMembers)) throw new Error('회원 목록을 확인하지 못했어요.');
-      const lesson = parseWorkout(input.value, new Date(), memberList.members);
+      const lesson = parseWorkout(input.value, new Date(), memberList.members, dateInput.value);
       if (!memberList.nativeMembers.includes(lesson.member)) throw new Error('이 회원은 회원 상세 화면에서 일지를 등록해 주세요.');
+      dateInput.value = lesson.date;
       const file = fileInput.files[0];
       if (file) {
         if (!file.size || file.size > 100_000_000 || !api.validVideo(file)) throw new Error('100MB 이하의 MP4, MOV, WebM 영상을 첨부해 주세요.');

@@ -202,6 +202,7 @@ export function openCoachQuickRegistration(api) {
       </details>
       <label for="coach-quick-video" class="block text-[13px] font-bold">운동 영상 <span class="font-medium text-[#475569]">선택</span></label>
       <input id="coach-quick-video" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" class="w-full text-[14px]">
+      <p id="coach-quick-attachment" aria-live="polite" class="hidden rounded-xl border border-[#DCE5EE] bg-[#F8FAFC] p-3 text-[13px]"></p>
       <label id="coach-quick-target-label" class="hidden text-[13px] font-bold">영상 연결 종목
         <select id="coach-quick-target" class="mt-1 w-full rounded-xl border border-[#E2E8F0] bg-white p-2 text-[16px]"></select>
       </label>
@@ -216,6 +217,12 @@ export function openCoachQuickRegistration(api) {
   const input = find('text'), fileInput = find('video'), selector = find('target'), label = find('target-label');
   const review = find('review'), summary = find('summary'), save = find('save'), status = find('status');
   const setStatus = (value) => { status.textContent = value; };
+  const attachment = find('attachment');
+  function showAttachment(message) {
+    attachment.textContent = message;
+    attachment.classList.toggle('hidden', !message);
+  }
+  const describeFile = (file) => file.name + ' · ' + (file.size / 1_000_000).toFixed(1) + 'MB';
   const announceError = (error) => {
     setStatus(error?.status === 403 ? '코치 로그인이 만료됐어요. FIT-CONNECT에서 다시 로그인해 주세요.' : error.message || '잠시 후 다시 시도해 주세요.');
   };
@@ -247,12 +254,23 @@ export function openCoachQuickRegistration(api) {
     preparation?.controller.abort();
     preparation = null;
     const file = fileInput.files[0];
-    if (!file?.size || file.size > 100_000_000 || !api.validVideo(file) || !api.prepare) return;
+    if (!file) { showAttachment(''); return; }
+    if (!file.size || file.size > 100_000_000 || !api.validVideo(file)) {
+      showAttachment('첨부 실패 · 100MB 이하의 MP4, MOV, WebM 영상을 선택해 주세요.');
+      return;
+    }
+    const readyMessage = '영상 첨부됨 · ' + describeFile(file) + ' · 등록 내용 확인 → 일지에 등록을 누르면 전송됩니다.';
+    showAttachment(readyMessage);
+    if (!api.prepare) return;
     const controller = new AbortController();
     const job = { file, controller, report: null };
     job.promise = api.prepare(file, controller.signal, (stage, percent) => {
+      if (preparation === job) showAttachment(describeFile(file) + ' · ' + stage + (Number.isFinite(percent) ? ' ' + percent + '%' : '') + ' · 일지 등록 시 전송');
       job.report?.(stage, percent);
-    }).catch(() => ({ file }));
+    }).catch(() => ({ file })).then((result) => {
+      if (preparation === job && !controller.signal.aborted) showAttachment(readyMessage);
+      return result;
+    });
     preparation = job;
   });
   selector.addEventListener('change', clearReview);
@@ -264,7 +282,7 @@ export function openCoachQuickRegistration(api) {
       details.push(name + ' · ' + (descriptions.every((item) => item === descriptions[0])
         ? descriptions[0] + ' × ' + sets.length + '세트' : descriptions.join(' / ')));
     }
-    if (file) details.push('영상 · ' + lesson.videoExercise);
+    if (file) details.push('영상 · ' + lesson.videoExercise + ' · ' + describeFile(file) + ' (일지에 등록을 누르면 전송 시작)');
     summary.replaceChildren(...details.map((line) => {
       const item = document.createElement('p');
       item.textContent = line;
@@ -286,7 +304,7 @@ export function openCoachQuickRegistration(api) {
       if (!memberList.nativeMembers.includes(lesson.member)) throw new Error('이 회원은 회원 상세 화면에서 일지를 등록해 주세요.');
       const file = fileInput.files[0];
       if (file) {
-        if (file.size > 100_000_000 || !api.validVideo(file)) throw new Error('100MB 이하의 MP4, MOV, WebM 영상을 첨부해 주세요.');
+        if (!file.size || file.size > 100_000_000 || !api.validVideo(file)) throw new Error('100MB 이하의 MP4, MOV, WebM 영상을 첨부해 주세요.');
         updateTarget();
         lesson.videoExercise = selector.value || (lesson.exercises.length === 1 && !lesson.videoExercise ? lesson.exercises[0].name : '');
         if (!lesson.videoExercise) throw new Error('영상이 연결될 운동을 선택해 주세요.');
@@ -297,7 +315,7 @@ export function openCoachQuickRegistration(api) {
       const onStage = (name, percentage) => setStatus(name + (percentage ? ' · ' + percentage + '%' : ''));
       draft = { lesson, file, prepared, upload: { onStage, ...(prepared ? { prepared: prepared.promise } : {}) } };
       renderReview(lesson, file);
-      setStatus('');
+      setStatus(file ? '첨부 확인 완료 · 일지에 등록을 누르면 영상 전송이 시작됩니다.' : '등록 내용을 확인한 뒤 일지에 등록을 눌러 주세요.');
     } catch (error) { announceError(error); }
     finally { lock(false); }
   });
@@ -318,6 +336,9 @@ export function openCoachQuickRegistration(api) {
       setStatus((result.alreadySaved ? '이미 등록된 수업이에요.' : lesson.member + ' 회원의 일지에 등록했어요.') + timing);
       save.classList.add('hidden');
       draft = null;
+      fileInput.value = '';
+      preparation = null;
+      showAttachment(file ? '영상 등록 완료 · ' + describeFile(file) : '');
       api.onSaved(lesson.date);
     } catch (error) { announceError(error); }
     finally {

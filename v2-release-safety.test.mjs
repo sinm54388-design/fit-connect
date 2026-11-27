@@ -1238,6 +1238,12 @@ test('PT lessons are complete and read-only while personal workouts retain set c
   assert.match(combined, /data-set-ridx="2" data-set-idx="0"/);
   assert.doesNotMatch(combined, /data-set-ridx="[01]"/);
   assert.equal(run("enqueueWorkoutSave(state.record.routines[0],[0]); workoutSaveJobs.size"), 0);
+  run("state.record.ptScheduled=true; state.record.ptTime='20:00'; state.record.routines=state.record.routines.slice(-1);");
+  const homeworkOnly = run('renderMemberView()');
+  assert.match(homeworkOnly, /20:00 수업/);
+  assert.match(homeworkOnly, /PT 수업 일지는 아직 등록되지 않았어요/);
+  run("state.record.routines.push({name:'PT 확인', routineType:'pt'});");
+  assert.match(run('renderMemberView()'), /PT 수업 일지가 등록됐어요/);
 });
 
 test('coach video management fetches ten videos from the selected day in Korea time', async () => {

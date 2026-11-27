@@ -287,6 +287,48 @@ test('HTTP 200 denial does not trigger a full-record write or a success', async 
   assert.match(run('messages.at(-1)'), /저장을 확인하지 못했어요/);
 });
 
+test('meal form waits for the selected photo before saving', async () => {
+  const run = app(() => assert.fail('No API request expected'));
+  run(`
+    openModal = () => {};
+    closeModal = () => {};
+    state.mealReadVerified = true;
+    state.record.diet.snack = {};
+    const getElement = document.getElementById.bind(document);
+    document.getElementById = id => {
+      const element = getElement(id);
+      element.events ||= {};
+      element.dataset ||= {};
+      element.classList.toggle ||= () => {};
+      element.addEventListener = (type, callback) => { element.events[type] = callback; };
+      return element;
+    };
+    const submitButton = { textContent: '식단 저장하기' };
+    document.querySelector = selector => selector === '#meal-form button[type="submit"]' ? submitButton : null;
+    document.querySelectorAll = () => [];
+    let completePhoto;
+    compressImageFile = () => new Promise(resolve => { completePhoto = resolve; });
+    const saves = [];
+    saveMealLive = async (...args) => { saves.push(args); };
+    openMealModal('snack','간식');
+    document.getElementById('mf-desc').value = '테스트 메뉴';
+    document.getElementById('mf-cal').value = '1';
+    const picker = document.getElementById('meal-photo-input');
+    const form = document.getElementById('meal-form');
+    const submit = () => form.events.submit({ preventDefault() {} });
+    const picking = picker.events.change({ target: { files: [new Blob(['test'])] } });
+    submit();
+  `);
+  assert.equal(run('submitButton.disabled'), true);
+  assert.equal(run('saves.length'), 0);
+  await run("completePhoto('data:image/jpeg;base64,AAAA'); picking;");
+  assert.equal(run('submitButton.disabled'), false);
+  run('submit()');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(run('saves.length'), 1);
+  assert.equal(run('saves[0][4]'), 'data:image/jpeg;base64,AAAA');
+});
+
 test('meal save scopes both writes and only uploads a newly selected photo', async () => {
   const calls = [];
   let denied = true;

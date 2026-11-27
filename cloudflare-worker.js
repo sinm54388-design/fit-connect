@@ -1242,6 +1242,8 @@ async function handleRecords(request,env) {
             return json({status:'error',code:'invalid_media_parts'},422);
           info=await completeR2Multipart(env.FIT_MEDIA,scope,parts);
           if(!matchesMediaObject(info,scope.size,scope.mime))
+            info=await env.FIT_MEDIA.head(row.storage_path);
+          if(!matchesMediaObject(info,scope.size,scope.mime))
             return json({status:'error',code:'upload_size_mismatch'},409);
         }else{
           info=usesR2?await env.FIT_MEDIA.head(row.storage_path):await send(bucket+'/info/fit-direct-videos/'+path,'GET');

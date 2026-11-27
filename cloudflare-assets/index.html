@@ -6741,6 +6741,7 @@
       if (state.memberTab === 'lesson') {
         const rs = state.record.routines || [];
         const hasPersonalWorkout = rs.some(r => r.routineType === 'homework');
+        const hasPtRecord = rs.some(r => r.routineType !== 'homework');
         const normKey = n => String(n || '').trim().toLowerCase().replace(/\s+/g, '');
         const libItems = Object.values(state.exerciseLibrary || {})
           .filter(it => normKey(it.name).includes(normKey(state.lessonSearch)))
@@ -6763,11 +6764,11 @@
                 <div class="w-9 h-9 rounded-2xl card-teal text-white flex items-center justify-center text-base shrink-0">🗓</div>
                 <div class="min-w-0">
                   <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="text-[14px] font-extrabold text-[#0F766E]">오늘은 PT 예정일입니다</span>
+                    <span class="text-[14px] font-extrabold text-[#0F766E]">PT 수업 일정</span>
                     ${state.record.ptTime ? `<span class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-white text-[#0F766E] shadow-sm">${escapeHtml(state.record.ptTime)} 수업</span>` : ''}
                   </div>
                   <p class="text-[12px] text-[#115E59] mt-0.5 leading-snug">
-                    ${rs.length ? '오늘 PT 수업일지가 등록되었어요. 아래 종목별 자세 포인트를 확인해 보세요!' : '오늘 PT 수업이 예정되어 있어요. 수업이 끝나면 코치님이 운동일지를 올려드릴 예정입니다!'}
+                    ${hasPtRecord ? '이 날짜의 PT 수업 일지가 등록됐어요.' : '이 날짜의 PT 수업 일지는 아직 등록되지 않았어요.'}
                   </p>
                 </div>
               </div>

@@ -4921,12 +4921,12 @@
               <p class="mt-2 text-[11px] text-[#475569]">미답변 영상 ${Number(memberSummary.directPendingVideos)||0}개 · 마지막 활동 ${escapeHtml(memberSummary.lastDate||'기록 없음')}</p>
             </div>
             <!-- Quick Status & Handover -->
-            <div class="p-3.5 rounded-2xl hero-navy text-white flex items-center justify-between gap-2">
+            <div class="p-3.5 rounded-2xl hero-navy text-white flex flex-col gap-2">
               <div class="min-w-0">
                 <span class="text-[10px] font-bold text-[#5EEAD4]">${detailDate} · 체크인 ${chk.workout === 'done' ? '운동완료' : '기록대기'}</span>
                 <p class="text-[13px] font-bold mt-0.5 truncate">최근 메모: ${escapeHtml(lastMemo)}</p>
               </div>
-              <div class="flex items-center gap-1 shrink-0">
+              <div class="flex flex-wrap items-center gap-1">
                 <button type="button" id="cd-jump-reply" class="tap-scale px-2 py-1.5 rounded-xl bg-white text-[#1E3A8A] text-[11px] font-extrabold">답글 쓰기</button>
                 <button type="button" id="cd-preview-member" class="tap-scale px-2 py-1.5 rounded-xl bg-[#5EEAD4] text-[#0F172A] text-[11px] font-extrabold">👁 보기</button>
                 <button type="button" id="cd-copy-link" class="tap-scale px-2 py-1.5 rounded-xl bg-white/15 text-white text-[11px] font-bold">🔗 링크</button>

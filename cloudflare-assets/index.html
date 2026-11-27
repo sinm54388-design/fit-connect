@@ -6478,9 +6478,9 @@
     }
 
     const MEMBER_VIDEO_BODY_PARTS = [
-      ['하체', /하체|스쿼트|런지|레그프레스|레그컬|레그익스텐션|힙쓰러스트|힙스러스트|힙어브덕션|루마니안데드리프트|스텝업|squat|lunge|legpress|legcurl|hipthrust/],
+      ['하체', /하체|스쿼트|런지|레그프레스|레그컬|레그익스텐션|힙쓰러스트|힙스러스트|힙어브덕션|루마니안데드리프트|데드리프트|deadlift|스텝업|squat|lunge|legpress|legcurl|hipthrust/],
       ['어깨', /어깨|숄더프레스|밀리터리프레스|오버헤드프레스|사이드레터럴|레터럴레이즈|프론트레이즈|리어델트|페이스풀|shoulderpress|overheadpress|lateralraise/],
-      ['등', /랫풀다운|렛풀다운|랫풀|풀업|친업|시티드로우|바벨로우|덤벨로우|케이블로우|티바로우|원암로우|로우머신|^등(?:운동)?$|^로우$|latpulldown|pullup|chinup|cablerow|barbellrow|dumbbellrow/],
+      ['등', /랫풀다운|렛풀다운|풀다운|랫풀|풀업|친업|시티드로우|바벨로우|덤벨로우|케이블로우|티바로우|원암로우|로우머신|^등(?:운동)?$|^로우$|latpulldown|pullup|chinup|cablerow|barbellrow|dumbbellrow/],
       ['가슴', /가슴|벤치프레스|체스트프레스|펙덱|푸시업|푸쉬업|케이블플라이|덤벨플라이|^벤치$|benchpress|chestpress|pushup|pecdeck/],
       ['팔', /이두|삼두|바이셉|트라이셉|해머컬|덤벨컬|바벨컬|케이블컬|프리처컬|푸시다운|푸쉬다운|스컬크러셔|^팔(?:운동)?$|bicep|tricep|hammercurl|pushdown/],
       ['복근', /복근|플랭크|크런치|데드버그|레그레이즈|러시안트위스트|행잉니레이즈|abwheel|plank|crunch|deadbug|legraise/]
@@ -6508,7 +6508,7 @@
       const videos = state.directVideos.map(video => ({
         ...video,
         uploadDay: getMemberVideoDate(video.createdAt),
-        exerciseName: exercises.get(video.id) || video.name,
+        exerciseName: exercises.get(video.id) || (getMemberVideoCategory(video.question) !== '미분류' || /^[\p{L}\p{N}\s()·/-]{1,60}$/u.test(String(video.question || '').trim()) ? String(video.question || '').trim() : '') || video.name || '운동 영상',
         bodyPart: getMemberVideoCategory(exercises.get(video.id) || video.question)
       })).sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
       const byPart = new Map();
@@ -6520,11 +6520,11 @@
         <div class="space-y-2">
           ${list.slice(0, videoLimit).map(v => `
             <div class="p-3 rounded-xl bg-[#EFF6FF] flex items-center justify-between gap-2">
-              <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.name || '운동 영상')}" data-dvexercise="${escapeHtml(v.exerciseName || '')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale flex-1 min-w-0 text-left flex items-center justify-between gap-2">
+              <button type="button" data-dvid="${escapeHtml(v.id)}" data-dvname="${escapeHtml(v.exerciseName || '운동 영상')}" data-dvexercise="${escapeHtml(v.exerciseName || '')}" data-dvfb="${escapeHtml(v.feedback || v.question || '')}" class="dv-play-btn tap-scale flex-1 min-w-0 text-left flex items-center justify-between gap-2">
                 <span class="min-w-0">
-                  <span class="block truncate text-[13px] font-bold text-[#111827]">${escapeHtml(v.name || '운동 영상')}</span>
+                  <span class="block truncate text-[13px] font-bold text-[#111827]">${escapeHtml(v.exerciseName || '운동 영상')}</span>
                   ${v.uploadDay ? `<span class="block text-[11px] text-[#475569]">${escapeHtml(v.uploadDay)}</span>` : ''}
-                  ${v.feedback ? `<span class="block truncate text-[11px] font-semibold text-[#0F766E]">코치 피드백: ${escapeHtml(v.feedback)}</span>` : (v.question ? `<span class="block truncate text-[11px] text-[#475569]">${escapeHtml(v.question)}</span>` : '')}
+                  ${v.feedback ? `<span class="block truncate text-[11px] font-semibold text-[#0F766E]">코치 피드백: ${escapeHtml(v.feedback)}</span>` : (v.question && v.question !== v.exerciseName ? `<span class="block truncate text-[11px] text-[#475569]">${escapeHtml(v.question)}</span>` : '')}
                 </span>
                 <span class="shrink-0 rounded-full card-blue px-3 py-1.5 text-[11px] font-extrabold text-white">재생 ▶</span>
               </button>

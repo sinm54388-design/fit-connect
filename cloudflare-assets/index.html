@@ -213,22 +213,31 @@
         return { day, date: Number(full.slice(8, 10)), fullDate: full };
       });
     }
-    function copyTextSafe(text) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-      } else {
-        fallbackCopy(text);
-      }
+    async function copyTextSafe(text) {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch {}
+      return fallbackCopy(text);
     }
     function fallbackCopy(text) {
       const ta = document.createElement('textarea');
       ta.value = text;
+      ta.readOnly = true;
       ta.style.position = 'fixed';
       ta.style.opacity = '0';
       document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); } catch {}
-      ta.remove();
+      try {
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        return document.execCommand('copy') === true;
+      } catch {
+        return false;
+      } finally {
+        ta.remove();
+      }
     }
     function escapeHtml(str) {
       return String(str || '')
@@ -2881,6 +2890,8 @@
       const b = document.getElementById('modal-backdrop');
       b.classList.add('hidden');
       b.classList.remove('flex');
+      const memberLink = document.getElementById('member-link-copy-value');
+      if (memberLink) memberLink.value = '';
       document.getElementById('modal-body')?.querySelectorAll('video').forEach(video => video.pause());
     }
 
@@ -4617,19 +4628,69 @@
       return token;
     }
 
+    function startMemberLinkCopy(linkPromise) {
+      if (!navigator.clipboard?.write || typeof ClipboardItem !== 'function') return null;
+      // Start the write during the tap so Safari can accept the link after verification.
+      const text = linkPromise.then(link => {
+        if (!link) throw new Error('Member link unavailable');
+        return new Blob([link], { type: 'text/plain' });
+      });
+      text.catch(() => {});
+      try {
+        return navigator.clipboard.write([new ClipboardItem({ 'text/plain': text })]).then(() => true, () => false);
+      } catch {
+        return null;
+      }
+    }
+
+    function showMemberLinkForCopy(link) {
+      openModal('회원 전용 링크', `
+        <div class="space-y-3">
+          <label for="member-link-copy-value" class="block text-[13px] text-[#4B5563]">복사 버튼을 눌러 주세요. 복사가 막히면 링크를 길게 눌러 직접 복사할 수 있어요.</label>
+          <input id="member-link-copy-value" type="text" readonly autocomplete="off" spellcheck="false" class="w-full text-base px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9]" />
+          <button type="button" id="member-link-copy-retry" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">링크 복사</button>
+        </div>
+      `);
+      const input = document.getElementById('member-link-copy-value');
+      input.value = link;
+      document.getElementById('member-link-copy-retry').addEventListener('click', async () => {
+        if (await copyTextSafe(input.value)) {
+          closeModal();
+          showToast('회원 전용 링크를 복사했어요.');
+        } else {
+          input.focus();
+          input.select();
+          showToast('선택된 링크를 길게 눌러 복사해 주세요.');
+        }
+      });
+    }
+
+    async function copyOrShowMemberLink(link, clipboardWrite = null) {
+      const copied = clipboardWrite ? await clipboardWrite : await copyTextSafe(link);
+      if (!copied && (!state.isLive || (state.appMode === 'coach' && state.trainerPassword))) {
+        showMemberLinkForCopy(link);
+      }
+      return copied;
+    }
+
     async function copyMemberLink(memberName) {
       const base = isLiveOrigin ? (window.location.origin + window.location.pathname) : 'https://fit-connect.sinm54388.workers.dev/';
       showToast(`${memberName}님 전용 링크 확인 중...`);
-      let tok;
+      const linkPromise = resolveMemberToken(memberName).then(token => {
+        if (state.isLive && (state.appMode !== 'coach' || !state.trainerPassword)) return '';
+        return token ? memberLinkUrl(base, memberName, token) : '';
+      });
+      const clipboardWrite = startMemberLinkCopy(linkPromise);
+      let link;
       try {
-        tok = await resolveMemberToken(memberName);
+        link = await linkPromise;
       } catch (error) {
         showToast(error?.code === 'link_expired' ? error.message : '회원 링크를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
         return;
       }
-      if (tok) {
-        copyTextSafe(memberLinkUrl(base, memberName, tok));
-        showToast(`${memberName} 회원님 전용 링크 복사 완료! ✓`);
+      if (state.isLive && (state.appMode !== 'coach' || !state.trainerPassword)) return;
+      if (link) {
+        if (await copyOrShowMemberLink(link, clipboardWrite)) showToast('회원 전용 링크를 복사했어요.');
         return;
       }
       openModal(`${memberName}님 전용 링크 연결`, `
@@ -4659,9 +4720,10 @@
           button.disabled = false;
         }
         saveMemberTokenLocal(memberName, parsedTok);
-        copyTextSafe(memberLinkUrl(base, memberName, parsedTok));
-        closeModal();
-        showToast(`${memberName}님 전용 링크가 저장·복사되었어요!`);
+        if (await copyOrShowMemberLink(memberLinkUrl(base, memberName, parsedTok))) {
+          closeModal();
+          showToast('회원 전용 링크를 저장하고 복사했어요.');
+        }
       });
     }
 
@@ -4674,8 +4736,8 @@
           date: state.selectedDate, password: state.trainerPassword });
         if (!result.token) throw new Error('재발급 확인 실패');
         saveMemberTokenLocal(memberName, result.token);
-        copyTextSafe(memberLinkUrl(window.location.origin + '/', memberName, result.token));
-        showToast('새 링크를 복사했어요. 기존 링크는 만료됐어요.');
+        const copied = await copyOrShowMemberLink(memberLinkUrl(window.location.origin + '/', memberName, result.token));
+        showToast(copied ? '새 링크를 복사했어요. 기존 링크는 만료됐어요.' : '새 링크를 발급했어요. 기존 링크는 만료됐어요.');
       } catch (error) {
         showToast(error?.code === 'legacy_member_link'
           ? '이 회원은 이전 기록 시스템에 연결돼 있어요. 기존 링크를 확인해 주세요.'
@@ -5184,7 +5246,15 @@
           }
         });
 
-        document.getElementById('cd-copy-link').addEventListener('click', () => copyMemberLink(memberName));
+        document.getElementById('cd-copy-link').addEventListener('click', async event => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try {
+            await copyMemberLink(memberName);
+          } finally {
+            button.disabled = false;
+          }
+        });
         document.getElementById('cd-reissue-link').addEventListener('click', event => reissueMemberLink(memberName, event.currentTarget));
 
         document.getElementById('cd-copy-handover').addEventListener('click', () => {
@@ -5846,8 +5916,8 @@
         triggerConfetti();
         if (issuedTok) {
           const base = isLiveOrigin ? (window.location.origin + window.location.pathname) : 'https://fit-connect.sinm54388.workers.dev/';
-          copyTextSafe(memberLinkUrl(base, mName, issuedTok));
-          showToast(`${mName} 회원 등록 완료! 전용 링크가 복사되었어요 ✓`);
+          const copied = await copyOrShowMemberLink(memberLinkUrl(base, mName, issuedTok));
+          showToast(copied ? `${mName} 회원 등록 완료! 전용 링크를 복사했어요.` : `${mName} 회원님이 등록되었어요.`);
         } else {
           showToast(`${mName} 회원님이 등록되었어요!`);
         }

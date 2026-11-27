@@ -49,8 +49,10 @@ function fakeBucket() {
         },
         async complete(parts) {
           const bytes = Buffer.concat(parts.map(({ partNumber }) => upload.parts.get(partNumber)));
-          objects.set(path, { bytes, size: bytes.length, httpMetadata: upload.options.httpMetadata });
+          const object = { bytes, size: bytes.length, httpMetadata: upload.options.httpMetadata };
+          objects.set(path, object);
           uploads.delete(uploadId);
+          return object;
         }
       };
     }
@@ -59,6 +61,7 @@ function fakeBucket() {
 
 test('R2 media uses member-scoped records and preserves existing Supabase playback', async t => {
   const rows = new Map();
+  let failReadyWriteFor;
   const upstream = globalThis.fetch;
   const env = { FIT_MEDIA: fakeBucket(), SUPABASE_URL: base, SUPABASE_SECRET_KEY: 'test', TRAINER_PASSWORD: credential, MEMBER_SESSION_SECRET: 'test-only-session-secret-with-at-least-32-bytes' };
   globalThis.fetch = async (input, options = {}) => {
@@ -78,7 +81,13 @@ test('R2 media uses member-scoped records and preserves existing Supabase playba
       }
       const row = rows.get(url.searchParams.get('id')?.slice(3));
       if (!row || url.searchParams.get('member_id') !== 'eq.' + row.member_id) return Response.json([]);
-      if (options.method === 'PATCH') Object.assign(row, JSON.parse(options.body));
+      if (options.method === 'PATCH') {
+        if (row.id === failReadyWriteFor) {
+          failReadyWriteFor = null;
+          return Response.json({}, { status: 503 });
+        }
+        Object.assign(row, JSON.parse(options.body));
+      }
       return Response.json([row]);
     }
     if (url.pathname.startsWith('/storage/v1/object/sign/fit-direct-videos/'))
@@ -165,6 +174,33 @@ test('R2 media uses member-scoped records and preserves existing Supabase playba
   assert.equal((await record('directVideoFinish', { id: large })).status, 200);
   const largePlay = await (await record('directVideoPlay', { id: large })).json();
   assert.equal(await (await media(largePlay.url, { headers: { Range: 'bytes=-3' } })).text(), 'end');
+
+  const fastId = crypto.randomUUID();
+  const fastFile = new Blob([new Uint8Array(partBytes), 'fast']);
+  const fastBegin = await (await record('directVideoBegin', {
+    id: fastId, size: fastFile.size, name: 'fast.mp4', mime: 'video/mp4', multipartV2: true
+  })).json();
+  assert.ok(fastBegin.multipartUrl);
+  sentParts.length = 0;
+  const fastParts = await sendR2Video(fastFile, fastBegin, {}, transfer, () => {}, () => {});
+  assert.deepEqual(sentParts, ['1','2']);
+  assert.equal(await env.FIT_MEDIA.head(rows.get(fastId).storage_path), null, 'registration completes the uploaded parts');
+  assert.equal((await record('directVideoFinish', { id: fastId, multipart: { ...fastParts, parts: [] } })).status, 422);
+  const otherPending = crypto.randomUUID();
+  await create(otherPending, fastFile.size);
+  assert.equal((await record('directVideoFinish', { id: otherPending, multipart: fastParts })).status, 422);
+  assert.equal((await record('directVideoFinish', { id: small, multipart: fastParts }, { member: 'Another member' })).status, 404);
+  failReadyWriteFor = fastId;
+  assert.equal((await record('directVideoFinish', { id: fastId, multipart: fastParts })).status, 502);
+  assert.equal(rows.get(fastId).state, 'pending');
+  const recovery = await (await record('directVideoBegin', {
+    id: fastId, size: fastFile.size, name: 'fast.mp4', mime: 'video/mp4', multipartV2: true
+  })).json();
+  assert.equal(recovery.alreadyTransferred, true);
+  assert.equal((await record('directVideoFinish', { id: fastId, multipart: fastParts })).status, 200);
+  assert.equal((await record('directVideoFinish', { id: fastId, multipart: fastParts })).status, 200);
+  const fastPlay = await (await record('directVideoPlay', { id: fastId })).json();
+  assert.equal(await (await media(fastPlay.url, { headers: { Range: 'bytes=-4' } })).text(), 'fast');
 
   const maximum = await create(crypto.randomUUID(), 100_000_000);
   assert.equal(maximum.storage, 'r2');

@@ -1523,7 +1523,7 @@
           : Promise.resolve({ token: memberToken });
       const timing = upload.timing ||= {};
       const report = upload.onStage || (() => {});
-      if (file.size > 6 * 1024 * 1024) void import('/fit-video-transfer.mjs?v=3').catch(() => {});
+      if (file.size > 6 * 1024 * 1024) void import('/fit-video-transfer.mjs?v=4').catch(() => {});
       const preparation = upload.file || (upload.prepared ? upload.prepared.then(result => {
         timing.optimization = result.optimization;
         return result.file;
@@ -1541,6 +1541,10 @@
       const payload = {
         member: memberName, date: upload.date, id: upload.id, ...auth
       };
+      if (upload.r2Completion && upload.r2Multipart.expires < Date.now()) {
+        upload.r2Completion = null;
+        upload.transferred = false;
+      }
       if (!upload.transferred) {
         report('전송 준비 중', 0);
         let begin;
@@ -1548,7 +1552,8 @@
           begin = await postRecords({
             ...payload, action: 'directVideoBegin',
             name: (file.name || 'workout-video.mp4').slice(0, 150),
-            question: String(questionText || '').slice(0, 1000), mime, size: sendFile.size
+            question: String(questionText || '').slice(0, 1000), mime, size: sendFile.size,
+            multipartV2: !upload.r2Multipart || upload.r2Multipart.expires < Date.now()
           });
         } catch (err) {
           if (err?.code === 'video_size_limit') {
@@ -1562,15 +1567,15 @@
         const transferStart = performance.now();
         timing.prepare = transferStart - attemptStarted;
         report('영상 전송 중 · ' + videoSizeLabel(sendFile.size), 0);
-        let sent = false;
+        let sent = begin.alreadyTransferred === true;
         const canResume = sendFile.size > 6 * 1024 * 1024 && begin.uploadToken && begin.tusEndpoint && begin.objectName;
-        if (begin.storage === 'r2' && sendFile.size > begin.partBytes) {
-          const { sendR2Video } = await import('/fit-video-transfer.mjs?v=3');
-          await sendR2Video(sendFile, begin, upload, xhrVideoTransfer, onProgress, report);
+        if (!sent && begin.storage === 'r2' && sendFile.size > begin.partBytes) {
+          const { sendR2Video } = await import('/fit-video-transfer.mjs?v=4');
+          upload.r2Completion = await sendR2Video(sendFile, begin, upload, xhrVideoTransfer, onProgress, report);
           sent = true;
-        } else if (!upload.usePut && canResume) {
+        } else if (!sent && !upload.usePut && canResume) {
           try {
-            const { sendResumableVideo } = await import('/fit-video-transfer.mjs?v=3');
+            const { sendResumableVideo } = await import('/fit-video-transfer.mjs?v=4');
             sent = await sendResumableVideo(sendFile, mime, begin, upload, xhrVideoTransfer, onProgress, report);
           } catch (error) {
             // Once Storage has given us a resumable URL, retain it on failure.
@@ -1598,7 +1603,8 @@
       }
       report('전송 완료 · 영상 등록 중', 99);
       const finishStart = performance.now();
-      const finish = await postRecords({ ...payload, action: 'directVideoFinish' });
+      const finish = await postRecords({ ...payload, action: 'directVideoFinish',
+        ...(upload.r2Completion ? { multipart: upload.r2Completion } : {}) });
       if (finish?.status !== 'success') throw new Error('업로드 마무리 실패');
       timing.finish = performance.now() - finishStart;
       return 'direct:' + upload.id;
@@ -7666,7 +7672,7 @@
             async prepare(file, signal, report) {
               requireCoach();
               const timing = {};
-              if (file.size > 6 * 1024 * 1024) void import('/fit-video-transfer.mjs?v=3').catch(() => {});
+              if (file.size > 6 * 1024 * 1024) void import('/fit-video-transfer.mjs?v=4').catch(() => {});
               const prepared = await prepareDirectVideo(file, report, timing, signal);
               return { file: prepared, optimization: timing.optimization };
             },

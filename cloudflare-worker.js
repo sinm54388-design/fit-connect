@@ -37,9 +37,8 @@ async function mediaGrantUrl(request,env,{path,mime,size,uploadId},mode,ttl) {
   url.searchParams.set('grant',payload+'.'+b64url.encode(new Uint8Array(signature)));
   return url.href;
 }
-async function readMediaGrant(request,env) {
-  const grant=new URL(request.url).searchParams.get('grant')||'';
-  if(grant.length>1800)return null;
+async function readMediaGrant(request,env,grant=new URL(request.url).searchParams.get('grant')||'') {
+  if(typeof grant!=='string'||grant.length>1800)return null;
   const [payload,signature,extra]=grant.split('.');
   if(!payload||!signature||extra!==undefined)return null;
   try {
@@ -65,29 +64,46 @@ function validMediaBody(request,size,mime) {
 function validUploadedPart(part,index) {
   return part?.partNumber===index+1&&typeof part.etag==='string'&&part.etag.length>0&&part.etag.length<=384;
 }
+function validUploadedParts(parts,size) {
+  return Array.isArray(parts)&&parts.length===Math.ceil(size/MEDIA_PART_BYTES)&&parts.every(validUploadedPart);
+}
+function matchesMediaObject(object,size,mime) {
+  return object?.size===size&&object.httpMetadata?.contentType===mime;
+}
+async function createR2MultipartUrl(request,env,path,mime,size) {
+  const upload=await env.FIT_MEDIA.createMultipartUpload(path,{httpMetadata:{contentType:mime}});
+  return mediaGrantUrl(request,env,{path,mime,size,uploadId:upload.uploadId},'multipart',MEDIA_UPLOAD_TTL);
+}
+async function completeR2Multipart(bucket,{path,mime,size,uploadId},parts) {
+  try {
+    return await bucket.resumeMultipartUpload(path,uploadId).complete(parts);
+  }catch(error){
+    const saved=await bucket.head(path);
+    if(!matchesMediaObject(saved,size,mime))throw error;
+    return saved;
+  }
+}
 async function handleR2Multipart(request,env,grant) {
   const {path,mime,size,mode,uploadId}=grant;
   const count=Math.ceil(size/MEDIA_PART_BYTES);
   if(mode==='upload'&&request.method==='POST'){
     if(await env.FIT_MEDIA.head(path))return json({complete:true});
-    const upload=await env.FIT_MEDIA.createMultipartUpload(path,{httpMetadata:{contentType:mime}});
-    const url=await mediaGrantUrl(request,env,{path,mime,size,uploadId:upload.uploadId},'multipart',MEDIA_UPLOAD_TTL);
+    const url=await createR2MultipartUrl(request,env,path,mime,size);
     return json({url});
   }
   if(mode!=='multipart')return json({status:'denied'},403);
-  const upload=env.FIT_MEDIA.resumeMultipartUpload(path,uploadId);
   if(request.method==='PUT'){
     const partNumber=Number(new URL(request.url).searchParams.get('part'));
     const partSize=Math.min(MEDIA_PART_BYTES,size-(partNumber-1)*MEDIA_PART_BYTES);
     if(!Number.isInteger(partNumber)||partNumber<1||partNumber>count||
       !validMediaBody(request,partSize,'application/offset+octet-stream'))
       return json({status:'error',code:'invalid_media_part'},422);
-    return json(await upload.uploadPart(partNumber,request.body));
+    return json(await env.FIT_MEDIA.resumeMultipartUpload(path,uploadId).uploadPart(partNumber,request.body));
   }
   if(request.method==='POST'){
     if(Number(request.headers.get('content-length'))>MEDIA_PART_LIST_MAX_BYTES)return json({status:'error',code:'invalid_media_parts'},422);
     const existing=await env.FIT_MEDIA.head(path);
-    if(existing?.size===size&&existing.httpMetadata?.contentType===mime)return json({complete:true});
+    if(matchesMediaObject(existing,size,mime))return json({complete:true});
     const reader=request.body?.getReader();
     if(!reader)return json({status:'error',code:'invalid_media_parts'},422);
     let payload='',bytes=0;
@@ -106,14 +122,9 @@ async function handleR2Multipart(request,env,grant) {
     try{parts=JSON.parse(payload+decoder.decode());}catch{
       return json({status:'error',code:'invalid_media_parts'},422);
     }
-    if(!Array.isArray(parts)||parts.length!==count||!parts.every(validUploadedPart))
+    if(!validUploadedParts(parts,size))
       return json({status:'error',code:'invalid_media_parts'},422);
-    try {
-      await upload.complete(parts);
-    }catch(error){
-      const saved=await env.FIT_MEDIA.head(path);
-      if(saved?.size!==size||saved.httpMetadata?.contentType!==mime)throw error;
-    }
+    await completeR2Multipart(env.FIT_MEDIA,grant,parts);
     return json({complete:true});
   }
   return json({status:'denied'},403);
@@ -1198,7 +1209,13 @@ async function handleRecords(request,env) {
         if(row.storage_path.startsWith(R2_MEDIA_PREFIX)){
           if(!r2MediaReady(env))return json({status:'error',code:'media_unavailable'},503);
           const url=await mediaGrantUrl(request,env,{path:row.storage_path,mime,size},'upload',MEDIA_UPLOAD_TTL);
-          return json({status:'success',url,storage:'r2',partBytes:MEDIA_PART_BYTES});
+          const options={status:'success',url,storage:'r2',partBytes:MEDIA_PART_BYTES};
+          if(input.multipartV2===true&&size>MEDIA_PART_BYTES){
+            if(!inserted?.length&&matchesMediaObject(await env.FIT_MEDIA.head(row.storage_path),size,mime))
+              return json({...options,alreadyTransferred:true});
+            options.multipartUrl=await createR2MultipartUrl(request,env,row.storage_path,mime,size);
+          }
+          return json(options);
         }
         const path=row.storage_path.split('/').map(encodeURIComponent).join('/');
         const signed=await send(bucket+'/upload/sign/fit-direct-videos/'+path,'POST',{});
@@ -1216,8 +1233,19 @@ async function handleRecords(request,env) {
         step='direct_finish_storage';
         const usesR2=row.storage_path.startsWith(R2_MEDIA_PREFIX);
         if(usesR2&&!r2MediaReady(env))return json({status:'error',code:'media_unavailable'},503);
-        const info=usesR2?await env.FIT_MEDIA.head(row.storage_path):
-          await send(bucket+'/info/fit-direct-videos/'+path,'GET');
+        let info;
+        if(usesR2&&input.multipart!==undefined){
+          const {grant,parts}=input.multipart||{};
+          const scope=await readMediaGrant(request,env,grant??'');
+          if(scope?.mode!=='multipart'||scope.path!==row.storage_path||scope.size<=MEDIA_PART_BYTES||
+             scope.size!==Number(row.size_bytes)||scope.mime!==row.mime||!validUploadedParts(parts,scope.size))
+            return json({status:'error',code:'invalid_media_parts'},422);
+          info=await completeR2Multipart(env.FIT_MEDIA,scope,parts);
+          if(!matchesMediaObject(info,scope.size,scope.mime))
+            return json({status:'error',code:'upload_size_mismatch'},409);
+        }else{
+          info=usesR2?await env.FIT_MEDIA.head(row.storage_path):await send(bucket+'/info/fit-direct-videos/'+path,'GET');
+        }
         const bytes=Number(info?.size??info?.metadata?.size);
         if(bytes!==Number(row.size_bytes))return json({status:'error',code:'upload_size_mismatch'},409);
         const updated=await send(table+'?'+filter+'&state=eq.pending','PATCH',{state:'ready'},{Prefer:'return=representation'});

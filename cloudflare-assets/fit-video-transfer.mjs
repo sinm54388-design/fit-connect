@@ -91,15 +91,20 @@ export async function sendResumableVideo(file, mime, options, job, transfer, onP
 export async function sendR2Video(file, options, job, transfer, onProgress, report) {
   const endpoint = new URL(options.url);
   if (!job.r2Multipart || job.r2Multipart.expires < Date.now()) {
-    const creation = await fetch(endpoint, { method: 'POST' });
-    if (!creation.ok) throw new Error('이어 올리기 시작 실패 (' + creation.status + ')');
-    const result = await creation.json();
-    if (result.complete) return;
-    const url = new URL(result.url, endpoint);
+    let multipartUrl = options.multipartUrl;
+    if (!multipartUrl) {
+      const creation = await fetch(endpoint, { method: 'POST' });
+      if (!creation.ok) throw new Error('이어 올리기 시작 실패 (' + creation.status + ')');
+      const result = await creation.json();
+      if (result.complete) return;
+      multipartUrl = result.url;
+    }
+    const url = new URL(multipartUrl, endpoint);
     if (url.origin !== endpoint.origin || url.pathname !== endpoint.pathname || !url.searchParams.has('grant')) {
       throw new Error('이어 올리기 주소를 확인하지 못했어요');
     }
-    job.r2Multipart = { url: url.href, parts: [], expires: Date.now() + 43 * 60_000 };
+    job.r2Multipart = { url: url.href, parts: [], expires: Date.now() + 43 * 60_000,
+      completeWithRegistration: Boolean(options.multipartUrl) };
   }
 
   const { url, parts } = job.r2Multipart;
@@ -159,6 +164,9 @@ export async function sendR2Video(file, options, job, transfer, onProgress, repo
   await Promise.all(Array.from({ length: Math.min(R2_CONCURRENT_PARTS, partCount) }, uploadPendingParts));
   if (failure) throw failure;
 
+  if (job.r2Multipart.completeWithRegistration) {
+    return { grant: new URL(url).searchParams.get('grant'), parts };
+  }
   const completion = await fetch(url, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parts)
   });

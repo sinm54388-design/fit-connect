@@ -394,7 +394,7 @@ async function buildOverview(supaGet,date,base) {
   const prefix='/rest/v1/fit_daily_records?select=member_id,record_date,'+
     'routines:data->routines,reflection:data->reflection,diet:data->diet,feedback:data->feedback,checkin:data->dailyCheckin'+
     '&record_date=gte.'+windowStart+'&record_date=lte.'+date+
-    '&order=record_date.desc&limit='+pageSize;
+    '&order=record_date.desc,member_id.asc&limit='+pageSize;
   const directPending=(async()=>{
     const counts=new Map(),size=1000;
     for(let offset=0;;offset+=size){

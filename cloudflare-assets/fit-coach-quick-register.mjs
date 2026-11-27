@@ -158,18 +158,31 @@ export async function saveCoachSession(lesson, file, upload, api) {
     id: ids[order], routineType: 'pt', name, weight: sets[0].weight, reps: sets[0].reps,
     sets: String(sets.length), setDetails: sets, completedSets: sets.map(() => true), note: '', videoUrl: '',
   }]);
+  let expectedVideo = '';
   if (file) {
     if (index < 0) throw new Error('영상이 연결될 운동을 선택해 주세요.');
     const id = ids[index];
     const existing = known.get(String(id));
-    if (existing?.videoId && existing.videoId !== 'direct:' + videoId) {
+    expectedVideo = existing?.videoId || 'direct:' + (upload.id || videoId);
+    if (existing?.videoId && existing.videoId !== 'direct:' + videoId && existing.videoId !== 'direct:' + upload.id) {
       throw new Error('이 운동에는 이미 다른 영상이 연결돼 있어요. 회원 상세 화면에서 확인해 주세요.');
     }
     if (!existing?.videoId) {
-      upload.id = videoId;
+      upload.id ||= videoId;
       upload.date = date;
-      const attached = await api.upload(file, member, plan[index].name, upload);
-      if (attached !== 'direct:' + videoId) throw new Error('영상 등록을 확인하지 못했어요. 다시 시도해 주세요.');
+      let attached;
+      try {
+        attached = await api.upload(file, member, plan[index].name, upload);
+      } catch (error) {
+        if (error?.code !== 'upload_conflict' && !String(error?.message).includes('upload_conflict')) throw error;
+        // A previously deleted video or differently compressed retry can occupy the old ID.
+        // Retry with a fresh UUID, without deleting or overwriting the old media.
+        for (const key of ['r2Multipart','r2Completion','transferred','tusUrl','usePut']) delete upload[key];
+        upload.id = crypto.randomUUID();
+        attached = await api.upload(file, member, plan[index].name, upload);
+      }
+      expectedVideo = 'direct:' + upload.id;
+      if (attached !== expectedVideo) throw new Error('영상 등록을 확인하지 못했어요. 다시 시도해 주세요.');
       const latest = storedRoutines(await api.read(member, date)).find((routine) => String(routine.id) === String(id));
       if (latest?.videoId && latest.videoId !== attached) throw new Error('이 운동에 다른 영상이 연결됐어요. 회원 상세 화면을 확인해 주세요.');
       const pending = newItems.findIndex((routine) => routine.id === id);
@@ -181,7 +194,7 @@ export async function saveCoachSession(lesson, file, upload, api) {
   if (newItems.length) await api.write(member, date, newItems);
   const after = storedRoutines(await api.read(member, date));
   if (!ids.every((id) => after.some((routine) => String(routine.id) === String(id)))
-      || (file && !after.some((routine) => String(routine.id) === String(ids[index]) && routine.videoId === 'direct:' + videoId))) {
+      || (file && !after.some((routine) => String(routine.id) === String(ids[index]) && routine.videoId === expectedVideo))) {
     throw new Error('일지에서 등록 결과를 확인하지 못했어요. 같은 내용으로 다시 시도해 주세요.');
   }
   return { alreadySaved: newItems.length === 0 };
@@ -228,7 +241,7 @@ export function openCoachQuickRegistration(api) {
   }
   const describeFile = (file) => file.name + ' · ' + (file.size / 1_000_000).toFixed(1) + 'MB';
   const announceError = (error) => {
-    setStatus(error?.status === 403 ? '코치 로그인이 만료됐어요. FIT-CONNECT에서 다시 로그인해 주세요.' : error.message || '잠시 후 다시 시도해 주세요.');
+    setStatus(error?.status === 403 ? '코치 로그인이 만료됐어요. FIT-CONNECT에서 다시 로그인해 주세요.' : (error.message || '잠시 후 다시 시도해 주세요.') + ' · 등록 실패. 첨부를 유지했으니 다시 시도해 주세요.');
   };
   let draft, memberList, preparation, busy = false;
   function lock(locked) {

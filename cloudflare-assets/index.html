@@ -1912,21 +1912,30 @@
           });
           memberColumnsRequest = columns;
         }
+        const columnsReady = memberColumnsRequest.promise.then(result => {
+          if (!stillCurrent() || !Array.isArray(result?.columns)) return;
+          state.columns = result.columns;
+          // Refresh only the cards so an open modal or focused editor stays intact.
+          const magazine = document.getElementById('home-magazine-list');
+          if (magazine) {
+            magazine.innerHTML = renderHomeMagazine();
+            bindMagazineButtons(magazine);
+          }
+        });
         const videoVersion = memberVideoVersion;
         const insights = postRecords({ ...auth, action: 'memberInsights' });
         const workoutDays = insights.then(result => result?.workoutDays, () => undefined).then(days => {
           if (Array.isArray(days) || !stillCurrent()) return days;
           return postRecords({ ...auth, action: 'workoutHistory', month: dateStr.slice(0, 7) }).then(result => result.days);
         });
-        const [ins, cols, days, videos] = await Promise.allSettled([
+        const [ins, , days, videos] = await Promise.allSettled([
           insights,
-          memberColumnsRequest.promise,
+          columnsReady,
           workoutDays,
           loadMemberVideos(auth, token)
         ]);
         if (!stillCurrent()) return;
         if (ins.value?.status === 'success') state.insights = ins.value;
-        if (Array.isArray(cols.value?.columns)) state.columns = cols.value.columns;
         if (Array.isArray(days.value)) state.workoutDays = days.value;
         if (videoVersion === memberVideoVersion && Array.isArray(videos.value)) state.directVideos = videos.value;
         syncExerciseLibrary(dateStr);
@@ -4221,6 +4230,28 @@
         const todaysArticle = options.find(item => String(item.col.published_at || '').slice(0,10) === dateStr);
         return todaysArticle || options[((day % options.length) + options.length) % options.length];
       }).filter(Boolean);
+    }
+
+    function renderHomeMagazine() {
+      return `
+        ${!state.columns.length ? '<p class="text-[13px] leading-[1.7] text-[#64748B] py-2">발행된 매거진을 불러오는 중이거나 아직 표시할 글이 없어요.</p>' : ''}
+        ${getDailyMagazinePicks(state.selectedDate).map(({ col, index }, idx) => `
+          <button type="button" data-colidx="${index}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
+              <p class="text-[15px] font-extrabold text-[#0F172A] mt-2 leading-[1.55] line-clamp-2 break-keep">${escapeHtml(col.title)}</p>
+              <p class="text-[13px] text-[#475569] mt-1 leading-[1.6] line-clamp-2 break-keep">${escapeHtml(col.summary || '')}</p>
+            </div>
+            <span class="w-8 h-8 rounded-full bg-white text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">›</span>
+          </button>
+        `).join('')}
+      `;
+    }
+
+    function bindMagazineButtons(root = document) {
+      root.querySelectorAll('.mag-item-btn').forEach(button => {
+        button.addEventListener('click', () => openMagazineModal(Number(button.dataset.colidx)));
+      });
     }
 
     function openMagazineModal(idx) {
@@ -6527,7 +6558,6 @@
       const checkedCount = [chk.workout, chk.diet, chk.mood].filter(Boolean).length;
       const workoutPoint = getDailyWorkoutPoint(state.selectedDate);
       const coachNote = state.record.headerMessage || state.record.feedback?.workout;
-      const dailyMagazinePicks = getDailyMagazinePicks(state.selectedDate);
       const pr = state.insights?.weekly?.improvements?.[0];
       if (state.memberTab === 'report') {
         const routines = state.record.routines || [];
@@ -6640,19 +6670,7 @@
                 </div>
                 <span class="shrink-0 px-2.5 py-1.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-bold whitespace-nowrap">매일 3편</span>
               </div>
-              <div class="space-y-2">
-                ${!state.columns.length ? '<p class="text-[13px] leading-[1.7] text-[#64748B] py-2">발행된 매거진을 불러오는 중이거나 아직 표시할 글이 없어요.</p>' : ''}
-                ${dailyMagazinePicks.map(({ col, index }, idx) => `
-                  <button type="button" data-colidx="${index}" class="mag-item-btn tap-scale w-full p-3.5 rounded-2xl ${idx === 0 ? 'bg-[#EFF6FF]' : 'bg-[#F4F6F9]'} text-left flex items-center justify-between gap-3">
-                    <div class="min-w-0">
-                      <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-[#1D4ED8] text-white' : 'bg-[#0F766E] text-white'}">${escapeHtml(col.category || '인사이트')}</span>
-                      <p class="text-[15px] font-extrabold text-[#0F172A] mt-2 leading-[1.55] line-clamp-2 break-keep">${escapeHtml(col.title)}</p>
-                      <p class="text-[13px] text-[#475569] mt-1 leading-[1.6] line-clamp-2 break-keep">${escapeHtml(col.summary || '')}</p>
-                    </div>
-                    <span class="w-8 h-8 rounded-full bg-white text-[#1D4ED8] flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">›</span>
-                  </button>
-                `).join('')}
-              </div>
+              <div id="home-magazine-list" class="space-y-2">${renderHomeMagazine()}</div>
             </section>
 
             <!-- Compact 1-Line Water Bar -->
@@ -7492,9 +7510,7 @@
 
       const magBtn = document.getElementById('btn-open-magazine');
       if (magBtn) magBtn.addEventListener('click', () => openMagazineModal(getDailyMagazinePicks(state.selectedDate)[0]?.index || 0));
-      document.querySelectorAll('.mag-item-btn').forEach(b => {
-        b.addEventListener('click', () => openMagazineModal(Number(b.dataset.colidx)));
-      });
+      bindMagazineButtons();
 
       const handleMemberVideoFile = async (f, upload = {}) => {
           if (videoUploadInFlight) return;

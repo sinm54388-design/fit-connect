@@ -185,6 +185,47 @@ test('member day stays unverified after a second failure and marks the matching 
   assert.equal(run('state.mealReadVerified || state.workoutReadVerified'),false);
 });
 
+test('member magazine renders while the privacy modal and other requests are pending', async () => {
+  let finishInsights;
+  const insights = new Promise(resolve => { finishInsights = resolve; });
+  const columns = ['트레이닝', '영양/식단', '회복/습관'].map(category => ({
+    title: '오늘의 ' + category, category, published_at: date,
+  }));
+  const run = app(async (_, request) => {
+    const { action } = JSON.parse(request.body);
+    if (action === 'memberSession') {
+      return Response.json({ status: 'success', session: 'verified', exp: Date.now() + 3600000, daily: { nativeDaily: true } });
+    }
+    if (action === 'memberInsights') return insights;
+    if (action === 'columnList') return Response.json({ status: 'success', columns });
+    return Response.json({ status: 'success', videos: [] });
+  });
+  run(`
+    const frames = [];
+    requestAnimationFrame = callback => frames.push(callback);
+    document.getElementById('modal-backdrop').classList.contains = name => name === 'flex';
+    const magazine = document.getElementById('home-magazine-list');
+    let renderCount = 0;
+    renderAll = () => { renderCount++; };
+    let openedArticle;
+    const button = { dataset: { colidx: '1' }, addEventListener(_, callback) { this.click = callback; } };
+    magazine.querySelectorAll = () => [button];
+    openMagazineModal = index => { openedArticle = index; };
+  `);
+  await run('loadMemberDateData(state.selectedDate)');
+  const pending = run('frames.shift()(); frames.shift()();');
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    for (const { title } of columns) assert.ok(run('magazine.innerHTML').includes(title));
+    run('button.click()');
+    assert.equal(run('openedArticle'), 1);
+    assert.equal(run('renderCount'), 1);
+  } finally {
+    finishInsights(Response.json({ status: 'success', workoutDays: [date] }));
+    await pending;
+  }
+});
+
 test('cold member date reuses its authenticated record and loads optional calls after paint', async () => {
   const calls = [];
   const legacyCalls = [];

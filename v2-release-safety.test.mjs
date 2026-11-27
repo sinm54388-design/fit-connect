@@ -347,6 +347,43 @@ test('coach date changes request only the overview and keep the latest date, tab
   assert.equal(run('state.trainerOverview.length'), 0);
 });
 
+test('coach overview uses a stable second sort key across record pages', async () => {
+  const members = Array.from({ length: 25 }, (_, i) => ({ id: String(i + 1), name: 'QA ' + (i + 1) }));
+  const records = Array.from({ length: 45 }, (_, i) => {
+    const recordDate = new Date(Date.parse(date) - i * 86400000).toISOString().slice(0, 10);
+    return members.slice(0, -1).map(({ id }) => ({
+      member_id: id, record_date: recordDate, routines: [{ completedSets: [true] }],
+    }));
+  }).flat();
+  const pageQueries = [];
+  const fetch = async url => {
+    const { pathname, searchParams } = new URL(url);
+    if (pathname.endsWith('/fit_members')) return Response.json(members);
+    if (!pathname.endsWith('/fit_daily_records')) return Response.json([]);
+    const offset = Number(searchParams.get('offset'));
+    pageQueries.push({ offset, order: searchParams.get('order') });
+    return Response.json(records.slice(offset, offset + Number(searchParams.get('limit'))));
+  };
+  const mod = new vm.SourceTextModule(workerSource, {
+    context: vm.createContext({ URL, Request, Response, AbortSignal, TextEncoder, performance, fetch }),
+  });
+  await mod.link(() => {});
+  await mod.evaluate();
+  const response = await mod.namespace.default.fetch(new Request('https://fixture.test/api/records', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'trainerOverview', date, password: 'coach-fixture' }),
+  }), { SUPABASE_URL: 'https://fixture-db.supabase.co', SUPABASE_SECRET_KEY: 'fixture', TRAINER_PASSWORD: 'coach-fixture' });
+  assert.equal(response.status, 200);
+  const overview = await response.json();
+  assert.equal(overview.members.length, 25);
+  assert.equal(overview.members[0].weeklyWorkoutDays, 7);
+  assert.equal(overview.members.at(-1).weeklyWorkoutDays, 0);
+  assert.deepEqual(pageQueries, [
+    { offset: 0, order: 'record_date.desc,member_id.asc' },
+    { offset: 1000, order: 'record_date.desc,member_id.asc' },
+  ]);
+});
+
 test('coach replaces a rejected cached link with a verified existing link', async () => {
   const calls = [];
   let validReplacement = true;

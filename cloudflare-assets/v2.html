@@ -1869,8 +1869,18 @@
         localStorage.setItem('fit_last_member_access_v1', JSON.stringify({ name: member, token }));
       } catch {}
       const baseDaily = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos) ? asObj : recObj;
+      // Native PT entries must not disappear when the legacy mirror is empty or stale.
+      const nativePt = Array.isArray(recObj.routines) ? recObj.routines.filter(r => r && r.routineType === 'pt') : [];
+      const selectedRoutines = Array.isArray(baseDaily.routines) ? baseDaily.routines : [];
+      const visibleRoutines = [...selectedRoutines];
+      for (const routine of nativePt) {
+        const index = visibleRoutines.findIndex(r => r && String(r.id) === String(routine.id));
+        if (index < 0) visibleRoutines.push(routine);
+        else visibleRoutines[index] = { ...visibleRoutines[index], ...routine };
+      }
       const chosenDaily = {
         ...baseDaily,
+        routines: visibleRoutines,
         ...(getPtSchedule(asObj) ?? getPtSchedule(recObj)),
         dailyCheckin: { ...baseDaily.dailyCheckin, ...recObj.dailyCheckin },
         diet: mergeDietRecords(asObj?.diet, recObj?.diet, recObj?.deletedPhotoMeals || []),

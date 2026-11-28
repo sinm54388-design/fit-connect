@@ -4,10 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FIT-CONNECT</title>
+  <link rel="dns-prefetch" href="https://cdn.tailwindcss.com" />
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
   <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="preload" as="style" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
   <style>
     body {
       font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
@@ -574,6 +577,24 @@
       return '';
     }
 
+    function mergeDietRecords(primaryDiet, secondaryDiet) {
+      const p = (primaryDiet && typeof primaryDiet === 'object') ? primaryDiet : {};
+      const s = (secondaryDiet && typeof secondaryDiet === 'object') ? secondaryDiet : {};
+      const out = { ...s, ...p };
+      ['breakfast', 'lunch', 'dinner', 'snack'].forEach(k => {
+        const pm = p[k] || {};
+        const sm = s[k] || {};
+        const pPhoto = extractPhotoSrc(pm);
+        const sPhoto = extractPhotoSrc(sm);
+        const mergedMeal = { ...sm, ...pm };
+        if (!pPhoto && sPhoto) mergedMeal.photos = [sPhoto];
+        else if (pPhoto) mergedMeal.photos = [pPhoto];
+        if (Object.keys(mergedMeal).length) out[k] = mergedMeal;
+      });
+      out.water = Math.max(Number(p.water) || 0, Number(s.water) || 0);
+      return out;
+    }
+
     function unwrapDailyRecord(res) {
       if (!res || typeof res !== 'object') return {};
       if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) return res.data;
@@ -615,9 +636,9 @@
       const s = String(src || '').trim();
       if (!s) return '';
       if (s.startsWith('direct:')) {
-        return `<img data-directimg="${escapeHtml(s)}" data-directmember="${escapeHtml(memberName || state.memberName)}" alt="${escapeHtml(alt || '사진')}" class="${cls} bg-[#F4F6F9]" />`;
+        return `<img loading="lazy" decoding="async" data-directimg="${escapeHtml(s)}" data-directmember="${escapeHtml(memberName || state.memberName)}" alt="${escapeHtml(alt || '사진')}" class="${cls} bg-[#F4F6F9]" />`;
       }
-      return `<img src="${escapeHtml(s)}" alt="${escapeHtml(alt || '사진')}" class="${cls}" />`;
+      return `<img loading="lazy" decoding="async" src="${escapeHtml(s)}" alt="${escapeHtml(alt || '사진')}" class="${cls}" />`;
     }
 
     function hydrateDirectImages(memberOverride) {
@@ -838,19 +859,33 @@
       state.loading = !hadCache;
       renderAll();
       try {
-        const sessRes = await postRecords({
-          action: 'memberSession',
-          member: state.memberName,
-          token: state.token,
-          date: state.selectedDate
-        }).catch(() => null);
-        if (sessRes?.status === 'success' && sessRes.session) {
-          state.session = sessRes.session;
-        }
-        await loadMemberDateData(state.selectedDate);
+        const sessKey = `fit_member_sess_v2_${state.memberName}_${state.token}`;
+        let hasValidSess = false;
+        try {
+          const cachedSess = JSON.parse(sessionStorage.getItem(sessKey) || 'null');
+          if (cachedSess?.session && Number(cachedSess.exp) > Date.now() + 60000) {
+            state.session = cachedSess.session;
+            hasValidSess = true;
+          }
+        } catch {}
+        const sessPromise = hasValidSess
+          ? Promise.resolve(null)
+          : postRecords({
+              action: 'memberSession',
+              member: state.memberName,
+              token: state.token,
+              date: state.selectedDate
+            }).then(sessRes => {
+              if (sessRes?.status === 'success' && sessRes.session) {
+                state.session = sessRes.session;
+                try { sessionStorage.setItem(sessKey, JSON.stringify({ session: sessRes.session, exp: sessRes.exp || (Date.now() + 7 * 3600000) })); } catch {}
+              }
+            }).catch(() => null);
+        await Promise.all([sessPromise, loadMemberDateData(state.selectedDate)]);
         saveCachedMemberData(state.selectedDate);
         loadLocalMemberExtras();
         maybeShowPrivacyConsent();
+        scheduleAdjacentDatePrefetch(state.selectedDate);
       } catch {
         state.isLive = false;
         if (!hadCache) showToast('미리보기 데이터로 표시 중입니다');
@@ -885,24 +920,70 @@
       });
     }
 
-    async function loadMemberDateData(dateStr) {
+    const _loadedMeta = { cols: false, histMonths: new Set(), directVidMember: '' };
+    const _prefetchedDates = new Set();
+
+    function scheduleAdjacentDatePrefetch(anchorDate) {
+      if (!state.isLive || !state.memberName || (!state.session && !state.token)) return;
+      const targets = [shiftDateStr(anchorDate, -1), shiftDateStr(anchorDate, 1)];
+      setTimeout(() => {
+        const auth = state.session ? { session: state.session } : { token: state.token };
+        targets.forEach(dStr => {
+          const pKey = `${state.memberName}_${dStr}`;
+          if (_prefetchedDates.has(pKey)) return;
+          try { if (localStorage.getItem(`fit_cache_v2_${pKey}`)) { _prefetchedDates.add(pKey); return; } } catch {}
+          _prefetchedDates.add(pKey);
+          postRecords({ action: 'read', member: state.memberName, date: dStr, ...auth }).then(res => {
+            const rec = unwrapDailyRecord(res);
+            if (rec && typeof rec === 'object' && Object.keys(rec).length) {
+              try {
+                localStorage.setItem(`fit_cache_v2_${pKey}`, JSON.stringify({
+                  record: {
+                    headerMessage: rec.headerMessage || '',
+                    routines: Array.isArray(rec.routines) ? rec.routines : [],
+                    reflection: rec.reflection || { good: '', bad: '' },
+                    diet: rec.diet || { breakfast: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, lunch: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, dinner: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, snack: { desc: '', cal: '', carb: '', prot: '', fat: '', photos: [] }, water: 0 },
+                    feedback: rec.feedback || { workout: '', diet: '', time: '' },
+                    memos: Array.isArray(rec.memos) ? rec.memos : [],
+                    dailyCheckin: rec.dailyCheckin || { workout: '', diet: '', mood: '' },
+                    ptScheduled: Boolean(rec.ptScheduled),
+                    ptTime: String(rec.ptTime || '')
+                  }
+                }));
+              } catch {}
+            }
+          }).catch(() => {});
+        });
+      }, 450);
+    }
+
+    async function loadMemberDateData(dateStr, forceAll) {
       if (!state.isLive) return;
       const auth = state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword });
       const month = dateStr.slice(0, 7);
+      const needCols = forceAll || !_loadedMeta.cols;
+      const needHist = forceAll || !_loadedMeta.histMonths.has(`${state.memberName}_${month}`);
+      const needDVid = forceAll || _loadedMeta.directVidMember !== state.memberName;
 
       const [dailyRec, dailyAs, ins, cols, hist, dVid] = await Promise.allSettled([
         postRecords({ action: 'read', member: state.memberName, date: dateStr, ...auth }),
         postAppsScript({ action: 'read', member: state.memberName, date: dateStr, ...(state.token ? { token: state.token } : { password: state.trainerPassword }) }),
         postRecords({ action: 'memberInsights', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }),
-        postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth }),
-        postRecords({ action: 'directVideoList', member: state.memberName, date: dateStr, ...auth })
+        needCols ? postRecords({ action: 'columnList', member: state.memberName, date: dateStr, ...auth }) : Promise.resolve(null),
+        needHist ? postRecords({ action: 'workoutHistory', member: state.memberName, date: dateStr, month, ...auth }) : Promise.resolve(null),
+        needDVid ? postRecords({ action: 'directVideoList', member: state.memberName, date: dateStr, ...auth }) : Promise.resolve(null)
       ]);
+      if (needCols && cols.status === 'fulfilled' && cols.value?.status === 'success') _loadedMeta.cols = true;
+      if (needHist && hist.status === 'fulfilled' && hist.value?.status === 'success') _loadedMeta.histMonths.add(`${state.memberName}_${month}`);
+      if (needDVid && dVid.status === 'fulfilled' && dVid.value?.status === 'success') _loadedMeta.directVidMember = state.memberName;
 
       const recObj = dailyRec.status === 'fulfilled' ? unwrapDailyRecord(dailyRec.value) : null;
       const asObj = dailyAs.status === 'fulfilled' ? unwrapDailyRecord(dailyAs.value) : null;
       const asHasData = asObj && (asObj.routines || asObj.headerMessage || asObj.diet || asObj.memos);
-      const chosenDaily = asHasData ? asObj : (recObj || asObj);
+      const baseLoadDaily = asHasData ? asObj : (recObj || asObj);
+      const chosenDaily = (baseLoadDaily && typeof baseLoadDaily === 'object')
+        ? { ...baseLoadDaily, diet: mergeDietRecords(asObj?.diet, recObj?.diet) }
+        : baseLoadDaily;
 
       if (chosenDaily && typeof chosenDaily === 'object') {
         const d = chosenDaily;
@@ -2017,61 +2098,51 @@
       });
 
       async function commitMealSave(updated, labelText) {
+        if (!state.isLive) {
+          showToast('미리보기 모드라 저장되지 않았어요. 전용 링크로 접속해 주세요!');
+          return;
+        }
         const submitBtn = document.querySelector('#meal-form button[type="submit"]');
         if (submitBtn) {
           submitBtn.disabled = true;
           submitBtn.textContent = '서버에 저장 중...';
         }
         const prevMeal = state.record.diet[mealKey];
-        if (hasNewPhoto && compressedPhoto && compressedPhoto.startsWith('data:image/') && state.isLive) {
-          if (submitBtn) submitBtn.textContent = '사진 업로드 중...';
-          try {
-            const imgFile = dataUrlToFile(compressedPhoto, `diet-${mealKey}.jpg`);
-            const directImgId = await uploadDirectVideoFile(imgFile, state.memberName, state.token, '__diet_photo__');
-            updated = { ...updated, photos: [directImgId] };
-          } catch (imgErr) {
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
-            showToast('사진 업로드 실패: ' + (imgErr?.message || '잠시 후 다시 시도'));
-            return;
-          }
-          if (submitBtn) submitBtn.textContent = '서버에 저장 중...';
-        }
         state.record.diet[mealKey] = updated;
-        const ok = await saveFullRecordLive(state.memberName, state.record);
-        if (ok) {
-          try {
-            const verifyRes = await postAppsScript({
-              action: 'read',
-              member: state.memberName,
-              date: state.selectedDate,
-              token: state.token || '',
-              ...(state.trainerPassword ? { password: state.trainerPassword } : {})
-            });
-            const vObj = unwrapDailyRecord(verifyRes);
-            const savedMeal = vObj?.diet?.[mealKey];
-            const hasSaved = savedMeal && (String(savedMeal.desc || '').trim() || !!extractPhotoSrc(savedMeal) || Number(savedMeal.cal) > 0);
-            if (!hasSaved) {
-              state.record.diet[mealKey] = prevMeal;
-              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
-              showToast('서버 반영 확인 실패: ' + (verifyRes?.message || '잠시 후 다시 저장해 주세요'));
-              return;
+        const auth = (state.appMode === 'coach' && state.trainerPassword)
+          ? { password: state.trainerPassword }
+          : (state.session ? { session: state.session } : (state.token ? { token: state.token } : { password: state.trainerPassword }));
+        try {
+          const lightRecord = {
+            ...state.record,
+            diet: {
+              ...state.record.diet,
+              [mealKey]: { ...updated, photos: [] }
             }
-            if (compressedPhoto && !extractPhotoSrc(savedMeal)) {
-              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '저장하기'; }
-              showToast('⚠️ 글자는 저장됐지만 사진이 서버에서 빠졌어요 (' + compressedPhoto.length + '자)');
-              return;
-            }
-          } catch {}
+          };
+          await saveFullRecordLive(state.memberName, lightRecord).catch(() => null);
+          const supaRes = await postRecords({
+            action: 'dietSave',
+            member: state.memberName,
+            date: state.selectedDate,
+            ...auth,
+            diet: { [mealKey]: updated }
+          });
+          if (supaRes?.status !== 'success') {
+            throw new Error(supaRes?.code || supaRes?.message || '식단 저장 실패');
+          }
+          state.record.diet[mealKey] = updated;
           saveCachedMemberData(state.selectedDate);
           closeModal();
           renderAll();
           showToast(labelText + ' ✓');
-        } else {
+        } catch (err) {
           state.record.diet[mealKey] = prevMeal;
           if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = '저장하기';
           }
+          showToast('식단 저장 실패: ' + (err?.message || '네트워크를 확인해 주세요'));
         }
       }
 
@@ -2470,8 +2541,8 @@
                   activeToday: Boolean(m.activeToday || am.activeToday),
                   workoutToday: Boolean(m.workoutToday || am.workoutToday),
                   dietToday: Boolean(m.dietToday || am.dietToday),
-                  pendingWorkout: Boolean(am.pendingWorkout ?? m.pendingWorkout),
-                  pendingDiet: Boolean(am.pendingDiet ?? m.pendingDiet),
+                  pendingWorkout: Boolean(m.pendingWorkout || am.pendingWorkout),
+                  pendingDiet: Boolean(m.pendingDiet || am.pendingDiet),
                   feedbackDone: Boolean(m.feedbackDone || am.feedbackDone),
                   weeklyWorkoutDays: Math.max(Number(m.weeklyWorkoutDays) || 0, Number(am.weeklyWorkoutDays) || 0)
                 };
@@ -2564,9 +2635,12 @@
       const asHasRoutines = Array.isArray(asObj?.routines) && asObj.routines.length > 0;
       const recHasRoutines = Array.isArray(recObj?.routines) && recObj.routines.length > 0;
       const baseChosen = asHasRoutines ? asObj : (recHasRoutines ? recObj : ((asObj && (asObj.headerMessage || asObj.diet || asObj.memos)) ? asObj : (recObj || asObj || {})));
-      const chosen = (asObj && hasDietData(asObj) && baseChosen !== asObj)
-        ? { ...baseChosen, diet: asObj.diet, feedback: asObj.feedback || baseChosen.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen.memos }
-        : baseChosen;
+      const mergedCoachDiet = mergeDietRecords(asObj?.diet, recObj?.diet);
+      const chosen = {
+        ...(baseChosen || {}),
+        diet: mergedCoachDiet,
+        ...(asObj && hasDietData(asObj) ? { feedback: asObj.feedback || baseChosen?.feedback, memos: (Array.isArray(asObj.memos) && asObj.memos.length) ? asObj.memos : baseChosen?.memos } : {})
+      };
       const weekPtMap = {};
       weekDays.forEach((wd, idx) => {
         if (wd.fullDate === state.selectedDate) {
@@ -4383,6 +4457,14 @@
       else { menu.classList.add('hidden'); menu.classList.remove('flex'); icon.style.transform = 'rotate(0deg)'; }
     }
 
+    function debounceFn(fn, waitMs) {
+      let t = null;
+      return (...args) => {
+        if (t) clearTimeout(t);
+        t = setTimeout(() => fn(...args), waitMs);
+      };
+    }
+
     function renderAll() {
       renderHeader();
       renderBottomNav();
@@ -4588,12 +4670,13 @@
 
       const libSearch = document.getElementById('lesson-lib-search');
       if (libSearch) {
-        libSearch.addEventListener('input', e => {
-          state.lessonSearch = e.target.value;
+        const applyLibSearch = debounceFn(val => {
+          state.lessonSearch = val;
           renderAll();
           const n = document.getElementById('lesson-lib-search');
           if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
-        });
+        }, 160);
+        libSearch.addEventListener('input', e => applyLibSearch(e.target.value));
       }
 
       const addR = document.getElementById('btn-add-routine');
@@ -4681,12 +4764,13 @@
 
       const csInp = document.getElementById('coach-search-inp');
       if (csInp) {
-        csInp.addEventListener('input', e => {
-          state.coachSearch = e.target.value.trim();
+        const applyCoachSearch = debounceFn(val => {
+          state.coachSearch = val.trim();
           renderAll();
           const n = document.getElementById('coach-search-inp');
           if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
-        });
+        }, 160);
+        csInp.addEventListener('input', e => applyCoachSearch(e.target.value));
       }
     }
 

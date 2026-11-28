@@ -6595,9 +6595,12 @@
       if (state.memberTab === 'report') {
         const routines = state.record.routines || [];
         const ptCount = routines.filter(r => r.routineType !== 'homework').length;
-        const ptDiaryTitle = state.selectedDate === getTodayKST()
+        const recentPt = state.insights?.latestPt;
+        const diaryDate = ptCount ? state.selectedDate : (recentPt?.date || '');
+        const diaryCount = ptCount || recentPt?.count || 0;
+        const ptDiaryTitle = diaryDate === getTodayKST()
           ? '오늘 PT 수업 일지'
-          : `${formatPtDate(state.selectedDate)} PT 수업 일지`;
+          : diaryDate ? `${formatPtDate(diaryDate)} PT 수업 일지` : '';
         const pendingRoutine = routines.find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
         const personalWorkoutDone = !ptCount && routines.length > 0 && !pendingRoutine;
         const isPtDay = Boolean(state.record.ptScheduled);
@@ -6613,12 +6616,12 @@
 
         return `
           <div class="space-y-3.5 animate-in">
-            ${ptCount ? `
-              <button type="button" id="home-pt-diary" class="card-teal tap-scale w-full p-4 rounded-[22px] text-white text-left flex items-center gap-3 shadow-sm">
+            ${diaryCount ? `
+              <button type="button" id="home-pt-diary" data-diary-date="${escapeHtml(diaryDate)}" class="card-teal tap-scale w-full p-4 rounded-[22px] text-white text-left flex items-center gap-3 shadow-sm">
                 <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white/20">${lessonIcon}</span>
                 <span class="flex-1 min-w-0">
                   <span class="block text-[15px] font-extrabold">${ptDiaryTitle}</span>
-                  <span class="block text-[12px] font-semibold mt-1">${ptTime ? `${escapeHtml(ptTime)} · ` : ''}${ptCount}종목 · 수업 내용 보기</span>
+                  <span class="block text-[12px] font-semibold mt-1">${ptCount && ptTime ? `${escapeHtml(ptTime)} · ` : ''}${diaryCount}종목 · 수업 내용 보기</span>
                 </span>
                 <span class="shrink-0 text-lg font-bold" aria-hidden="true">›</span>
               </button>
@@ -7335,9 +7338,14 @@
 
       for (const id of ['home-pt-diary', 'btn-home-mission']) {
         document.getElementById(id)?.addEventListener('click', () => {
+          const diaryDate = id === 'home-pt-diary' ? document.getElementById(id)?.dataset.diaryDate : '';
           state.memberTab = 'lesson';
           state.lessonView = 'today';
-          renderAll();
+          if (diaryDate && diaryDate !== state.selectedDate) {
+            const picker = document.getElementById('m-date-picker');
+            if (picker) { picker.value = diaryDate; picker.dispatchEvent(new Event('change')); }
+            else { state.selectedDate = diaryDate; state.weekDays = buildWeekDays(diaryDate); state.record = emptyDailyRecord(); state.loading = true; renderAll(); loadMemberDateData(diaryDate); }
+          } else renderAll();
           window.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }

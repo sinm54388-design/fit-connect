@@ -12,172 +12,7 @@
 // MEMBER_SESSION_HOURS.
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycby63-Ky8FNZSxZdX1fa5cvIP3CgW0A9x5YEHQQXfc8NRJ6gqm79pH6T78ib14nHpsqs/exec';
 const MEMBER_SESSION_HOURS=8;
-const MEMBER_LINK_DAYS=90;
-const MEMBER_LINK_FIELDS='worker_link_sha256,worker_link_generation,worker_link_expires_at';
-const R2_MEDIA_ROUTE='/api/media';
-const R2_MEDIA_PREFIX='r2/';
-const LEGACY_MEDIA_MAX_BYTES=50_000_000;
-const R2_VIDEO_MAX_BYTES=100_000_000;
-const MEDIA_PART_LIST_MAX_BYTES=8192;
-const MEDIA_PART_BYTES=6*1024*1024;
-const MEDIA_UPLOAD_TTL=45*60_000;
-const MEDIA_TYPES=new Map([
-  ['video/mp4','mp4'],['video/webm','webm'],['video/quicktime','mov'],
-  ['image/jpeg','jpg'],['image/png','png'],['image/webp','webp']
-]);
-const mediaMaxBytes=(mime,usesR2)=>usesR2&&mime.startsWith('video/')?R2_VIDEO_MAX_BYTES:LEGACY_MEDIA_MAX_BYTES;
-const mediaPath=path=>typeof path==='string'&&path.length<=650&&
-  path.split('/').every(part=>part!=='.'&&part!=='..'&&/^[a-zA-Z0-9_.-]+$/.test(part));
-const r2MediaReady=env=>Boolean(env.FIT_MEDIA&&String(env.MEMBER_SESSION_SECRET||'').length>=32);
-async function mediaGrantUrl(request,env,{path,mime,size,uploadId},mode,ttl) {
-  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({path,mime,size,uploadId,mode,exp:Date.now()+ttl})));
-  const signed=new TextEncoder().encode('fit-r2-media-v1.'+payload);
-  const signature=await crypto.subtle.sign('HMAC',await sessionKey(env.MEMBER_SESSION_SECRET),signed);
-  const url=new URL(R2_MEDIA_ROUTE,request.url);
-  url.searchParams.set('grant',payload+'.'+b64url.encode(new Uint8Array(signature)));
-  return url.href;
-}
-async function readMediaGrant(request,env,grant=new URL(request.url).searchParams.get('grant')||'') {
-  if(typeof grant!=='string'||grant.length>1800)return null;
-  const [payload,signature,extra]=grant.split('.');
-  if(!payload||!signature||extra!==undefined)return null;
-  try {
-    const signed=new TextEncoder().encode('fit-r2-media-v1.'+payload);
-    if(!await crypto.subtle.verify('HMAC',await sessionKey(env.MEMBER_SESSION_SECRET),b64url.decode(signature),signed))return null;
-    const data=JSON.parse(new TextDecoder().decode(b64url.decode(payload)));
-    return mediaPath(data.path)&&data.path.startsWith(R2_MEDIA_PREFIX)&&
-      Number.isSafeInteger(data.exp)&&data.exp>Date.now()?data:null;
-  }catch{return null;}
-}
-function mediaRange(header,size) {
-  const match=/^bytes=(\d{0,16})-(\d{0,16})$/.exec(header);
-  if(!match||(!match[1]&&!match[2]))return null;
-  const offset=match[1]?Number(match[1]):Math.max(0,size-Number(match[2]));
-  const end=match[1]&&match[2]?Math.min(size-1,Number(match[2])):size-1;
-  if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(end)||offset>end||offset>=size)return null;
-  return {offset,length:end-offset+1};
-}
-function validMediaBody(request,size,mime) {
-  return request.body&&request.headers.get('content-length')===String(size)&&
-    request.headers.get('content-type')===mime;
-}
-function validUploadedPart(part,index) {
-  return part?.partNumber===index+1&&typeof part.etag==='string'&&part.etag.length>0&&part.etag.length<=384;
-}
-function validUploadedParts(parts,size) {
-  return Array.isArray(parts)&&parts.length===Math.ceil(size/MEDIA_PART_BYTES)&&parts.every(validUploadedPart);
-}
-function matchesMediaObject(object,size,mime) {
-  return object?.size===size&&object.httpMetadata?.contentType===mime;
-}
-async function createR2MultipartUrl(request,env,path,mime,size) {
-  const upload=await env.FIT_MEDIA.createMultipartUpload(path,{httpMetadata:{contentType:mime}});
-  return mediaGrantUrl(request,env,{path,mime,size,uploadId:upload.uploadId},'multipart',MEDIA_UPLOAD_TTL);
-}
-async function completeR2Multipart(bucket,{path,mime,size,uploadId},parts) {
-  try {
-    return await bucket.resumeMultipartUpload(path,uploadId).complete(parts);
-  }catch(error){
-    const saved=await bucket.head(path);
-    if(!matchesMediaObject(saved,size,mime))throw error;
-    return saved;
-  }
-}
-async function handleR2Multipart(request,env,grant) {
-  const {path,mime,size,mode,uploadId}=grant;
-  const count=Math.ceil(size/MEDIA_PART_BYTES);
-  if(mode==='upload'&&request.method==='POST'){
-    if(await env.FIT_MEDIA.head(path))return json({complete:true});
-    const url=await createR2MultipartUrl(request,env,path,mime,size);
-    return json({url});
-  }
-  if(mode!=='multipart')return json({status:'denied'},403);
-  if(request.method==='PUT'){
-    const partNumber=Number(new URL(request.url).searchParams.get('part'));
-    const partSize=Math.min(MEDIA_PART_BYTES,size-(partNumber-1)*MEDIA_PART_BYTES);
-    if(!Number.isInteger(partNumber)||partNumber<1||partNumber>count||
-      !validMediaBody(request,partSize,'application/offset+octet-stream'))
-      return json({status:'error',code:'invalid_media_part'},422);
-    return json(await env.FIT_MEDIA.resumeMultipartUpload(path,uploadId).uploadPart(partNumber,request.body));
-  }
-  if(request.method==='POST'){
-    if(Number(request.headers.get('content-length'))>MEDIA_PART_LIST_MAX_BYTES)return json({status:'error',code:'invalid_media_parts'},422);
-    const existing=await env.FIT_MEDIA.head(path);
-    if(matchesMediaObject(existing,size,mime))return json({complete:true});
-    const reader=request.body?.getReader();
-    if(!reader)return json({status:'error',code:'invalid_media_parts'},422);
-    let payload='',bytes=0;
-    const decoder=new TextDecoder();
-    for(;;){
-      const {done,value}=await reader.read();
-      if(done)break;
-      bytes+=value.byteLength;
-      if(bytes>MEDIA_PART_LIST_MAX_BYTES){
-        await reader.cancel();
-        return json({status:'error',code:'invalid_media_parts'},422);
-      }
-      payload+=decoder.decode(value,{stream:true});
-    }
-    let parts;
-    try{parts=JSON.parse(payload+decoder.decode());}catch{
-      return json({status:'error',code:'invalid_media_parts'},422);
-    }
-    if(!validUploadedParts(parts,size))
-      return json({status:'error',code:'invalid_media_parts'},422);
-    await completeR2Multipart(env.FIT_MEDIA,grant,parts);
-    return json({complete:true});
-  }
-  return json({status:'denied'},403);
-}
-async function handleR2Media(request,env) {
-  const denied=()=>json({status:'denied'},403);
-  if(!r2MediaReady(env))return json({status:'error',code:'media_unavailable'},503);
-  const grant=await readMediaGrant(request,env);
-  if(!grant)return denied();
-  const {path,mime,size,mode}=grant;
-  const method=request.method;
-  try {
-    if(['upload','multipart'].includes(mode)){
-      if(!sameOriginRequest(request))return denied();
-      if(!MEDIA_TYPES.has(mime)||!Number.isSafeInteger(size)||size<1||size>mediaMaxBytes(mime,true))
-        return json({status:'error',code:'invalid_media_body'},422);
-      if(size>MEDIA_PART_BYTES)return await handleR2Multipart(request,env,grant);
-      if(method!=='PUT'||mode!=='upload')return denied();
-      if(!validMediaBody(request,size,mime))return json({status:'error',code:'invalid_media_body'},422);
-      const saved=await env.FIT_MEDIA.put(path,request.body,{
-        onlyIf:new Headers({'If-None-Match':'*'}),httpMetadata:{contentType:mime}
-      });
-      // A retry after a lost response can use the object already uploaded.
-      const stored=saved||await env.FIT_MEDIA.head(path);
-      if(stored?.size!==size||stored.httpMetadata?.contentType!==mime)
-        return json({status:'error',code:'upload_size_mismatch'},409);
-      return new Response(null,{status:204,headers:{'Cache-Control':'no-store'}});
-    }
-    if(mode!=='read'||!['GET','HEAD'].includes(method))return denied();
-    const rangeHeader=method==='GET'&&request.headers.get('Range');
-    const head=rangeHeader||method==='HEAD'?await env.FIT_MEDIA.head(path):null;
-    if((rangeHeader||method==='HEAD')&&!head)return json({status:'error',code:'video_not_found'},404);
-    const range=rangeHeader?mediaRange(rangeHeader,head.size):null;
-    if(rangeHeader&&!range)return new Response(null,{status:416,headers:{
-      'Content-Range':'bytes */'+head.size,'Cache-Control':'private, no-store'
-    }});
-    const object=method==='HEAD'?head:await env.FIT_MEDIA.get(path,range?{range}:undefined);
-    if(!object)return json({status:'error',code:'video_not_found'},404);
-    const contentType=object.httpMetadata?.contentType;
-    const headers=new Headers({
-      'Accept-Ranges':'bytes','Cache-Control':'private, no-store',
-      'Content-Type':MEDIA_TYPES.has(contentType)?contentType:'application/octet-stream',
-      'Content-Length':String(range?.length??object.size),
-      'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'
-    });
-    if(range)headers.set('Content-Range','bytes '+range.offset+'-'+(range.offset+range.length-1)+'/'+head.size);
-    return new Response(method==='HEAD'?null:object.body,{status:range?206:200,headers});
-  }catch {
-    return json({status:'error',code:'media_storage_unavailable'},502);
-  }
-}
-
-const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','dailyCheckin','dietSave','dietPhotoDelete','columnList','assessmentList'];
+const MEMBER_ACTIONS=['read','workoutHistory','memberInsights','videoPlaybackUrl','directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','dailyCheckin','dietSave','columnList'];
 const b64url={
   encode:bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
   decode:text=>{
@@ -190,103 +25,12 @@ async function sessionKey(secret) {
   return crypto.subtle.importKey('raw',new TextEncoder().encode(secret),
     {name:'HMAC',hash:'SHA-256'},false,['sign','verify']);
 }
-async function signMemberSession(secret,member,account) {
-  const generation=account?.worker_link_generation;
-  const sessionExpiry=Date.now()+MEMBER_SESSION_HOURS*3600000;
-  const exp=generation?Math.min(sessionExpiry,Date.parse(account.worker_link_expires_at)):sessionExpiry;
-  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({m:member,exp,...(generation?{generation}:{})})));
+async function signMemberSession(secret,member) {
+  const exp=Date.now()+MEMBER_SESSION_HOURS*3600000;
+  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({m:member,exp})));
   const sig=new Uint8Array(await crypto.subtle.sign('HMAC',await sessionKey(secret),
     new TextEncoder().encode('fit-member-v1.'+payload)));
   return {session:payload+'.'+b64url.encode(sig),exp};
-}
-const DAILY_RECORD_WRITER={'X-Fit-Record-Writer':'fit-connect-worker'};
-async function memberLinkDigest(token) {
-  const bytes=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)));
-  return Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
-}
-function memberLinkCurrent(account) {
-  return !account?.worker_link_generation || Date.parse(account.worker_link_expires_at)>Date.now();
-}
-async function issuedMemberToken(secret,account) {
-  if(secret.length<32||!account?.id||!account.worker_link_generation)throw Error('member link unavailable');
-  const message=new TextEncoder().encode('fit-member-link-v2.'+account.id+'.'+account.worker_link_generation);
-  const signature=await crypto.subtle.sign('HMAC',await sessionKey(secret),message);
-  return 'fc2_'+b64url.encode(new Uint8Array(signature));
-}
-async function newMemberLinkFields() {
-  const generation=crypto.randomUUID();
-  return {
-    // Replace the previous digest so previous Worker builds also reject the old token.
-    worker_link_sha256:await memberLinkDigest(generation),
-    worker_link_generation:generation,
-    worker_link_expires_at:new Date(Date.now()+MEMBER_LINK_DAYS*86400000).toISOString()
-  };
-}
-async function nativeLinkMatches(member,token,secret) {
-  if(typeof token!=='string'||!token||token.length>200)return false;
-  if(member.worker_link_generation)
-    return memberLinkCurrent(member)&&constantTimeEquals(token,await issuedMemberToken(secret,member));
-  return constantTimeEquals(await memberLinkDigest(token),member.worker_link_sha256);
-}
-async function workerMemberAccess(env,member,date) {
-  const base=String(env.SUPABASE_URL||'').trim().replace(/\/+$/,'');
-  const key=String(env.SUPABASE_SECRET_KEY||'').trim();
-  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base)||!key)throw Error('member database unavailable');
-  const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key})};
-  if(date){
-    const response=await fetch(base+'/rest/v1/rpc/fit_member_day_snapshot?p_name='+
-      encodeURIComponent(member)+'&p_date='+date,{headers,signal:AbortSignal.timeout(8000)});
-    if(response.ok){
-      const snapshot=await response.json();
-      return {found:snapshot.member,snapshot,base,headers};
-    }
-    if(response.status!==404)throw Error('member status unavailable');
-  }
-  const response=await fetch(base+'/rest/v1/fit_members?select=id,is_archived,'+MEMBER_LINK_FIELDS+'&name=eq.'+
-    encodeURIComponent(member)+'&limit=1',{headers,signal:AbortSignal.timeout(8000)});
-  if(!response.ok)throw Error('member status unavailable');
-  const [found]=await response.json();
-  return {found,snapshot:date?null:undefined,base,headers};
-}
-// Coach authentication uses an HttpOnly, same-site cookie, never a stored PIN.
-const COACH_COOKIE='fit_coach_session';
-const COACH_AGE=30*24*60*60;
-async function coachSessionSignature(secret,password,payload) {
-  const key=await sessionKey(secret+'|'+password);
-  return b64url.encode(new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode('fit-coach-v1.'+payload))));
-}
-async function makeCoachCookie(env) {
-  const secret=String(env.MEMBER_SESSION_SECRET||''),password=String(env.TRAINER_PASSWORD||'');
-  if(secret.length<32||!password)return null;
-  const payload=b64url.encode(new TextEncoder().encode(JSON.stringify({v:1,exp:Date.now()+COACH_AGE*1000})));
-  const sig=await coachSessionSignature(secret,password,payload);
-  return COACH_COOKIE+'='+payload+'.'+sig+'; Max-Age='+COACH_AGE+'; Path=/api/; HttpOnly; Secure; SameSite=Strict';
-}
-async function validCoachCookie(request,env) {
-  const secret=String(env.MEMBER_SESSION_SECRET||''),password=String(env.TRAINER_PASSWORD||'');
-  if(secret.length<32||!password)return false;
-  const cookie=request.headers.get('cookie')||'';
-  const token=cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith(COACH_COOKIE+'='))?.slice(COACH_COOKIE.length+1);
-  if(!token||token.length>1000)return false;
-  const [payload,signature,extra]=token.split('.');
-  if(!payload||!signature||extra!==undefined)return false;
-  try {
-    const expected=await coachSessionSignature(secret,password,payload);
-    if(!constantTimeEquals(signature,expected))return false;
-    const parsed=JSON.parse(new TextDecoder().decode(b64url.decode(payload)));
-    return parsed.v===1&&Number.isFinite(parsed.exp)&&parsed.exp>Date.now();
-  }catch{return false;}
-}
-const clearCoachCookie=()=>COACH_COOKIE+'=; Max-Age=0; Path=/api/; HttpOnly; Secure; SameSite=Strict';
-function sameOriginRequest(request) {
-  const origin=request.headers.get('Origin');
-  return !origin || origin===new URL(request.url).origin;
-}
-function validateJsonPost(request) {
-  if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
-  if(!sameOriginRequest(request))return json({status:'denied',code:'origin_denied'},403);
-  const type=request.headers.get('Content-Type')?.split(';',1)[0].trim().toLowerCase();
-  if(type!=='application/json')return json({status:'error',code:'unsupported_media_type'},415);
 }
 // Returns the member name inside a valid, unexpired session, or ''.
 async function readMemberSession(secret,session) {
@@ -297,20 +41,31 @@ async function readMemberSession(secret,session) {
       new TextEncoder().encode('fit-member-v1.'+payload));
     if(!ok)return '';
     const data=JSON.parse(new TextDecoder().decode(b64url.decode(payload)));
-    if(typeof data?.m!=='string'||!data.m||!Number.isFinite(data.exp)||data.exp<=Date.now())return '';
-    return data;
+    if(typeof data?.m!=='string'||!data.m||typeof data.exp!=='number'||data.exp<Date.now())return '';
+    return data.m;
   }catch{return '';}
 }
-// The legacy member read also validates the member link.
-async function readAppsScriptMemberDay(member,token,date) {
+// Asks Apps Script whether this member link is valid, the same way the page
+// reads a member's day. Anything other than a clean JSON record means "no".
+const columnPublicCache={rows:null,ts:0};
+const memberTokenAuthCache=new Map();
+async function appsScriptAcceptsMember(member,token,date) {
+  const authKey=member+'::'+token;
+  const cached=memberTokenAuthCache.get(authKey);
+  if(cached&&Date.now()-cached.ts<120000)return cached.ok;
   const url=APPS_SCRIPT_URL+'?member='+encodeURIComponent(member)+'&date='+date+
     '&token='+encodeURIComponent(token)+'&_t='+Date.now();
   const response=await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(10000)});
-  if(!response.ok)return null;
+  if(!response.ok)return false;
   let body;
-  try{body=await response.json();}catch{return null;}
-  return body&&typeof body==='object'&&!Array.isArray(body)&&
-    body.status!=='error'&&body.status!=='denied'?body:null;
+  try{body=await response.json();}catch{return false;}
+  const ok=!!body&&typeof body==='object'&&!Array.isArray(body)&&
+    body.status!=='error'&&body.status!=='denied';
+  if(ok){
+    memberTokenAuthCache.set(authKey,{ok:true,ts:Date.now()});
+    if(memberTokenAuthCache.size>256)memberTokenAuthCache.delete(memberTokenAuthCache.keys().next().value);
+  }
+  return ok;
 }
 const json=(body,status=200,extra={})=>new Response(JSON.stringify(body),{
   status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',
@@ -403,9 +158,9 @@ async function buildOverview(supaGet,date,base) {
   const weekStart=shiftDay(date,-6),windowStart=shiftDay(date,-OVERVIEW_WINDOW_DAYS);
   const pageSize=1000;
   const prefix='/rest/v1/fit_daily_records?select=member_id,record_date,'+
-    'routines:data->routines,reflection:data->reflection,diet:data->diet,feedback:data->feedback,checkin:data->dailyCheckin'+
+    'routines:data->routines,reflection:data->reflection,diet:data->diet,feedback:data->feedback'+
     '&record_date=gte.'+windowStart+'&record_date=lte.'+date+
-    '&order=record_date.desc,member_id.asc&limit='+pageSize;
+    '&order=record_date.desc&limit='+pageSize;
   const directPending=(async()=>{
     const counts=new Map(),size=1000;
     for(let offset=0;;offset+=size){
@@ -415,12 +170,10 @@ async function buildOverview(supaGet,date,base) {
       if(rows.length<size)return counts;
     }
   })();
-  const [allMembers,firstPage,directCounts,coachSaved]=await Promise.all([
-    supaGet('/rest/v1/fit_members?select=id,name&is_archived=eq.false&order=name.asc&limit=1000','overview'),
-    supaGet(prefix+'&offset=0','overview'),directPending,
-    supaGet('/rest/v1/fit_coach_feedback?select=member_id,workout_feedback,diet_feedback&record_date=eq.'+date+'&limit=1000','overview_feedback')
+  const [allMembers,firstPage,directCounts]=await Promise.all([
+    supaGet('/rest/v1/fit_members?select=id,name&order=name.asc&limit=1000','overview'),
+    supaGet(prefix+'&offset=0','overview'),directPending
   ]);
-  const savedMap=new Map(coachSaved.map(x=>[String(x.member_id),x]));
   if(allMembers.length===1000)throw Error('too many members for overview');
   const result=new Map();
   for(const row of allMembers) {
@@ -428,7 +181,7 @@ async function buildOverview(supaGet,date,base) {
     result.set(row.id,{name:row.name,lastDate:'',activeToday:false,
       pendingWorkout:false,pendingDiet:false,pendingVideos:0,directPendingVideos:directCounts.get(String(row.id))||0,feedbackDone:false,
       workoutToday:false,dietToday:false,
-      _w:new Set(),_d:new Set(),_r:new Set(),_a:new Set(),_c:new Set(),_t:new Set()});
+      _w:new Set(),_d:new Set(),_r:new Set(),_a:new Set()});
   }
   let records=firstPage,offset=0;
   while(true) {
@@ -452,17 +205,13 @@ async function buildOverview(supaGet,date,base) {
         if(hasDiet)item._d.add(day);
         if(reflection)item._r.add(day);
         if(active)item._a.add(day);
-        const checkin=record.checkin||{};
-        if(String(checkin.workout||checkin.diet||checkin.mood||'').trim())item._c.add(day);
-        if(checkin.mood==='tired')item._t.add(day);
       }
       if(active&&day>item.lastDate)item.lastDate=day;
       if(day===date) {
         item.activeToday||=active;
         item.workoutToday||=completed;
         item.dietToday||=hasDiet;
-        const feedback={...record.feedback,...(savedMap.get(String(record.member_id))?
-          {workout:savedMap.get(String(record.member_id)).workout_feedback,diet:savedMap.get(String(record.member_id)).diet_feedback}:{})};
+        const feedback=record.feedback||{};
         const fw=!!String(feedback.workout||'').trim(),fd=!!String(feedback.diet||'').trim();
         item.pendingWorkout||=(completed||reflection)&&!fw;
         item.pendingDiet||=hasDiet&&!fd;
@@ -475,10 +224,9 @@ async function buildOverview(supaGet,date,base) {
     records=await supaGet(prefix+'&offset='+offset);
   }
   const members=[...result.values()].map(item=>{
-    const {_w,_d,_r,_a,_c,_t,...rest}=item;
+    const {_w,_d,_r,_a,...rest}=item;
     return {...rest,weeklyWorkoutDays:_w.size,weeklyDietDays:_d.size,
-      weeklyReflectionDays:_r.size,weeklyActiveDays:_a.size,
-      weeklyCheckinDays:_c.size,weeklyTiredDays:_t.size};
+      weeklyReflectionDays:_r.size,weeklyActiveDays:_a.size};
   });
   return {status:'success',date,weekStart,members,partial:true,windowDays:OVERVIEW_WINDOW_DAYS};
 }
@@ -548,7 +296,6 @@ function buildMemberInsights(rows,date) {
   const monthBucket=()=>({days:new Set(),sets:0,exercises:0,dietDays:new Set()});
   const monthly={current:monthBucket(),previous:monthBucket()};
   const progress=new Map();
-  const exerciseLibrary=new Map();
   const care={workoutDays:new Set(),dietDays:new Set(),feedbackDays:new Set()};
   for(const row of rows) {
     const d=row.date,data=row.data||{},done=doneRoutines(data);
@@ -583,29 +330,6 @@ function buildMemberInsights(rows,date) {
           (Array.isArray(food.foods)&&food.foods.length>0);
       }))mb.dietDays.add(d);
     }
-    for(const r of (Array.isArray(data.routines)?data.routines:[])) {
-      const name=String(r?.name||'').trim();
-      if(!name||name.length>80)continue;
-      const key=name.toLowerCase().replace(/\s+/g,'');
-      const validWeight=value=>{
-        const weight=Number(value);
-        return Number.isFinite(weight)&&weight>0&&weight<=1500?weight:0;
-      };
-      const topSet=(Array.isArray(r.setDetails)?r.setDetails:[]).reduce((best,set)=>
-        validWeight(set?.weight)>validWeight(best?.weight)?set:best,null);
-      const routineWeight=validWeight(r.weight),setWeight=validWeight(topSet?.weight);
-      const weight=Math.max(routineWeight,setWeight);
-      const reps=Number((setWeight>=routineWeight&&setWeight?topSet.reps:null)||r.reps);
-      const previous=exerciseLibrary.get(key);
-      exerciseLibrary.set(key,{
-        name,lastDate:d,lastWeight:weight||'',
-        lastReps:Number.isFinite(reps)&&reps>0?reps:'',
-        bestWeight:Math.max(weight,previous?.bestWeight||0)||'',
-        note:String(r.note||'').trim().slice(0,1000)||previous?.note||'',
-        videoId:String(r.videoId||r.demoKey||'').trim()||previous?.videoId||'',
-        videoUrl:String(r.videoUrl||'').trim()||previous?.videoUrl||''
-      });
-    }
     for(const r of done) {
       const name=String(r.name||'').trim();
       const key=name.toLowerCase().replace(/\s+/g,'');
@@ -631,54 +355,25 @@ function buildMemberInsights(rows,date) {
     weekly:{start,end,current:weeklyStat(week.current),previous:weeklyStat(week.previous),improvements},
     monthly:{month,previousMonth:prevMonth,current:monthlyStat(monthly.current),
       previous:monthlyStat(monthly.previous),inbodyChange:null},
-    progress:exercises,exerciseLibrary:[...exerciseLibrary.values()],workoutDays:[...monthly.current.days].filter(day=>day<=date).sort()};
+    progress:exercises};
 }
 async function handleRecords(request,env) {
   const requestStarted=performance.now();
-  const rejected=validateJsonPost(request);
-  if(rejected)return rejected;
+  if(request.method!=='POST')return json({status:'error',code:'method_not_allowed'},405);
   if(Number(request.headers.get('content-length')||0)>131072)
     return json({status:'error',code:'too_large'},413);
   let input;
   try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
-  // Content-Length can be absent (chunked transfer); enforce the limit after parsing too.
-  if(!input||typeof input!=='object'||Array.isArray(input))
-    return json({status:'error',code:'invalid_json'},400);
-  if(JSON.stringify(input).length>131072)return json({status:'error',code:'too_large'},413);
-  let action=input?.action;
-  let includeMemberSession=false;
-  let legacyDaily;
-  let nativeAccount;
-  let initialSnapshot;
-  let initialAccount;
-  if(action==='coachLogout'){
-    return json({status:'success'},200,{'Set-Cookie':clearCoachCookie()});
-  }
-  // A valid coach cookie authorizes the same routes as a trainer password.
-  // Only same-origin POST requests may consume cookie authorization.
-  if(input.password===undefined && input.session===undefined && input.token===undefined &&
-      await validCoachCookie(request,env))
-    input.password=env.TRAINER_PASSWORD;
+  const action=input?.action;
   const directVideo=['directVideoBegin','directVideoFinish','directVideoList','directVideoPlay','directVideoFeedback','directVideoRead','directVideoDelete'].includes(action);
-  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','coachPtWeek','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','dietPhotoDelete','coachFeedbackSave','memberRegister','memberArchive','memberLinkRotate','columnList','columnSave','assessmentList','assessmentSave'].includes(action)&&!directVideo)
+  if(!['read','verify','trainerOverview','trainerVideoQueue','listMembersFast','workoutHistory','memberInsights','memberSession','videoPlaybackUrl','dailyCheckin','dietSave','columnList','columnSave'].includes(action)&&!directVideo)
     return json({status:'error',code:'read_only'},405);
-  const member=String(input.member||'').trim();
-  // Older magazine clients omitted the date. Use today in Korea for legacy link verification.
-  const date=action==='columnList'&&input.date===undefined
-    ?new Date(Date.now()+9*3600000).toISOString().slice(0,10):input.date;
+  const member=String(input.member||'').trim(),date=input.date;
   const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
   // Member path: either exchange a member link for a session, or use a session.
-  if((action==='read'||action==='workoutHistory'||action==='dailyCheckin'||action==='videoPlaybackUrl'||directVideo||action==='columnList'||action==='assessmentList'||action==='memberInsights'||action==='dietSave'||action==='dietPhotoDelete')&&input.password===undefined&&input.session===undefined){
+  if((action==='videoPlaybackUrl'||directVideo||action==='columnList'||action==='memberInsights')&&input.password===undefined&&input.session===undefined){
     if(!member||member.length>100||typeof input.token!=='string'||!input.token||input.token.length>200||!validDay(date))return json({status:'denied'},403);
-    try {
-      const {found}=await workerMemberAccess(env,member);
-      if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
-      if(found?.worker_link_sha256){
-        if(!memberLinkCurrent(found))return json({status:'denied',code:'link_expired'},403);
-        if(!await nativeLinkMatches(found,input.token,sessionSecret))return json({status:'denied',code:'unauthorized'},403);
-        nativeAccount=found;
-      }else if(!await readAppsScriptMemberDay(member,input.token,date))return json({status:'denied'},403);
-    }catch{return json({status:'error',code:'member_access_unavailable'},502);}
+    try{if(!await appsScriptAcceptsMember(member,String(input.token),date))return json({status:'denied'},403);}catch{return json({status:'error',code:'apps_script_unreachable'},502);}
   } else if(action==='memberSession'||(input.session!==undefined&&input.password===undefined)) {
     if(sessionSecret.length<32)
       return json({status:'error',code:'missing_runtime_configuration'},503);
@@ -686,54 +381,27 @@ async function handleRecords(request,env) {
       const token=String(input.token||'');
       if(!member||member.length>100||!token||token.length>200||!validDay(date))
         return json({status:'error',code:'invalid_query'},400);
-      try {
-        const {found,snapshot}=await workerMemberAccess(env,member,input.includeDaily===true?date:undefined);
-        initialSnapshot=snapshot;
-        initialAccount=found??null;
-        if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
-        if(found?.worker_link_sha256){
-          if(!memberLinkCurrent(found))return json({status:'denied',code:'link_expired'},403);
-          if(!await nativeLinkMatches(found,token,sessionSecret))return json({status:'denied',code:'unauthorized'},403);
-          nativeAccount=found;
-        }else{
-          legacyDaily=await readAppsScriptMemberDay(member,token,date);
-          if(!legacyDaily)return json({status:'denied',code:'unauthorized'},403);
-        }
-      }catch{return json({status:'error',code:'member_access_unavailable'},502);}
-      if(input.includeDaily===true){
-        includeMemberSession=true;
-        action='read';
-      }else{
-        const session=await signMemberSession(sessionSecret,member,initialAccount);
-        return json({status:'success',...session},200,{
-          'Server-Timing':'session;dur='+(performance.now()-requestStarted).toFixed(1)
-        });
-      }
-    } else {
-      if(!MEMBER_ACTIONS.includes(action))return json({status:'denied',code:'unauthorized'},403);
-      const claims=await readMemberSession(sessionSecret,input.session);
-      if(!claims||claims.m!==member)
-        return json({status:'denied',code:'session_invalid'},403);
-      try {
-        const {found,snapshot}=await workerMemberAccess(env,member,action==='read'&&validDay(date)?date:undefined);
-        if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
-        if((claims.generation??null)!==(found?.worker_link_generation??null)||!memberLinkCurrent(found))
-          return json({status:'denied',code:'session_invalid'},403);
-        initialAccount=found??null;
-        initialSnapshot=snapshot;
-      }catch{return json({status:'error',code:'member_access_unavailable'},502);}
+      let accepted=false;
+      try{accepted=await appsScriptAcceptsMember(member,token,date);}
+      catch{return json({status:'error',code:'apps_script_unreachable'},502);}
+      if(!accepted)return json({status:'denied',code:'unauthorized'},403);
+      const session=await signMemberSession(sessionSecret,member);
+      return json({status:'success',...session},200,{
+        'Server-Timing':'session;dur='+(performance.now()-requestStarted).toFixed(1)
+      });
     }
+    if(!MEMBER_ACTIONS.includes(action))return json({status:'denied',code:'unauthorized'},403);
+    const sessionMember=await readMemberSession(sessionSecret,input.session);
+    if(!sessionMember||sessionMember!==member)
+      return json({status:'denied',code:'session_invalid'},403);
   } else {
     if(!env.TRAINER_PASSWORD)
       return json({status:'error',code:'missing_runtime_configuration'},503);
     if(!constantTimeEquals(input.password,env.TRAINER_PASSWORD))
       return json({status:'denied',code:'unauthorized'},403);
-    if(action==='verify'){
-      const cookie=await makeCoachCookie(env);
-      return json({status:'success'},200,cookie?{'Set-Cookie':cookie}:{});
-    }
+    if(action==='verify')return json({status:'success'});
   }
-  const needsMember=directVideo||action==='coachPtWeek'||action==='assessmentList'||action==='assessmentSave'||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin'||action==='dietSave'||action==='dietPhotoDelete'||action==='coachFeedbackSave';
+  const needsMember=directVideo||action==='read'||action==='workoutHistory'||action==='memberInsights'||action==='videoPlaybackUrl'||action==='dailyCheckin'||action==='dietSave';
   if(!validDay(date)||(needsMember&&(!member||member.length>100)))
     return json({status:'error',code:'invalid_query'},400);
   const month=input.month===undefined||input.month===''?date.slice(0,7):input.month;
@@ -768,7 +436,7 @@ async function handleRecords(request,env) {
     step=label||step;
     const response=await fetch(base+path,{method,headers:{
       apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',
-      Prefer:(path.includes('/fit_meal_photos?')||path.includes('/fit_coach_feedback?'))?'return=representation,resolution=merge-duplicates':'return=representation'
+      Prefer:'return=representation'
     },body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
     if(!response.ok){
       let detail='';try{const body=await response.json();detail=clean(body?.message||body?.error||body?.code);}catch{}
@@ -779,172 +447,26 @@ async function handleRecords(request,env) {
   const start=performance.now();
   if(action==='listMembersFast') {
     try {
-      const rows=await supaGet('/rest/v1/fit_members?select=name,is_archived,worker_link_sha256&order=name.asc&limit=1000','members');
+      const rows=await supaGet('/rest/v1/fit_members?select=name&order=name.asc&limit=1000','members');
       if(rows.length===1000)throw Error('member list pagination required');
-      return json({status:'success',source:'supabase',
-         members:rows.filter(row=>!row.is_archived).map(row=>String(row.name||'').trim()).filter(Boolean),
-         nativeMembers:rows.filter(row=>!row.is_archived&&row.worker_link_sha256).map(row=>String(row.name||'').trim()).filter(Boolean),
-         archivedMembers:rows.filter(row=>row.is_archived).map(row=>String(row.name||'').trim()).filter(Boolean)});
+      return json({status:'success',source:'supabase',members:rows.map(row=>String(row.name||'').trim()).filter(Boolean)});
     }catch(error){return failed(error);}
-  }
-  if(action==='memberRegister'||action==='memberArchive'||action==='memberLinkRotate'){
-    const managedName=String(input.name||'').trim().replace(/\s+/g,' ');
-    if(managedName.length<2||managedName.length>30||/[<>\u0000-\u001f]/.test(managedName))
-      return json({status:'error',code:'invalid_member_name'},400);
-    try{
-      const existing=await supaGet('/rest/v1/fit_members?select=id,is_archived,'+MEMBER_LINK_FIELDS+'&name=eq.'+
-        encodeURIComponent(managedName)+'&limit=1','member_manage_lookup');
-      if(action==='memberLinkRotate'){
-        if(sessionSecret.length<32)return json({status:'error',code:'missing_runtime_configuration'},503);
-        const account=existing[0];
-        if(!account||account.is_archived)return json({status:'error',code:'member_not_found'},404);
-        if(!account.worker_link_sha256)return json({status:'error',code:'legacy_member_link'},409);
-        const fields=await newMemberLinkFields();
-        const generationFilter=account.worker_link_generation?'eq.'+account.worker_link_generation:'is.null';
-        const rows=await supaWrite('/rest/v1/fit_members?id=eq.'+encodeURIComponent(account.id)+
-          '&is_archived=eq.false&worker_link_generation='+generationFilter,'PATCH',
-          {...fields,access_token_hash:null},'member_link_rotate');
-        if(rows.length!==1)return json({status:'error',code:'link_changed'},409);
-        return json({status:'success',token:await issuedMemberToken(sessionSecret,rows[0]),
-          expiresAt:rows[0].worker_link_expires_at});
-      }
-      if(action==='memberRegister'){
-        if(existing.length){
-          if(!existing[0].is_archived){
-            const account=existing[0];
-            if(!memberLinkCurrent(account))return json({status:'error',code:'link_expired'},409);
-            const token=account.worker_link_generation?await issuedMemberToken(sessionSecret,account):undefined;
-            return json({status:'success',alreadyExists:true,token,expiresAt:account.worker_link_expires_at});
-          }
-          const rows=await supaWrite('/rest/v1/fit_members?id=eq.'+encodeURIComponent(existing[0].id),
-            'PATCH',{is_archived:false},'member_reactivate');
-          if(!rows?.length)throw Error('reactivation_not_confirmed');
-        }else{
-          const profile={name:managedName,is_archived:false};
-          if(input.linkToken!==undefined){
-            const token=input.linkToken;
-            if(typeof token!=='string'||!token||token.length>200||!await readAppsScriptMemberDay(managedName,token,date))
-              return json({status:'denied',code:'invalid_member_link'},403);
-            if(sessionSecret.length<32)return json({status:'error',code:'missing_runtime_configuration'},503);
-            Object.assign(profile,await newMemberLinkFields());
-          }
-          const rows=await supaWrite('/rest/v1/fit_members','POST',profile,'member_register');
-          if(!rows?.length)throw Error('registration_not_confirmed');
-          if(profile.worker_link_generation){
-            return json({status:'success',token:await issuedMemberToken(sessionSecret,rows[0]),
-              expiresAt:rows[0].worker_link_expires_at});
-          }
-        }
-      }else{
-        // Archive, never cascade-delete member history, photos or videos.
-        if(!existing.length)return json({status:'error',code:'member_not_found'},404);
-        if(!existing[0].is_archived){
-          const rows=await supaWrite('/rest/v1/fit_members?id=eq.'+encodeURIComponent(existing[0].id),
-            'PATCH',{is_archived:true},'member_archive');
-          if(!rows?.length)throw Error('archive_not_confirmed');
-        }
-      }
-      memberCache.delete(JSON.stringify([base,managedName]));
-      return json({status:'success'});
-    }catch(error){return failed(error);}
-  }
-  if(action==='assessmentList'||action==='assessmentSave') {
-    // All access uses the existing verified member link/session or coach cookie.
-    // Clients never receive Supabase credentials or arbitrary table access.
-    if(action==='assessmentSave' && input.password===undefined)
-      return json({status:'denied',code:'coach_only'},403);
-    if(!member||member.length>100)return json({status:'error',code:'invalid_member'},400);
-    try {
-      const matched=await supaGet('/rest/v1/fit_members?select=id,is_archived&name=eq.'+
-        encodeURIComponent(member)+'&limit=1','assessment_member');
-      if(!matched.length||matched[0].is_archived)return json({status:'denied',code:'member_unavailable'},403);
-      const uid=matched[0].id;
-      if(action==='assessmentList') {
-        const rows=await supaGet('/rest/v1/fit_movement_assessments?select=id,assessed_on,scores,note,goal,video_ids,coach_name&member_id=eq.'+
-          encodeURIComponent(uid)+'&order=assessed_on.desc&limit=24','assessment_list');
-
-        const day=date;
-        const endDate=new Date(day+'T00:00:00Z');
-        const getDay=(offset)=>{const d=new Date(endDate);d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10);};
-        const start=getDay(-27),previousStart=getDay(-55),previousEnd=getDay(-28);
-        const records=await supaGet('/rest/v1/fit_daily_records?select=record_date,data&member_id=eq.'+
-          encodeURIComponent(uid)+'&record_date=gte.'+previousStart+'&record_date=lte.'+day+'&order=record_date.asc&limit=120','assessment_history');
-        const blank=()=>({workoutDays:0,dietDays:0,completedSets:0});
-        const summary=blank(),previous=blank();
-        const exerciseRecords={recent:new Map(),previous:new Map()};
-        // Compare only identical exercise names and repetition counts; avoid
-        // interpreting different training conditions as a strength increase.
-        const numeric=(v)=>{const str=String(v??'').trim();return /^(?:\d+)(?:\.\d{1,2})?$/.test(str)?Number(str):NaN;};
-
-        for(const r of records){
-          const d=r.data||{};
-          const target=r.record_date>=start?summary:previous;
-          const routines=Array.isArray(d.routines)?d.routines:[];
-          const worked=routines.some(rt=>rt.routineType!=='homework'||(Array.isArray(rt.completedSets)&&rt.completedSets.some(Boolean)))||d.dailyCheckin?.workout==='done';
-          if(worked)target.workoutDays++;
-          const period=r.record_date>=start?'recent':'previous';
-          for(const rt of routines){
-            const name=String(rt.name||'').trim().replace(/\s+/g,' ').slice(0,80);
-            if(!name)continue;
-            const details=Array.isArray(rt.setDetails)&&rt.setDetails.length?rt.setDetails:[{weight:rt.weight,reps:rt.reps}];
-            details.forEach((detail,i)=>{
-              if(rt.routineType==='homework' && !rt.completedSets?.[i])return;
-              const weight=numeric(detail?.weight),reps=numeric(detail?.reps);
-              if(!Number.isFinite(weight)||weight<=0||weight>1000||!Number.isInteger(reps)||reps<=0||reps>100)return;
-              const key=name.toLocaleLowerCase('ko-KR')+'|'+reps;
-              const dict=exerciseRecords[period];
-              const existing=dict.get(key);
-              if(!existing||weight>existing.weight)dict.set(key,{name,reps,weight});
-            });
-          }
-          const diet=d.diet||{};
-          if(['breakfast','lunch','dinner','snack'].some(k=>Boolean(String(diet[k]?.desc||'').trim())||(Array.isArray(diet[k]?.photos)&&diet[k].photos.length)))target.dietDays++;
-          target.completedSets+=routines.reduce((sum,rt)=>sum+(Array.isArray(rt.completedSets)?rt.completedSets.filter(Boolean).length:0),0);
-        }
-        const exerciseComparisons=[...exerciseRecords.recent.entries()]
-          .filter(([key])=>exerciseRecords.previous.has(key))
-          .map(([key,item])=>{
-            const previousWeight=exerciseRecords.previous.get(key).weight;
-            return {name:item.name,reps:item.reps,previousWeight,currentWeight:item.weight,
-              changeKg:Math.round((item.weight-previousWeight)*100)/100};
-          }).sort((a,b)=>Math.abs(b.changeKg)-Math.abs(a.changeKg)).slice(0,5);
-        return json({status:'success',assessments:rows,summary,previousSummary:previous,
-          exerciseComparisons,range:{start,end:day},previousRange:{start:previousStart,end:previousEnd}});
-      }
-      if(!validDay(String(input.assessed_on||'')))return json({status:'error',code:'invalid_assessment_date'},400);
-      const scores=input.scores;
-      const allowed=['breathing','thoracic','hip','squat','shoulder'];
-      if(!scores||typeof scores!=='object'||Array.isArray(scores)||Object.keys(scores).some(k=>!allowed.includes(k))||
-        Object.keys(scores).length<2||Object.keys(scores).length>3||
-        Object.values(scores).some(v=>!Number.isInteger(v)||v<1||v>3))
-        return json({status:'error',code:'invalid_scores'},400);
-      const note=String(input.note||'').trim(),goal=String(input.goal||'').trim();
-      if(note.length>1500||goal.length>500)return json({status:'error',code:'assessment_too_long'},400);
-      const vids=Array.isArray(input.video_ids)?input.video_ids.map(v=>String(v||'').trim()):[];
-      if(vids.length>2||vids.some(v=>!/^direct:[0-9a-f-]{36}$/i.test(v)))
-        return json({status:'error',code:'invalid_video_ids'},400);
-      if(vids.length) {
-        const matches=await supaGet('/rest/v1/fit_direct_videos?select=id&member_id=eq.'+
-          encodeURIComponent(uid)+'&state=eq.ready&id=in.('+vids.map(v=>encodeURIComponent(v.slice(7))).join(',')+')','assessment_video_ownership');
-        if(matches.length!==new Set(vids).size)return json({status:'error',code:'video_not_owned'},400);
-      }
-      const payload={member_id:uid,assessed_on:input.assessed_on,scores,note,goal,
-        video_ids:vids,coach_name:'신명진 코치',updated_at:new Date().toISOString()};
-      const existing=await supaGet('/rest/v1/fit_movement_assessments?select=id&member_id=eq.'+
-        encodeURIComponent(uid)+'&assessed_on=eq.'+input.assessed_on+'&limit=1','assessment_existing');
-      const written=existing.length
-        ?await supaWrite('/rest/v1/fit_movement_assessments?id=eq.'+encodeURIComponent(existing[0].id),'PATCH',payload,'assessment_update')
-        :await supaWrite('/rest/v1/fit_movement_assessments','POST',payload,'assessment_create');
-      if(!written?.length)throw Error('assessment_save_not_confirmed');
-      return json({status:'success',assessment:written[0]});
-    } catch(error){return failed(error);}
   }
   if(action==='columnList') {
     try {
       const isTrainer=input.password!==undefined;
+      if(!isTrainer&&columnPublicCache.rows&&Date.now()-columnPublicCache.ts<60000){
+        return json({status:'success',columns:columnPublicCache.rows,cached:true},200,{
+          'Cache-Control':'private, max-age=60, stale-while-revalidate=120',
+          'Server-Timing':'columns;dur='+(performance.now()-start).toFixed(1),
+          'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
+        });
+      }
       const filter=isTrainer?'':'&status=eq.published';
       const rows=await supaGet('/rest/v1/fit_columns?select=id,title,category,summary,content,author,published_at,status,updated_at'+filter+'&order=published_at.desc&limit=60','columns');
+      if(!isTrainer){columnPublicCache.rows=rows;columnPublicCache.ts=Date.now();}
       return json({status:'success',columns:rows},200,{
+        'Cache-Control':isTrainer?'no-store':'private, max-age=60, stale-while-revalidate=120',
         'Server-Timing':'columns;dur='+(performance.now()-start).toFixed(1),
         'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
       });
@@ -965,6 +487,7 @@ async function handleRecords(request,env) {
       const rows=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
         ?await supaWrite('/rest/v1/fit_columns?id=eq.'+encodeURIComponent(id),'PATCH',payload,'column_save')
         :await supaWrite('/rest/v1/fit_columns','POST',payload,'column_publish');
+      columnPublicCache.rows=null;columnPublicCache.ts=0;
       return json({status:'success',column:rows?.[0]||null});
     }catch(error){return failed(error);}
   }
@@ -983,7 +506,7 @@ async function handleRecords(request,env) {
   if(action==='trainerVideoQueue') {
     try {
       const [members, videos]=await Promise.all([
-        supaGet('/rest/v1/fit_members?select=id,name&is_archived=eq.false&limit=1000','video_queue_members'),
+        supaGet('/rest/v1/fit_members?select=id,name&limit=1000','video_queue_members'),
         supaGet('/rest/v1/fit_direct_videos?select=member_id,name,created_at,feedback,mime&state=eq.ready&order=created_at.desc&limit=1000','video_queue')
       ]);
       const names=new Map(members.map(row=>[String(row.id),String(row.name||'').trim()]));
@@ -993,35 +516,8 @@ async function handleRecords(request,env) {
     }catch(error){ return failed(error); }
   }
   try {
-    let snapshot=initialSnapshot;
-    if(action==='read'&&snapshot===undefined){
-      try {
-        snapshot=await supaGet('/rest/v1/rpc/fit_member_day_snapshot?p_name='+
-          encodeURIComponent(member)+'&p_date='+date,'day_snapshot');
-      } catch(error) {
-        // Keep the previous read path usable before the RPC is available.
-        if(!error?.diagnostic?.startsWith('404'))throw error;
-      }
-    }
-    const managed=initialAccount!==undefined ? initialAccount : snapshot ? snapshot.member : nativeAccount ?? (await supaGet('/rest/v1/fit_members?select=id,is_archived,'+MEMBER_LINK_FIELDS+'&name=eq.'+
-      encodeURIComponent(member)+'&limit=1','member_status'))[0];
-    if(managed?.is_archived)return json({status:'denied',code:'member_archived'},403);
-    if(action==='coachPtWeek'){
-      if(!managed?.id||!managed.worker_link_sha256)return json({status:'success',schedules:null});
-      const first=shiftDay(date,-new Date(date+'T00:00:00Z').getUTCDay());
-      const last=shiftDay(first,6);
-      const rows=await supaGet('/rest/v1/fit_daily_records?select=record_date,pt_scheduled:data->ptScheduled,pt_time:data->>ptTime'+
-        '&member_id=eq.'+encodeURIComponent(managed.id)+'&record_date=gte.'+first+'&record_date=lte.'+last+'&limit=7','coach_pt_week');
-      const byDate=new Map(rows.map(row=>[row.record_date,row]));
-      const schedules=Object.fromEntries(Array.from({length:7},(_,i)=>{
-        const day=shiftDay(first,i);
-        const row=byDate.get(day);
-        const ptScheduled=Boolean(row?.pt_scheduled);
-        return [day,{ptScheduled,ptTime:ptScheduled?String(row?.pt_time||'').trim():''}];
-      }));
-      return json({status:'success',schedules});
-    }
-    const memberId=managed?.id??await ensureMember(base,key,member,supaGet);
+    step='member';
+    const memberId=await ensureMember(base,key,member,supaGet);
     if(memberId===null)return json({status:'denied',code:'member_not_found'},403);
     const lookupMs=performance.now()-start;
     if(action==='dailyCheckin'){
@@ -1034,7 +530,7 @@ async function handleRecords(request,env) {
       const changes={...(workout?{workout}:{}),...(diet?{diet}:{}),...(mood?{mood}:{})};
       const table='/rest/v1/fit_daily_records';
       const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
-      const headers={...DAILY_RECORD_WRITER,apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
+      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
       for(let attempt=0;attempt<3;attempt++){
         const rows=await supaGet(table+'?select=id,data,updated_at&'+scope+'&limit=2','daily_checkin_read');
         if(rows.length>1)break;
@@ -1053,54 +549,12 @@ async function handleRecords(request,env) {
       }
       return json({status:'error',code:'checkin_conflict'},409);
     }
-    if(action==='coachFeedbackSave'){
-      // Only trainers may publish coaching feedback, never member sessions.
-      if(input.password===undefined)return json({status:'denied',code:'trainer_only'},403);
-      const header=String(input.headerMessage??'').trim();
-      const workout=String(input.workoutFeedback??'').trim();
-      const diet=String(input.dietFeedback??'').trim();
-      if(header.length>3000||workout.length>3000||diet.length>3000)
-        return json({status:'error',code:'feedback_too_long'},400);
-      const rows=await supaWrite('/rest/v1/fit_coach_feedback?on_conflict=member_id,record_date','POST',{
-        member_id:memberId,record_date:date,header_message:header,
-        workout_feedback:workout,diet_feedback:diet,updated_at:new Date().toISOString()
-      },'coach_feedback_write');
-      if(!rows?.length)return json({status:'error',code:'feedback_write_unconfirmed'},502);
-      return json({status:'success'});
-    }
-    if(action==='dietPhotoDelete'){
-      // An empty photo is a durable tombstone: an old Apps Script mirror or
-      // pre-migration JSONB photo must never resurrect a deleted image.
-      const mealKey=String(input.mealKey||'');
-      if(!['breakfast','lunch','dinner','snack'].includes(mealKey))
-        return json({status:'error',code:'invalid_meal_key'},400);
-      const rows=await supaWrite('/rest/v1/fit_meal_photos?on_conflict=member_id,record_date,meal_key',
-        'POST',{member_id:memberId,record_date:date,meal_key:mealKey,photo:'',updated_at:new Date().toISOString()},'meal_photo_delete');
-      if(!rows?.length)return json({status:'error',code:'photo_delete_unconfirmed'},502);
-      return json({status:'success'});
-    }
     if(action==='dietSave'){
       const rawDiet=input.diet;
       if(!rawDiet||typeof rawDiet!=='object'||Array.isArray(rawDiet))return json({status:'error',code:'invalid_diet'},400);
-      for(const k of ['breakfast','lunch','dinner','snack']){
-        if(rawDiet[k]===undefined)continue;
-        if(!rawDiet[k]||typeof rawDiet[k]!=='object'||Array.isArray(rawDiet[k]))
-          return json({status:'error',code:'invalid_meal'},400);
-        if(rawDiet[k].photos!==undefined){
-          if(!Array.isArray(rawDiet[k].photos)||rawDiet[k].photos.length>1)
-            return json({status:'error',code:'invalid_photos'},400);
-          for(const photo of rawDiet[k].photos){
-            const src=typeof photo==='string'?photo:(photo?.url||photo?.src||photo?.data||'');
-            if(typeof src!=='string'||src.length>95000||
-              !(src.startsWith('data:image/jpeg;base64,')||src.startsWith('data:image/png;base64,')||
-                src.startsWith('data:image/webp;base64,')||src.startsWith('https://')||src.startsWith('direct:')))
-              return json({status:'error',code:'invalid_photo'},400);
-          }
-        }
-      }
       const table='/rest/v1/fit_daily_records';
       const scope='member_id=eq.'+encodeURIComponent(memberId)+'&record_date=eq.'+date;
-      const headers={...DAILY_RECORD_WRITER,apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
+      const headers={apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json',Prefer:'return=representation'};
       for(let attempt=0;attempt<3;attempt++){
         const rows=await supaGet(table+'?select=id,data,updated_at&'+scope+'&limit=2','diet_read');
         if(rows.length>1)break;
@@ -1110,42 +564,10 @@ async function handleRecords(request,env) {
         const prevDiet=(row?.data?.diet&&typeof row.data.diet==='object')?row.data.diet:{};
         const mergedDiet={...prevDiet};
         for(const k of ['breakfast','lunch','dinner','snack']){
-          if(rawDiet[k]&&typeof rawDiet[k]==='object'&&!Array.isArray(rawDiet[k])){
-            const previous=prevDiet[k]&&typeof prevDiet[k]==='object'?prevDiet[k]:{};
-            const incoming=rawDiet[k];
-            // Missing photos means "leave the photo unchanged", not "delete it".
-            // Apps Script's text-only meal writes must never clear existing images.
-            const existingPhotos=Array.isArray(previous.photos)?previous.photos:[];
-            const nextPhotos=Array.isArray(incoming.photos)&&incoming.photos.length
-              ?incoming.photos:existingPhotos;
-            mergedDiet[k]={...previous,...incoming,photos:nextPhotos};
-          }
+          if(rawDiet[k]&&typeof rawDiet[k]==='object')mergedDiet[k]=rawDiet[k];
         }
         if(rawDiet.water!==undefined)mergedDiet.water=Number(rawDiet.water)||0;
-        // Photo bytes have their own table so a subsequent Apps Script mirror
-        // cannot erase them by replacing fit_daily_records.data.
-        for(const k of ['breakfast','lunch','dinner','snack']){
-          const photos=rawDiet[k]?.photos;
-          const candidate=Array.isArray(photos)?photos[0]:null;
-          const src=typeof candidate==='string'?candidate:(candidate?.url||candidate?.src||candidate?.data||'');
-          if(src && (src.startsWith('data:image/jpeg;base64,') || src.startsWith('data:image/png;base64,') || src.startsWith('data:image/webp;base64,') || src.startsWith('https://'))){
-            const photosWritten=await supaWrite('/rest/v1/fit_meal_photos?on_conflict=member_id,record_date,meal_key','POST',
-              {member_id:memberId,record_date:date,meal_key:k,photo:src,updated_at:new Date().toISOString()},'meal_photo_write');
-            if(!photosWritten?.length)return json({status:'error',code:'photo_write_unconfirmed'},502);
-          }
-        }
-        // Photo data is rehydrated from fit_meal_photos on reads. Avoid
-        // writing new base64 copies into the daily JSONB record.
-        const compactDiet={...mergedDiet};
-        for(const k of ['breakfast','lunch','dinner','snack']){
-          if(compactDiet[k]&&typeof compactDiet[k]==='object'&&rawDiet[k]){
-            const candidate=rawDiet[k].photos?.[0];
-            const src=typeof candidate==='string'?candidate:(candidate?.url||candidate?.src||candidate?.data||'');
-            if(src.startsWith('data:image/')||src.startsWith('https://'))
-              compactDiet[k]={...compactDiet[k],photos:[]};
-          }
-        }
-        const data={...(row?.data||{}),diet:compactDiet};
+        const data={...(row?.data||{}),diet:mergedDiet};
         const version=row?.updated_at==null?'is.null':'eq.'+encodeURIComponent(row.updated_at);
         const target=row?table+'?id=eq.'+encodeURIComponent(row.id)+'&updated_at='+version:table;
         const payload=row?{data,updated_at:updatedAt}:{member_id:memberId,record_date:date,data,updated_at:updatedAt};
@@ -1170,22 +592,7 @@ async function handleRecords(request,env) {
       };
       const format=row=>({id:'direct:'+row.id,fileId:'direct:'+row.id,name:row.name,question:row.question,feedback:row.feedback,readAt:row.read_at||'',createdAt:row.created_at});
       if(action==='directVideoList'){
-        if(input.page!==undefined){
-          if(!trainer)return json({status:'denied',code:'coach_only'},403);
-          const pageSize=10;
-          const page=input.page;
-          if(!Number.isSafeInteger(page)||page<0||!Number.isSafeInteger(page*pageSize))
-            return json({status:'error',code:'invalid_page'},400);
-          const first=new Date(date+'T00:00:00+09:00').toISOString();
-          const next=new Date(shiftDay(date,1)+'T00:00:00+09:00').toISOString();
-          const records=await supaGet(table+'?select=id,name,question,created_at&'+scope+
-            '&state=eq.ready&mime=like.video.*&created_at=gte.'+encodeURIComponent(first)+
-            '&created_at=lt.'+encodeURIComponent(next)+'&order=created_at.desc,id.desc&limit='+(pageSize+1)+
-            '&offset='+(page*pageSize),'coach_daily_videos');
-          return json({status:'success',videos:records.slice(0,pageSize).map(format),hasNext:records.length>pageSize});
-        }
-        const rows=await supaGet(table+'?select=id,name,question,feedback,read_at,created_at,mime&'+scope+
-          '&state=eq.ready&order=created_at.desc&limit=200','direct_list');
+        const rows=await supaGet(table+'?select=id,name,question,feedback,read_at,created_at,mime&'+scope+'&state=eq.ready&order=created_at.desc&limit=200','direct_list');
         return json({status:'success',videos:rows.filter(row=>!String(row.mime||'').startsWith('image/')).map(format)});
       }
       const id=String(input.id||'').replace(/^direct:/,'');
@@ -1194,11 +601,9 @@ async function handleRecords(request,env) {
       let row;
       if(action==='directVideoBegin'){
         const size=Number(input.size),mime=String(input.mime||''),name=String(input.name||'').trim().slice(0,150),question=String(input.question||'').slice(0,1000);
-        const ext=MEDIA_TYPES.get(mime);
-        if(!ext||!name||!Number.isInteger(size)||size<1)return json({status:'error',code:'invalid_file'},400);
-        const useR2=mime.startsWith('video/')&&r2MediaReady(env);
-        if(size>mediaMaxBytes(mime,useR2))return json({status:'error',code:'video_size_limit'},413);
-        const storage_path=(useR2?R2_MEDIA_PREFIX:'')+'member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
+        const ext={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[mime];
+        if(!ext||!name||!Number.isInteger(size)||size<1||size>50000000)return json({status:'error',code:'invalid_file'},400);
+        const storage_path='member-'+encodeURIComponent(String(memberId)).replace(/%/g,'_')+'/'+id+'.'+ext;
         // Insert and return the row in one round trip; conflicts are scoped to this member.
         const inserted=await send(table+'?on_conflict=id','POST',{id,member_id:String(memberId),storage_path,name,question,mime,size_bytes:size},{Prefer:'resolution=ignore-duplicates,return=representation'});
         row=Array.isArray(inserted)?inserted[0]:null;
@@ -1206,24 +611,13 @@ async function handleRecords(request,env) {
         if(row&&String(row.member_id)!==String(memberId))return json({status:'denied'},403);
         if(!row||row.size_bytes!=size||row.mime!==mime||row.state==='deleted')return json({status:'error',code:'upload_conflict'},409);
         if(row.state==='ready')return json({status:'success',alreadyReady:true});
-        if(row.storage_path.startsWith(R2_MEDIA_PREFIX)){
-          if(!r2MediaReady(env))return json({status:'error',code:'media_unavailable'},503);
-          const url=await mediaGrantUrl(request,env,{path:row.storage_path,mime,size},'upload',MEDIA_UPLOAD_TTL);
-          const options={status:'success',url,storage:'r2',partBytes:MEDIA_PART_BYTES};
-          if(input.multipartV2===true&&size>MEDIA_PART_BYTES){
-            if(!inserted?.length&&matchesMediaObject(await env.FIT_MEDIA.head(row.storage_path),size,mime))
-              return json({...options,alreadyTransferred:true});
-            options.multipartUrl=await createR2MultipartUrl(request,env,row.storage_path,mime,size);
-          }
-          return json(options);
-        }
         const path=row.storage_path.split('/').map(encodeURIComponent).join('/');
         const signed=await send(bucket+'/upload/sign/fit-direct-videos/'+path,'POST',{});
         const relative=String(signed.url||signed.signedURL||'');
         if(!relative)return json({status:'error',code:'upload_signature_missing'},502);
         const url=new URL(relative.startsWith('/object/')?'/storage/v1'+relative:relative,base);
         if(url.origin!==base)return json({status:'error',code:'upload_origin_invalid'},502);
-        return json({status:'success',url:url.toString(),uploadToken:url.searchParams.get('token')||signed.token||'',objectName:row.storage_path,tusEndpoint:base.replace('.supabase.co','.storage.supabase.co')+'/storage/v1/upload/resumable/sign'});
+        return json({status:'success',url:url.toString(),uploadToken:url.searchParams.get('token')||signed.token||'',objectName:row.storage_path,tusEndpoint:base.replace('.supabase.co','.storage.supabase.co')+'/storage/v1/upload/resumable'});
       }
       row=(await supaGet(table+'?select=*&'+filter+'&limit=1','direct_row'))[0];
       if(!row||row.state==='deleted')return json({status:'error',code:'video_not_found'},404);
@@ -1231,24 +625,8 @@ async function handleRecords(request,env) {
       if(action==='directVideoFinish'){
         if(row.state==='ready')return json({status:'success',video:format(row)});
         step='direct_finish_storage';
-        const usesR2=row.storage_path.startsWith(R2_MEDIA_PREFIX);
-        if(usesR2&&!r2MediaReady(env))return json({status:'error',code:'media_unavailable'},503);
-        let info;
-        if(usesR2&&input.multipart!==undefined){
-          const {grant,parts}=input.multipart||{};
-          const scope=await readMediaGrant(request,env,grant??'');
-          if(scope?.mode!=='multipart'||scope.path!==row.storage_path||scope.size<=MEDIA_PART_BYTES||
-             scope.size!==Number(row.size_bytes)||scope.mime!==row.mime||!validUploadedParts(parts,scope.size))
-            return json({status:'error',code:'invalid_media_parts'},422);
-          info=await completeR2Multipart(env.FIT_MEDIA,scope,parts);
-          if(!matchesMediaObject(info,scope.size,scope.mime))
-            info=await env.FIT_MEDIA.head(row.storage_path);
-          if(!matchesMediaObject(info,scope.size,scope.mime))
-            return json({status:'error',code:'upload_size_mismatch'},409);
-        }else{
-          info=usesR2?await env.FIT_MEDIA.head(row.storage_path):await send(bucket+'/info/fit-direct-videos/'+path,'GET');
-        }
-        const bytes=Number(info?.size??info?.metadata?.size);
+        const info=await send(bucket+'/info/fit-direct-videos/'+path,'GET');
+        const bytes=Number(info.size??info.metadata?.size);
         if(bytes!==Number(row.size_bytes))return json({status:'error',code:'upload_size_mismatch'},409);
         const updated=await send(table+'?'+filter+'&state=eq.pending','PATCH',{state:'ready'},{Prefer:'return=representation'});
         const ready=updated?.[0]||(await supaGet(table+'?select=*&'+filter+'&state=eq.ready&limit=1','direct_finish_retry'))[0];
@@ -1257,14 +635,6 @@ async function handleRecords(request,env) {
       }
       if(row.state!=='ready')return json({status:'error',code:'not_ready'},409);
       if(action==='directVideoPlay'){
-        const r2Path=row.storage_path.startsWith(R2_MEDIA_PREFIX)?row.storage_path:
-          R2_MEDIA_PREFIX+'fit-direct-videos/'+row.storage_path;
-        if(row.storage_path.startsWith(R2_MEDIA_PREFIX)&&!r2MediaReady(env))
-          return json({status:'error',code:'media_unavailable'},503);
-        if(r2MediaReady(env)&&(r2Path===row.storage_path||await env.FIT_MEDIA.head(r2Path).catch(()=>null))){
-          const url=await mediaGrantUrl(request,env,{path:r2Path},'read',60*60_000);
-          return json({status:'success',url});
-        }
         const signed=await send(bucket+'/sign/fit-direct-videos/'+path,'POST',{expiresIn:300});
         const partial=String(signed.signedURL||signed.signedUrl||'');
         if(!partial)return json({status:'error',code:'signature_missing'},502);
@@ -1287,11 +657,6 @@ async function handleRecords(request,env) {
       if(!matches.length)return json({status:'not_migrated'});
       const path=String(matches[0].storage_path||'');
       if(matches.length!==1||!path||path.includes('..')||!path.split('/').every(x=>/^[a-zA-Z0-9_.-]+$/.test(x)))return json({status:'error',code:'invalid_video_path'},409);
-      const r2Path=R2_MEDIA_PREFIX+'fit-private-videos/'+path;
-      if(r2MediaReady(env)&&await env.FIT_MEDIA.head(r2Path).catch(()=>null)){
-        const url=await mediaGrantUrl(request,env,{path:r2Path},'read',60*60_000);
-        return json({status:'success',url});
-      }
       const signed=await fetch(base+'/storage/v1/object/sign/fit-private-videos/'+path.split('/').map(encodeURIComponent).join('/'),{
         method:'POST',headers:{apikey:key,...(key.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+key}),'Content-Type':'application/json'},
         body:JSON.stringify({expiresIn:300}),signal:AbortSignal.timeout(10000)
@@ -1319,40 +684,11 @@ async function handleRecords(request,env) {
         'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
       });
     }
-    const [daily,photoRows,coachRows]=snapshot?.member
-      ? [snapshot.daily,snapshot.photos,snapshot.feedback]
-      : await Promise.all([
-      supaGet('/rest/v1/fit_daily_records?select=data&member_id=eq.'+
-        encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','daily'),
-      supaGet('/rest/v1/fit_meal_photos?select=meal_key,photo&member_id=eq.'+
-        encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=4','meal_photos'),
-      supaGet('/rest/v1/fit_coach_feedback?select=header_message,workout_feedback,diet_feedback&member_id=eq.'+
-        encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','coach_feedback')
-    ]);
-    const result={...(daily[0]?.data||{})};
-    delete result.nativeDaily;
-    if(nativeAccount?.worker_link_sha256 || managed?.worker_link_sha256) result.nativeDaily=true;
-    const diet={...(result.diet||{})};
-    const deletedPhotoMeals=[];
-    for(const item of photoRows){
-      if(!['breakfast','lunch','dinner','snack'].includes(item.meal_key))continue;
-      if(!item.photo)deletedPhotoMeals.push(item.meal_key);
-      diet[item.meal_key]={...(diet[item.meal_key]||{}),photos:item.photo?[item.photo]:[],photo:''};
-    }
-    if(photoRows.length)result.diet=diet;
-    if(deletedPhotoMeals.length)result.deletedPhotoMeals=deletedPhotoMeals;
-    if(coachRows.length){
-      const coach=coachRows[0];
-      result.headerMessage=coach.header_message;
-      result.feedback={...(result.feedback||{}),workout:coach.workout_feedback,diet:coach.diet_feedback};
-      result.coachFeedbackStored=true;
-    }
-    const readTiming=snapshot?.member
-      ? 'day_snapshot;dur='+lookupMs.toFixed(1)
-      : 'member;dur='+lookupMs.toFixed(1)+', daily;dur='+(performance.now()-start-lookupMs).toFixed(1);
-    const daySession=includeMemberSession?await signMemberSession(sessionSecret,member,managed):null;
-    return json(daySession?{status:'success',...daySession,daily:result,legacyDaily}:result,200,{
-      'Server-Timing':(daySession?'session;dur='+(start-requestStarted).toFixed(1)+', ':'')+readTiming,
+    const daily=await supaGet('/rest/v1/fit_daily_records?select=data&member_id=eq.'+
+      encodeURIComponent(memberId)+'&record_date=eq.'+date+'&limit=1','daily');
+    return json(daily.length?daily[0].data:{},200,{
+      'Server-Timing':'member;dur='+lookupMs.toFixed(1)+
+        ', daily;dur='+(performance.now()-start-lookupMs).toFixed(1),
       'X-Fit-Function-Region':request.cf?.colo||'cloudflare'
     });
   }catch(error){
@@ -1360,72 +696,16 @@ async function handleRecords(request,env) {
   }
 }
 // Same-origin bridge for the existing Apps Script POST API. Auth remains in Apps Script.
-async function handleAppsScriptPost(request,env) {
-  const rejected=validateJsonPost(request);
-  if(rejected)return rejected;
-  let input;
-  try{input=await request.json();}catch{return json({status:'error',code:'invalid_json'},400);}
-  if(!input || typeof input!=='object' || Array.isArray(input))return json({status:'error',message:'Invalid request'},400);
+async function handleAppsScriptPost(request) {
+  if(request.method!=='POST')return json({status:'error',message:'Method not allowed'},405);
+  const origin=request.headers.get('Origin');
+  if(origin && origin!==new URL(request.url).origin)return json({status:'error',message:'Origin denied'},403);
   try {
-    if(input.password===undefined && input.token===undefined &&
-       await validCoachCookie(request,env))
-      input.password=env.TRAINER_PASSWORD;
-    const trainer=constantTimeEquals(input.password,env.TRAINER_PASSWORD);
-    const requestedName=String(input.member||input.name||'').trim();
-    const dailyAction=input.action||(input.data?'save':'read');
-    const dailyActions=['read','save','patchData','setProgressBatch'];
-    const sessionSecret=String(env.MEMBER_SESSION_SECRET||'');
-    if(dailyAction==='getMemberLink'&&trainer&&requestedName){
-      const {found}=await workerMemberAccess(env,requestedName);
-      if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
-      if(found?.worker_link_generation){
-        if(!memberLinkCurrent(found))return json({status:'success',code:'link_expired'});
-        return json({status:'success',token:await issuedMemberToken(sessionSecret,found),expiresAt:found.worker_link_expires_at});
-      }
-    }
-    if(requestedName&&(dailyActions.includes(dailyAction)||!trainer)){
-      const {found,base,headers}=await workerMemberAccess(env,requestedName);
-      if(found?.is_archived)return json({status:'denied',code:'member_archived'},403);
-      if(found?.worker_link_sha256&&dailyActions.includes(dailyAction)){
-        if(!trainer&&!memberLinkCurrent(found))return json({status:'denied',code:'link_expired'},403);
-        if(!trainer&&!await nativeLinkMatches(found,input.token,sessionSecret))
-          return json({status:'denied',code:'unauthorized'},403);
-        if(!validDay(input.date))return json({status:'error',code:'invalid_query'},400);
-        if(dailyAction==='read'){
-          return handleRecords(new Request(new URL('/api/records',request.url),{
-            method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({action:'read',member:requestedName,date:input.date,
-              ...(trainer?{password:input.password}:{token:input.token})})
-          }),env);
-        }
-        const saved=await fetch(base+'/rest/v1/rpc/fit_worker_save_day',{
-          method:'POST',headers:{...headers,...DAILY_RECORD_WRITER,'Content-Type':'application/json'},
-          body:JSON.stringify({p_member_id:found.id,p_date:input.date,p_action:dailyAction,
-            p_payload:{data:input.data,patch:input.patch,changes:input.changes,baselineRoutineIds:input.baselineRoutineIds},p_trainer:trainer}),
-          signal:AbortSignal.timeout(8000)
-        });
-        if(!saved.ok)return json({status:'error',code:'daily_save_failed'},502);
-        return json({status:'success'});
-      }
-      if(found?.worker_link_generation&&!trainer){
-        if(dailyAction!=='videoDownload'||!validDay(input.date)||
-            !await nativeLinkMatches(found,input.token,sessionSecret))
-          return json({status:'denied',code:'unauthorized'},403);
-        // Scope access to an unmigrated video using the member's upstream identity.
-        const link=await fetch(APPS_SCRIPT_URL,{
-          method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
-          body:JSON.stringify({action:'getMemberLink',name:requestedName,password:env.TRAINER_PASSWORD}),
-          redirect:'follow',signal:AbortSignal.timeout(10000)
-        });
-        if(!link.ok)return json({status:'error',code:'legacy_video_unavailable'},502);
-        const legacy=await link.json();
-        const token=legacy?.token||(legacy?.url?new URL(legacy.url).searchParams.get('token'):'');
-        if(legacy?.status!=='success'||!token)return json({status:'error',code:'legacy_video_unavailable'},502);
-        input={action:dailyAction,member:requestedName,date:input.date,fileId:input.fileId,token};
-      }
-    }
+    const body=await request.text();
+    const input=JSON.parse(body);
+    if(!input || typeof input!=='object' || Array.isArray(input))return json({status:'error',message:'Invalid request'},400);
     const upstream=await fetch(APPS_SCRIPT_URL,{
-      method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify(input),
+      method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body,
       redirect:'follow',signal:AbortSignal.timeout(60000)
     });
     if(!upstream.ok)return json({status:'error',message:'Apps Script HTTP '+upstream.status},502);
@@ -1435,72 +715,25 @@ async function handleAppsScriptPost(request,env) {
     try { result=JSON.parse(raw); } catch {
       return json({status:'error',message:'Apps Script returned non-JSON ('+(type.split(';')[0]||'unknown')+'); '+( /quota|too many times/i.test(raw)?'quota limit':/sign in|accounts.google.com/i.test(raw)?'authentication required':/exception|script error/i.test(raw)?'script exception':'unexpected response')},502);
     }
-    return json(result);
+    return new Response(JSON.stringify(result),{headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
   }catch(e){
     return json({status:'error',message:'Apps Script transport failure: '+(e?.name==='TimeoutError'?'timeout':e?.name==='AbortError'?'aborted':e?.name==='SyntaxError'?'invalid JSON':'network error')},502);
   }
 }
-const APP_DOCUMENTS=new Map([['/','/'],['/index','/'],['/index.html','/'],['/v2','/v2'],['/v2.html','/v2']]);
-async function serveAppDocument(request,env,path) {
-  const assetUrl=new URL(path,request.url);
-  const asset=await env.ASSETS.fetch(new Request(assetUrl,{method:request.method}));
-  if(!asset.headers.get('Content-Type')?.startsWith('text/html'))return asset;
-
-  const nonce=b64url.encode(crypto.getRandomValues(new Uint8Array(16)));
-  const headers=new Headers(asset.headers);
-  headers.set('Content-Security-Policy',[
-    "default-src 'self'", "base-uri 'none'", "object-src 'none'", "frame-ancestors 'none'",
-    "script-src 'self' 'nonce-"+nonce+"'", "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-    "font-src 'self' https://cdn.jsdelivr.net", "img-src 'self' data: blob: https:",
-    "media-src 'self' blob: https:", "connect-src 'self' https://*.supabase.co",
-    'frame-src https://www.youtube.com'
-  ].join('; '));
-  headers.set('X-Frame-Options','DENY');
-  headers.set('X-Content-Type-Options','nosniff');
-  headers.set('Referrer-Policy','no-referrer');
-  // Each document has its own nonce. Cache the underlying static asset only.
-  headers.set('Cache-Control','no-store');
-  headers.delete('ETag');
-  headers.delete('Content-Length');
-  const response=new Response(asset.body,{status:asset.status,statusText:asset.statusText,headers});
-  if(request.method==='HEAD'||!response.body)return response;
-  return new HTMLRewriter().on('script:not([src])',{
-    element(element){element.setAttribute('nonce',nonce);}
-  }).transform(response);
-}
 export default {
   async fetch(request,env) {
-    const requestUrl = new URL(request.url);
-    const path=requestUrl.pathname;
-    if(path==='/member-manifest.webmanifest') {
-      const name=String(requestUrl.searchParams.get('name')||'').trim();
-      const token=String(requestUrl.searchParams.get('token')||'').trim();
-      if(!name||name.length>100||!token||token.length>200)
-        return json({status:'error',code:'invalid_manifest'},400);
-      const memberFragment=new URLSearchParams({name});
-      const manifest={
-        name:'FIT-CONNECT | '+name,
-        short_name:'FIT-CONNECT',
-        description:'운동과 식단 기록, 코치 피드백',
-        start_url:'/#'+memberFragment.toString(),
-        scope:'/',
-        display:'standalone',
-        background_color:'#F4F6F9',
-        theme_color:'#0B132B',
-        icons:[{src:'/fit-icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]
-      };
-      return new Response(JSON.stringify(manifest),{headers:{
-        'Content-Type':'application/manifest+json; charset=utf-8',
-        'Cache-Control':'no-store',
-        'X-Content-Type-Options':'nosniff'
-      }});
-    }
-    if(path===R2_MEDIA_ROUTE)return handleR2Media(request,env);
+    const path=new URL(request.url).pathname;
     if(path==='/api/records')return handleRecords(request,env);
-    if(path==='/api/apps-script')return handleAppsScriptPost(request,env);
+    if(path==='/api/apps-script')return handleAppsScriptPost(request);
     if(path.startsWith('/api/'))return json({status:'error',code:'not_found'},404);
-    if(APP_DOCUMENTS.has(path)&&(request.method==='GET'||request.method==='HEAD'))
-      return serveAppDocument(request,env,APP_DOCUMENTS.get(path));
-    return env.ASSETS.fetch(request);
+    const assetRes=await env.ASSETS.fetch(request);
+    if(request.method==='GET'&&assetRes.ok){
+      const headers=new Headers(assetRes.headers);
+      if(!headers.has('Cache-Control')){
+        headers.set('Cache-Control','public, max-age=60, stale-while-revalidate=300');
+      }
+      return new Response(assetRes.body,{status:assetRes.status,statusText:assetRes.statusText,headers});
+    }
+    return assetRes;
   }
 };

@@ -2685,26 +2685,53 @@
       } catch {}
     }
 
+    function pickTokenFromRes(res) {
+      if (!res || typeof res !== 'object') return '';
+      return String(
+        res.token ||
+        res.memberToken ||
+        res.data?.token ||
+        extractTokenValue(res.url || res.link || res.memberUrl || res.data?.url || res.data?.link || '') ||
+        ''
+      ).trim();
+    }
+
     async function resolveMemberToken(memberName) {
       const mObj = (state.trainerOverview || []).find(x => x.name === memberName);
       let tok = mObj?.token || (memberName === state.memberName ? state.token : '');
+      if (!tok) {
+        try {
+          const map = JSON.parse(localStorage.getItem('fit_member_tokens_v2') || '{}');
+          if (map[memberName]) tok = map[memberName];
+        } catch {}
+      }
       if (tok) return tok;
       if (state.isLive && state.trainerPassword) {
         try {
           const r = await postAppsScript({ action: 'getMemberLink', name: memberName, password: state.trainerPassword });
-          const rTok = r?.token || extractTokenValue(r?.url || r?.link || '');
-          if (r?.status === 'success' && rTok) {
+          const rTok = pickTokenFromRes(r);
+          if (rTok) {
             saveMemberTokenLocal(memberName, rTok);
             return rTok;
           }
         } catch {}
         try {
           const addR = await postAppsScript({ action: 'addMember', name: memberName, password: state.trainerPassword });
-          if (addR?.status === 'success' && addR.token) {
-            saveMemberTokenLocal(memberName, addR.token);
-            return addR.token;
+          const addTok = pickTokenFromRes(addR);
+          if (addTok) {
+            saveMemberTokenLocal(memberName, addTok);
+            return addTok;
           }
-          if (addR?.message) showToast('서버 응답: ' + addR.message);
+        } catch {}
+        try {
+          const listR = await postAppsScript({ action: 'listMembers', password: state.trainerPassword });
+          const arr = Array.isArray(listR?.members) ? listR.members : (Array.isArray(listR?.data) ? listR.data : []);
+          const matched = arr.find(x => x && typeof x === 'object' && (x.name || x.member) === memberName);
+          const listTok = pickTokenFromRes(matched);
+          if (listTok) {
+            saveMemberTokenLocal(memberName, listTok);
+            return listTok;
+          }
         } catch {}
       }
       return '';
@@ -2725,12 +2752,48 @@
       openModal(`${memberName}님 전용 링크 연결`, `
         <div class="space-y-3">
           <p class="text-[12px] text-[#4B5563] leading-relaxed">
-            서버에서 <strong>${escapeHtml(memberName)}</strong>님의 토큰을 찾지 못했습니다. Google 시트에 등록된 링크(또는 토큰)가 있다면 아래에 붙여넣어 주세요.
+            아직 <strong>${escapeHtml(memberName)}</strong>님의 전용 링크가 발급되지 않았거나 시트에서 찾지 못했습니다. 아래 버튼으로 바로 발급하거나 기존 링크를 붙여넣어 주세요.
           </p>
-          <input id="tk-paste-inp" placeholder="회원 링크(?name=...&token=...) 또는 token 붙여넣기" class="w-full text-[12px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
-          <button type="button" id="tk-save-copy-btn" class="tap-scale w-full py-3.5 rounded-2xl hero-navy text-white text-[13px] font-extrabold">저장 후 전용 링크 복사</button>
+          <button type="button" id="tk-issue-btn" class="tap-scale w-full py-3 rounded-2xl card-teal text-white text-[13px] font-extrabold">✨ 서버에서 전용 링크 새로 발급하기</button>
+          <div class="pt-2 border-t border-gray-100 space-y-2">
+            <input id="tk-paste-inp" placeholder="또는 기존 회원 링크(?name=...&token=...) 붙여넣기" class="w-full text-[12px] px-3.5 py-2.5 rounded-2xl bg-[#F4F6F9] focus:outline-none" />
+            <button type="button" id="tk-save-copy-btn" class="tap-scale w-full py-3 rounded-2xl hero-navy text-white text-[13px] font-extrabold">붙여넣은 링크 저장 · 복사</button>
+          </div>
         </div>
       `);
+      const issueBtn = document.getElementById('tk-issue-btn');
+      if (issueBtn) {
+        issueBtn.addEventListener('click', async () => {
+          if (!state.isLive || !state.trainerPassword) { showToast('코치 로그인 후 이용할 수 있어요'); return; }
+          issueBtn.disabled = true;
+          issueBtn.textContent = '전용 링크 발급 중...';
+          try {
+            let res = await postAppsScript({ action: 'rotateMemberToken', name: memberName, password: state.trainerPassword }).catch(() => null);
+            let newTok = pickTokenFromRes(res);
+            if (!newTok) {
+              res = await postAppsScript({ action: 'addMember', name: memberName, password: state.trainerPassword }).catch(() => null);
+              newTok = pickTokenFromRes(res);
+            }
+            if (newTok) {
+              saveMemberTokenLocal(memberName, newTok);
+              const u = new URL(base);
+              u.searchParams.set('name', memberName);
+              u.searchParams.set('token', newTok);
+              copyTextSafe(u.toString());
+              closeModal();
+              showToast(`${memberName}님 전용 링크가 새로 발급·복사되었어요! ✓`);
+            } else {
+              showToast('발급 실패: ' + (res?.message || res?.error || 'Google 시트 권한/설정을 확인해 주세요'));
+              issueBtn.disabled = false;
+              issueBtn.textContent = '✨ 서버에서 전용 링크 새로 발급하기';
+            }
+          } catch {
+            showToast('서버 통신 오류가 발생했어요');
+            issueBtn.disabled = false;
+            issueBtn.textContent = '✨ 서버에서 전용 링크 새로 발급하기';
+          }
+        });
+      }
       document.getElementById('tk-save-copy-btn').addEventListener('click', () => {
         const parsedTok = extractTokenValue(document.getElementById('tk-paste-inp').value);
         if (!parsedTok) { showToast('링크 또는 토큰을 붙여넣어 주세요'); return; }

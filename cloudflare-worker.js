@@ -350,7 +350,9 @@ function buildMemberInsights(rows,date) {
     item.points=[...byDay.values()].slice(-24);
     return item;
   }).sort((a,b)=>b.points.length-a.points.length).slice(0,30);
-  return {status:'success',partial:true,
+  const latestPtRow = [...rows].reverse().find(row => Array.isArray(row.data?.routines) && row.data.routines.some(r => r && r.routineType !== 'homework'));
+  const latestPt = latestPtRow ? {date:latestPtRow.date,count:latestPtRow.data.routines.filter(r=>r && r.routineType !== 'homework').length} : null;
+  return {status:'success',partial:true,latestPt,
     careSummary:{start,end:date,workoutDays:care.workoutDays.size,dietDays:care.dietDays.size,feedbackDays:care.feedbackDays.size},
     weekly:{start,end,current:weeklyStat(week.current),previous:weeklyStat(week.previous),improvements},
     monthly:{month,previousMonth:prevMonth,current:monthlyStat(monthly.current),

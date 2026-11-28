@@ -6600,7 +6600,7 @@
         const diaryCount = ptCount || recentPt?.count || 0;
         const ptDiaryTitle = diaryDate === getTodayKST()
           ? '오늘 PT 수업 일지'
-          : diaryDate ? `${formatPtDate(diaryDate)} PT 수업 일지` : '';
+          : diaryDate ? `${formatPtDate(diaryDate)} PT 수업 일지` : 'PT 수업 일지';
         const pendingRoutine = routines.find(r => r.routineType === 'homework' && (!Array.isArray(r.completedSets) || !r.completedSets.some(Boolean)));
         const personalWorkoutDone = !ptCount && routines.length > 0 && !pendingRoutine;
         const isPtDay = Boolean(state.record.ptScheduled);
@@ -6616,16 +6616,14 @@
 
         return `
           <div class="space-y-3.5 animate-in">
-            ${diaryCount ? `
-              <button type="button" id="home-pt-diary" data-diary-date="${escapeHtml(diaryDate)}" class="card-teal tap-scale w-full p-4 rounded-[22px] text-white text-left flex items-center gap-3 shadow-sm">
+            <button type="button" id="home-pt-diary" data-diary-date="${escapeHtml(diaryDate)}" class="card-teal tap-scale w-full p-4 rounded-[22px] text-white text-left flex items-center gap-3 shadow-sm">
                 <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white/20">${lessonIcon}</span>
                 <span class="flex-1 min-w-0">
                   <span class="block text-[15px] font-extrabold">${ptDiaryTitle}</span>
-                  <span class="block text-[12px] font-semibold mt-1">${ptCount && ptTime ? `${escapeHtml(ptTime)} · ` : ''}${diaryCount}종목 · 수업 내용 보기</span>
+                  <span class="block text-[12px] font-semibold mt-1">${ptCount && ptTime ? `${escapeHtml(ptTime)} · ` : ''}${diaryCount ? `${diaryCount}종목 · 수업 내용 보기` : '최근 수업 기록 확인하기'}</span>
                 </span>
                 <span class="shrink-0 text-lg font-bold" aria-hidden="true">›</span>
               </button>
-            ` : ''}
 
             <!-- Hero Card -->
             <section class="hero-navy rounded-[26px] p-5 text-white shadow-[0_14px_30px_rgba(30,58,138,0.28)]">
@@ -7337,8 +7335,25 @@
       });
 
       for (const id of ['home-pt-diary', 'btn-home-mission']) {
-        document.getElementById(id)?.addEventListener('click', () => {
-          const diaryDate = id === 'home-pt-diary' ? document.getElementById(id)?.dataset.diaryDate : '';
+        document.getElementById(id)?.addEventListener('click', async () => {
+          let diaryDate = id === 'home-pt-diary' ? document.getElementById(id)?.dataset.diaryDate : '';
+          if (id === 'home-pt-diary' && !diaryDate && state.isLive) {
+            const member = state.memberName, date = state.selectedDate, session = state.session;
+            const auth = { member, date, session };
+            try {
+              const result = await postRecords({ ...auth, action: 'memberInsights' });
+              diaryDate = result?.latestPt?.date || '';
+              if (!diaryDate) {
+                const history = await postRecords({ ...auth, action: 'workoutHistory', month: date.slice(0, 7) });
+                const candidates = [...new Set([...(history.days || []), ...Object.values(history.previous || {}).map(r => r.date)])].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
+                for (const candidate of candidates.slice(0, 20)) {
+                  const daily = unwrapDailyRecord(await postRecords({ ...auth, action: 'read', date: candidate }));
+                  if (daily.routines?.some(r => r && r.routineType !== 'homework')) { diaryDate = candidate; break; }
+                }
+              }
+            } catch { showToast('최근 수업 조회에 실패했어요. 날짜를 선택해 다시 확인해 주세요.'); }
+            if (state.memberName !== member || state.selectedDate !== date || state.appMode !== 'member') return;
+          }
           state.memberTab = 'lesson';
           state.lessonView = 'today';
           if (diaryDate && diaryDate !== state.selectedDate) {
